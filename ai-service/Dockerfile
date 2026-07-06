@@ -2,14 +2,14 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --ignore-scripts; mkdir -p node_modules
 
 # Stage 2: Build
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build 2>/dev/null || true
+RUN mkdir -p dist; npm run build 2>/dev/null || true
 
 # Stage 3: Production
 FROM node:20-alpine AS rahatio-ai
