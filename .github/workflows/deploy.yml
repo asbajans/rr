@@ -45,9 +45,6 @@ jobs:
           target: rahatio-core
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
-      - name: Trigger Portainer Webhook
-        run: |
-          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_CORE }}"
 
   build-ai:
     needs: detect-changes
@@ -67,9 +64,6 @@ jobs:
           target: rahatio-ai
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
-      - name: Trigger Portainer Webhook
-        run: |
-          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_AI }}"
 
   build-integration:
     needs: detect-changes
@@ -89,6 +83,12 @@ jobs:
           target: rahatio-integration
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
+
+  trigger-portainer:
+    needs: [build-core, build-ai, build-integration]
+    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Trigger Portainer Webhook
         run: |
-          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_INTEGRATION }}"
+          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
