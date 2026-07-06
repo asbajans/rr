@@ -1,0 +1,22 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.env
+core-engine/storage/
+core-engine/vendor/
+core-engine/node_modules/
+ai-service/node_modules/
+ai-service/dist/
+integration-service/node_modules/
+integration-service/dist/
+
+# Logs
+*.log

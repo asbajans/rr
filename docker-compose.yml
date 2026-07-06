@@ -1,0 +1,111 @@
+version: "3.9"
+
+networks:
+  rahatio:
+    name: rahatio-network
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rahatio-mysql
+    restart: unless-stopped
+    networks:
+      - rahatio
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-rahatio}
+      MYSQL_USER: ${MYSQL_USER:-rahatio}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rahatio-redis
+    restart: unless-stopped
+    networks:
+      - rahatio
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  laravel-app:
+    build:
+      context: ./core-engine
+      target: rahatio-core
+    container_name: rahatio-core
+    restart: unless-stopped
+    networks:
+      - rahatio
+    volumes:
+      - ./core-engine/storage:/var/www/storage
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DB_HOST: mysql
+      DB_DATABASE: ${MYSQL_DATABASE:-rahatio}
+      DB_USERNAME: ${MYSQL_USER:-rahatio}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
+      REDIS_HOST: redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  laravel-nginx:
+    image: nginx:1.25-alpine
+    container_name: rahatio-nginx
+    restart: unless-stopped
+    networks:
+      - rahatio
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./core-engine/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - laravel-app
+
+  ai-service:
+    build:
+      context: ./ai-service
+      target: rahatio-ai
+    container_name: rahatio-ai
+    restart: unless-stopped
+    networks:
+      - rahatio
+    environment:
+      NODE_ENV: ${APP_ENV:-production}
+      REDIS_HOST: redis
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  integration-service:
+    build:
+      context: ./integration-service
+      target: rahatio-integration
+    container_name: rahatio-integration
+    restart: unless-stopped
+    networks:
+      - rahatio
+    environment:
+      NODE_ENV: ${APP_ENV:-production}
+      REDIS_HOST: redis
+    depends_on:
+      redis:
+        condition: service_healthy

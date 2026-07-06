@@ -1,0 +1,9 @@
+{
+  "name": "rahatio-ai-service",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "mkdir -p dist && cp -r src/* dist/ 2>/dev/null || true"
+  }
+}

@@ -1,0 +1,94 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      ai: ${{ steps.filter.outputs.ai }}
+      integration: ${{ steps.filter.outputs.integration }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'core-engine/**'
+            ai:
+              - 'ai-service/**'
+            integration:
+              - 'integration-service/**'
+
+  build-core:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.core == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./core-engine
+          target: rahatio-core
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
+      - name: Trigger Portainer Webhook
+        run: |
+          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_CORE }}"
+
+  build-ai:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.ai == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai-service
+          target: rahatio-ai
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
+      - name: Trigger Portainer Webhook
+        run: |
+          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_AI }}"
+
+  build-integration:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.integration == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./integration-service
+          target: rahatio-integration
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
+      - name: Trigger Portainer Webhook
+        run: |
+          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_INTEGRATION }}"
