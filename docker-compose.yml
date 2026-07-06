@@ -55,8 +55,8 @@ services:
     restart: unless-stopped
     networks:
       - rahatio
-    volumes:
-      - ./core-engine/storage:/var/www/storage
+    ports:
+      - "${NGINX_PORT:-3680}:80"
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
@@ -71,19 +71,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-
-  laravel-nginx:
-    image: nginx:1.25-alpine
-    container_name: rahatio-nginx
-    restart: unless-stopped
-    networks:
-      - rahatio
-    ports:
-      - "${NGINX_PORT:-3680}:80"
-    volumes:
-      - ./core-engine/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - laravel-app
 
   ai-service:
     build:
