@@ -10,7 +10,7 @@ Thumbs.db
 
 # Docker
 .env
-core-engine/storage/
+# storage managed by storage/.gitignore
 core-engine/vendor/
 core-engine/node_modules/
 ai-service/node_modules/
