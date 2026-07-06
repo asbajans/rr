@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import { TrendyolIntegrationService } from '../integrations/trendyol/TrendyolIntegrationService';
 import { connection } from './queueManager';
 import { ProductData, StockUpdate } from '../types';
+import { sendPushNotification } from '../services/fcm';
 
 const TRENDYOL_API_KEY = process.env.TRENDYOL_API_KEY || '';
 const TRENDYOL_API_SECRET = process.env.TRENDYOL_API_SECRET || '';
@@ -29,6 +30,15 @@ const productWorker = new Worker(
       throw new Error(result.error || 'Product push failed');
     }
     console.log(`Product ${data.sku} pushed to Trendyol, id: ${result.marketplaceId}`);
+
+    if (data.siteCode) {
+      await sendPushNotification(
+        `vendor_${data.vendorId}`,
+        'Ürün Yayınlandı',
+        `${data.name} Trendyol\'da başarıyla yayınlandı.`,
+        { type: 'product_published', sku: data.sku, marketplace: 'trendyol' }
+      );
+    }
   },
   { connection, concurrency: 3 }
 );
@@ -43,8 +53,17 @@ const stockWorker = new Worker(
   { connection, concurrency: 5 }
 );
 
-productWorker.on('failed', (job, err) => {
+productWorker.on('failed', async (job, err) => {
   console.error(`Product worker failed (job ${job?.id}): ${err.message}`);
+  const data = job?.data as ProductData | undefined;
+  if (data?.siteCode) {
+    await sendPushNotification(
+      `vendor_${data.vendorId}`,
+      'Ürün Yayınlanamadı',
+      `${data.name} gönderilirken hata: ${err.message}`,
+      { type: 'product_failed', sku: data.sku, marketplace: 'trendyol' }
+    );
+  }
 });
 
 stockWorker.on('failed', (job, err) => {

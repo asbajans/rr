@@ -106,6 +106,12 @@ rr/
 - [x] Core-engine: POST /api/orders endpoint (OrderController)
 - [x] Core-engine: OrderReceived Event + SplitOrderByVendor Listener
 - [x] Core-engine: dropshipping_orders tablosu + DropshippingOrder model
+- [x] Core-engine: Sanctum Auth API (register/login/me/logout)
+- [x] Core-engine: User model + ai_credits
+- [x] Core-engine: AI Gateway/Proxy (auth -> kredi -> forward)
+- [x] Core-engine: InternalKeyService (HMAC şifreleme)
+- [x] Integration-service: FCM push notification servisi
+- [x] Integration-service: FCM entegrasyonu (order sync + product push)
 - [ ] AI service: Test ve model indirme script'leri
 - [ ] mobile-app içeriği (React Native / Flutter?)
 - [ ] Domain bazlı SSL (Traefik / Let's Encrypt)

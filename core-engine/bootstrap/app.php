@@ -11,6 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.api-key' => \App\Http\Middleware\AuthenticateWithApiKey::class,
             'domain.store' => \App\Http\Middleware\ResolveStoreFromDomain::class,
         ]);
+
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
     })
     ->withExceptions(function ($exceptions) {
         //

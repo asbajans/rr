@@ -3,6 +3,7 @@ import { HepsiburadaIntegrationService } from '../integrations/hepsiburada/Hepsi
 import { IntegrationInterface } from '../integrations/IntegrationInterface';
 import { mapToOrderDTO } from './orderMapper';
 import { OrderDTO } from '../types';
+import { sendPushNotification } from './fcm';
 import axios from 'axios';
 
 const CORE_ENGINE_ORDER_URL = process.env.CORE_ENGINE_ORDER_URL || 'http://laravel-app:9000/api/orders';
@@ -39,6 +40,13 @@ async function sendOrderToCoreEngine(dto: OrderDTO): Promise<void> {
       timeout: 15_000,
     });
     console.log(`Order ${dto.externalId} sent to core-engine`);
+
+    await sendPushNotification(
+      `marketplace_${dto.marketplace}`,
+      'Yeni Sipariş',
+      `${dto.marketplace} üzerinden ${dto.items.length} ürünlü yeni sipariş`,
+      { type: 'new_order', marketplace: dto.marketplace, externalId: dto.externalId }
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown';
     console.error(`Failed to send order ${dto.externalId}: ${msg}`);
