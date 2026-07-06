@@ -9,8 +9,8 @@ const connection = new Redis(REDIS_URL, {
   enableReadyCheck: false,
 });
 
-const productQueue = new Queue('product-push-queue', { connection });
-const stockQueue = new Queue('stock-sync-queue', { connection });
+const productQueue = new Queue('product-push-queue', { connection: connection as any });
+const stockQueue = new Queue('stock-sync-queue', { connection: connection as any });
 
 export function getQueue(name: QueueName): Queue {
   return name === 'product-push-queue' ? productQueue : stockQueue;

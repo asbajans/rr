@@ -20,7 +20,7 @@ RUN apk add --no-cache \
     libpng-dev \
     libzip-dev \
     oniguruma-dev \
-    && docker-php-ext-install \
+    && docker-php-ext-install -j$(nproc) \
     pdo \
     pdo_mysql \
     bcmath \
@@ -37,13 +37,11 @@ COPY . /var/www/
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/app.ini
 COPY docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/php/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-RUN set -eux \
-    && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
-    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true \
+    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
 
 WORKDIR /var/www
 EXPOSE 9000

@@ -27,6 +27,36 @@ jobs:
             integration:
               - 'integration-service/**'
 
+  validate-ai:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.ai == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+
+  validate-integration:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.integration == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integration-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+
   build-core:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.core == 'true' }}
@@ -47,7 +77,7 @@ jobs:
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
 
   build-ai:
-    needs: detect-changes
+    needs: [detect-changes, validate-ai]
     if: ${{ needs.detect-changes.outputs.ai == 'true' }}
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +96,7 @@ jobs:
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
 
   build-integration:
-    needs: detect-changes
+    needs: [detect-changes, validate-integration]
     if: ${{ needs.detect-changes.outputs.integration == 'true' }}
     runs-on: ubuntu-latest
     steps:

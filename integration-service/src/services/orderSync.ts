@@ -68,10 +68,10 @@ export async function syncOrders(): Promise<void> {
         await sendOrderToCoreEngine(dto);
       }
 
-      console.log(`[${integration.marketplaceName}] ${orders.length} new orders synced`);
+      console.log(`[${integration.name}] ${orders.length} new orders synced`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown';
-      console.error(`[${integration.marketplaceName}] sync failed: ${msg}`);
+      console.error(`[${integration.name}] sync failed: ${msg}`);
     }
   }
 }

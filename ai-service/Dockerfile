@@ -6,25 +6,20 @@ RUN npm install && mkdir -p node_modules
 COPY src/ src/
 RUN npm run build
 
-# Stage 2: Python deps (background removal)
-FROM python:3.11-alpine AS py-deps
-RUN pip install --no-cache-dir rembg[gpu] torch torchvision --quiet \
-    && mkdir -p /models
-
-# Stage 3: Production
+# Stage 2: Production
 FROM node:20-alpine AS rahatio-ai
 WORKDIR /app
 
-RUN apk add --no-cache tini curl python3 py3-pip
+RUN apk add --no-cache tini curl python3 py3-pip py3-pillow
 
-COPY --from=py-deps /usr/local/lib/python3.11 /usr/local/lib/python3.11
-COPY --from=py-deps /usr/local/bin /usr/local/bin
-COPY --from=py-deps /models /models
+RUN pip3 install --no-cache-dir rembg onnxruntime --quiet \
+    && rm -rf /root/.cache
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
 COPY workflows/ workflows/
+COPY scripts/ scripts/
 
 ENV COMFY_URL=http://localhost:8188
 ENV OLLAMA_URL=http://localhost:11434

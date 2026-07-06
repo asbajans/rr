@@ -40,7 +40,7 @@ const productWorker = new Worker(
       );
     }
   },
-  { connection, concurrency: 3 }
+  { connection: connection as any, concurrency: 3 }
 );
 
 const stockWorker = new Worker(
@@ -50,7 +50,7 @@ const stockWorker = new Worker(
     await getTrendyol().updateStock(data.sku, data.quantity);
     console.log(`Stock updated for ${data.sku}: ${data.quantity}`);
   },
-  { connection, concurrency: 5 }
+  { connection: connection as any, concurrency: 5 }
 );
 
 productWorker.on('failed', async (job, err) => {
