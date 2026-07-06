@@ -10,7 +10,8 @@ if [ -z "$APP_KEY" ] || [ "$APP_KEY" = " " ]; then
     php artisan key:generate --force
 fi
 
-php artisan migrate --force 2>&1 || echo "Migration skipped"
+php artisan aimeos:setup --ansi 2>&1 || echo "Aimeos setup skipped"
+php artisan migrate --force --ansi 2>&1 || echo "Migration skipped"
 php artisan config:clear 2>&1 || true
 php artisan route:clear 2>&1 || true
 
