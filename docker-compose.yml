@@ -17,7 +17,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3506:3306"
+      - "3606:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     environment:
@@ -38,7 +38,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3579:6379"
+      - "3679:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -79,7 +79,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "${NGINX_PORT:-3580}:80"
+      - "${NGINX_PORT:-3680}:80"
     volumes:
       - ./core-engine/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -94,7 +94,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3530:3000"
+      - "3630:3000"
     environment:
       NODE_ENV: ${APP_ENV:-production}
       REDIS_HOST: redis
@@ -111,7 +111,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3531:3001"
+      - "3631:3001"
     environment:
       NODE_ENV: ${APP_ENV:-production}
       REDIS_HOST: redis

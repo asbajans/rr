@@ -41,11 +41,11 @@ rr/
 
 | Container          | Internal | External |
 |--------------------|----------|----------|
-| rahatio-mysql      | 3306     | 3506     |
-| rahatio-redis      | 6379     | 3579     |
-| rahatio-nginx      | 80       | 3580     |
-| rahatio-ai         | 3000     | 3530     |
-| rahatio-integration| 3001     | 3531     |
+| rahatio-mysql      | 3306     | 3606     |
+| rahatio-redis      | 6379     | 3679     |
+| rahatio-nginx      | 80       | 3680     |
+| rahatio-ai         | 3000     | 3630     |
+| rahatio-integration| 3001     | 3631     |
 
 ## CI/CD
 
