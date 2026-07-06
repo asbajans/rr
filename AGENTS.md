@@ -99,6 +99,13 @@ rr/
 - [x] Integration service: TrendyolIntegrationService (rate-limited API client)
 - [x] Integration service: Trendyol product mapper (kategori eşleme)
 - [x] Integration service: /webhook/product endpoint (core-engine'den çağrılır)
+- [x] Integration service: Cron job (5dk) ile pazar yeri sipariş polling
+- [x] Integration service: OrderDTO mapper (ortak şema)
+- [x] Integration service: Core-engine order API'sine POST
+- [x] Integration service: Hepsiburada IntegrationService (Strategy Pattern)
+- [x] Core-engine: POST /api/orders endpoint (OrderController)
+- [x] Core-engine: OrderReceived Event + SplitOrderByVendor Listener
+- [x] Core-engine: dropshipping_orders tablosu + DropshippingOrder model
 - [ ] AI service: Test ve model indirme script'leri
 - [ ] mobile-app içeriği (React Native / Flutter?)
 - [ ] Domain bazlı SSL (Traefik / Let's Encrypt)
