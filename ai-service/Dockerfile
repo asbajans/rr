@@ -1,25 +1,32 @@
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json ./
-RUN npm install --omit=dev --ignore-scripts; mkdir -p node_modules
-
-# Stage 2: Build
+# Stage 1: TypeScript Compile
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN mkdir -p dist; npm run build 2>/dev/null || true
+COPY package.json tsconfig.json ./
+RUN npm install && mkdir -p node_modules
+COPY src/ src/
+RUN npm run build
+
+# Stage 2: Python deps (background removal)
+FROM python:3.11-alpine AS py-deps
+RUN pip install --no-cache-dir rembg[gpu] torch torchvision --quiet \
+    && mkdir -p /models
 
 # Stage 3: Production
 FROM node:20-alpine AS rahatio-ai
 WORKDIR /app
-RUN apk add --no-cache tini curl
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY package.json ./
 
-USER node
+RUN apk add --no-cache tini curl python3 py3-pip
+
+COPY --from=py-deps /usr/local/lib/python3.11 /usr/local/lib/python3.11
+COPY --from=py-deps /usr/local/bin /usr/local/bin
+COPY --from=py-deps /models /models
+
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY package.json ./
+COPY workflows/ workflows/
+
+ENV COMFY_URL=http://localhost:8188
 EXPOSE 3000
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/index.js"]

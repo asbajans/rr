@@ -83,7 +83,13 @@ rr/
 - [ ] api_keys tablosuna seed data (admin API key)
 - [ ] stores tablosuna seed data (default store)
 - [ ] Integration service'te /webhook/product endpoint'i
-- [ ] AI service içeriği (LLM entegrasyonu?)
+- [x] AI service: TypeScript + Express + Socket.io altyapısı
+- [x] AI service: /ai/process-image upload endpoint (multi-file + category)
+- [x] AI service: Arka plan silme (rembg/BiRefNet)
+- [x] AI service: ComfyUI entegrasyonu (workflow + API)
+- [x] AI service: Kategori bazlı workflow JSON'ları (giyim, taki, kozmetik, ayakkabi, canta, elektronik + generic)
+- [x] AI service: WebSocket anlık durum bildirimi
+- [ ] AI service: Test ve model indirme script'leri
 - [ ] mobile-app içeriği (React Native / Flutter?)
 - [ ] Domain bazlı SSL (Traefik / Let's Encrypt)
 - [ ] Rate limiting ve güvenlik katmanı
