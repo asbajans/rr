@@ -1,25 +1,20 @@
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json ./
-RUN npm install --omit=dev --ignore-scripts; mkdir -p node_modules
-
-# Stage 2: Build
+# Stage 1: Build
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN mkdir -p dist; npm run build 2>/dev/null || true
+COPY package.json tsconfig.json ./
+RUN npm install && mkdir -p node_modules
+COPY src/ src/
+RUN npm run build
 
-# Stage 3: Production
+# Stage 2: Production
 FROM node:20-alpine AS rahatio-integration
 WORKDIR /app
 RUN apk add --no-cache tini curl
-COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
 COPY package.json ./
 
-USER node
+ENV REDIS_URL=redis://redis:6379
 EXPOSE 3001
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/index.js"]

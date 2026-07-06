@@ -97,10 +97,8 @@ services:
       - "3630:3000"
     environment:
       NODE_ENV: ${APP_ENV:-production}
-      REDIS_HOST: redis
-    depends_on:
-      redis:
-        condition: service_healthy
+      OLLAMA_URL: http://host.docker.internal:11434
+      COMFY_URL: http://host.docker.internal:8188
 
   integration-service:
     build:
@@ -114,7 +112,10 @@ services:
       - "3631:3001"
     environment:
       NODE_ENV: ${APP_ENV:-production}
-      REDIS_HOST: redis
+      REDIS_URL: redis://redis:6379
+      TRENDYOL_API_KEY: ${TRENDYOL_API_KEY:-}
+      TRENDYOL_API_SECRET: ${TRENDYOL_API_SECRET:-}
+      TRENDYOL_SUPPLIER_ID: ${TRENDYOL_SUPPLIER_ID:-}
     depends_on:
       redis:
         condition: service_healthy

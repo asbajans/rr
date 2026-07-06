@@ -93,6 +93,12 @@ rr/
 - [x] AI service: LLM Prompt Chain (SEO, Trendyol, Amazon metinleri)
 - [x] AI service: Full pipeline (bg -> comfyui -> vision -> llm -> final JSON)
 - [x] AI service: Final result WebSocket ile mobil uygulamaya iletilir
+- [x] Integration service: TypeScript + Express + BullMQ + Redis
+- [x] Integration service: product-push-queue + stock-sync-queue (BullMQ)
+- [x] Integration service: IntegrationInterface (Strategy Pattern)
+- [x] Integration service: TrendyolIntegrationService (rate-limited API client)
+- [x] Integration service: Trendyol product mapper (kategori eşleme)
+- [x] Integration service: /webhook/product endpoint (core-engine'den çağrılır)
 - [ ] AI service: Test ve model indirme script'leri
 - [ ] mobile-app içeriği (React Native / Flutter?)
 - [ ] Domain bazlı SSL (Traefik / Let's Encrypt)
