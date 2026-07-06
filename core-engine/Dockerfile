@@ -37,6 +37,7 @@ COPY . /var/www/
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/app.ini
 COPY docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/php/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
 
