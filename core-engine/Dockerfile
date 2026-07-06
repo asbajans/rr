@@ -7,7 +7,9 @@ RUN composer install \
     --no-interaction \
     --no-progress \
     --optimize-autoloader \
-    --ignore-platform-req=ext-*
+    --ignore-platform-req=ext-* \
+    && rm -f /app/vendor/aimeos/aimeos/app/Http/Middleware/TrustHosts.php \
+    && composer dump-autoload --optimize
 
 # Stage 2: Production
 FROM php:8.3-fpm-alpine AS rahatio-core
