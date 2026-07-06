@@ -1,21 +1,22 @@
 <?php
 
-use Illuminate\Foundation\Application;
+$app = new Illuminate\Foundation\Application(
+    $_ENV['APP_BASE_PATH'] ?? dirname(__DIR__)
+);
 
-return Application::configure(basePath: dirname(__DIR__))
-    ->withRouting(
-        api: __DIR__ . '/../routes/api.php',
-    )
-    ->withMiddleware(function ($middleware) {
-        $middleware->alias([
-            'auth.api-key' => \App\Http\Middleware\AuthenticateWithApiKey::class,
-            'domain.store' => \App\Http\Middleware\ResolveStoreFromDomain::class,
-        ]);
+$app->singleton(
+    Illuminate\Contracts\Http\Kernel::class,
+    App\Http\Kernel::class
+);
 
-        $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
-    })
-    ->withExceptions(function ($exceptions) {
-        //
-    })->create();
+$app->singleton(
+    Illuminate\Contracts\Console\Kernel::class,
+    App\Console\Kernel::class
+);
+
+$app->singleton(
+    Illuminate\Contracts\Debug\ExceptionHandler::class,
+    App\Exceptions\Handler::class
+);
+
+return $app;

@@ -10,13 +10,15 @@ use Illuminate\Support\Facades\Route;
 
 class RouteServiceProvider extends ServiceProvider
 {
+    public const HOME = '/';
+
     public function boot(): void
     {
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120));
 
         $this->routes(function () {
-            Route::prefix('api')
-                ->middleware('api')
+            Route::middleware('api')
+                ->prefix('api')
                 ->group(base_path('routes/api.php'));
         });
     }
