@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
-import { SessionUpdate, ProcessStatus } from '../types';
+import { SessionUpdate, ProcessStatus, FinalProductResult } from '../types';
 
 let io: Server;
 
@@ -29,9 +29,10 @@ export function sendUpdate(
   sessionId: string,
   status: ProcessStatus,
   message: string,
-  images?: string[]
+  images?: string[],
+  result?: FinalProductResult
 ): void {
   if (!io) return;
-  const update: SessionUpdate = { sessionId, status, message, images };
+  const update: SessionUpdate = { sessionId, status, message, images, result };
   io.to(sessionId).emit('process_update', update);
 }

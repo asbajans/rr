@@ -1,9 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { upload } from '../middleware/upload';
-import { removeBackground } from '../services/backgroundRemover';
-import { processWithComfyUI } from '../services/comfyui';
+import { runPipeline } from '../services/pipeline';
 import { sendUpdate } from '../services/websocket';
-import { ProductCategory } from '../types';
+import { ProductCategory, SellerNotes } from '../types';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs';
@@ -17,13 +16,19 @@ router.post(
     const category = (req.body.category || 'diger').toLowerCase() as ProductCategory;
     const files = req.files as Express.Multer.File[];
 
+    const notes: SellerNotes = {
+      shortDescription: req.body.short_description,
+      keywords: req.body.keywords,
+      targetAudience: req.body.target_audience,
+      notes: req.body.notes,
+    };
+
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'En az bir görsel gerekli' });
       return;
     }
 
     const sessionId = uuid();
-    const outputBase = path.resolve('output', sessionId);
 
     sendUpdate(sessionId, 'queued', 'Sıraya alındı');
 
@@ -33,33 +38,15 @@ router.post(
     });
 
     try {
-      const results: string[] = [];
+      const filePaths = files.map((f) => f.path);
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        sendUpdate(sessionId, 'background_removal', `Görsel ${i + 1}/${files.length} arka planı siliniyor...`);
-
-        const noBgPath = await removeBackground(file.path, sessionId, (msg) => {
-          sendUpdate(sessionId, 'background_removal', msg);
-        });
-
-        sendUpdate(sessionId, 'background_complete', `Görsel ${i + 1} arka planı temizlendi`);
-
-        sendUpdate(sessionId, 'comfyui_generating', `Görsel ${i + 1}/${files.length} işleniyor...`);
-
-        const generated = await processWithComfyUI(noBgPath, category, (msg) => {
-          sendUpdate(sessionId, 'comfyui_generating', msg);
-        });
-
-        results.push(...generated);
-      }
-
-      sendUpdate(sessionId, 'completed', 'Tüm görseller hazır', results);
-
-      for (const file of files) {
-        fs.unlink(file.path, () => {});
-      }
+      await runPipeline(
+        filePaths,
+        category,
+        notes,
+        sessionId,
+        true
+      );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
       sendUpdate(sessionId, 'failed', errorMsg);

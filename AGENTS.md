@@ -89,6 +89,10 @@ rr/
 - [x] AI service: ComfyUI entegrasyonu (workflow + API)
 - [x] AI service: Kategori bazlı workflow JSON'ları (giyim, taki, kozmetik, ayakkabi, canta, elektronik + generic)
 - [x] AI service: WebSocket anlık durum bildirimi
+- [x] AI service: Vision Analyzer (Ollama llama3.2-vision ile teknik özellik çıkarma)
+- [x] AI service: LLM Prompt Chain (SEO, Trendyol, Amazon metinleri)
+- [x] AI service: Full pipeline (bg -> comfyui -> vision -> llm -> final JSON)
+- [x] AI service: Final result WebSocket ile mobil uygulamaya iletilir
 - [ ] AI service: Test ve model indirme script'leri
 - [ ] mobile-app içeriği (React Native / Flutter?)
 - [ ] Domain bazlı SSL (Traefik / Let's Encrypt)

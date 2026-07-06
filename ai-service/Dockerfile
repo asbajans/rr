@@ -27,6 +27,9 @@ COPY package.json ./
 COPY workflows/ workflows/
 
 ENV COMFY_URL=http://localhost:8188
+ENV OLLAMA_URL=http://localhost:11434
+ENV VISION_MODEL=llama3.2-vision
+ENV LLM_MODEL=llama3
 EXPOSE 3000
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/index.js"]
