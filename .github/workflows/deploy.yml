@@ -116,7 +116,7 @@ jobs:
 
   trigger-portainer:
     needs: [build-core, build-ai, build-integration]
-    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success') }}
+    if: ${{ always() && secrets.PORTAINER_WEBHOOK_URL != '' && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Portainer Webhook
