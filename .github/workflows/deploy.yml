@@ -22,10 +22,13 @@ jobs:
           filters: |
             core:
               - 'core-engine/**'
+              - '.github/**'
             ai:
               - 'ai-service/**'
+              - '.github/**'
             integration:
               - 'integration-service/**'
+              - '.github/**'
 
   validate-ai:
     needs: detect-changes
