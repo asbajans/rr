@@ -8,6 +8,7 @@ RUN composer install \
     --no-progress \
     --optimize-autoloader \
     --ignore-platform-req=ext-* \
+    && cp vendor/aimeos/aimeos-core/config/resource.php-dist vendor/aimeos/aimeos-core/config/resource.php \
     && rm -f /app/vendor/aimeos/aimeos/app/Http/Middleware/TrustHosts.php \
     && composer dump-autoload --optimize
 
