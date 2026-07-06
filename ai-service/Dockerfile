@@ -12,7 +12,7 @@ WORKDIR /app
 
 RUN apk add --no-cache tini curl python3 py3-pip py3-pillow
 
-RUN pip3 install --no-cache-dir rembg onnxruntime --quiet \
+RUN pip3 install --no-cache-dir --break-system-packages rembg onnxruntime --quiet \
     && rm -rf /root/.cache
 
 COPY --from=build /app/dist ./dist
