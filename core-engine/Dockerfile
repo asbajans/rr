@@ -1,7 +1,7 @@
 # Stage 1: Dependencies
 FROM composer:2.7 AS vendor
 WORKDIR /app
-COPY composer.json composer.lock ./
+COPY composer.json ./
 RUN composer install \
     --no-dev \
     --no-interaction \
@@ -9,15 +9,7 @@ RUN composer install \
     --optimize-autoloader \
     --ignore-platform-req=ext-*
 
-# Stage 2: Assets
-FROM node:20-alpine AS assets
-WORKDIR /app
-COPY package.json package-lock.json vite.config.js ./
-RUN npm ci --omit=dev
-COPY resources/ resources/
-RUN npm run build
-
-# Stage 3: Production
+# Stage 2: Production
 FROM php:8.3-fpm-alpine AS rahatio-core
 RUN apk add --no-cache \
     nginx \
@@ -40,7 +32,6 @@ RUN apk add --no-cache \
 
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 COPY --from=vendor /app/vendor/ /var/www/vendor/
-COPY --from=assets /app/public/build/ /var/www/public/build/
 COPY . /var/www/
 
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/app.ini
