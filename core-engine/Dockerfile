@@ -24,11 +24,19 @@ RUN apk add --no-cache \
     supervisor \
     curl \
     bash \
+    icu-dev \
+    libpng-dev \
+    libzip-dev \
+    oniguruma-dev \
     && docker-php-ext-install \
     pdo \
     pdo_mysql \
     bcmath \
-    opcache
+    opcache \
+    intl \
+    gd \
+    zip \
+    mbstring
 
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 COPY --from=vendor /app/vendor/ /var/www/vendor/

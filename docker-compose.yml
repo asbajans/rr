@@ -61,6 +61,7 @@ services:
       DB_USERNAME: ${MYSQL_USER:-rahatio}
       DB_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
       REDIS_HOST: redis
+      INTEGRATION_SERVICE_URL: http://rahat-integration:3000
     depends_on:
       mysql:
         condition: service_healthy
