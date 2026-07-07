@@ -1,0 +1,17 @@
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -o /app/rahatio-slave ./cmd/slave/
+
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates tzdata
+COPY --from=builder /app/rahatio-slave /usr/local/bin/rahatio-slave
+COPY slave.yaml /etc/rahatio/slave.yaml
+
+EXPOSE 8080
+ENTRYPOINT ["rahatio-slave"]
+CMD ["-config", "/etc/rahatio/slave.yaml"]

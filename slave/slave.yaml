@@ -1,0 +1,28 @@
+api:
+  # Core API base URL (required)
+  base_url: "https://api.rahatio.com.tr"
+  # Store API key (required)
+  api_key: "your-api-key-here"
+  # HMAC secret for request signing (same as RAHAT_INTERNAL_KEY)
+  hmac_secret: "change-me-internal-key"
+  # Store site code (required)
+  store_code: "default"
+  # HTTP request timeout in seconds
+  timeout: 30
+
+sync:
+  # Cron interval for sync (default: every 5 minutes)
+  interval: "@every 5m"
+  # Categories to sync (all if empty)
+  categories:
+    - products
+    - stocks
+    - orders
+
+database:
+  # SQLite database file path
+  path: "data/slave.db"
+
+server:
+  # Health check server port
+  port: 8080

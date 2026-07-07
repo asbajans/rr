@@ -36,6 +36,28 @@ class AuthenticateWithApiKey
             }
         }
 
+        $signature = $request->header('X-Signature');
+        $timestamp = $request->header('X-Timestamp');
+        if ($signature && $timestamp) {
+            $internalKey = env('RAHAT_INTERNAL_KEY');
+            if (!$internalKey) {
+                return response()->json(['error' => 'HMAC verification not configured'], 500);
+            }
+
+            $path = ltrim($request->path(), '/');
+            $payload = sprintf("%s\n%s\n%s\n%s",
+                $request->method(),
+                $path,
+                $timestamp,
+                $request->getContent()
+            );
+
+            $expected = hash_hmac('sha256', $payload, $internalKey);
+            if (!hash_equals($expected, $signature)) {
+                return response()->json(['error' => 'Invalid HMAC signature'], 401);
+            }
+        }
+
         $apiKey->touch('last_used_at');
 
         $request->merge(['site_code' => $apiKey->store->site_code]);

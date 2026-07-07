@@ -15,6 +15,7 @@ jobs:
       ai: ${{ steps.filter.outputs.ai }}
       integration: ${{ steps.filter.outputs.integration }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      slave: ${{ steps.filter.outputs.slave }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -32,6 +33,9 @@ jobs:
               - '.github/**'
             frontend:
               - 'frontend/**'
+              - '.github/**'
+            slave:
+              - 'slave/**'
               - '.github/**'
 
   validate-frontend:
@@ -155,9 +159,41 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
 
+  validate-slave:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.slave == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: slave
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - run: go build ./...
+
+  build-slave:
+    needs: [detect-changes, validate-slave]
+    if: ${{ needs.detect-changes.outputs.slave == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./slave
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-slave:latest
+
   trigger-portainer:
-    needs: [build-core, build-ai, build-integration, build-frontend]
-    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
+    needs: [build-core, build-ai, build-integration, build-frontend, build-slave]
+    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success' || needs.build-slave.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Portainer Webhook
