@@ -22,7 +22,7 @@ class ProductController extends Controller
         $search->setSortations([$search->sort('-', 'product.id')]);
 
         $total = 0;
-        $items = $manager->search($search, ['price'], $total);
+        $items = $manager->search($search, [], $total);
 
         $products = [];
         foreach ($items as $item) {
@@ -30,12 +30,6 @@ class ProductController extends Controller
             $data['price'] = null;
             $data['currency'] = 'TRY';
             $data['image'] = null;
-            $prices = $item->getRefItems('price');
-            if (!empty($prices)) {
-                $price = reset($prices);
-                $data['price'] = $price->getValue();
-                $data['currency'] = $price->getCurrencyId();
-            }
             $products[] = $data;
         }
 
