@@ -22,10 +22,33 @@ class ProductController extends Controller
         $search->setSortations([$search->sort('-', 'product.id')]);
 
         $total = 0;
-        $items = $manager->search($search, [], $total);
+        $items = $manager->search($search, ['price', 'media', 'text'], $total);
+
+        $products = [];
+        foreach ($items as $item) {
+            $data = $item->toArray();
+
+            $prices = $item->getRefItems('price');
+            $data['price'] = null;
+            $data['currency'] = 'TRY';
+            if (!empty($prices)) {
+                $price = reset($prices);
+                $data['price'] = $price->getValue();
+                $data['currency'] = $price->getCurrencyId();
+            }
+
+            $medias = $item->getRefItems('media');
+            $data['image'] = null;
+            if (!empty($medias)) {
+                $media = reset($medias);
+                $data['image'] = $media->getUrl();
+            }
+
+            $products[] = $data;
+        }
 
         return response()->json([
-            'data' => array_values($items->toArray()),
+            'data' => $products,
             'total' => $total,
         ]);
     }
@@ -35,12 +58,30 @@ class ProductController extends Controller
         try {
             $context = $this->context();
             $manager = MShop::create($context, 'product');
-            $item = $manager->get($id);
+            $item = $manager->get($id, ['price', 'media', 'text']);
         } catch (\Aimeos\MShop\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);
         }
 
-        return response()->json($item->toArray());
+        $data = $item->toArray();
+
+        $prices = $item->getRefItems('price');
+        $data['price'] = null;
+        $data['currency'] = 'TRY';
+        if (!empty($prices)) {
+            $price = reset($prices);
+            $data['price'] = $price->getValue();
+            $data['currency'] = $price->getCurrencyId();
+        }
+
+        $medias = $item->getRefItems('media');
+        $data['image'] = null;
+        if (!empty($medias)) {
+            $media = reset($medias);
+            $data['image'] = $media->getUrl();
+        }
+
+        return response()->json($data);
     }
 
     public function store(Request $request)
@@ -52,6 +93,7 @@ class ProductController extends Controller
             'currency' => 'nullable|string|size:3',
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
+            'media_url' => 'nullable|string|max:1024',
         ]);
 
         $context = $this->context();
@@ -61,21 +103,50 @@ class ProductController extends Controller
         $item->setLabel($validated['label']);
         $item->setStatus($validated['status'] ?? 1);
 
+        $manager->save($item);
+
         if (isset($validated['price'])) {
             $priceManager = MShop::create($context, 'price');
             $price = $priceManager->create();
+            $price->setParentId($item->getId());
             $price->setValue((float) $validated['price']);
             $price->setCurrencyId($validated['currency'] ?? 'TRY');
+            $price->setType('default');
             $priceManager->save($price);
         }
 
         if (isset($validated['stock'])) {
-            $item->setPropertyValue('stock', (int) $validated['stock'], 'stock');
+            $stockManager = MShop::create($context, 'stock');
+            $stockItem = $stockManager->create();
+            $stockItem->setProductId($item->getId());
+            $stockItem->setStock((float) $validated['stock']);
+            $stockManager->save($stockItem);
         }
 
-        $manager->save($item);
+        if (!empty($validated['media_url'])) {
+            $this->attachMedia($context, $item->getId(), $validated['media_url']);
+        }
 
-        return response()->json($item->toArray(), 201);
+        $saved = $manager->get($item->getId(), ['price', 'media']);
+        $data = $saved->toArray();
+
+        $prices = $saved->getRefItems('price');
+        $data['price'] = null;
+        $data['currency'] = 'TRY';
+        if (!empty($prices)) {
+            $price = reset($prices);
+            $data['price'] = $price->getValue();
+            $data['currency'] = $price->getCurrencyId();
+        }
+
+        $medias = $saved->getRefItems('media');
+        $data['image'] = null;
+        if (!empty($medias)) {
+            $media = reset($medias);
+            $data['image'] = $media->getUrl();
+        }
+
+        return response()->json($data, 201);
     }
 
     public function update(Request $request, string $id)
@@ -83,8 +154,10 @@ class ProductController extends Controller
         $validated = $request->validate([
             'label' => 'sometimes|string|max:255',
             'price' => 'nullable|numeric|min:0',
+            'currency' => 'nullable|string|size:3',
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
+            'media_url' => 'nullable|string|max:1024',
         ]);
 
         $context = $this->context();
@@ -99,23 +172,82 @@ class ProductController extends Controller
         if (isset($validated['label'])) {
             $item->setLabel($validated['label']);
         }
-        if (isset($validated['status'])) {
+        if (array_key_exists('status', $validated ?? [])) {
             $item->setStatus((int) $validated['status']);
         }
-        if (isset($validated['price'])) {
-            $priceManager = MShop::create($context, 'price');
-            $price = $priceManager->create();
-            $price->setValue((float) $validated['price']);
-            $price->setCurrencyId('TRY');
-            $priceManager->save($price);
-        }
-        if (array_key_exists('stock', $validated ?? [])) {
-            $item->setPropertyValue('stock', (int) $validated['stock'], 'stock');
-        }
-
         $manager->save($item);
 
-        return response()->json($item->toArray());
+        if (array_key_exists('price', $validated ?? [])) {
+            $priceManager = MShop::create($context, 'price');
+            $priceSearch = $priceManager->filter();
+            $priceSearch->setConditions($priceSearch->compare('==', 'price.parentid', $item->getId()));
+            $priceItems = $priceManager->search($priceSearch);
+            foreach ($priceItems as $oldPrice) {
+                $priceManager->delete($oldPrice->getId());
+            }
+
+            if ($validated['price'] !== null) {
+                $price = $priceManager->create();
+                $price->setParentId($item->getId());
+                $price->setValue((float) $validated['price']);
+                $price->setCurrencyId($validated['currency'] ?? 'TRY');
+                $price->setType('default');
+                $priceManager->save($price);
+            }
+        }
+
+        if (array_key_exists('stock', $validated ?? [])) {
+            $stockManager = MShop::create($context, 'stock');
+            $stockSearch = $stockManager->filter();
+            $stockSearch->setConditions($stockSearch->compare('==', 'stock.productid', $item->getId()));
+            $stockItems = $stockManager->search($stockSearch);
+            foreach ($stockItems as $oldStock) {
+                $stockManager->delete($oldStock->getId());
+            }
+
+            $stockItem = $stockManager->create();
+            $stockItem->setProductId($item->getId());
+            $stockItem->setStock((float) $validated['stock']);
+            $stockManager->save($stockItem);
+        }
+
+        if (array_key_exists('media_url', $validated ?? [])) {
+            $listManager = MShop::create($context, 'product/lists');
+            $listSearch = $listManager->filter();
+            $listSearch->setConditions($listSearch->and([
+                $listSearch->compare('==', 'product.lists.parentid', $item->getId()),
+                $listSearch->compare('==', 'product.lists.domain', 'media'),
+            ]));
+            $oldLists = $listManager->search($listSearch);
+            foreach ($oldLists as $ol) {
+                $listManager->delete($ol->getId());
+            }
+
+            if (!empty($validated['media_url'])) {
+                $this->attachMedia($context, $item->getId(), $validated['media_url']);
+            }
+        }
+
+        $saved = $manager->get($item->getId(), ['price', 'media']);
+        $data = $saved->toArray();
+
+        $prices = $saved->getRefItems('price');
+        $data['price'] = null;
+        $data['currency'] = 'TRY';
+        if (!empty($prices)) {
+            $price = reset($prices);
+            $data['price'] = $price->getValue();
+            $data['currency'] = $price->getCurrencyId();
+        }
+
+        $medias = $saved->getRefItems('media');
+        $data['image'] = null;
+        if (!empty($medias)) {
+            $media = reset($medias);
+            $data['image'] = $media->getUrl();
+        }
+
+        return response()->json($data);
     }
 
     public function destroy(string $id)
@@ -130,5 +262,29 @@ class ProductController extends Controller
         }
 
         return response()->json(['message' => 'Product deleted.']);
+    }
+
+    private function attachMedia(\Aimeos\MShop\ContextIface $context, string $productId, string $url): void
+    {
+        $ext = strtolower(pathinfo($url, PATHINFO_EXTENSION));
+        $mimeMap = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+        $mime = $mimeMap[$ext] ?? 'image/jpeg';
+
+        $mediaManager = MShop::create($context, 'media');
+        $media = $mediaManager->create();
+        $media->setUrl($url);
+        $media->setPreview($url);
+        $media->setMimeType($mime);
+        $media->setType('default');
+        $media->setLabel(pathinfo($url, PATHINFO_FILENAME));
+        $mediaManager->save($media);
+
+        $listManager = MShop::create($context, 'product/lists');
+        $list = $listManager->create();
+        $list->setParentId($productId);
+        $list->setRefId($media->getId());
+        $list->setDomain('media');
+        $list->setType('default');
+        $listManager->save($list);
     }
 }
