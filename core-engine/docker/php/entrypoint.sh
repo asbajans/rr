@@ -15,8 +15,12 @@ fi
 
 php artisan aimeos:setup --ansi 2>&1 || echo "Aimeos setup skipped"
 
-# MinIO bucket auto-create
-php artisan rahatio:init-minio 2>&1 || echo "MinIO init skipped"
+# MinIO bucket auto-create (retry up to 30s if MinIO not ready)
+for i in 1 2 3 4 5 6; do
+    php artisan rahatio:init-minio 2>&1 && break
+    echo "MinIO not ready, retrying in 5s... ($i/6)"
+    sleep 5
+done
 
 # Aimeos OrderUpdateInvoiceNo fix: null invoiceno -> varsayılan değer + kolon fix
 php artisan rahatio:fix-orders 2>&1 || true
