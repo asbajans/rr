@@ -26,24 +26,10 @@ class ProductController extends Controller
 
         $products = [];
         foreach ($items as $item) {
-            $data = $item->toArray();
-
-            $prices = $item->getRefItems('price');
+            $data = ['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()];
             $data['price'] = null;
             $data['currency'] = 'TRY';
-            if (!empty($prices)) {
-                $price = reset($prices);
-                $data['price'] = $price->getValue();
-                $data['currency'] = $price->getCurrencyId();
-            }
-
-            $medias = $item->getRefItems('media');
             $data['image'] = null;
-            if (!empty($medias)) {
-                $media = reset($medias);
-                $data['image'] = $media->getUrl();
-            }
-
             $products[] = $data;
         }
 
@@ -96,83 +82,22 @@ class ProductController extends Controller
             'media_url' => 'nullable|string|max:1024',
         ]);
 
-        try {
-            $context = $this->context();
-            $manager = MShop::create($context, 'product');
-            $item = $manager->create();
-            $item->setCode($validated['code']);
-            $item->setLabel($validated['label']);
-            $item->setStatus($validated['status'] ?? 1);
-            if (isset($validated['stock'])) {
-                $propManager = MShop::create($context, 'product/property');
-                $prop = $propManager->create();
-                $prop->setParentId($item->getId());
-                $prop->setValue((string) (int) $validated['stock']);
-                $prop->setType('stock');
-                $prop->setLanguageId(null);
-                $propManager->save($prop);
-            }
-            $manager->save($item);
-        } catch (\Throwable $e) {
-            return response()->json(['error' => 'Product create failed: ' . $e->getMessage()], 500);
-        }
+        $context = $this->context();
+        $manager = MShop::create($context, 'product');
+        $item = $manager->create();
+        $item->setCode($validated['code']);
+        $item->setLabel($validated['label']);
+        $item->setStatus($validated['status'] ?? 1);
+        $manager->save($item);
 
-        try {
-            if (isset($validated['price'])) {
-                $priceManager = MShop::create($context, 'price');
-                $price = $priceManager->create();
-                $price->setValue((float) $validated['price']);
-                $price->setCurrencyId($validated['currency'] ?? 'TRY');
-                $price->setType('default');
-                $priceManager->save($price);
-
-                $listManager = MShop::create($context, 'product/lists');
-                $list = $listManager->create();
-                $list->setParentId($item->getId());
-                $list->setRefId($price->getId());
-                $list->setDomain('price');
-                $list->setType('default');
-                $listManager->save($list);
-            }
-
-            if (!empty($validated['media_url'])) {
-                $this->attachMedia($context, $item->getId(), $validated['media_url']);
-            }
-
-            $saved = $manager->get($item->getId(), ['price', 'media']);
-            $data = $saved->toArray();
-        } catch (\Throwable $e) {
-            return response()->json(['error' => 'Product setup failed: ' . $e->getMessage()], 500);
-        }
-
-        $prices = $saved->getRefItems('price');
-        $data['price'] = null;
-        $data['currency'] = 'TRY';
-        if (!empty($prices)) {
-            $price = reset($prices);
-            $data['price'] = $price->getValue();
-            $data['currency'] = $price->getCurrencyId();
-        }
-
-        $medias = $saved->getRefItems('media');
-        $data['image'] = null;
-        if (!empty($medias)) {
-            $media = reset($medias);
-            $data['image'] = $media->getUrl();
-        }
-
-        return response()->json($data, 201);
+        return response()->json($item->toArray(), 201);
     }
 
     public function update(Request $request, string $id)
     {
         $validated = $request->validate([
             'label' => 'sometimes|string|max:255',
-            'price' => 'nullable|numeric|min:0',
-            'currency' => 'nullable|string|size:3',
-            'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
-            'media_url' => 'nullable|string|max:1024',
         ]);
 
         $context = $this->context();
@@ -192,93 +117,7 @@ class ProductController extends Controller
         }
         $manager->save($item);
 
-        if (array_key_exists('price', $validated ?? [])) {
-            $listManager = MShop::create($context, 'product/lists');
-            $priceListSearch = $listManager->filter();
-            $priceListSearch->setConditions($priceListSearch->and([
-                $priceListSearch->compare('==', 'product.lists.parentid', $item->getId()),
-                $priceListSearch->compare('==', 'product.lists.domain', 'price'),
-            ]));
-            $oldLists = $listManager->search($priceListSearch);
-            $priceManager = MShop::create($context, 'price');
-            foreach ($oldLists as $oldList) {
-                $priceManager->delete($oldList->getRefId());
-                $listManager->delete($oldList->getId());
-            }
-
-            if ($validated['price'] !== null) {
-                $price = $priceManager->create();
-                $price->setValue((float) $validated['price']);
-                $price->setCurrencyId($validated['currency'] ?? 'TRY');
-                $price->setType('default');
-                $priceManager->save($price);
-
-                $list = $listManager->create();
-                $list->setParentId($item->getId());
-                $list->setRefId($price->getId());
-                $list->setDomain('price');
-                $list->setType('default');
-                $listManager->save($list);
-            }
-        }
-
-        if (array_key_exists('stock', $validated ?? [])) {
-            $propManager = MShop::create($context, 'product/property');
-            $propSearch = $propManager->filter();
-            $propSearch->setConditions($propSearch->and([
-                $propSearch->compare('==', 'product.property.parentid', $item->getId()),
-                $propSearch->compare('==', 'product.property.type', 'stock'),
-            ]));
-            $oldProps = $propManager->search($propSearch);
-            foreach ($oldProps as $oldProp) {
-                $propManager->delete($oldProp->getId());
-            }
-
-            $prop = $propManager->create();
-            $prop->setParentId($item->getId());
-            $prop->setValue((string) (int) $validated['stock']);
-            $prop->setType('stock');
-            $prop->setLanguageId(null);
-            $propManager->save($prop);
-        }
-
-        if (array_key_exists('media_url', $validated ?? [])) {
-            $listManager = MShop::create($context, 'product/lists');
-            $listSearch = $listManager->filter();
-            $listSearch->setConditions($listSearch->and([
-                $listSearch->compare('==', 'product.lists.parentid', $item->getId()),
-                $listSearch->compare('==', 'product.lists.domain', 'media'),
-            ]));
-            $oldLists = $listManager->search($listSearch);
-            foreach ($oldLists as $ol) {
-                $listManager->delete($ol->getId());
-            }
-
-            if (!empty($validated['media_url'])) {
-                $this->attachMedia($context, $item->getId(), $validated['media_url']);
-            }
-        }
-
-        $saved = $manager->get($item->getId(), ['price', 'media']);
-        $data = $saved->toArray();
-
-        $prices = $saved->getRefItems('price');
-        $data['price'] = null;
-        $data['currency'] = 'TRY';
-        if (!empty($prices)) {
-            $price = reset($prices);
-            $data['price'] = $price->getValue();
-            $data['currency'] = $price->getCurrencyId();
-        }
-
-        $medias = $saved->getRefItems('media');
-        $data['image'] = null;
-        if (!empty($medias)) {
-            $media = reset($medias);
-            $data['image'] = $media->getUrl();
-        }
-
-        return response()->json($data);
+        return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);
     }
 
     public function destroy(string $id)
