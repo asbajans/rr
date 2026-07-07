@@ -24,29 +24,7 @@ Route::post('/orders', [OrderController::class, 'store']);
 
 Route::get('/media/{path}', [MediaController::class, 'serve'])->where('path', '.*');
 
-Route::get('/debug/minio', function () {
-    $checks = [];
-    $checks['minio_config'] = config('filesystems.disks.minio');
 
-    try {
-        $client = new \GuzzleHttp\Client(['timeout' => 5]);
-        $resp = $client->get('http://minio:9000/minio/health/live');
-        $checks['http_health'] = $resp->getStatusCode();
-    } catch (\Throwable $e) {
-        $checks['http_error'] = $e->getMessage();
-    }
-
-    try {
-        $disk = \Illuminate\Support\Facades\Storage::disk('minio');
-        $disk->write('test.txt', 'hello');
-        $checks['write_ok'] = true;
-        $disk->delete('test.txt');
-    } catch (\Throwable $e) {
-        $checks['write_error'] = $e->getMessage();
-    }
-
-    return response()->json($checks);
-});
 
 Route::prefix('store/{siteCode}')->group(function () {
     Route::get('/', [StoreFrontController::class, 'show']);
