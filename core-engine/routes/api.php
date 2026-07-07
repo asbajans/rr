@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\DashboardController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PlanController;
+use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\StoreController as AdminStoreController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AiGatewayController;
@@ -46,6 +49,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{plan}', [PlanController::class, 'update']);
         Route::delete('{plan}', [PlanController::class, 'destroy']);
     });
+
+    Route::prefix('admin/products')->group(function () {
+        Route::get('/', [AdminProductController::class, 'index']);
+        Route::get('{id}', [AdminProductController::class, 'show']);
+    });
+
+    Route::prefix('admin/orders')->group(function () {
+        Route::get('/', [AdminOrderController::class, 'index']);
+        Route::get('{id}', [AdminOrderController::class, 'show']);
+    });
+
+    Route::get('/admin/settings', [SettingController::class, 'index']);
+    Route::put('/admin/settings', [SettingController::class, 'update']);
 });
 
 Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(function () {

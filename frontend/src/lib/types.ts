@@ -55,6 +55,11 @@ export type DashboardData = {
   }
 }
 
+export type Order = {
+  id: string
+  [key: string]: unknown
+}
+
 export type PaginatedResponse<T> = {
   data: T[]
   current_page: number

@@ -157,13 +157,31 @@ class ApiClient {
     return this.delete<void>(`/api/admin/plans/${id}`)
   }
 
-  // Products
-  getProducts() {
-    return this.get<import('./types').Product[]>('/api/products')
+  // Admin Products
+  getAdminProducts() {
+    return this.get<{ data: import('./types').Product[]; total: number }>('/api/admin/products')
   }
 
-  getProduct(id: string) {
-    return this.get<import('./types').Product>(`/api/products/${id}`)
+  getAdminProduct(id: string) {
+    return this.get<import('./types').Product>(`/api/admin/products/${id}`)
+  }
+
+  // Admin Orders
+  getAdminOrders() {
+    return this.get<{ data: import('./types').Order[]; total: number }>('/api/admin/orders')
+  }
+
+  getAdminOrder(id: string) {
+    return this.get<import('./types').Order>(`/api/admin/orders/${id}`)
+  }
+
+  // Settings
+  getSettings() {
+    return this.get<import('./types').Store>('/api/admin/settings')
+  }
+
+  updateSettings(data: Partial<import('./types').Store>) {
+    return this.put<import('./types').Store>('/api/admin/settings', data)
   }
 
   // AI
