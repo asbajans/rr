@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'routes' => [
+        'home' => false,
+        'default' => false,
+    ],
     'resource' => [
         'db' => [
             'adapter' => env('DB_CONNECTION', 'mysql'),
