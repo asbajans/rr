@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use Aimeos\MShop;
 use App\Models\Store;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 class StoreFrontController extends Controller
@@ -69,6 +70,28 @@ class StoreFrontController extends Controller
             ],
             'products' => $products,
             'total' => $total,
+        ]);
+    }
+
+    public function resolveDomain(Request $request)
+    {
+        $domain = $request->query('domain');
+        if (!$domain) {
+            return response()->json(['error' => 'Domain parameter required'], 400);
+        }
+
+        $store = Store::where('domain', $domain)->where('is_active', true)->first();
+
+        if (!$store) {
+            return response()->json(['exists' => false], 404);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'id' => $store->id,
+            'name' => $store->name,
+            'site_code' => $store->site_code,
+            'domain' => $store->domain,
         ]);
     }
 

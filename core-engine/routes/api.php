@@ -24,7 +24,7 @@ Route::post('/orders', [OrderController::class, 'store']);
 
 Route::get('/media/{path}', [MediaController::class, 'serve'])->where('path', '.*');
 
-
+Route::get('/resolve-domain', [StoreFrontController::class, 'resolveDomain']);
 
 Route::prefix('store/{siteCode}')->group(function () {
     Route::get('/', [StoreFrontController::class, 'show']);
