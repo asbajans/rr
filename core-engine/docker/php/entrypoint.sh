@@ -10,10 +10,10 @@ if [ -z "$APP_KEY" ] || [ "$APP_KEY" = " " ]; then
     php artisan key:generate --force
 fi
 
-# Aimeos OrderUpdateInvoiceNo fix: null invoiceno -> varsayılan değer
-php artisan rahatio:fix-orders 2>&1 || true
-
 php artisan aimeos:setup --ansi 2>&1 || echo "Aimeos setup skipped"
+
+# Aimeos OrderUpdateInvoiceNo fix: null invoiceno -> varsayılan değer + kolon fix
+php artisan rahatio:fix-orders 2>&1 || true
 php artisan migrate --force --ansi 2>&1 || echo "Migration skipped"
 php artisan db:seed --force --ansi 2>&1 || echo "Seed skipped"
 php artisan config:cache 2>&1 || true
