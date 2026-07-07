@@ -149,16 +149,3 @@ services:
       NODE_ENV: ${APP_ENV:-production}
       NEXT_PUBLIC_API_URL: https://api.rahatio.com.tr
 
-  slave:
-    build:
-      context: ./slave
-    container_name: rahatio-slave
-    restart: unless-stopped
-    networks:
-      - rahatio
-    ports:
-      - "3681:8080"
-    volumes:
-      - ./slave/slave.yaml:/etc/rahatio/slave.yaml:ro
-    environment:
-      RAHATIO_SLAVE_CONFIG: /etc/rahatio/slave.yaml
