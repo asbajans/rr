@@ -23,7 +23,7 @@ class StockController extends Controller
         ]);
 
         $context = $this->context();
-        $manager = \Aimeos\MShop::create('product', $context);
+        $manager = \Aimeos\MShop::create($context, 'product');
         $results = [];
 
         foreach ($validated['stocks'] as $data) {
@@ -45,7 +45,7 @@ class StockController extends Controller
     public function show(Request $request, string $sku)
     {
         $context = $this->context();
-        $manager = \Aimeos\MShop::create('product', $context);
+        $manager = \Aimeos\MShop::create($context, 'product');
         $item = $manager->find($sku, ['product']);
         if (!$item) {
             return response()->json(['error' => 'Product not found'], 404);

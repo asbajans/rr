@@ -19,7 +19,7 @@ class ProductController extends Controller
         $siteCode = $request->input('site_code', 'default');
 
         $context = $this->context();
-        $manager = \Aimeos\MShop::create('product', $context);
+        $manager = \Aimeos\MShop::create($context, 'product');
 
         $search = $manager->filter()->add('product.sitecode', '==', $siteCode);
 
@@ -31,7 +31,7 @@ class ProductController extends Controller
     public function show(Request $request, string $id)
     {
         $context = $this->context();
-        $manager = \Aimeos\MShop::create('product', $context);
+        $manager = \Aimeos\MShop::create($context, 'product');
         $item = $manager->get($id);
 
         return response()->json($item->toArray());
@@ -49,7 +49,7 @@ class ProductController extends Controller
         ]);
 
         $context = $this->context();
-        $manager = \Aimeos\MShop::create('product', $context);
+        $manager = \Aimeos\MShop::create($context, 'product');
         $results = [];
 
         foreach ($validated['products'] as $data) {
@@ -58,7 +58,7 @@ class ProductController extends Controller
             $item->setLabel($data['name']);
             $item->setStatus(1);
 
-            $priceManager = \Aimeos\MShop::create('price', $context);
+            $priceManager = \Aimeos\MShop::create($context, 'price');
             $price = $priceManager->create();
             $price->setValue($data['price']);
             $price->setCurrencyId('TRY');
