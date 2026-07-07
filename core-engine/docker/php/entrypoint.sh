@@ -5,6 +5,9 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
+# Yeni eklenen Command class'ları için autoloader'ı tazele
+composer dump-autoload -q 2>/dev/null || true
+
 if [ -z "$APP_KEY" ] || [ "$APP_KEY" = " " ]; then
     echo "Generating APP_KEY..."
     php artisan key:generate --force
