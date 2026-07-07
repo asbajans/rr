@@ -4,10 +4,26 @@ namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Crypt;
 
 class SlaveDownloadController extends Controller
 {
+    private function ensureSlaveApiKey(\App\Models\Store $store): \App\Models\ApiKey
+    {
+        $key = $store->apiKeys()->where('name', 'slave-auto')->first();
+        if ($key) {
+            return $key;
+        }
+
+        $plain = 'slv-' . bin2hex(random_bytes(16));
+        $key = $store->apiKeys()->create([
+            'name' => 'slave-auto',
+            'key'  => hash('sha256', $plain),
+        ]);
+        $key->plain_text = $plain;
+
+        return $key;
+    }
+
     public function downloadPhp(Request $request)
     {
         $user = $request->user();
@@ -17,12 +33,9 @@ class SlaveDownloadController extends Controller
             return response()->json(['error' => 'No store assigned.'], 400);
         }
 
-        $apiKey = $store->apiKeys()->first();
-        if (!$apiKey) {
-            return response()->json(['error' => 'No API key found. Create one first.'], 400);
-        }
+        $apiKey = $this->ensureSlaveApiKey($store);
 
-        $templatePath = base_path('../slave/php/slave.php');
+        $templatePath = resource_path('templates/slave/php/slave.php');
         if (!is_file($templatePath)) {
             return response()->json(['error' => 'Slave template not found.'], 500);
         }
@@ -33,7 +46,7 @@ class SlaveDownloadController extends Controller
 
         $code = $this->injectConfig($code, [
             'api_url'     => env('APP_URL', 'https://api.rahatio.com.tr'),
-            'api_key'     => $apiKey->plain_text ?? $apiKey->key,
+            'api_key'     => $apiKey->plain_text,
             'hmac_secret' => $hmacSecret,
             'store_code'  => $store->site_code,
             'cache_dir'   => '__CACHE_DIR__',
@@ -55,27 +68,24 @@ class SlaveDownloadController extends Controller
             return response()->json(['error' => 'No store assigned.'], 400);
         }
 
-        $apiKey = $store->apiKeys()->first();
-        if (!$apiKey) {
-            return response()->json(['error' => 'No API key found.'], 400);
-        }
+        $apiKey = $this->ensureSlaveApiKey($store);
 
         $hmacSecret = env('RAHAT_INTERNAL_KEY', 'change-me-internal-key');
-        $templatePath = base_path('../slave/vercel');
+        $templateDir = resource_path('templates/slave/vercel');
 
-        if (!is_dir($templatePath)) {
+        if (!is_dir($templateDir)) {
             return response()->json(['error' => 'Vercel template not found.'], 500);
         }
 
         $files = [
-            'api/index.js' => file_get_contents($templatePath . '/api/index.js'),
-            'vercel.json'  => file_get_contents($templatePath . '/vercel.json'),
+            'api/index.js' => file_get_contents($templateDir . '/api/index.js'),
+            'vercel.json'  => file_get_contents($templateDir . '/vercel.json'),
         ];
 
         foreach ($files as $name => &$content) {
             $content = $this->injectConfig($content, [
                 'api_url'     => env('APP_URL', 'https://api.rahatio.com.tr'),
-                'api_key'     => $apiKey->plain_text ?? $apiKey->key,
+                'api_key'     => $apiKey->plain_text,
                 'hmac_secret' => $hmacSecret,
                 'store_code'  => $store->site_code,
                 'site_name'   => $store->name,
