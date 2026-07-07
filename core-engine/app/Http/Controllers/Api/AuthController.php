@@ -32,7 +32,7 @@ class AuthController extends Controller
         $token = $user->createToken('mobile-app')->plainTextToken;
 
         return response()->json([
-            'user' => $user->only(['id', 'name', 'email', 'ai_credits']),
+            'user' => $user->only(['id', 'name', 'email', 'ai_credits', 'store_id', 'is_admin']),
             'token' => $token,
         ], 201);
     }
@@ -60,7 +60,7 @@ class AuthController extends Controller
         $token = $user->createToken('mobile-app')->plainTextToken;
 
         return response()->json([
-            'user' => $user->only(['id', 'name', 'email', 'ai_credits']),
+            'user' => $user->only(['id', 'name', 'email', 'ai_credits', 'store_id', 'is_admin']),
             'token' => $token,
         ]);
     }

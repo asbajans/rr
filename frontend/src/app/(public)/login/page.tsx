@@ -17,8 +17,8 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     try {
-      await login(email, password)
-      router.push('/dashboard')
+      const user = await login(email, password)
+      router.push(user.is_admin ? '/stores' : '/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Giriş başarısız')
     }
