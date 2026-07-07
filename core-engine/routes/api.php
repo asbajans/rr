@@ -27,12 +27,26 @@ Route::get('/media/{path}', [MediaController::class, 'serve'])->where('path', '.
 Route::get('/debug/minio', function () {
     $checks = [];
     $checks['class_exists'] = class_exists(\Aws\S3\S3Client::class);
-    $checks['disk_config'] = config('filesystems.disks.minio');
+    $checks['config'] = config('filesystems.disks.minio');
+
+    // Test HTTP connectivity to MinIO
     try {
-        $checks['disk_exists'] = \Illuminate\Support\Facades\Storage::disk('minio')->exists('');
+        $client = new \GuzzleHttp\Client(['timeout' => 5]);
+        $resp = $client->get('http://minio:9000/minio/health/live');
+        $checks['http_health'] = $resp->getStatusCode();
     } catch (\Throwable $e) {
-        $checks['disk_error'] = $e->getMessage();
+        $checks['http_error'] = $e->getMessage();
     }
+
+    // Test S3 connection
+    try {
+        $disk = \Illuminate\Support\Facades\Storage::disk('minio');
+        $checks['bucket_exists'] = $disk->exists('test.txt');
+    } catch (\Throwable $e) {
+        $checks['s3_error'] = $e->getMessage();
+        $checks['s3_trace'] = $e->getTraceAsString();
+    }
+
     return response()->json($checks);
 });
 
