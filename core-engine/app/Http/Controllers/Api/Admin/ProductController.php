@@ -103,7 +103,9 @@ class ProductController extends Controller
             $item->setCode($validated['code']);
             $item->setLabel($validated['label']);
             $item->setStatus($validated['status'] ?? 1);
-
+            if (isset($validated['stock'])) {
+                $item->setPropertyValue('stock', (int) $validated['stock'], 'stock');
+            }
             $manager->save($item);
         } catch (\Throwable $e) {
             return response()->json(['error' => 'Product create failed: ' . $e->getMessage()], 500);
@@ -125,14 +127,6 @@ class ProductController extends Controller
                 $list->setDomain('price');
                 $list->setType('default');
                 $listManager->save($list);
-            }
-
-            if (isset($validated['stock'])) {
-                $stockManager = MShop::create($context, 'stock');
-                $stockItem = $stockManager->create();
-                $stockItem->setProductId($item->getId());
-                $stockItem->setStock((float) $validated['stock']);
-                $stockManager->save($stockItem);
             }
 
             if (!empty($validated['media_url'])) {
@@ -223,18 +217,8 @@ class ProductController extends Controller
         }
 
         if (array_key_exists('stock', $validated ?? [])) {
-            $stockManager = MShop::create($context, 'stock');
-            $stockSearch = $stockManager->filter();
-            $stockSearch->setConditions($stockSearch->compare('==', 'stock.productid', $item->getId()));
-            $stockItems = $stockManager->search($stockSearch);
-            foreach ($stockItems as $oldStock) {
-                $stockManager->delete($oldStock->getId());
-            }
-
-            $stockItem = $stockManager->create();
-            $stockItem->setProductId($item->getId());
-            $stockItem->setStock((float) $validated['stock']);
-            $stockManager->save($stockItem);
+            $item->setPropertyValue('stock', (int) $validated['stock'], 'stock');
+            $manager->save($item);
         }
 
         if (array_key_exists('media_url', $validated ?? [])) {
