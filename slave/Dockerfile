@@ -5,6 +5,7 @@ COPY go.mod ./
 RUN go mod download
 
 COPY . .
+ENV GONOSUMCHECK=* GONOSUMDB=* GOFLAGS=-mod=mod
 RUN CGO_ENABLED=0 go build -o /app/rahatio-slave ./cmd/slave/
 
 FROM alpine:3.19
