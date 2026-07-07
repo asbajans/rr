@@ -26,10 +26,16 @@ class ProductController extends Controller
 
         $products = [];
         foreach ($items as $item) {
-            $data = ['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()];
-            $data['price'] = null;
-            $data['currency'] = 'TRY';
-            $data['image'] = null;
+            $data = [
+                'id' => $item->getId(),
+                'code' => $item->getCode(),
+                'label' => $item->getLabel(),
+                'status' => $item->getStatus(),
+                'price' => null,
+                'currency' => 'TRY',
+                'stock' => null,
+                'image' => null,
+            ];
             $products[] = $data;
         }
 
@@ -49,7 +55,67 @@ class ProductController extends Controller
             return response()->json(['error' => 'Product not found'], 404);
         }
 
-        return response()->json($item->toArray());
+        $data = $item->toArray();
+        $data['price'] = null;
+        $data['currency'] = 'TRY';
+        $data['stock'] = null;
+        $data['image'] = null;
+
+        try {
+            $priceManager = MShop::create($context, 'price');
+            $ps = $priceManager->filter();
+            $listManager = MShop::create($context, 'product/lists');
+            $ls = $listManager->filter();
+            $ls->setConditions($ls->and([
+                $ls->compare('==', 'product.lists.parentid', $item->getId()),
+                $ls->compare('==', 'product.lists.domain', 'price'),
+            ]));
+            $listItems = $listManager->search($ls);
+            foreach ($listItems as $li) {
+                $priceItem = $priceManager->get($li->getRefId());
+                $data['price'] = $priceItem->getValue();
+                $data['currency'] = $priceItem->getCurrencyId();
+                break;
+            }
+        } catch (\Throwable $e) {
+            // price not available
+        }
+
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.type', 'stock'),
+            ]));
+            $props = $propManager->search($ps);
+            foreach ($props as $prop) {
+                $data['stock'] = (int) $prop->getValue();
+                break;
+            }
+        } catch (\Throwable $e) {
+            // stock not available
+        }
+
+        try {
+            $mediaManager = MShop::create($context, 'media');
+            $listManager2 = MShop::create($context, 'product/lists');
+            $ls2 = $listManager2->filter();
+            $ls2->setConditions($ls2->and([
+                $ls2->compare('==', 'product.lists.parentid', $item->getId()),
+                $ls2->compare('==', 'product.lists.domain', 'media'),
+            ]));
+            $mediaLists = $listManager2->search($ls2);
+            foreach ($mediaLists as $ml) {
+                $mediaItem = $mediaManager->get($ml->getRefId());
+                $data['image'] = $mediaItem->getUrl();
+                break;
+            }
+        } catch (\Throwable $e) {
+            // media not available
+        }
+
+        return response()->json($data);
     }
 
     public function store(Request $request)
@@ -73,46 +139,34 @@ class ProductController extends Controller
         $manager->save($item);
 
         if (isset($validated['price'])) {
-            try {
-                $priceManager = MShop::create($context, 'price');
-                $price = $priceManager->create();
-                $price->setValue((float) $validated['price']);
-                $price->setCurrencyId($validated['currency'] ?? 'TRY');
-                $price->setType('default');
-                $priceManager->save($price);
+            $priceManager = MShop::create($context, 'price');
+            $price = $priceManager->create();
+            $price->setValue((float) $validated['price']);
+            $price->setCurrencyId($validated['currency'] ?? 'TRY');
+            $price->setType('default');
+            $priceManager->save($price);
 
-                $listManager = MShop::create($context, 'product/lists');
-                $list = $listManager->create();
-                $list->setParentId($item->getId());
-                $list->setRefId($price->getId());
-                $list->setDomain('price');
-                $list->setType('default');
-                $listManager->save($list);
-            } catch (\Throwable $e) {
-                return response()->json(['error' => 'Price save failed: ' . $e->getMessage()], 500);
-            }
+            $listManager = MShop::create($context, 'product/lists');
+            $list = $listManager->create();
+            $list->setParentId($item->getId());
+            $list->setRefId($price->getId());
+            $list->setDomain('price');
+            $list->setType('default');
+            $listManager->save($list);
         }
 
         if (isset($validated['stock'])) {
-            try {
-                $propManager = MShop::create($context, 'product/property');
-                $prop = $propManager->create();
-                $prop->setParentId($item->getId());
-                $prop->setValue((string) (int) $validated['stock']);
-                $prop->setType('stock');
-                $prop->setLanguageId(null);
-                $propManager->save($prop);
-            } catch (\Throwable $e) {
-                return response()->json(['error' => 'Stock save failed: ' . $e->getMessage()], 500);
-            }
+            $propManager = MShop::create($context, 'product/property');
+            $prop = $propManager->create();
+            $prop->setParentId($item->getId());
+            $prop->setValue((string) (int) $validated['stock']);
+            $prop->setType('stock');
+            $prop->setLanguageId(null);
+            $propManager->save($prop);
         }
 
         if (!empty($validated['media_url'])) {
-            try {
-                $this->attachMedia($context, $item->getId(), $validated['media_url']);
-            } catch (\Throwable $e) {
-                return response()->json(['error' => 'Media save failed: ' . $e->getMessage()], 500);
-            }
+            $this->attachMedia($context, $item->getId(), $validated['media_url']);
         }
 
         return response()->json($item->toArray(), 201);
@@ -138,86 +192,67 @@ class ProductController extends Controller
             return response()->json(['error' => 'Product not found'], 404);
         }
 
-        if (isset($validated['label'])) {
-            $item->setLabel($validated['label']);
-        }
-        if (array_key_exists('status', $validated ?? [])) {
-            $item->setStatus((int) $validated['status']);
-        }
+        if (isset($validated['label'])) { $item->setLabel($validated['label']); }
+        if (array_key_exists('status', $validated ?? [])) { $item->setStatus((int) $validated['status']); }
         $manager->save($item);
 
         if (array_key_exists('price', $validated ?? [])) {
-            try {
-                $listManager = MShop::create($context, 'product/lists');
-                $ps = $listManager->filter();
-                $ps->setConditions($ps->and([
-                    $ps->compare('==', 'product.lists.parentid', $item->getId()),
-                    $ps->compare('==', 'product.lists.domain', 'price'),
-                ]));
-                $oldLists = $listManager->search($ps);
-                $priceManager = MShop::create($context, 'price');
-                foreach ($oldLists as $ol) {
-                    $priceManager->delete($ol->getRefId());
-                    $listManager->delete($ol->getId());
-                }
-                if ($validated['price'] !== null) {
-                    $price = $priceManager->create();
-                    $price->setValue((float) $validated['price']);
-                    $price->setCurrencyId($validated['currency'] ?? 'TRY');
-                    $price->setType('default');
-                    $priceManager->save($price);
-                    $list = $listManager->create();
-                    $list->setParentId($item->getId());
-                    $list->setRefId($price->getId());
-                    $list->setDomain('price');
-                    $list->setType('default');
-                    $listManager->save($list);
-                }
-            } catch (\Throwable $e) {
-                return response()->json(['error' => 'Price update failed: ' . $e->getMessage()], 500);
+            $listManager = MShop::create($context, 'product/lists');
+            $ps = $listManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.lists.parentid', $item->getId()),
+                $ps->compare('==', 'product.lists.domain', 'price'),
+            ]));
+            $priceManager = MShop::create($context, 'price');
+            foreach ($listManager->search($ps) as $ol) {
+                $priceManager->delete($ol->getRefId());
+                $listManager->delete($ol->getId());
+            }
+            if ($validated['price'] !== null) {
+                $price = $priceManager->create();
+                $price->setValue((float) $validated['price']);
+                $price->setCurrencyId($validated['currency'] ?? 'TRY');
+                $price->setType('default');
+                $priceManager->save($price);
+                $list = $listManager->create();
+                $list->setParentId($item->getId());
+                $list->setRefId($price->getId());
+                $list->setDomain('price');
+                $list->setType('default');
+                $listManager->save($list);
             }
         }
 
         if (array_key_exists('stock', $validated ?? [])) {
-            try {
-                $propManager = MShop::create($context, 'product/property');
-                $ps = $propManager->filter();
-                $ps->setConditions($ps->and([
-                    $ps->compare('==', 'product.property.parentid', $item->getId()),
-                    $ps->compare('==', 'product.property.type', 'stock'),
-                ]));
-                foreach ($propManager->search($ps) as $op) {
-                    $propManager->delete($op->getId());
-                }
-                $prop = $propManager->create();
-                $prop->setParentId($item->getId());
-                $prop->setValue((string) (int) $validated['stock']);
-                $prop->setType('stock');
-                $prop->setLanguageId(null);
-                $propManager->save($prop);
-            } catch (\Throwable $e) {
-                return response()->json(['error' => 'Stock update failed: ' . $e->getMessage()], 500);
-            }
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.type', 'stock'),
+            ]));
+            foreach ($propManager->search($ps) as $op) { $propManager->delete($op->getId()); }
+            $prop = $propManager->create();
+            $prop->setParentId($item->getId());
+            $prop->setValue((string) (int) $validated['stock']);
+            $prop->setType('stock');
+            $prop->setLanguageId(null);
+            $propManager->save($prop);
         }
 
         if (array_key_exists('media_url', $validated ?? [])) {
-            try {
-                $listManager = MShop::create($context, 'product/lists');
-                $ms = $listManager->filter();
-                $ms->setConditions($ms->and([
-                    $ms->compare('==', 'product.lists.parentid', $item->getId()),
-                    $ms->compare('==', 'product.lists.domain', 'media'),
-                ]));
-                $mediaManager = MShop::create($context, 'media');
-                foreach ($listManager->search($ms) as $ol) {
-                    $mediaManager->delete($ol->getRefId());
-                    $listManager->delete($ol->getId());
-                }
-                if (!empty($validated['media_url'])) {
-                    $this->attachMedia($context, $item->getId(), $validated['media_url']);
-                }
-            } catch (\Throwable $e) {
-                return response()->json(['error' => 'Media update failed: ' . $e->getMessage()], 500);
+            $listManager = MShop::create($context, 'product/lists');
+            $ms = $listManager->filter();
+            $ms->setConditions($ms->and([
+                $ms->compare('==', 'product.lists.parentid', $item->getId()),
+                $ms->compare('==', 'product.lists.domain', 'media'),
+            ]));
+            $mediaManager = MShop::create($context, 'media');
+            foreach ($listManager->search($ms) as $ol) {
+                $mediaManager->delete($ol->getRefId());
+                $listManager->delete($ol->getId());
+            }
+            if (!empty($validated['media_url'])) {
+                $this->attachMedia($context, $item->getId(), $validated['media_url']);
             }
         }
 
