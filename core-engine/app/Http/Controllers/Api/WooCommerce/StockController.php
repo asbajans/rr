@@ -9,6 +9,11 @@ use Illuminate\Routing\Controller;
 
 class StockController extends Controller
 {
+    private function context(): \Aimeos\MShop\ContextIface
+    {
+        return app('aimeos.context')->get();
+    }
+
     public function update(Request $request)
     {
         $validated = $request->validate([
@@ -17,7 +22,8 @@ class StockController extends Controller
             'stocks.*.quantity' => 'required|integer|min:0',
         ]);
 
-        $manager = MShop::create('product');
+        $context = $this->context();
+        $manager = \Aimeos\MShop::create('product', $context);
         $results = [];
 
         foreach ($validated['stocks'] as $data) {
@@ -38,7 +44,8 @@ class StockController extends Controller
 
     public function show(Request $request, string $sku)
     {
-        $manager = MShop::create('product');
+        $context = $this->context();
+        $manager = \Aimeos\MShop::create('product', $context);
         $item = $manager->find($sku, ['product']);
         if (!$item) {
             return response()->json(['error' => 'Product not found'], 404);

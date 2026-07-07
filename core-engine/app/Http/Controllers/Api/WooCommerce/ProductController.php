@@ -9,11 +9,17 @@ use Illuminate\Routing\Controller;
 
 class ProductController extends Controller
 {
+    private function context(): \Aimeos\MShop\ContextIface
+    {
+        return app('aimeos.context')->get();
+    }
+
     public function index(Request $request)
     {
         $siteCode = $request->input('site_code', 'default');
 
-        $manager = MShop::create('product');
+        $context = $this->context();
+        $manager = \Aimeos\MShop::create('product', $context);
 
         $search = $manager->filter()->add('product.sitecode', '==', $siteCode);
 
@@ -24,7 +30,8 @@ class ProductController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $manager = MShop::create('product');
+        $context = $this->context();
+        $manager = \Aimeos\MShop::create('product', $context);
         $item = $manager->get($id);
 
         return response()->json($item->toArray());
@@ -41,7 +48,8 @@ class ProductController extends Controller
             'products.*.vendor_id' => 'integer|exists:stores,id',
         ]);
 
-        $manager = MShop::create('product');
+        $context = $this->context();
+        $manager = \Aimeos\MShop::create('product', $context);
         $results = [];
 
         foreach ($validated['products'] as $data) {
@@ -50,7 +58,7 @@ class ProductController extends Controller
             $item->setLabel($data['name']);
             $item->setStatus(1);
 
-            $priceManager = MShop::create('price');
+            $priceManager = \Aimeos\MShop::create('price', $context);
             $price = $priceManager->create();
             $price->setValue($data['price']);
             $price->setCurrencyId('TRY');
