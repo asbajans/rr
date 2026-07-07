@@ -12,10 +12,16 @@ class Store extends Model
         'domain',
         'email',
         'is_active',
+        'plan_id',
     ];
 
     public function apiKeys()
     {
         return $this->hasMany(ApiKey::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class);
     }
 }

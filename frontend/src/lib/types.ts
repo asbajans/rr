@@ -4,6 +4,7 @@ export type User = {
   email: string
   ai_credits: number
   store_id: number | null
+  is_admin: boolean
 }
 
 export type AuthResponse = {
@@ -23,9 +24,16 @@ export type Store = {
 export type Plan = {
   id: number
   name: string
+  slug: string
+  description: string | null
   price: number
+  currency: string
   ai_credits: number
   product_limit: number
+  store_limit: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export type Product = {
@@ -35,4 +43,22 @@ export type Product = {
   status: number
   price?: number
   stock?: number
+}
+
+export type DashboardData = {
+  user: User
+  store: Store | null
+  stats: {
+    total_products: number
+    total_orders: number
+    ai_credits: number
+  }
+}
+
+export type PaginatedResponse<T> = {
+  data: T[]
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
 }
