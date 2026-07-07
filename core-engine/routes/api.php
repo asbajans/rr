@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\ApiKeyController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PlanController;
@@ -52,12 +53,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('admin/products')->group(function () {
         Route::get('/', [AdminProductController::class, 'index']);
+        Route::post('/', [AdminProductController::class, 'store']);
         Route::get('{id}', [AdminProductController::class, 'show']);
+        Route::put('{id}', [AdminProductController::class, 'update']);
+        Route::delete('{id}', [AdminProductController::class, 'destroy']);
     });
 
     Route::prefix('admin/orders')->group(function () {
         Route::get('/', [AdminOrderController::class, 'index']);
         Route::get('{id}', [AdminOrderController::class, 'show']);
+    });
+
+    Route::prefix('admin/api-keys')->group(function () {
+        Route::get('/', [ApiKeyController::class, 'index']);
+        Route::post('/', [ApiKeyController::class, 'store']);
+        Route::get('{apiKey}', [ApiKeyController::class, 'show']);
+        Route::put('{apiKey}', [ApiKeyController::class, 'update']);
+        Route::delete('{apiKey}', [ApiKeyController::class, 'destroy']);
     });
 
     Route::get('/admin/settings', [SettingController::class, 'index']);

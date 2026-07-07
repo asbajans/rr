@@ -18,8 +18,8 @@ export default function RegisterPage() {
     e.preventDefault()
     setError('')
     try {
-      await register(name, email, password)
-      router.push('/dashboard')
+      const user = await register(name, email, password)
+      router.push(user.is_admin ? '/stores' : '/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Kayıt başarısız')
     }

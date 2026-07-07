@@ -60,6 +60,23 @@ export type Order = {
   [key: string]: unknown
 }
 
+export type ApiKey = {
+  id: number
+  store_id: number
+  name: string
+  key: string
+  allowed_ips: string | null
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+  store?: Store
+}
+
+export type CreatedApiKey = {
+  api_key: ApiKey
+  plain_text: string
+}
+
 export type PaginatedResponse<T> = {
   data: T[]
   current_page: number

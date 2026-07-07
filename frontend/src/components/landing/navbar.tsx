@@ -26,9 +26,14 @@ export function Navbar() {
         </div>
         <div className="flex items-center gap-3">
           {loading ? null : user ? (
-            <Link href="/dashboard">
-              <Button size="sm">Panele Git</Button>
-            </Link>
+            <>
+              <Link href={user.is_admin ? '/stores' : '/dashboard'} className="text-sm font-medium text-zinc-600 hover:text-zinc-900">
+                {user.name}
+              </Link>
+              <Link href={user.is_admin ? '/stores' : '/dashboard'}>
+                <Button size="sm">Panele Git</Button>
+              </Link>
+            </>
           ) : (
             <>
               <Link href="/login">

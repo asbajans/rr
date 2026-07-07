@@ -166,6 +166,18 @@ class ApiClient {
     return this.get<import('./types').Product>(`/api/admin/products/${id}`)
   }
 
+  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number }) {
+    return this.post<import('./types').Product>('/api/admin/products', data)
+  }
+
+  updateAdminProduct(id: string, data: { label?: string; price?: number; stock?: number; status?: number }) {
+    return this.put<import('./types').Product>(`/api/admin/products/${id}`, data)
+  }
+
+  deleteAdminProduct(id: string) {
+    return this.delete<void>(`/api/admin/products/${id}`)
+  }
+
   // Admin Orders
   getAdminOrders() {
     return this.get<{ data: import('./types').Order[]; total: number }>('/api/admin/orders')
@@ -173,6 +185,19 @@ class ApiClient {
 
   getAdminOrder(id: string) {
     return this.get<import('./types').Order>(`/api/admin/orders/${id}`)
+  }
+
+  // Admin API Keys
+  getAdminApiKeys() {
+    return this.get<import('./types').ApiKey[]>('/api/admin/api-keys')
+  }
+
+  createAdminApiKey(data: { name: string }) {
+    return this.post<{ api_key: import('./types').ApiKey; plain_text: string }>('/api/admin/api-keys', data)
+  }
+
+  deleteAdminApiKey(id: number) {
+    return this.delete<void>(`/api/admin/api-keys/${id}`)
   }
 
   // Settings
