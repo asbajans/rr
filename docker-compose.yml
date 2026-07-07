@@ -60,6 +60,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
+      APP_URL: https://rahatio.com.tr
       DB_HOST: mysql
       DB_DATABASE: ${MYSQL_DATABASE:-rahatio}
       DB_USERNAME: ${MYSQL_USER:-rahatio}

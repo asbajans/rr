@@ -10,6 +10,10 @@ class TrustHosts extends Middleware
     {
         return [
             $this->allSubdomainsOfApplicationUrl(),
+            'rahatio.com.tr',
+            'www.rahatio.com.tr',
+            'app.rahatio.com.tr',
+            'api.rahatio.com.tr',
         ];
     }
 }
