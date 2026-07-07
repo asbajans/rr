@@ -44,7 +44,7 @@ class Kernel extends HttpKernel
         'signed' => \App\Http\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-        'auth.api-key' => \App\Http\Middleware\AuthenticateWithApiKey::class,
+        'apikey' => \App\Http\Middleware\AuthenticateWithApiKey::class,
         'domain.store' => \App\Http\Middleware\ResolveStoreFromDomain::class,
     ];
 }

@@ -19,7 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/process-image', [AiGatewayController::class, 'proxy']);
 });
 
-Route::middleware('auth.api-key')->group(function () {
+Route::middleware('apikey')->group(function () {
 
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
