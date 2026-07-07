@@ -113,11 +113,18 @@ class ProductController extends Controller
             if (isset($validated['price'])) {
                 $priceManager = MShop::create($context, 'price');
                 $price = $priceManager->create();
-                $price->setParentId($item->getId());
                 $price->setValue((float) $validated['price']);
                 $price->setCurrencyId($validated['currency'] ?? 'TRY');
                 $price->setType('default');
                 $priceManager->save($price);
+
+                $listManager = MShop::create($context, 'product/lists');
+                $list = $listManager->create();
+                $list->setParentId($item->getId());
+                $list->setRefId($price->getId());
+                $list->setDomain('price');
+                $list->setType('default');
+                $listManager->save($list);
             }
 
             if (isset($validated['stock'])) {
@@ -186,21 +193,32 @@ class ProductController extends Controller
         $manager->save($item);
 
         if (array_key_exists('price', $validated ?? [])) {
+            $listManager = MShop::create($context, 'product/lists');
+            $priceListSearch = $listManager->filter();
+            $priceListSearch->setConditions($priceListSearch->and([
+                $priceListSearch->compare('==', 'product.lists.parentid', $item->getId()),
+                $priceListSearch->compare('==', 'product.lists.domain', 'price'),
+            ]));
+            $oldLists = $listManager->search($priceListSearch);
             $priceManager = MShop::create($context, 'price');
-            $priceSearch = $priceManager->filter();
-            $priceSearch->setConditions($priceSearch->compare('==', 'price.parentid', $item->getId()));
-            $priceItems = $priceManager->search($priceSearch);
-            foreach ($priceItems as $oldPrice) {
-                $priceManager->delete($oldPrice->getId());
+            foreach ($oldLists as $oldList) {
+                $priceManager->delete($oldList->getRefId());
+                $listManager->delete($oldList->getId());
             }
 
             if ($validated['price'] !== null) {
                 $price = $priceManager->create();
-                $price->setParentId($item->getId());
                 $price->setValue((float) $validated['price']);
                 $price->setCurrencyId($validated['currency'] ?? 'TRY');
                 $price->setType('default');
                 $priceManager->save($price);
+
+                $list = $listManager->create();
+                $list->setParentId($item->getId());
+                $list->setRefId($price->getId());
+                $list->setDomain('price');
+                $list->setType('default');
+                $listManager->save($list);
             }
         }
 
