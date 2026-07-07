@@ -230,6 +230,23 @@ class ApiClient {
     return this.upload<{ url: string }>('/api/ai/process-image', formData)
   }
 
+  // Slave Download
+  downloadSlavePhp() {
+    return this.download('/api/admin/slave/download-php')
+  }
+
+  downloadSlaveVercel() {
+    return this.download('/api/admin/slave/download-vercel')
+  }
+
+  private download(path: string) {
+    const url = new URL(`${API_BASE}${path}`)
+    if (this.token) {
+      url.searchParams.set('token', this.token)
+    }
+    window.open(url.toString(), '_blank')
+  }
+
   // Subscription
   getSubscription() {
     return this.get<{ subscription: import('./types').Subscription | null; plan: import('./types').Plan | null }>('/api/admin/subscription')

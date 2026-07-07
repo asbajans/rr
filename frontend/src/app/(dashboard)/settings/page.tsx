@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Key, Plus, Trash2, Copy } from 'lucide-react'
+import { Key, Plus, Trash2, Copy, Download, Globe, Server } from 'lucide-react'
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -147,6 +147,50 @@ export default function SettingsPage() {
           {keysLoading && <p className="mt-3 text-sm text-zinc-400">Yükleniyor...</p>}
           {!keysLoading && apiKeys.length === 0 && (
             <p className="mt-3 text-sm text-zinc-400">Henüz API anahtarı oluşturulmamış.</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <h2 className="text-lg font-semibold text-zinc-900">Slave Node</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Mağazanı kendi sunucunda çalıştırmak için slave yazılımını indir.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-zinc-200 p-4">
+              <Server className="h-6 w-6 text-zinc-500" />
+              <h3 className="mt-2 font-medium text-zinc-900">PHP (Paylaşımlı Hosting)</h3>
+              <p className="mt-1 text-xs text-zinc-500">
+                cPanel, FTP veya herhangi bir PHP hosting için tek dosya.
+                İndir → FTP'ye yükle → Çalışmaya başla.
+              </p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => api.downloadSlavePhp()}
+                disabled={apiKeys.length === 0}
+              >
+                <Download className="mr-1 h-3 w-3" />İndir (PHP)
+              </Button>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-4">
+              <Globe className="h-6 w-6 text-zinc-500" />
+              <h3 className="mt-2 font-medium text-zinc-900">Vercel (Serverless)</h3>
+              <p className="mt-1 text-xs text-zinc-500">
+                Vercel'e tek tıkla deploy. Ücretsiz, otomatik ölçeklenir.
+                GitHub bağla veya ZIP yükle.
+              </p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => api.downloadSlaveVercel()}
+                disabled={apiKeys.length === 0}
+              >
+                <Download className="mr-1 h-3 w-3" />İndir (Vercel ZIP)
+              </Button>
+            </div>
+          </div>
+          {apiKeys.length === 0 && (
+            <p className="mt-3 text-xs text-amber-600">Önce bir API anahtarı oluşturmalısın.</p>
           )}
           {!keysLoading && apiKeys.length > 0 && (
             <div className="mt-3 space-y-2">

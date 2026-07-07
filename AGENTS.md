@@ -36,7 +36,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | `frontend/` | Next.js 16.2.10 (React) | Landing page + Admin panel (store owner + super admin) | 3690 |
 | `slave/` | Go (planlanan) | Self-hosted store daemon | — |
 | `mobile-app/` | React Native (planlanan) | Mobil store management | — |
-| `slave/` | Go | Self-hosted store node (SQLite cache, CRON sync, HMAC auth) | 3681 |
+| `slave/` | PHP + Node.js | Self-hosted store node (PHP shared hosting / Vercel serverless) | — |
 
 ## Önemli Değerler
 
@@ -78,7 +78,6 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | rahatio-ai | 3000 | 3630 |
 | rahatio-integration | 3001 | 3631 |
 | rahatio-frontend (Next.js) | 3000 | 3690 |
-| rahatio-slave | 8080 | 3681 |
 
 ### Docker Compose Volumes
 - `rahatio-stack_mysql_data` → `/var/lib/mysql` (persistent)
@@ -145,19 +144,13 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] Seeder: free subscription for default store, owner test user
 - [x] Aimeos JSON API prefix fixed (api → jsonapi, routing conflict resolved)
 
-### Phase 4 — Slave Yazılım ✅ **TAMAM**
-- [x] Go modülü + proje yapısı (cmd/slave, internal/)
-- [x] Config: YAML tabanlı yapılandırma (slave.yaml)
-- [x] SQLite local cache (products, orders, sync_log tabloları)
-- [x] HMAC auth: X-API-Key + X-Signature (HMAC-SHA256) ile imzalama
-- [x] Client: Rahatio Core API'ye bağlantı (products sync, stocks sync, orders push)
-- [x] CRON scheduler: robfig/cron ile periyodik senkronizasyon
-- [x] Health endpoint: `:8080/health` (ürün sayısı + status)
-- [x] install.sh: tek komut kurulum (Go kurulumu, binary build, systemd service)
-- [x] Dockerfile: multi-stage Go build
-- [x] docker-compose slave servisi (port 3681)
-- [x] CI/CD: detect-changes + validate-slave + build-slave job'ları
-- [x] Core: AuthenticateWithApiKey HMAC doğrulama desteği
+### Phase 4 — Slave Node ✅ **TAMAM**
+- [x] **PHP Slave** (`slave/php/slave.php`): tek dosya, sıfır bağımlılık, HMAC auth, JSON cache, tüm REST endpoint'ler
+- [x] **Vercel Slave** (`slave/vercel/`): Node.js serverless, vercel.json, aynı endpoint'ler
+- [x] Her iki slave'de config panelden indirirken otomatik doldurulur (API key, HMAC secret, store code)
+- [x] **Core download endpoint**: `/api/admin/slave/download-php` + `/api/admin/slave/download-vercel` (ZIP)
+- [x] **Frontend** settings sayfasında slave indirme UI'ı (PHP + Vercel butonları)
+- [x] AuthenticateWithApiKey HMAC doğrulama desteği
 
 ### Phase 5 — Mobile App
 - [ ] React Native projesi
@@ -367,7 +360,7 @@ rr/
 │
 ├── ai-service/                # Node.js + TypeScript
 ├── integration-service/       # Node.js + TypeScript
-├── slave/                     # Go slave node
+├── slave/                     # Slave node (PHP + Vercel)
 ├── mobile-app/                # React Native (PLANLANAN)
 │
 ├── docker-compose.yml

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\AiGatewayController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\MediaController;
+use App\Http\Controllers\Api\SlaveDownloadController;
 use App\Http\Controllers\Api\StoreFrontController;
 use App\Http\Controllers\Api\WooCommerce\ProductController;
 use App\Http\Controllers\Api\WooCommerce\StockController;
@@ -95,6 +96,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionController::class, 'checkout']);
         Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'portal']);
         Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancel']);
+    });
+
+    Route::prefix('admin/slave')->group(function () {
+        Route::get('/download-php', [SlaveDownloadController::class, 'downloadPhp']);
+        Route::get('/download-vercel', [SlaveDownloadController::class, 'downloadVercel']);
     });
 });
 
