@@ -26,9 +26,27 @@ jobs:
             ai:
               - 'ai-service/**'
               - '.github/**'
-            integration:
-              - 'integration-service/**'
-              - '.github/**'
+      integration:
+        - 'integration-service/**'
+        - '.github/**'
+      frontend:
+        - 'frontend/**'
+        - '.github/**'
+
+  validate-frontend:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
 
   validate-ai:
     needs: detect-changes
@@ -117,9 +135,28 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
 
+  build-frontend:
+    needs: [detect-changes, validate-frontend]
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          target: runner
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
+
   trigger-portainer:
-    needs: [build-core, build-ai, build-integration]
-    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success') }}
+    needs: [build-core, build-ai, build-integration, build-frontend]
+    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Portainer Webhook
