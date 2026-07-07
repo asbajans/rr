@@ -50,8 +50,12 @@ class ProductController extends Controller
         $results = [];
 
         foreach ($validated['products'] as $data) {
-            $item = $manager->find($data['sku'], ['product']);
-            $item->setCode($data['sku']);
+            try {
+                $item = $manager->find($data['sku']);
+            } catch (\Aimeos\MShop\Exception $e) {
+                $item = $manager->create();
+                $item->setCode($data['sku']);
+            }
             $item->setLabel($data['name']);
             $item->setStatus(1);
 

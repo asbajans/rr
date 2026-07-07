@@ -27,8 +27,9 @@ class StockController extends Controller
         $results = [];
 
         foreach ($validated['stocks'] as $data) {
-            $item = $manager->find($data['sku'], ['product']);
-            if (!$item) {
+            try {
+                $item = $manager->find($data['sku']);
+            } catch (\Aimeos\MShop\Exception $e) {
                 continue;
             }
 
@@ -47,17 +48,14 @@ class StockController extends Controller
         try {
             $context = $this->context();
             $manager = \Aimeos\MShop::create($context, 'product');
-            $item = $manager->find($sku, ['product']);
-            if (!$item) {
-                return response()->json(['error' => 'Product not found'], 404);
-            }
-
-            return response()->json([
-                'sku' => $item->getCode(),
-                'stock' => (int) $item->getPropertyValue('stock', 'stock'),
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json(['error' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 500);
+            $item = $manager->find($sku);
+        } catch (\Aimeos\MShop\Exception $e) {
+            return response()->json(['error' => 'Product not found'], 404);
         }
+
+        return response()->json([
+            'sku' => $item->getCode(),
+            'stock' => (int) $item->getPropertyValue('stock', 'stock'),
+        ]);
     }
 }
