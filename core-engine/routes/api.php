@@ -24,6 +24,18 @@ Route::post('/orders', [OrderController::class, 'store']);
 
 Route::get('/media/{path}', [MediaController::class, 'serve'])->where('path', '.*');
 
+Route::get('/debug/minio', function () {
+    $checks = [];
+    $checks['class_exists'] = class_exists(\Aws\S3\S3Client::class);
+    $checks['disk_config'] = config('filesystems.disks.minio');
+    try {
+        $checks['disk_exists'] = \Illuminate\Support\Facades\Storage::disk('minio')->exists('');
+    } catch (\Throwable $e) {
+        $checks['disk_error'] = $e->getMessage();
+    }
+    return response()->json($checks);
+});
+
 Route::prefix('store/{siteCode}')->group(function () {
     Route::get('/', [StoreFrontController::class, 'show']);
     Route::get('products/{id}', [StoreFrontController::class, 'product']);
