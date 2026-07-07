@@ -27,9 +27,13 @@ class ProductController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $context = $this->context();
-        $manager = \Aimeos\MShop::create($context, 'product');
-        $item = $manager->get($id);
+        try {
+            $context = $this->context();
+            $manager = \Aimeos\MShop::create($context, 'product');
+            $item = $manager->get($id);
+        } catch (\Aimeos\MShop\Exception $e) {
+            return response()->json(['error' => 'Product not found'], 404);
+        }
 
         return response()->json($item->toArray());
     }
