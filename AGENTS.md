@@ -99,7 +99,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] fix-orders komutu — null invoiceno → NOT NULL
 - [x] Portainer env fix — Integration/AI URL, Redis password, vs.
 
-### Phase 1 — SaaS Frontend (Next.js) 🔄 **DEVAM EDİYOR**
+### Phase 1 — SaaS Frontend (Next.js) ✅ **TAMAM**
 #### ✅ Tamamlananlar
 - [x] frontend/ projesi oluşturuldu (Next.js 16.2.10 + TypeScript + Tailwind CSS)
 - [x] Landing page: `/`, `/pricing`, `/features`, `/blog` (statik)
@@ -113,15 +113,15 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] CI/CD frontend build job
 - [x] Production deploy (6 container ayakta)
 
-#### ❌ Yapılacaklar
-- [ ] Auth API entegrasyonu (api-client.ts auth/me `data` wrapper fix)
-- [ ] Products page — Aimeos JSON API CRUD
-- [ ] Orders page — sipariş listesi + detay
-- [ ] AI page — AI görsel işleme paneli
-- [ ] Settings page — mağaza ayarları
-- [ ] Super admin: Stores CRUD
-- [ ] Super admin: Users CRUD
-- [ ] Super admin: Plans CRUD
+#### ✅ Tamamlananlar
+- [x] Auth API entegrasyonu (api-client.ts + auth.tsx fix, auth/me is_admin)
+- [x] Products page — Admin ProductController + UI (Aimeos JSON API)
+- [x] Orders page — Admin OrderController + UI (Aimeos order list)
+- [x] AI page — görsel yükleme + AI işleme (AiGatewayController)
+- [x] Settings page — mağaza ayarları CRUD
+- [x] Super admin: Stores CRUD (Admin StoreController)
+- [x] Super admin: Users CRUD (Admin UserController)
+- [x] Super admin: Plans CRUD (Admin PlanController)
 
 ### Phase 2 — Store Frontend + CDN
 - [ ] Store tema sistemi (Next.js SSG)
@@ -163,6 +163,19 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | GET | `/api/auth/me` | Mevcut kullanıcı bilgisi |
 | POST | `/api/auth/logout` | Oturum kapatma |
 | POST | `/api/ai/process-image` | AI görsel işleme proxy |
+| GET | `/api/admin/dashboard` | Dashboard istatistikleri |
+| GET/POST | `/api/admin/stores` | Mağaza listesi / oluşturma |
+| GET/PUT/DELETE | `/api/admin/stores/{id}` | Mağaza detay / güncelle / sil |
+| GET | `/api/admin/users` | Kullanıcı listesi |
+| GET/PUT/DELETE | `/api/admin/users/{id}` | Kullanıcı detay / güncelle / sil |
+| GET/POST | `/api/admin/plans` | Plan listesi / oluşturma |
+| GET/PUT/DELETE | `/api/admin/plans/{id}` | Plan detay / güncelle / sil |
+| GET | `/api/admin/products` | Ürün listesi (Aimeos) |
+| GET | `/api/admin/products/{id}` | Ürün detay |
+| GET | `/api/admin/orders` | Sipariş listesi (Aimeos) |
+| GET | `/api/admin/orders/{id}` | Sipariş detay |
+| GET | `/api/admin/settings` | Mağaza ayarları |
+| PUT | `/api/admin/settings` | Mağaza ayarlarını güncelle |
 
 ### API Key Required (AuthenticateWithApiKey)
 | Method | Path | Açıklama |

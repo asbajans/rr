@@ -68,7 +68,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json($request->user()->only([
-            'id', 'name', 'email', 'ai_credits', 'store_id',
+            'id', 'name', 'email', 'ai_credits', 'store_id', 'is_admin',
         ]));
     }
 
