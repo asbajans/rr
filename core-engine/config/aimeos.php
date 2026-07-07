@@ -5,7 +5,7 @@ return [
     'api' => [
         'jsonapi' => [
             'enabled' => true,
-            'prefix' => 'api',
+            'prefix' => 'jsonapi',
         ],
     ],
     'shop' => [
