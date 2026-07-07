@@ -96,39 +96,47 @@ class ProductController extends Controller
             'media_url' => 'nullable|string|max:1024',
         ]);
 
-        $context = $this->context();
-        $manager = MShop::create($context, 'product');
-        $item = $manager->create();
-        $item->setCode($validated['code']);
-        $item->setLabel($validated['label']);
-        $item->setStatus($validated['status'] ?? 1);
+        try {
+            $context = $this->context();
+            $manager = MShop::create($context, 'product');
+            $item = $manager->create();
+            $item->setCode($validated['code']);
+            $item->setLabel($validated['label']);
+            $item->setStatus($validated['status'] ?? 1);
 
-        $manager->save($item);
-
-        if (isset($validated['price'])) {
-            $priceManager = MShop::create($context, 'price');
-            $price = $priceManager->create();
-            $price->setParentId($item->getId());
-            $price->setValue((float) $validated['price']);
-            $price->setCurrencyId($validated['currency'] ?? 'TRY');
-            $price->setType('default');
-            $priceManager->save($price);
+            $manager->save($item);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Product create failed: ' . $e->getMessage()], 500);
         }
 
-        if (isset($validated['stock'])) {
-            $stockManager = MShop::create($context, 'stock');
-            $stockItem = $stockManager->create();
-            $stockItem->setProductId($item->getId());
-            $stockItem->setStock((float) $validated['stock']);
-            $stockManager->save($stockItem);
-        }
+        try {
+            if (isset($validated['price'])) {
+                $priceManager = MShop::create($context, 'price');
+                $price = $priceManager->create();
+                $price->setParentId($item->getId());
+                $price->setValue((float) $validated['price']);
+                $price->setCurrencyId($validated['currency'] ?? 'TRY');
+                $price->setType('default');
+                $priceManager->save($price);
+            }
 
-        if (!empty($validated['media_url'])) {
-            $this->attachMedia($context, $item->getId(), $validated['media_url']);
-        }
+            if (isset($validated['stock'])) {
+                $stockManager = MShop::create($context, 'stock');
+                $stockItem = $stockManager->create();
+                $stockItem->setProductId($item->getId());
+                $stockItem->setStock((float) $validated['stock']);
+                $stockManager->save($stockItem);
+            }
 
-        $saved = $manager->get($item->getId(), ['price', 'media']);
-        $data = $saved->toArray();
+            if (!empty($validated['media_url'])) {
+                $this->attachMedia($context, $item->getId(), $validated['media_url']);
+            }
+
+            $saved = $manager->get($item->getId(), ['price', 'media']);
+            $data = $saved->toArray();
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Product setup failed: ' . $e->getMessage()], 500);
+        }
 
         $prices = $saved->getRefItems('price');
         $data['price'] = null;
