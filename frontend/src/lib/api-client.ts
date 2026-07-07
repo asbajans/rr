@@ -79,7 +79,7 @@ class ApiClient {
   }
 
   me() {
-    return this.get<{ data: import('./types').User }>('/api/auth/me')
+    return this.get<import('./types').User>('/api/auth/me')
   }
 
   logout() {

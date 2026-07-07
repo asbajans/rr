@@ -3,13 +3,27 @@
 namespace Database\Seeders;
 
 use App\Models\ApiKey;
+use App\Models\Plan;
 use App\Models\Store;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $plans = [
+            ['name' => 'Ücretsiz', 'slug' => 'free', 'price' => 0, 'ai_credits' => 10, 'product_limit' => 50, 'store_limit' => 1, 'description' => 'Yeni başlayanlar için temel paket'],
+            ['name' => 'Başlangıç', 'slug' => 'starter', 'price' => 299, 'ai_credits' => 100, 'product_limit' => 500, 'store_limit' => 1, 'description' => 'Küçük işletmeler için ideal'],
+            ['name' => 'Profesyonel', 'slug' => 'pro', 'price' => 799, 'ai_credits' => 500, 'product_limit' => 5000, 'store_limit' => 3, 'description' => 'Büyüyen mağazalar için profesyonel paket'],
+            ['name' => 'Kurumsal', 'slug' => 'enterprise', 'price' => 2499, 'ai_credits' => 2000, 'product_limit' => -1, 'store_limit' => 10, 'description' => 'Sınırsız ürün ve öncelikli destek'],
+        ];
+
+        foreach ($plans as $plan) {
+            Plan::firstOrCreate(['slug' => $plan['slug']], $plan);
+        }
+
         $platform = Store::firstOrCreate(
             ['site_code' => 'platform'],
             [
@@ -35,6 +49,16 @@ class DatabaseSeeder extends Seeder
             [
                 'store_id' => $default->id,
                 'name' => 'Default API Key',
+            ]
+        );
+
+        User::firstOrCreate(
+            ['email' => 'admin@rahatio.com.tr'],
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('change-me-password'),
+                'is_admin' => true,
+                'ai_credits' => 999999,
             ]
         );
     }

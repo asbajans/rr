@@ -16,6 +16,7 @@ class User extends Authenticatable
         'email',
         'password',
         'ai_credits',
+        'is_admin',
         'fcm_token',
     ];
 
@@ -35,6 +36,11 @@ class User extends Authenticatable
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->is_admin;
     }
 
     public function hasAiCredits(int $required): bool

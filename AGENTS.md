@@ -4,8 +4,9 @@
 
 Monorepo: `rr` (Rahatio)
 GitHub: `https://github.com/asbajans/rr`
-Portainer Stack: `rahatio-stack` (ID: 64)
+Portainer Stack: `rahatio-stack` (ID: 66)
 Portainer API: `https://cont.asb.web.tr` (Endpoint 2, X-API-Key auth)
+Portainer Webhook: `d6050fb9-2679-4422-902f-916da4785ca6`
 Domain: `rahatio.com.tr` → Cloudflare proxied → Portainer sunucu
 
 ## Proje Tanımı
@@ -27,21 +28,28 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 
 ### Servisler
 
-| Dizin | Teknoloji | Görev |
-|-------|-----------|-------|
-| `core-engine/` | Laravel 10 + Aimeos 2023.10 | Backend API, multi-tenant, auth, AI gateway |
-| `ai-service/` | Node.js + Express + Socket.io | AI görsel işleme, ComfyUI, LLM pipeline |
-| `integration-service/` | Node.js + BullMQ + Redis | Trendyol/HB entegrasyonu, FCM push |
-| `frontend/` | Next.js (React) | Landing page + Admin panel (store owner + super admin) |
-| `slave/` | Go (planlanan) | Self-hosted store daemon |
-| `mobile-app/` | React Native (planlanan) | Mobil store management |
+| Dizin | Teknoloji | Görev | Port |
+|-------|-----------|-------|------|
+| `core-engine/` | Laravel 10 + Aimeos 2023.10 | Backend API, multi-tenant, auth, AI gateway | 3680 |
+| `ai-service/` | Node.js + Express + Socket.io | AI görsel işleme, ComfyUI, LLM pipeline | 3630 |
+| `integration-service/` | Node.js + BullMQ + Redis | Trendyol/HB entegrasyonu, FCM push | 3631 |
+| `frontend/` | Next.js 16.2.10 (React) | Landing page + Admin panel (store owner + super admin) | 3690 |
+| `slave/` | Go (planlanan) | Self-hosted store daemon | — |
+| `mobile-app/` | React Native (planlanan) | Mobil store management | — |
+
+## Önemli Değerler
+
+- **Seeded API Key:** `rahatio-api-key` (SHA256 hash ile DB'de saklanır)
+- **Webhook URL:** `https://cont.asb.web.tr/api/webhooks/d6050fb9-2679-4422-902f-916da4785ca6`
+- **Seeded Store site_code:** `platform` (domain: rahatio.com.tr) ve `default`
+- **GitHub Secret** `PORTAINER_WEBHOOK_URL` yeni webhook ile güncellendi
 
 ## Veritabanı
 
 ### Mevcut Tablolar (Laravel)
 - `stores` — id, name, site_code, domain, email, is_active
-- `api_keys` — store_id, key (sha256), allowed_ips, expires_at, last_used_at
-- `users` — store_id, name, email, password, ai_credits, fcm_token
+- `api_keys` — id, store_id, key (sha256), name, allowed_ips, expires_at, last_used_at
+- `users` — id, store_id, name, email, password, ai_credits, fcm_token
 - `dropshipping_orders` — marketplace, vendor_id, items, totals
 
 ### Aimeos Tabloları (~100 tablo)
@@ -63,49 +71,66 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 
 | Container | Internal | External |
 |-----------|----------|----------|
-| rahatio-mysql | 3306 | 3606 |
-| rahatio-redis | 6379 | 3679 |
-| rahatio-core | 80 | 3680 |
+| rahatio-mysql | 3306 | — |
+| rahatio-redis | 6379 | — |
+| rahatio-core (nginx) | 80 | 3680 |
 | rahatio-ai | 3000 | 3630 |
 | rahatio-integration | 3001 | 3631 |
-| rahatio-frontend (plan) | 3000 | 3690 |
+| rahatio-frontend (Next.js) | 3000 | 3690 |
+
+### Docker Compose Volumes
+- `rahatio-stack_mysql_data` → `/var/lib/mysql` (persistent)
 
 ## Geliştirme Fazları
 
-### Phase 0 — Acil Düzeltmeler
+### Phase 0 — Acil Düzeltmeler ✅ **TAMAM**
 - [x] docker-compose.yml hostname/port fix (`rahat-integration` → `rahatio-integration`)
-- [x] Integration service PORT env
-- [ ] config/mail.php + config/queue.php oluştur
-- [ ] display_errors Off (php.ini + www.conf)
-- [ ] stores seed: `rahatio.com.tr` domain'li platform kaydı
-- [ ] entrypoint'e `db:seed` ekle
-- [ ] CORS whitelist (config/cors.php)
+- [x] Integration service PORT env düzeltildi (3001)
+- [x] config/mail.php + config/queue.php oluşturuldu
+- [x] display_errors Off (php.ini + www.conf)
+- [x] stores seed: `rahatio.com.tr` domain'li platform kaydı
+- [x] entrypoint'e `db:seed` eklendi
+- [x] CORS whitelist (config/cors.php) — platform domain'leri
+- [x] ValidatePostSize kaldırıldı (Laravel 10'da yok)
+- [x] Aimeos route override — shop.routes.home/default false
+- [x] web.php RouteServiceProvider — web middleware grubu
+- [x] TrustHosts — rahatio.com.tr host allowlist + APP_URL
+- [x] API catch-all fix — api.php web.php'den önce yüklenir
+- [x] fix-orders komutu — null invoiceno → NOT NULL
+- [x] Portainer env fix — Integration/AI URL, Redis password, vs.
 
-### Phase 1 — SaaS Frontend (Next.js)
-- [ ] frontend/ projesi oluştur (Next.js + TypeScript + Tailwind)
-- [ ] Landing page: `/`, `/pricing`, `/features`, `/blog`
-- [ ] Auth flow: `/login`, `/register` (Sanctum API ile)
-- [ ] Store owner admin paneli:
-  - Dashboard (sipariş istatistikleri, AI kredisi)
-  - Ürün yönetimi (Aimeos JSON API ile)
-  - Sipariş yönetimi
-  - AI görsel işleme paneli
-  - Mağaza ayarları
-- [ ] Super admin paneli:
-  - Store listesi + detay
-  - Plan atama
-  - Kullanıcı yönetimi
-  - Abonelik/faturalandırma
-- [ ] Cloudflare + SSL yapılandırması
+### Phase 1 — SaaS Frontend (Next.js) 🔄 **DEVAM EDİYOR**
+#### ✅ Tamamlananlar
+- [x] frontend/ projesi oluşturuldu (Next.js 16.2.10 + TypeScript + Tailwind CSS)
+- [x] Landing page: `/`, `/pricing`, `/features`, `/blog` (statik)
+- [x] Auth pages: `/login`, `/register` (useAuth hook hazır)
+- [x] Dashboard layout (sidebar nav, auth guard, logout)
+- [x] Super admin layout (dark sidebar, auth guard)
+- [x] Store admin sayfaları: dashboard, products, orders, ai, settings (statik)
+- [x] Super admin sayfaları: stores, users, plans (statik)
+- [x] Dockerfile (multi-stage, Next.js standalone)
+- [x] Docker Compose frontend servisi (port 3690)
+- [x] CI/CD frontend build job
+- [x] Production deploy (6 container ayakta)
+
+#### ❌ Yapılacaklar
+- [ ] Auth API entegrasyonu (api-client.ts auth/me `data` wrapper fix)
+- [ ] Products page — Aimeos JSON API CRUD
+- [ ] Orders page — sipariş listesi + detay
+- [ ] AI page — AI görsel işleme paneli
+- [ ] Settings page — mağaza ayarları
+- [ ] Super admin: Stores CRUD
+- [ ] Super admin: Users CRUD
+- [ ] Super admin: Plans CRUD
 
 ### Phase 2 — Store Frontend + CDN
 - [ ] Store tema sistemi (Next.js SSG)
-- [ ] Multi-tenant domain routing
+- [ ] Multi-tenant domain routing (custom domain → store frontend)
 - [ ] MinIO / Cloudflare R2 CDN
 - [ ] Cloudflare cache stratejisi
 
 ### Phase 3 — Billing + Subscription
-- [ ] plans + subscriptions tabloları
+- [ ] plans + subscriptions tabloları + migration
 - [ ] Stripe/Iyzico entegrasyonu
 - [ ] Plan limit kontrolleri (AI kredisi, ürün sayısı, vs.)
 
@@ -121,18 +146,69 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [ ] Store owner mobil paneli
 - [ ] AI görsel işleme takibi (WebSocket)
 
+## API Routes
+
+### Public (no auth)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/` | Landing page (HTML) |
+| GET | `/health` | Health check |
+| POST | `/api/auth/register` | Kullanıcı kaydı |
+| POST | `/api/auth/login` | Kullanıcı girişi (Sanctum token döner) |
+| POST | `/api/orders` | Sipariş oluşturma |
+
+### Auth Required (auth:sanctum)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/api/auth/me` | Mevcut kullanıcı bilgisi |
+| POST | `/api/auth/logout` | Oturum kapatma |
+| POST | `/api/ai/process-image` | AI görsel işleme proxy |
+
+### API Key Required (AuthenticateWithApiKey)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/api/products` | Ürün listesi |
+| GET | `/api/products/{id}` | Ürün detay |
+| POST | `/api/products/sync` | Ürün senkronizasyonu |
+| GET | `/api/stocks/{sku}` | Stok sorgula |
+| PUT | `/api/stocks/` | Stok güncelle |
+
+## Frontend Route Yapısı
+
+```
+src/app/
+├── (public)/              # Public routes (Navbar + Footer)
+│   ├── page.tsx           # Landing (/)
+│   ├── blog/page.tsx      # Blog (/blog)
+│   ├── features/page.tsx  # Özellikler (/features)
+│   ├── pricing/page.tsx   # Fiyatlandırma (/pricing)
+│   ├── login/page.tsx     # Giriş (/login)
+│   └── register/page.tsx  # Kayıt (/register)
+├── (dashboard)/           # Store admin (sidebar + auth guard)
+│   ├── dashboard/page.tsx # Dashboard (/dashboard)
+│   ├── products/page.tsx  # Ürünler (/products)
+│   ├── orders/page.tsx    # Siparişler (/orders)
+│   ├── ai/page.tsx        # AI Görsel (/ai)
+│   └── settings/page.tsx  # Ayarlar (/settings)
+├── (super)/               # Super admin (dark sidebar + auth guard)
+│   ├── stores/page.tsx    # Mağazalar (/stores)
+│   ├── users/page.tsx     # Kullanıcılar (/users)
+│   └── plans/page.tsx     # Planlar (/plans)
+└── layout.tsx             # Root layout (Geist font, globals)
+```
+
 ## CI/CD
 
 - Branch: `main`
 - Workflow: `.github/workflows/deploy.yml`
 - Path filter ile sadece değişen servis build edilir
-- Docker Hub → Portainer webhook
-- **TODO:** Commit SHA tag'ı ekle, `ForcePullImage: true` yap, validate-core job'ı ekle
+- Docker Hub → Portainer webhook (`d6050fb9...`)
+- **TODO:** Commit SHA tag'ı ekle, validate-core job'ı ekle
 
 ### Gerekli GitHub Secrets
-- `DOCKER_HUB_USERNAME`
-- `DOCKER_HUB_TOKEN`  
-- `PORTAINER_WEBHOOK_URL`
+- `DOCKER_HUB_USERNAME` — `asbajans`
+- `DOCKER_HUB_TOKEN`
+- `PORTAINER_WEBHOOK_URL` — `https://cont.asb.web.tr/api/webhooks/d6050fb9-2679-4422-902f-916da4785ca6`
 
 ## Kullanılan Aimeos Özellikleri
 
@@ -149,14 +225,44 @@ Aimeos headless backend olarak kullanılır, frontend sıfırdan yazılır.
 | Tax manager | Vergi hesaplama |
 | Coupon manager | İndirim/kupon sistemi |
 
-## Önemli Portainer Env Sorunları
+## Önemli Portainer Env
 
-- `INTEGRATION_SERVICE_URL=http://rahat-integration:3000` → `http://rahatio-integration:3001`
-- `AI_SERVICE_URL=http://rahat-ai:3000` → `http://rahatio-ai:3000`
-- `APP_KEY` boş → doldurulmalı
-- `REDIS_PASSWORD=null` → boşalt
-- `ForcePullImage: false` → `true` yap
-- Git `ReferenceName` = `main` ayarlanmalı
+```
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=                  # Entrypoint'te key:generate ile oluşturulur
+NGINX_PORT=3680
+MYSQL_ROOT_PASSWORD=change-me-root
+MYSQL_DATABASE=rahatio
+MYSQL_USER=rahatio
+MYSQL_PASSWORD=change-me-db
+REDIS_HOST=redis
+REDIS_PASSWORD=           # Boş (null string değil)
+REDIS_PORT=6379
+INTEGRATION_SERVICE_URL=http://rahatio-integration:3001
+AI_SERVICE_URL=http://rahatio-ai:3000
+CORE_API_KEY=
+TRENDYOL_API_KEY=         # Boş, doldurulacak
+TRENDYOL_API_SECRET=      # Boş, doldurulacak
+TRENDYOL_SUPPLIER_ID=     # Boş, doldurulacak
+RAHAT_INTERNAL_KEY=change-me-internal-key
+```
+
+## Sık Karşılaşılan Sorunlar
+
+### MySQL volume şifre sorunu
+MySQL volume varsa env'deki şifreler yok sayılır. Volume silinip stack redeploy edilmeli:
+```bash
+DELETE /api/endpoints/2/docker/containers/rahatio-mysql?force=true
+DELETE /api/endpoints/2/docker/volumes/rahatio-stack_mysql_data
+PUT /api/stacks/66/git/redeploy?endpointId=2
+```
+
+### YAML indentation hatası
+GitHub Actions'ta `dorny/paths-filter` altındaki tüm filtreler aynı hizada olmalı.
+
+### Aimeos setup — `firstOrCreate` ile site_code
+Seeder `firstOrCreate` kullanır, bu yüzden aynı site_code ile tekrar çalıştırılabilir.
 
 ## Proje Yapısı (Full)
 
@@ -165,7 +271,9 @@ rr/
 ├── core-engine/               # Laravel 10 + Aimeos
 │   ├── Dockerfile
 │   ├── app/
-│   │   ├── Console/Kernel.php
+│   │   ├── Console/
+│   │   │   ├── Kernel.php
+│   │   │   └── Commands/FixAimeosOrders.php
 │   │   ├── Exceptions/Handler.php
 │   │   ├── Http/
 │   │   │   ├── Controllers/Api/
@@ -178,12 +286,13 @@ rr/
 │   │   │   └── Middleware/
 │   │   │       ├── AuthenticateWithApiKey.php
 │   │   │       ├── ResolveStoreFromDomain.php
-│   │   │       └── ...
+│   │   │       └── TrustHosts.php
 │   │   ├── Models/
 │   │   │   ├── User.php
 │   │   │   ├── Store.php
 │   │   │   ├── ApiKey.php
 │   │   │   └── DropshippingOrder.php
+│   │   ├── Providers/RouteServiceProvider.php
 │   │   ├── Services/InternalKeyService.php
 │   │   ├── Events/ (OrderReceived, ProductUpdated)
 │   │   └── Listeners/ (SendProductWebhook, SplitOrderByVendor)
@@ -192,26 +301,37 @@ rr/
 │   │   ├── shop.php
 │   │   ├── app.php, auth.php, cache.php, cors.php
 │   │   ├── database.php, filesystems.php, logging.php
+│   │   ├── mail.php, queue.php
 │   │   ├── sanctum.php, session.php, view.php
-│   │   └── mail.php [EKSIK], queue.php [EKSIK]
-│   ├── database/migrations/ (6 adet)
+│   ├── database/
+│   │   ├── migrations/ (7 adet: stores, api_keys, users, orders, vendor_id, sanctum, custom_columns)
+│   │   └── seeders/DatabaseSeeder.php
 │   ├── routes/api.php, web.php, console.php
-│   └── docker/nginx/ (default.conf, nginx.conf)
-│       docker/php/ (entrypoint.sh, php.ini, www.conf, supervisord.conf)
+│   └── docker/
+│       ├── nginx/ (default.conf, nginx.conf)
+│       └── php/ (entrypoint.sh, php.ini, www.conf, supervisord.conf)
 │
-├── frontend/                  # Next.js (PLANLANAN)
+├── frontend/                  # Next.js 16.2.10
+│   ├── Dockerfile
+│   ├── next.config.ts
 │   ├── package.json
-│   ├── next.config.js
-│   ├── app/
-│   │   ├── page.tsx           # Landing page
-│   │   ├── pricing/page.tsx
-│   │   ├── features/page.tsx
-│   │   ├── blog/page.tsx
-│   │   ├── login/page.tsx
-│   │   └── (admin)/          # Admin panel (store + super)
-│   ├── components/
-│   ├── lib/ (api client, types)
-│   └── Dockerfile
+│   ├── tsconfig.json
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── (public)/      # Public routes
+│   │   │   ├── (dashboard)/   # Store admin
+│   │   │   ├── (super)/       # Super admin
+│   │   │   ├── layout.tsx     # Root layout
+│   │   │   └── globals.css
+│   │   ├── components/
+│   │   │   ├── ui/button.tsx
+│   │   │   └── landing/ (navbar.tsx, footer.tsx)
+│   │   └── lib/
+│   │       ├── api-client.ts  # API client + auth methods
+│   │       ├── auth.tsx       # Auth context + hook
+│   │       ├── types.ts       # TypeScript types
+│   │       └── utils.ts       # cn() helper
+│   └── AGENTS.md              # Next.js 16 kuralları
 │
 ├── ai-service/                # Node.js + TypeScript
 ├── integration-service/       # Node.js + TypeScript
