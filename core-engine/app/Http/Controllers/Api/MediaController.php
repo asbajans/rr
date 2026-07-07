@@ -21,10 +21,14 @@ class MediaController extends Controller
         $filename = Str::uuid() . '.' . $ext;
         $path = "stores/{$storeId}/products/{$filename}";
 
-        $stored = Storage::disk('minio')->put($path, file_get_contents($request->file('file')->path()));
+        try {
+            $stored = Storage::disk('minio')->put($path, file_get_contents($request->file('file')->path()));
 
-        if (!$stored) {
-            return response()->json(['error' => 'Upload failed'], 500);
+            if (!$stored) {
+                return response()->json(['error' => 'Upload failed'], 500);
+            }
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Storage error: ' . $e->getMessage()], 500);
         }
 
         return response()->json([
@@ -37,13 +41,17 @@ class MediaController extends Controller
     {
         $disk = Storage::disk('minio');
 
-        if (!$disk->exists($path)) {
-            return response()->json(['error' => 'File not found'], 404);
+        try {
+            if (!$disk->exists($path)) {
+                return response()->json(['error' => 'File not found'], 404);
+            }
+
+            $content = $disk->get($path);
+            $mime = $disk->mimeType($path);
+
+            return response($content, 200)->header('Content-Type', $mime);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Media error: ' . $e->getMessage()], 500);
         }
-
-        $content = $disk->get($path);
-        $mime = $disk->mimeType($path);
-
-        return response($content, 200)->header('Content-Type', $mime);
     }
 }
