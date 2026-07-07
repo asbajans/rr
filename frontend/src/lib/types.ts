@@ -77,6 +77,29 @@ export type CreatedApiKey = {
   plain_text: string
 }
 
+export type StoreProduct = {
+  'product.id': string
+  'product.code': string
+  'product.label': string
+  'product.status': number
+  price: number | null
+  currency: string | null
+  image: string | null
+  description: string | null
+}
+
+export type StoreFrontData = {
+  store: {
+    id: number
+    name: string
+    site_code: string
+    domain: string | null
+    email: string | null
+  }
+  products: StoreProduct[]
+  total: number
+}
+
 export type PaginatedResponse<T> = {
   data: T[]
   current_page: number

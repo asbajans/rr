@@ -209,6 +209,15 @@ class ApiClient {
     return this.put<import('./types').Store>('/api/admin/settings', data)
   }
 
+  // Store Frontend (public)
+  getStoreFront(siteCode: string) {
+    return this.get<import('./types').StoreFrontData>(`/api/store/${siteCode}`)
+  }
+
+  getStoreProduct(siteCode: string, id: string) {
+    return this.get<import('./types').StoreProduct>(`/api/store/${siteCode}/products/${id}`)
+  }
+
   // AI
   processImage(formData: FormData) {
     return this.upload<{ url: string }>('/api/ai/process-image', formData)

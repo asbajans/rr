@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AiGatewayController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\StoreFrontController;
 use App\Http\Controllers\Api\WooCommerce\ProductController;
 use App\Http\Controllers\Api\WooCommerce\StockController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,11 @@ Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 
 Route::post('/orders', [OrderController::class, 'store']);
+
+Route::prefix('store/{siteCode}')->group(function () {
+    Route::get('/', [StoreFrontController::class, 'show']);
+    Route::get('products/{id}', [StoreFrontController::class, 'product']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
