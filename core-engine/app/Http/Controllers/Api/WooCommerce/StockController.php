@@ -44,16 +44,20 @@ class StockController extends Controller
 
     public function show(Request $request, string $sku)
     {
-        $context = $this->context();
-        $manager = \Aimeos\MShop::create($context, 'product');
-        $item = $manager->find($sku, ['product']);
-        if (!$item) {
-            return response()->json(['error' => 'Product not found'], 404);
-        }
+        try {
+            $context = $this->context();
+            $manager = \Aimeos\MShop::create($context, 'product');
+            $item = $manager->find($sku, ['product']);
+            if (!$item) {
+                return response()->json(['error' => 'Product not found'], 404);
+            }
 
-        return response()->json([
-            'sku' => $item->getCode(),
-            'stock' => (int) $item->getPropertyValue('stock', 'stock'),
-        ]);
+            return response()->json([
+                'sku' => $item->getCode(),
+                'stock' => (int) $item->getPropertyValue('stock', 'stock'),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 500);
+        }
     }
 }
