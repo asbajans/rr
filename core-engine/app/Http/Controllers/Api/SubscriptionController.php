@@ -1,0 +1,192 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Plan;
+use App\Models\Subscription;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use Stripe\StripeClient;
+use Stripe\Webhook;
+
+class SubscriptionController extends Controller
+{
+    private function stripe(): StripeClient
+    {
+        return new StripeClient(config('services.stripe.secret'));
+    }
+
+    public function index(Request $request)
+    {
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['subscription' => null, 'plan' => null]);
+        }
+
+        $subscription = $store->subscription;
+
+        return response()->json([
+            'subscription' => $subscription,
+            'plan' => $store->plan,
+        ]);
+    }
+
+    public function checkout(Request $request)
+    {
+        $request->validate([
+            'plan_id' => 'required|exists:plans,id',
+        ]);
+
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['error' => 'No store assigned.'], 400);
+        }
+
+        $plan = Plan::findOrFail($request->plan_id);
+        if ($plan->price <= 0) {
+            $store->update(['plan_id' => $plan->id]);
+            Subscription::updateOrCreate(
+                ['store_id' => $store->id],
+                [
+                    'plan_id' => $plan->id,
+                    'status' => 'active',
+                    'payment_method' => 'free',
+                ]
+            );
+            return response()->json(['message' => 'Free plan activated.']);
+        }
+
+        $stripe = $this->stripe();
+        $session = $stripe->checkout->sessions->create([
+            'mode' => 'subscription',
+            'payment_method_types' => ['card'],
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => 'try',
+                    'product_data' => ['name' => $plan->name],
+                    'recurring' => ['interval' => 'month'],
+                    'unit_amount' => (int) ($plan->price * 100),
+                ],
+                'quantity' => 1,
+            ]],
+            'metadata' => [
+                'store_id' => (string) $store->id,
+                'plan_id' => (string) $plan->id,
+            ],
+            'success_url' => $request->input('success_url', env('APP_FRONTEND_URL', 'https://rahatio.com.tr') . '/dashboard/billing?success=1'),
+            'cancel_url' => $request->input('cancel_url', env('APP_FRONTEND_URL', 'https://rahatio.com.tr') . '/dashboard/billing?canceled=1'),
+        ]);
+
+        return response()->json(['url' => $session->url]);
+    }
+
+    public function portal(Request $request)
+    {
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['error' => 'No store assigned.'], 400);
+        }
+
+        $subscription = $store->subscription;
+        if (!$subscription || !$subscription->stripe_id) {
+            return response()->json(['error' => 'No active Stripe subscription.'], 400);
+        }
+
+        $stripe = $this->stripe();
+        $session = $stripe->billingPortal->sessions->create([
+            'customer' => $subscription->stripe_id,
+            'return_url' => $request->input('return_url', env('APP_FRONTEND_URL', 'https://rahatio.com.tr') . '/dashboard/billing'),
+        ]);
+
+        return response()->json(['url' => $session->url]);
+    }
+
+    public function cancel(Request $request)
+    {
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['error' => 'No store assigned.'], 400);
+        }
+
+        $subscription = $store->subscription;
+        if (!$subscription) {
+            return response()->json(['error' => 'No active subscription.'], 400);
+        }
+
+        if ($subscription->payment_method !== 'free') {
+            $stripe = $this->stripe();
+            $stripe->subscriptions->cancel($subscription->stripe_id);
+        }
+
+        $subscription->update([
+            'status' => 'canceled',
+            'ends_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Subscription canceled.']);
+    }
+
+    public function webhook(Request $request)
+    {
+        $payload = $request->getContent();
+        $sigHeader = $request->header('Stripe-Signature');
+        $endpointSecret = config('services.stripe.webhook_secret');
+
+        if ($endpointSecret) {
+            try {
+                Webhook::constructEvent($payload, $sigHeader, $endpointSecret);
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'Invalid signature.'], 400);
+            }
+        }
+
+        $event = json_decode($payload);
+        $session = $event->data->object ?? null;
+
+        if (!$session) {
+            return response()->json(['error' => 'Invalid event.'], 400);
+        }
+
+        $storeId = $session->metadata->store_id ?? null;
+        $planId = $session->metadata->plan_id ?? null;
+
+        switch ($event->type) {
+            case 'checkout.session.completed':
+                if ($storeId && $planId) {
+                    $store = \App\Models\Store::find($storeId);
+                    if ($store) {
+                        $store->update(['plan_id' => $planId]);
+                        Subscription::updateOrCreate(
+                            ['store_id' => $storeId],
+                            [
+                                'plan_id' => $planId,
+                                'stripe_id' => $session->customer ?? $session->id,
+                                'stripe_status' => 'active',
+                                'status' => 'active',
+                                'renews_at' => now()->addMonth(),
+                            ]
+                        );
+                    }
+                }
+                break;
+
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+                $stripeSubscriptionId = $session->id;
+                $subscription = Subscription::where('stripe_id', $stripeSubscriptionId)->first();
+                if ($subscription) {
+                    $status = match ($session->status) {
+                        'active', 'trialing' => 'active',
+                        'past_due' => 'past_due',
+                        'canceled' => 'canceled',
+                        'unpaid' => 'unpaid',
+                        default => $subscription->status,
+                    };
+                    $subscription->update(['status' => $status]);
+                }
+                break;
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+}

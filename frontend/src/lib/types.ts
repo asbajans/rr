@@ -107,3 +107,18 @@ export type PaginatedResponse<T> = {
   per_page: number
   total: number
 }
+
+export type Subscription = {
+  id: number
+  store_id: number
+  plan_id: number
+  stripe_id: string | null
+  stripe_status: string | null
+  payment_method: string
+  quantity: number
+  trial_ends_at: string | null
+  ends_at: string | null
+  renews_at: string | null
+  status: string
+  plan?: Plan
+}

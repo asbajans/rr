@@ -130,6 +130,20 @@ class ProductController extends Controller
             'media_url' => 'nullable|string|max:1024',
         ]);
 
+        $store = $request->user()->store;
+        if ($store && $store->plan && $store->plan->product_limit >= 0) {
+            $context = $this->context();
+            $filter = MShop::create($context, 'product')->filter();
+            $count = MShop::create($context, 'product')->search($filter)->count();
+            if ($count >= $store->plan->product_limit) {
+                return response()->json([
+                    'error' => 'Product limit reached. Upgrade your plan.',
+                    'limit' => $store->plan->product_limit,
+                    'current' => $count,
+                ], 403);
+            }
+        }
+
         $context = $this->context();
         $manager = MShop::create($context, 'product');
         $item = $manager->create();

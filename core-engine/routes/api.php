@@ -22,6 +22,8 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 
 Route::post('/orders', [OrderController::class, 'store']);
 
+Route::post('/stripe/webhook', [\App\Http\Controllers\Api\SubscriptionController::class, 'webhook']);
+
 Route::get('/media/{path}', [MediaController::class, 'serve'])->where('path', '.*');
 
 Route::get('/resolve-domain', [StoreFrontController::class, 'resolveDomain']);
@@ -87,6 +89,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/admin/settings', [SettingController::class, 'update']);
 
     Route::post('/admin/upload', [MediaController::class, 'upload']);
+
+    Route::prefix('admin/subscription')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'index']);
+        Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionController::class, 'checkout']);
+        Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'portal']);
+        Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancel']);
+    });
 });
 
 Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(function () {

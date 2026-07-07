@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/products', label: 'Ürünler', icon: Package },
   { href: '/orders', label: 'Siparişler', icon: ShoppingCart },
   { href: '/ai', label: 'AI Görsel', icon: Sparkles },
+  { href: '/billing', label: 'Faturalandırma', icon: CreditCard },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 

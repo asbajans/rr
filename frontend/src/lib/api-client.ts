@@ -229,6 +229,23 @@ class ApiClient {
   processImage(formData: FormData) {
     return this.upload<{ url: string }>('/api/ai/process-image', formData)
   }
+
+  // Subscription
+  getSubscription() {
+    return this.get<{ subscription: import('./types').Subscription | null; plan: import('./types').Plan | null }>('/api/admin/subscription')
+  }
+
+  createCheckoutSession(planId: number, successUrl?: string, cancelUrl?: string) {
+    return this.post<{ url: string }>('/api/admin/subscription/checkout', { plan_id: planId, success_url: successUrl, cancel_url: cancelUrl })
+  }
+
+  createPortalSession(returnUrl?: string) {
+    return this.post<{ url: string }>('/api/admin/subscription/portal', { return_url: returnUrl })
+  }
+
+  cancelSubscription() {
+    return this.post<{ message: string }>('/api/admin/subscription/cancel')
+  }
 }
 
 export const api = new ApiClient()

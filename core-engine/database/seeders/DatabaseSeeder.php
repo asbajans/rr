@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\ApiKey;
 use App\Models\Plan;
 use App\Models\Store;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -24,6 +25,9 @@ class DatabaseSeeder extends Seeder
             Plan::firstOrCreate(['slug' => $plan['slug']], $plan);
         }
 
+        $enterprise = Plan::where('slug', 'enterprise')->first();
+        $free = Plan::where('slug', 'free')->first();
+
         $platform = Store::firstOrCreate(
             ['site_code' => 'platform'],
             [
@@ -31,6 +35,7 @@ class DatabaseSeeder extends Seeder
                 'domain' => 'rahatio.com.tr',
                 'email' => 'hello@rahatio.com.tr',
                 'is_active' => true,
+                'plan_id' => $enterprise?->id,
             ]
         );
 
@@ -41,6 +46,16 @@ class DatabaseSeeder extends Seeder
                 'domain' => null,
                 'email' => null,
                 'is_active' => true,
+                'plan_id' => $free?->id,
+            ]
+        );
+
+        Subscription::firstOrCreate(
+            ['store_id' => $default->id],
+            [
+                'plan_id' => $free?->id,
+                'status' => 'active',
+                'payment_method' => 'free',
             ]
         );
 
@@ -59,6 +74,16 @@ class DatabaseSeeder extends Seeder
                 'password' => Hash::make('change-me-password'),
                 'is_admin' => true,
                 'ai_credits' => 999999,
+            ]
+        );
+
+        User::firstOrCreate(
+            ['email' => 'owner@test.com'],
+            [
+                'store_id' => $default->id,
+                'name' => 'Test Owner',
+                'password' => Hash::make('test1234'),
+                'ai_credits' => 100,
             ]
         );
     }

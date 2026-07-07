@@ -123,11 +123,13 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] Super admin: Users CRUD (Admin UserController)
 - [x] Super admin: Plans CRUD (Admin PlanController)
 
-### Phase 2 — Store Frontend + CDN
-- [ ] Store tema sistemi (Next.js SSG)
-- [ ] Multi-tenant domain routing (custom domain → store frontend)
-- [ ] MinIO / Cloudflare R2 CDN
-- [ ] Cloudflare cache stratejisi
+### Phase 2 — Store Frontend + CDN ✅ **TAMAM**
+- [x] Public store API endpoint (`/api/store/{siteCode}`)
+- [x] Store frontend page (`/store/[siteCode]` catalog + product detail)
+- [x] MinIO entegrasyonu (S3 depolama, API proxy ile serve)
+- [x] Nginx `client_max_body_size` fix
+- [x] Product CRUD with image upload (Aimeos media linking)
+- [x] Multi-tenant domain routing (Next.js proxy.ts → `/api/resolve-domain`)
 
 ### Phase 3 — Billing + Subscription
 - [ ] plans + subscriptions tabloları + migration
