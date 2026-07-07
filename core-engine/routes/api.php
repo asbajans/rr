@@ -98,10 +98,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancel']);
     });
 
-    Route::prefix('admin/slave')->group(function () {
-        Route::get('/download-php', [SlaveDownloadController::class, 'downloadPhp']);
-        Route::get('/download-vercel', [SlaveDownloadController::class, 'downloadVercel']);
-    });
+    Route::get('/admin/slave/download-php', [SlaveDownloadController::class, 'downloadPhp']);
+    Route::get('/admin/slave/download-vercel', [SlaveDownloadController::class, 'downloadVercel']);
 });
 
 Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(function () {
