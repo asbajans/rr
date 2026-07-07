@@ -27,11 +27,23 @@ class MediaController extends Controller
             return response()->json(['error' => 'Upload failed'], 500);
         }
 
-        $publicBase = rtrim(config('filesystems.disks.minio.public_url', 'http://localhost:3700/rahatio'), '/');
-
         return response()->json([
             'path' => $path,
-            'url' => $publicBase . '/' . $path,
+            'url' => '/api/media/' . $path,
         ]);
+    }
+
+    public function serve(string $path)
+    {
+        $disk = Storage::disk('minio');
+
+        if (!$disk->exists($path)) {
+            return response()->json(['error' => 'File not found'], 404);
+        }
+
+        $content = $disk->get($path);
+        $mime = $disk->mimeType($path);
+
+        return response($content, 200)->header('Content-Type', $mime);
     }
 }

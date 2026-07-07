@@ -55,7 +55,6 @@ services:
     networks:
       - rahatio
     ports:
-      - "3700:9000"
       - "3701:9001"
     volumes:
       - minio_data:/data
@@ -84,6 +83,7 @@ services:
       MINIO_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: rahatio
+      MINIO_PUBLIC_URL: /api/media
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       APP_URL: https://rahatio.com.tr
@@ -97,6 +97,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   ai-service:

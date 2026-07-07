@@ -22,6 +22,8 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 
 Route::post('/orders', [OrderController::class, 'store']);
 
+Route::get('/media/{path}', [MediaController::class, 'serve'])->where('path', '.*');
+
 Route::prefix('store/{siteCode}')->group(function () {
     Route::get('/', [StoreFrontController::class, 'show']);
     Route::get('products/{id}', [StoreFrontController::class, 'product']);
