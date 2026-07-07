@@ -209,6 +209,13 @@ class ApiClient {
     return this.put<import('./types').Store>('/api/admin/settings', data)
   }
 
+  // Media Upload
+  uploadImage(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return this.upload<{ path: string; url: string }>('/api/admin/upload', formData)
+  }
+
   // Store Frontend (public)
   getStoreFront(siteCode: string) {
     return this.get<import('./types').StoreFrontData>(`/api/store/${siteCode}`)

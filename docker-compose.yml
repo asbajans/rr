@@ -8,6 +8,7 @@ networks:
 volumes:
   mysql_data:
   redis_data:
+  minio_data:
 
 services:
   mysql:
@@ -47,6 +48,27 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: rahatio-minio
+    restart: unless-stopped
+    networks:
+      - rahatio
+    ports:
+      - "3700:9000"
+      - "3701:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   laravel-app:
     build:
       context: ./core-engine
@@ -58,6 +80,10 @@ services:
     ports:
       - "${NGINX_PORT:-3680}:80"
     environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: rahatio
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       APP_URL: https://rahatio.com.tr

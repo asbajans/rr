@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AiGatewayController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\StoreFrontController;
 use App\Http\Controllers\Api\WooCommerce\ProductController;
 use App\Http\Controllers\Api\WooCommerce\StockController;
@@ -80,6 +81,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/admin/settings', [SettingController::class, 'index']);
     Route::put('/admin/settings', [SettingController::class, 'update']);
+
+    Route::post('/admin/upload', [MediaController::class, 'upload']);
 });
 
 Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(function () {
