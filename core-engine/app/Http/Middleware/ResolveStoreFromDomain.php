@@ -13,12 +13,18 @@ class ResolveStoreFromDomain
     {
         $host = $request->getHost();
 
+        // Platform domain'lerini pas geç (rahatio.com.tr ve alt domainleri)
+        $platformDomains = ['rahatio.com.tr', 'www.rahatio.com.tr', 'app.rahatio.com.tr', 'api.rahatio.com.tr'];
+        if (in_array($host, $platformDomains)) {
+            return $next($request);
+        }
+
         $store = Store::where('domain', $host)
             ->where('is_active', true)
             ->first();
 
         if (!$store) {
-            abort(404, 'No store found for this domain');
+            return response()->json(['error' => 'No store found for this domain'], 404);
         }
 
         $request->merge(['site_code' => $store->site_code]);

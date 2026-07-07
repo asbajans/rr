@@ -4,117 +4,222 @@
 
 Monorepo: `rr` (Rahatio)
 GitHub: `https://github.com/asbajans/rr`
-Stack Adı (Portainer): `rahatio-stack`
+Portainer Stack: `rahatio-stack` (ID: 64)
+Portainer API: `https://cont.asb.web.tr` (Endpoint 2, X-API-Key auth)
+Domain: `rahatio.com.tr` → Cloudflare proxied → Portainer sunucu
 
-## Proje Yapısı
+## Proje Tanımı
+
+Rahatio, **AI destekli e-ticaret SaaS platformu**. Shopify benzeri ama:
+- AI ile ürün görseli düzenleme (background removal, ComfyUI)
+- AI ile ürün açıklaması/metin oluşturma (LLM pipeline)
+- Pazaryeri entegrasyonu (Trendyol, Hepsiburada)
+- Multi-tenant: her müşteri kendi domain'inde mağaza açar
+- İki deployment modeli: Hosted (SaaS) veya Self-hosted (Slave)
+
+## Mimari
 
 ```
-rr/
-├── core-engine/          # Laravel 10 + Aimeos (Headless E-commerce)
-│   ├── Dockerfile        # PHP 8.3-fpm-alpine, multi-stage
-│   ├── app/
-│   │   ├── Events/ProductUpdated.php
-│   │   ├── Listeners/SendProductWebhook.php
-│   │   ├── Models/{Store,ApiKey}.php
-│   │   ├── Http/Middleware/{ResolveStoreFromDomain,AuthenticateWithApiKey}.php
-│   │   ├── Http/Controllers/Api/WooCommerce/{Product,Stock}Controller.php
-│   │   └── Providers/{Event,Route}ServiceProvider.php
-│   ├── bootstrap/app.php
-│   ├── config/{app,database,aimeos,sanctum}.php
-│   ├── database/migrations/ (stores, api_keys, vendor_id)
-│   ├── routes/{api,web}.php
-│   └── docker/{nginx,php}/
-├── ai-service/           # Node.js (AI mikroservisi)
-│   ├── Dockerfile        # Node 20-alpine, multi-stage
-│   └── src/main.js
-├── integration-service/  # Node.js (Entegrasyon/WooCommerce)
-│   ├── Dockerfile        # Node 20-alpine, multi-stage
-│   └── src/main.js
-├── mobile-app/           # (boş, mobil uygulama için ayrılmış)
-├── docker-compose.yml    # Portainer uyumlu, tüm servisler
-├── .github/workflows/deploy.yml  # CI/CD
-├── AGENTS.md             # Bu dosya
-└── .env.example
+rahatio.com.tr            → Landing page (SEO) + Admin panel (Next.js)
+api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
+*.customer.com            → Müşteri mağazaları (Next.js SSG veya Slave)
 ```
+
+### Servisler
+
+| Dizin | Teknoloji | Görev |
+|-------|-----------|-------|
+| `core-engine/` | Laravel 10 + Aimeos 2023.10 | Backend API, multi-tenant, auth, AI gateway |
+| `ai-service/` | Node.js + Express + Socket.io | AI görsel işleme, ComfyUI, LLM pipeline |
+| `integration-service/` | Node.js + BullMQ + Redis | Trendyol/HB entegrasyonu, FCM push |
+| `frontend/` | Next.js (React) | Landing page + Admin panel (store owner + super admin) |
+| `slave/` | Go (planlanan) | Self-hosted store daemon |
+| `mobile-app/` | React Native (planlanan) | Mobil store management |
+
+## Veritabanı
+
+### Mevcut Tablolar (Laravel)
+- `stores` — id, name, site_code, domain, email, is_active
+- `api_keys` — store_id, key (sha256), allowed_ips, expires_at, last_used_at
+- `users` — store_id, name, email, password, ai_credits, fcm_token
+- `dropshipping_orders` — marketplace, vendor_id, items, totals
+
+### Aimeos Tabloları (~100 tablo)
+- `mshop_product`, `mshop_product_list`, `mshop_price`, `mshop_stock`
+- `mshop_order`, `mshop_order_base`, `mshop_order_product`
+- `mshop_customer`, `mshop_customer_list`
+- `mshop_coupon`, `mshop_discount`, `mshop_tax`
+- `mshop_locale`, `mshop_site`, `mshop_text`
+- `mshop_media`, `mshop_attribute`, vb.
+
+### Eklenecek Tablolar
+- `plans` — Abonelik paketleri (Free, Basic, Pro, Enterprise)
+- `subscriptions` — Store → Plan eşleşmesi, billing döngüsü
+- `store_settings` — Tema, para birimi, vergi, kargo ayarları
+- `media` — CDN'deki dosyaların referansı
+- `slave_nodes` — Self-hosted slave kayıtları, son heartbeat
 
 ## Docker Port Haritası
 
-| Container          | Internal | External |
-|--------------------|----------|----------|
-| rahatio-mysql      | 3306     | 3606     |
-| rahatio-redis      | 6379     | 3679     |
-| rahatio-nginx      | 80       | 3680     |
-| rahatio-ai         | 3000     | 3630     |
-| rahatio-integration| 3001     | 3631     |
+| Container | Internal | External |
+|-----------|----------|----------|
+| rahatio-mysql | 3306 | 3606 |
+| rahatio-redis | 6379 | 3679 |
+| rahatio-core | 80 | 3680 |
+| rahatio-ai | 3000 | 3630 |
+| rahatio-integration | 3001 | 3631 |
+| rahatio-frontend (plan) | 3000 | 3690 |
+
+## Geliştirme Fazları
+
+### Phase 0 — Acil Düzeltmeler
+- [x] docker-compose.yml hostname/port fix (`rahat-integration` → `rahatio-integration`)
+- [x] Integration service PORT env
+- [ ] config/mail.php + config/queue.php oluştur
+- [ ] display_errors Off (php.ini + www.conf)
+- [ ] stores seed: `rahatio.com.tr` domain'li platform kaydı
+- [ ] entrypoint'e `db:seed` ekle
+- [ ] CORS whitelist (config/cors.php)
+
+### Phase 1 — SaaS Frontend (Next.js)
+- [ ] frontend/ projesi oluştur (Next.js + TypeScript + Tailwind)
+- [ ] Landing page: `/`, `/pricing`, `/features`, `/blog`
+- [ ] Auth flow: `/login`, `/register` (Sanctum API ile)
+- [ ] Store owner admin paneli:
+  - Dashboard (sipariş istatistikleri, AI kredisi)
+  - Ürün yönetimi (Aimeos JSON API ile)
+  - Sipariş yönetimi
+  - AI görsel işleme paneli
+  - Mağaza ayarları
+- [ ] Super admin paneli:
+  - Store listesi + detay
+  - Plan atama
+  - Kullanıcı yönetimi
+  - Abonelik/faturalandırma
+- [ ] Cloudflare + SSL yapılandırması
+
+### Phase 2 — Store Frontend + CDN
+- [ ] Store tema sistemi (Next.js SSG)
+- [ ] Multi-tenant domain routing
+- [ ] MinIO / Cloudflare R2 CDN
+- [ ] Cloudflare cache stratejisi
+
+### Phase 3 — Billing + Subscription
+- [ ] plans + subscriptions tabloları
+- [ ] Stripe/Iyzico entegrasyonu
+- [ ] Plan limit kontrolleri (AI kredisi, ürün sayısı, vs.)
+
+### Phase 4 — Slave Yazılım
+- [ ] Go ile slave servis
+- [ ] HMAC auth + API senkronizasyonu
+- [ ] CRON + local cache (SQLite)
+- [ ] Tek komut kurulum script'i
+
+### Phase 5 — Mobile App
+- [ ] React Native projesi
+- [ ] shared/ paketi (types, API client, hooks)
+- [ ] Store owner mobil paneli
+- [ ] AI görsel işleme takibi (WebSocket)
 
 ## CI/CD
 
 - Branch: `main`
-- `paths-filter` ile değişen servis algılanır
-- Sadece değişen servisin imajı build edilir -> Docker Hub -> Portainer webhook
+- Workflow: `.github/workflows/deploy.yml`
+- Path filter ile sadece değişen servis build edilir
+- Docker Hub → Portainer webhook
+- **TODO:** Commit SHA tag'ı ekle, `ForcePullImage: true` yap, validate-core job'ı ekle
 
 ### Gerekli GitHub Secrets
 - `DOCKER_HUB_USERNAME`
-- `DOCKER_HUB_TOKEN`
+- `DOCKER_HUB_TOKEN`  
 - `PORTAINER_WEBHOOK_URL`
 
-## Yapılanlar
+## Kullanılan Aimeos Özellikleri
 
-- [x] Monorepo kurulumu (core-engine, ai-service, integration-service, mobile-app)
-- [x] docker-compose.yml (MySQL, Redis, Laravel PHP-FPM+Nginx, 2x Node.js)
-- [x] core-engine/Dockerfile (Laravel multi-stage, Aimeos, intl/gd/zip/mbstring)
-- [x] ai-service/Dockerfile (Node.js 20 multi-stage alpine)
-- [x] integration-service/Dockerfile (Node.js 20 multi-stage alpine)
-- [x] Nginx config (Laravel için)
-- [x] deploy.yml CI/CD (path detection + Portainer webhook)
-- [x] Multi-tenancy: stores tablosu + Store model
-- [x] Domain -> site_code middleware (ResolveStoreFromDomain)
-- [x] API Key auth middleware (AuthenticateWithApiKey)
-- [x] JSON:API endpoints (products + stocks)
-- [x] vendor_id alanı (dropshipping bayilik havuzu)
-- [x] Product webhook -> integration servisi (Event/Listener)
-- [x] Tüm container portları 3500-3600 aralığına alındı
+Aimeos headless backend olarak kullanılır, frontend sıfırdan yazılır.
 
-## Yapılacaklar
+| Özellik | Kullanım |
+|---------|----------|
+| JSON REST API | /jsonapi ile tüm CRUD (product, order, customer, stock, price, text, media) |
+| GraphQL admin API | Store owner paneli için (admin UI değil, API olarak) |
+| MShop::create() | Custom controller'larda manager factory |
+| Context | Multi-tenant locale/site yönetimi |
+| Subscription extension | Plan/abonelik yönetimi (eklenecek) |
+| Payment extensions | Stripe, Iyzico, PayTR (eklenecek) |
+| Tax manager | Vergi hesaplama |
+| Coupon manager | İndirim/kupon sistemi |
 
-- [ ] Laravel artisan key:generate (ilk deployda)
-- [ ] Aimeos setup (aimeos:setup, aimeos:cache)
-- [ ] Migrations çalıştırma (php artisan migrate)
-- [ ] api_keys tablosuna seed data (admin API key)
-- [ ] stores tablosuna seed data (default store)
-- [ ] Integration service'te /webhook/product endpoint'i
-- [x] AI service: TypeScript + Express + Socket.io altyapısı
-- [x] AI service: /ai/process-image upload endpoint (multi-file + category)
-- [x] AI service: Arka plan silme (rembg/BiRefNet)
-- [x] AI service: ComfyUI entegrasyonu (workflow + API)
-- [x] AI service: Kategori bazlı workflow JSON'ları (giyim, taki, kozmetik, ayakkabi, canta, elektronik + generic)
-- [x] AI service: WebSocket anlık durum bildirimi
-- [x] AI service: Vision Analyzer (Ollama llama3.2-vision ile teknik özellik çıkarma)
-- [x] AI service: LLM Prompt Chain (SEO, Trendyol, Amazon metinleri)
-- [x] AI service: Full pipeline (bg -> comfyui -> vision -> llm -> final JSON)
-- [x] AI service: Final result WebSocket ile mobil uygulamaya iletilir
-- [x] Integration service: TypeScript + Express + BullMQ + Redis
-- [x] Integration service: product-push-queue + stock-sync-queue (BullMQ)
-- [x] Integration service: IntegrationInterface (Strategy Pattern)
-- [x] Integration service: TrendyolIntegrationService (rate-limited API client)
-- [x] Integration service: Trendyol product mapper (kategori eşleme)
-- [x] Integration service: /webhook/product endpoint (core-engine'den çağrılır)
-- [x] Integration service: Cron job (5dk) ile pazar yeri sipariş polling
-- [x] Integration service: OrderDTO mapper (ortak şema)
-- [x] Integration service: Core-engine order API'sine POST
-- [x] Integration service: Hepsiburada IntegrationService (Strategy Pattern)
-- [x] Core-engine: POST /api/orders endpoint (OrderController)
-- [x] Core-engine: OrderReceived Event + SplitOrderByVendor Listener
-- [x] Core-engine: dropshipping_orders tablosu + DropshippingOrder model
-- [x] Core-engine: Sanctum Auth API (register/login/me/logout)
-- [x] Core-engine: User model + ai_credits
-- [x] Core-engine: AI Gateway/Proxy (auth -> kredi -> forward)
-- [x] Core-engine: InternalKeyService (HMAC şifreleme)
-- [x] Integration-service: FCM push notification servisi
-- [x] Integration-service: FCM entegrasyonu (order sync + product push)
-- [ ] AI service: Test ve model indirme script'leri
-- [ ] mobile-app içeriği (React Native / Flutter?)
-- [ ] Domain bazlı SSL (Traefik / Let's Encrypt)
-- [ ] Rate limiting ve güvenlik katmanı
-- [ ] Logging (ELK / Laravel Telescope?)
-- [ ] Test facade'leri (PEST / PHPUnit)
+## Önemli Portainer Env Sorunları
+
+- `INTEGRATION_SERVICE_URL=http://rahat-integration:3000` → `http://rahatio-integration:3001`
+- `AI_SERVICE_URL=http://rahat-ai:3000` → `http://rahatio-ai:3000`
+- `APP_KEY` boş → doldurulmalı
+- `REDIS_PASSWORD=null` → boşalt
+- `ForcePullImage: false` → `true` yap
+- Git `ReferenceName` = `main` ayarlanmalı
+
+## Proje Yapısı (Full)
+
+```
+rr/
+├── core-engine/               # Laravel 10 + Aimeos
+│   ├── Dockerfile
+│   ├── app/
+│   │   ├── Console/Kernel.php
+│   │   ├── Exceptions/Handler.php
+│   │   ├── Http/
+│   │   │   ├── Controllers/Api/
+│   │   │   │   ├── AuthController.php
+│   │   │   │   ├── OrderController.php
+│   │   │   │   ├── AiGatewayController.php
+│   │   │   │   └── WooCommerce/
+│   │   │   │       ├── ProductController.php
+│   │   │   │       └── StockController.php
+│   │   │   └── Middleware/
+│   │   │       ├── AuthenticateWithApiKey.php
+│   │   │       ├── ResolveStoreFromDomain.php
+│   │   │       └── ...
+│   │   ├── Models/
+│   │   │   ├── User.php
+│   │   │   ├── Store.php
+│   │   │   ├── ApiKey.php
+│   │   │   └── DropshippingOrder.php
+│   │   ├── Services/InternalKeyService.php
+│   │   ├── Events/ (OrderReceived, ProductUpdated)
+│   │   └── Listeners/ (SendProductWebhook, SplitOrderByVendor)
+│   ├── config/
+│   │   ├── aimeos.php
+│   │   ├── shop.php
+│   │   ├── app.php, auth.php, cache.php, cors.php
+│   │   ├── database.php, filesystems.php, logging.php
+│   │   ├── sanctum.php, session.php, view.php
+│   │   └── mail.php [EKSIK], queue.php [EKSIK]
+│   ├── database/migrations/ (6 adet)
+│   ├── routes/api.php, web.php, console.php
+│   └── docker/nginx/ (default.conf, nginx.conf)
+│       docker/php/ (entrypoint.sh, php.ini, www.conf, supervisord.conf)
+│
+├── frontend/                  # Next.js (PLANLANAN)
+│   ├── package.json
+│   ├── next.config.js
+│   ├── app/
+│   │   ├── page.tsx           # Landing page
+│   │   ├── pricing/page.tsx
+│   │   ├── features/page.tsx
+│   │   ├── blog/page.tsx
+│   │   ├── login/page.tsx
+│   │   └── (admin)/          # Admin panel (store + super)
+│   ├── components/
+│   ├── lib/ (api client, types)
+│   └── Dockerfile
+│
+├── ai-service/                # Node.js + TypeScript
+├── integration-service/       # Node.js + TypeScript
+├── slave/                     # Go (PLANLANAN)
+├── mobile-app/                # React Native (PLANLANAN)
+│
+├── docker-compose.yml
+├── .github/workflows/deploy.yml
+├── .env.example
+└── AGENTS.md
+```
