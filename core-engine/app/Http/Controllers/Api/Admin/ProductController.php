@@ -104,7 +104,13 @@ class ProductController extends Controller
             $item->setLabel($validated['label']);
             $item->setStatus($validated['status'] ?? 1);
             if (isset($validated['stock'])) {
-                $item->setPropertyValue('stock', (int) $validated['stock'], 'stock');
+                $propManager = MShop::create($context, 'product/property');
+                $prop = $propManager->create();
+                $prop->setParentId($item->getId());
+                $prop->setValue((string) (int) $validated['stock']);
+                $prop->setType('stock');
+                $prop->setLanguageId(null);
+                $propManager->save($prop);
             }
             $manager->save($item);
         } catch (\Throwable $e) {
@@ -217,8 +223,23 @@ class ProductController extends Controller
         }
 
         if (array_key_exists('stock', $validated ?? [])) {
-            $item->setPropertyValue('stock', (int) $validated['stock'], 'stock');
-            $manager->save($item);
+            $propManager = MShop::create($context, 'product/property');
+            $propSearch = $propManager->filter();
+            $propSearch->setConditions($propSearch->and([
+                $propSearch->compare('==', 'product.property.parentid', $item->getId()),
+                $propSearch->compare('==', 'product.property.type', 'stock'),
+            ]));
+            $oldProps = $propManager->search($propSearch);
+            foreach ($oldProps as $oldProp) {
+                $propManager->delete($oldProp->getId());
+            }
+
+            $prop = $propManager->create();
+            $prop->setParentId($item->getId());
+            $prop->setValue((string) (int) $validated['stock']);
+            $prop->setType('stock');
+            $prop->setLanguageId(null);
+            $propManager->save($prop);
         }
 
         if (array_key_exists('media_url', $validated ?? [])) {
