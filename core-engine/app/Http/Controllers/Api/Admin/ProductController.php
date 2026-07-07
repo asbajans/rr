@@ -22,7 +22,7 @@ class ProductController extends Controller
         $search->setSortations([$search->sort('-', 'product.id')]);
 
         $total = 0;
-        $items = $manager->search($search, ['price', 'media', 'text'], $total);
+        $items = $manager->search($search, ['price'], $total);
 
         $products = [];
         foreach ($items as $item) {
@@ -30,6 +30,12 @@ class ProductController extends Controller
             $data['price'] = null;
             $data['currency'] = 'TRY';
             $data['image'] = null;
+            $prices = $item->getRefItems('price');
+            if (!empty($prices)) {
+                $price = reset($prices);
+                $data['price'] = $price->getValue();
+                $data['currency'] = $price->getCurrencyId();
+            }
             $products[] = $data;
         }
 
@@ -89,6 +95,27 @@ class ProductController extends Controller
         $item->setLabel($validated['label']);
         $item->setStatus($validated['status'] ?? 1);
         $manager->save($item);
+
+        if (isset($validated['price'])) {
+            try {
+                $priceManager = MShop::create($context, 'price');
+                $price = $priceManager->create();
+                $price->setValue((float) $validated['price']);
+                $price->setCurrencyId($validated['currency'] ?? 'TRY');
+                $price->setType('default');
+                $priceManager->save($price);
+
+                $listManager = MShop::create($context, 'product/lists');
+                $list = $listManager->create();
+                $list->setParentId($item->getId());
+                $list->setRefId($price->getId());
+                $list->setDomain('price');
+                $list->setType('default');
+                $listManager->save($list);
+            } catch (\Throwable $e) {
+                return response()->json(['error' => 'Price save failed: ' . $e->getMessage()], 500);
+            }
+        }
 
         return response()->json($item->toArray(), 201);
     }
