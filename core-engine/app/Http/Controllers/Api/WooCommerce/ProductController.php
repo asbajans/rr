@@ -16,25 +16,13 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
-        try {
-            $siteCode = $request->input('site_code', 'default');
+        $context = $this->context();
+        $manager = \Aimeos\MShop::create($context, 'product');
 
-            $context = $this->context();
-            $manager = \Aimeos\MShop::create($context, 'product');
+        $search = $manager->filter();
+        $items = $manager->search($search);
 
-            $search = $manager->filter()->add('product.sitecode', '==', $siteCode);
-
-            $items = $manager->search($search);
-
-            return response()->json($items->toArray());
-        } catch (\Throwable $e) {
-            return response()->json([
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ], 500);
-        }
+        return response()->json($items->toArray());
     }
 
     public function show(Request $request, string $id)
