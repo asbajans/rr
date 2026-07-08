@@ -9,10 +9,8 @@ class SlaveDownloadController extends Controller
 {
     private function ensureSlaveApiKey(\App\Models\Store $store): \App\Models\ApiKey
     {
-        $key = $store->apiKeys()->where('name', 'slave-auto')->first();
-        if ($key) {
-            return $key;
-        }
+        // Delete old key so plain_text is always available
+        $store->apiKeys()->where('name', 'slave-auto')->delete();
 
         $plain = 'slv-' . bin2hex(random_bytes(16));
         $key = $store->apiKeys()->create([
