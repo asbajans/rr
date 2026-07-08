@@ -187,6 +187,27 @@ class ApiClient {
     return this.get<import('./types').Order>(`/api/admin/orders/${id}`)
   }
 
+  getDropshippingOrders(params?: { status?: string }) {
+    const qs = params?.status ? `?status=${params.status}` : ''
+    return this.get<{ data: import('./types').DropshippingOrder[] }>(`/api/admin/orders/dropshipping${qs}`)
+  }
+
+  getDropshippingOrder(id: number) {
+    return this.get<import('./types').DropshippingOrderDetail>(`/api/admin/orders/dropshipping/${id}`)
+  }
+
+  updateOrderStatus(id: number, status: string, note?: string) {
+    return this.put<import('./types').DropshippingOrderDetail>(`/api/admin/orders/dropshipping/${id}/status`, { status, note })
+  }
+
+  updateOrderTracking(id: number, tracking_number: string, tracking_company?: string) {
+    return this.put<import('./types').DropshippingOrderDetail>(`/api/admin/orders/dropshipping/${id}/tracking`, { tracking_number, tracking_company })
+  }
+
+  getOrderStats() {
+    return this.get<{ data: { status: string; label: string; color: string; count: number }[] }>('/api/admin/orders/stats')
+  }
+
   // Admin API Keys
   getAdminApiKeys() {
     return this.get<import('./types').ApiKey[]>('/api/admin/api-keys')

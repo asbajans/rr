@@ -111,6 +111,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/admin/upload', [MediaController::class, 'upload']);
 
+    Route::prefix('admin/orders')->group(function () {
+        Route::get('/dropshipping', [AdminOrderController::class, 'dropshippingOrders']);
+        Route::get('/dropshipping/{order}', [AdminOrderController::class, 'showDropshipping']);
+        Route::put('/dropshipping/{order}/status', [AdminOrderController::class, 'updateStatus']);
+        Route::put('/dropshipping/{order}/tracking', [AdminOrderController::class, 'updateTracking']);
+        Route::get('/dropshipping/{order}/history', [AdminOrderController::class, 'statusHistory']);
+        Route::get('/stats', [AdminOrderController::class, 'stats']);
+    });
+
     Route::prefix('admin/subscription')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\SubscriptionController::class, 'index']);
         Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionController::class, 'checkout']);

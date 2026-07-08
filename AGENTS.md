@@ -166,6 +166,16 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6G — Sipariş Yönetimi ✅ **TAMAM**
+- [x] Migration: `order_status_histories` + tracking fields on dropshipping_orders
+- [x] Model: `DropshippingOrder` status workflow (pending→processing→shipped→delivered, cancelled, returned), transition validation
+- [x] Model: `OrderStatusHistory` (order_id, from_status, to_status, note, user_id)
+- [x] Controller: `OrderController` dropshipping CRUD, status update, tracking, history, stats
+- [x] Routes: 6 order management endpoints
+- [x] Frontend: Sipariş listesi (stat card filtreleme, durum badge, pazaryeri kolonu)
+- [x] Frontend: Sipariş detay sayfası (durum güncelleme, kargo takibi, durum geçmişi timeline, müşteri/teslimat/ödeme bilgisi)
+- [x] AGENTS.md: Phase 6G planı eklendi
+
 ### Phase 6F — Express Checkout ✅ **TAMAM**
 - [x] Migration: `customer_addresses` (store_id, user_id, full_name, phone, country, city, district, zip, address_line, is_default)
 - [x] Model: `CustomerAddress` (store relation, scopeForUser)

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use Aimeos\MShop;
+use App\Models\DropshippingOrder;
+use App\Models\OrderStatusHistory;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -42,5 +44,113 @@ class OrderController extends Controller
         }
 
         return response()->json($item->toArray());
+    }
+
+    public function dropshippingOrders(Request $request)
+    {
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
+
+        $query = DropshippingOrder::where('vendor_id', $store->id);
+
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+
+        $orders = $query->orderByDesc('created_at')
+            ->paginate($request->per_page ?? 20);
+
+        return response()->json($orders);
+    }
+
+    public function showDropshipping(Request $request, DropshippingOrder $order)
+    {
+        $store = $request->user()->store;
+        if (!$store || $order->vendor_id !== $store->id) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $order->load('statusHistory.user');
+        return response()->json($order);
+    }
+
+    public function updateStatus(Request $request, DropshippingOrder $order)
+    {
+        $store = $request->user()->store;
+        if (!$store || $order->vendor_id !== $store->id) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|string|in:' . implode(',', DropshippingOrder::STATUSES),
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        $success = $order->transitionTo(
+            $validated['status'],
+            $validated['note'] ?? null,
+            $request->user()->id
+        );
+
+        if (!$success) {
+            return response()->json([
+                'error' => "Cannot transition from '{$order->status}' to '{$validated['status']}'",
+                'allowed' => DropshippingOrder::STATUS_FLOW[$order->status] ?? [],
+            ], 422);
+        }
+
+        return response()->json($order->fresh()->load('statusHistory.user'));
+    }
+
+    public function updateTracking(Request $request, DropshippingOrder $order)
+    {
+        $store = $request->user()->store;
+        if (!$store || $order->vendor_id !== $store->id) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->validate([
+            'tracking_number' => 'required|string|max:255',
+            'tracking_company' => 'sometimes|string|max:255',
+        ]);
+
+        $order->update($validated);
+
+        return response()->json($order);
+    }
+
+    public function statusHistory(Request $request, DropshippingOrder $order)
+    {
+        $store = $request->user()->store;
+        if (!$store || $order->vendor_id !== $store->id) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        return response()->json([
+            'data' => $order->statusHistory()->with('user')->orderByDesc('created_at')->get(),
+        ]);
+    }
+
+    public function stats(Request $request)
+    {
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
+
+        $stats = collect(DropshippingOrder::STATUSES)->map(function ($status) use ($store) {
+            return [
+                'status' => $status,
+                'label' => DropshippingOrder::statusLabel($status),
+                'color' => DropshippingOrder::statusColor($status),
+                'count' => DropshippingOrder::where('vendor_id', $store->id)
+                    ->where('status', $status)
+                    ->count(),
+            ];
+        });
+
+        return response()->json(['data' => $stats]);
     }
 }

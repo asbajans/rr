@@ -190,6 +190,40 @@ export type StorePaymentMethod = {
   config: Record<string, string>
 }
 
+// Order Workflow Types
+export type DropshippingOrder = {
+  id: number
+  external_id: string
+  marketplace: string
+  status: string
+  customer_name: string
+  customer_email: string
+  customer_phone?: string
+  shipping_address?: string
+  grand_total: string
+  currency: string
+  created_at: string
+  ordered_at?: string
+}
+
+export type DropshippingOrderDetail = DropshippingOrder & {
+  items: { sku: string; name: string; quantity: number; unitPrice: number }[]
+  subtotal: string
+  shipping: string
+  tax: string
+  tracking_number: string | null
+  tracking_company: string | null
+  note: string | null
+  status_history: {
+    id: number
+    from_status: string | null
+    to_status: string
+    note: string | null
+    user: { name: string } | null
+    created_at: string
+  }[]
+}
+
 // Checkout Types
 export type CustomerAddress = {
   id: number
