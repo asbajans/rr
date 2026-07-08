@@ -264,6 +264,47 @@ class ApiClient {
     return this.post<{ message: string }>('/api/admin/subscription/cancel')
   }
 
+  // Categories
+  getCategories() {
+    return this.get<{ data: import('./types').Category[] }>('/api/admin/categories')
+  }
+
+  getCategoryTree() {
+    return this.get<{ data: import('./types').Category[] }>('/api/admin/categories/tree')
+  }
+
+  getCategoryFlat() {
+    return this.get<{ data: import('./types').Category[] }>('/api/admin/categories/flat')
+  }
+
+  getCategory(id: number) {
+    return this.get<import('./types').Category>(`/api/admin/categories/${id}`)
+  }
+
+  createCategory(data: { slug: string; name: string; parent_id?: number | null; translations?: Record<string, string> | null; icon?: string; sort_order?: number; is_active?: boolean }) {
+    return this.post<import('./types').Category>('/api/admin/categories', data)
+  }
+
+  updateCategory(id: number, data: Partial<import('./types').Category>) {
+    return this.put<import('./types').Category>(`/api/admin/categories/${id}`, data)
+  }
+
+  deleteCategory(id: number) {
+    return this.delete<void>(`/api/admin/categories/${id}`)
+  }
+
+  getCategoryMappings(id: number) {
+    return this.get<{ data: import('./types').MarketplaceMapping[] }>(`/api/admin/categories/${id}/mappings`)
+  }
+
+  updateCategoryMapping(id: number, data: { marketplace: string; marketplace_category_id: string; marketplace_category_name: string; marketplace_parent_id?: string }) {
+    return this.post<import('./types').MarketplaceMapping>(`/api/admin/categories/${id}/mappings`, data)
+  }
+
+  deleteCategoryMapping(id: number, marketplace: string) {
+    return this.delete<void>(`/api/admin/categories/${id}/mappings/${marketplace}`)
+  }
+
   // B2B
   getB2bDiscover(page = 1, search?: string) {
     const params: Record<string, string> = { page: String(page) }

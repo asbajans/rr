@@ -69,6 +69,8 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - `product_b2b_settings` — Ürün B2B ayarları (is_b2b_enabled, b2b_discount, b2b_price)
 - `b2b_requests` — B2B talep yönetimi (from_store, to_store, product_id, status)
 - `b2b_listed_products` — B2B ile klonlanmış ürünler (store, original_store, product_id, original_product_id)
+- `categories` — Evrensel kategori ağacı (parent_id, slug, name, translations, sort_order)
+- `marketplace_category_mappings` — Kategori → pazar yeri eşleme (category_id, marketplace, marketplace_category_id)
 
 ## Docker Port Haritası
 
@@ -159,6 +161,18 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6B — Evrensel Kategori Sistemi ✅ **TAMAM**
+- [x] Migration: `categories` (parent_id, slug, name, translations, icon, sort_order, is_active)
+- [x] Migration: `marketplace_category_mappings` (category_id, marketplace, marketplace_category_id, name, parent_id)
+- [x] Model: `Category` (self-referencing parent/children, `tree()` helper)
+- [x] Model: `MarketplaceCategoryMapping`
+- [x] Controller: `CategoryController` (CRUD, tree, flat, marketplace mappings)
+- [x] Routes: 11 category endpoint (api.php)
+- [x] Frontend: Super admin kategori ağacı sayfası (ekle/düzenle/sil, alt kategori, expand/collapse)
+- [x] Frontend: Kategori detay sayfası + pazar yeri eşleme yönetimi
+- [x] Frontend: Super admin sidebar'da Kategoriler linki
+- [x] AGENTS.md: Phase 6B planı eklendi
+
 ### Phase 6A — Multi-Vendor / B2B "Beatby" ✅ **TAMAM**
 - [x] Migration: `product_b2b_settings` (store_id, product_id, is_b2b_enabled, b2b_discount, b2b_price)
 - [x] Migration: `b2b_requests` (from_store_id, to_store_id, product_id, status, note)
@@ -217,6 +231,20 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | GET | `/api/admin/slave/download-php` | PHP slave indir (config enjekte edilmiş) |
 | GET | `/api/admin/slave/download-vercel` | Vercel slave ZIP indir |
 
+### Category Routes (auth:sanctum, super admin)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/api/admin/categories` | Kategori listesi (parent → children nested) |
+| GET | `/api/admin/categories/tree` | Tam ağaç (recursive) |
+| GET | `/api/admin/categories/flat` | Düz liste (path ile) |
+| POST | `/api/admin/categories` | Kategori oluştur |
+| GET | `/api/admin/categories/{id}` | Kategori detay + çocuklar + mappings |
+| PUT | `/api/admin/categories/{id}` | Kategori güncelle |
+| DELETE | `/api/admin/categories/{id}` | Kategori sil |
+| GET | `/api/admin/categories/{id}/mappings` | Pazar yeri eşlemeleri |
+| POST | `/api/admin/categories/{id}/mappings` | Eşleme ekle/güncelle |
+| DELETE | `/api/admin/categories/{id}/mappings/{marketplace}` | Eşleme sil |
+
 ### B2B Routes (auth:sanctum)
 | Method | Path | Açıklama |
 |--------|------|----------|
@@ -261,7 +289,9 @@ src/app/
 ├── (super)/               # Super admin (dark sidebar + auth guard)
 │   ├── stores/page.tsx    # Mağazalar (/stores)
 │   ├── users/page.tsx     # Kullanıcılar (/users)
-│   └── plans/page.tsx     # Planlar (/plans)
+│   ├── plans/page.tsx     # Planlar (/plans)
+│   ├── categories/page.tsx # Kategoriler (/categories)
+│   └── categories/[id]/page.tsx # Kategori detay + pazar yeri eşleme
 └── layout.tsx             # Root layout (Geist font, globals)
 ```
 
@@ -363,6 +393,7 @@ rr/
 │   │   │   │   ├── OrderController.php
 │   │   │   │   ├── AiGatewayController.php
 │   │   │   │   ├── SlaveDownloadController.php
+│   │   │   │   ├── Admin/CategoryController.php
 │   │   │   │   └── WooCommerce/
 │   │   │   │       ├── ProductController.php
 │   │   │   │       └── StockController.php
@@ -376,7 +407,9 @@ rr/
 │   │   │   ├── ApiKey.php
 │   │   │   ├── B2bRequest.php
 │   │   │   ├── B2bListedProduct.php
+│   │   │   ├── Category.php
 │   │   │   ├── DropshippingOrder.php
+│   │   │   ├── MarketplaceCategoryMapping.php
 │   │   │   └── ProductB2bSetting.php
 │   │   ├── Providers/RouteServiceProvider.php
 │   │   ├── Services/InternalKeyService.php

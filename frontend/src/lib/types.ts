@@ -123,6 +123,32 @@ export type Subscription = {
   plan?: Plan
 }
 
+// Category Types
+export type MarketplaceMapping = {
+  id: number
+  category_id: number
+  marketplace: string
+  marketplace_category_id: string
+  marketplace_category_name: string
+  marketplace_parent_id: string | null
+}
+
+export type Category = {
+  id: number
+  parent_id: number | null
+  slug: string
+  name: string
+  translations: Record<string, string> | null
+  icon: string | null
+  sort_order: number
+  is_active: boolean
+  children?: Category[]
+  marketplaceMappings?: MarketplaceMapping[]
+  path?: string
+  created_at: string
+  updated_at: string
+}
+
 // B2B Types
 export type B2bStoreInfo = {
   id: number

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\ApiKeyController;
+use App\Http\Controllers\Api\Admin\CategoryController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PlanController;
@@ -85,6 +86,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{apiKey}', [ApiKeyController::class, 'show']);
         Route::put('{apiKey}', [ApiKeyController::class, 'update']);
         Route::delete('{apiKey}', [ApiKeyController::class, 'destroy']);
+    });
+
+    Route::prefix('admin/categories')->group(function () {
+        Route::get('/', [CategoryController::class, 'index']);
+        Route::get('/tree', [CategoryController::class, 'tree']);
+        Route::get('/flat', [CategoryController::class, 'flat']);
+        Route::post('/', [CategoryController::class, 'store']);
+        Route::get('{category}', [CategoryController::class, 'show']);
+        Route::put('{category}', [CategoryController::class, 'update']);
+        Route::delete('{category}', [CategoryController::class, 'destroy']);
+        Route::get('{category}/mappings', [CategoryController::class, 'mappings']);
+        Route::post('{category}/mappings', [CategoryController::class, 'updateMapping']);
+        Route::delete('{category}/mappings/{marketplace}', [CategoryController::class, 'deleteMapping']);
     });
 
     Route::get('/admin/settings', [SettingController::class, 'index']);
