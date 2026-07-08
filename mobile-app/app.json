@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Rahatio",
-    "slug": "rahatio-mobile",
+    "slug": "rahatio",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "rahatio",
@@ -12,7 +12,10 @@
       "bundleIdentifier": "com.rahatio.mobile"
     },
     "android": {
-      "package": "com.rahatio.mobile"
+      "package": "com.rahatio.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -24,6 +27,15 @@
         }
       ],
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "6bb13aed-b1f2-482f-9327-86b5eb6c6315"
+      }
+    },
+    "owner": "ahmedsaidbuluts-team"
   }
 }
