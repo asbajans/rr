@@ -22,7 +22,8 @@
         {
           "photosPermission": "Rahatio needs access to your photos to process images with AI."
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }
