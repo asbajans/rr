@@ -34,9 +34,8 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | `ai-service/` | Node.js + Express + Socket.io | AI görsel işleme, ComfyUI, LLM pipeline | 3630 |
 | `integration-service/` | Node.js + BullMQ + Redis | Trendyol/HB entegrasyonu, FCM push | 3631 |
 | `frontend/` | Next.js 16.2.10 (React) | Landing page + Admin panel (store owner + super admin) | 3690 |
-| `slave/` | Go (planlanan) | Self-hosted store daemon | — |
-| `mobile-app/` | React Native (planlanan) | Mobil store management | — |
 | `slave/` | PHP + Node.js | Self-hosted store node (PHP shared hosting / Vercel serverless) | — |
+| `mobile-app/` | React Native (planlanan) | Mobil store management | — |
 
 ## Önemli Değerler
 
@@ -148,15 +147,23 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] **PHP Slave** (`slave/php/slave.php`): tek dosya, sıfır bağımlılık, HMAC auth, JSON cache, tüm REST endpoint'ler
 - [x] **Vercel Slave** (`slave/vercel/`): Node.js serverless, vercel.json, aynı endpoint'ler
 - [x] Her iki slave'de config panelden indirirken otomatik doldurulur (API key, HMAC secret, store code)
-- [x] **Core download endpoint**: `/api/admin/slave/download-php` + `/api/admin/slave/download-vercel` (ZIP)
+- [x] **Core download endpoint**: `GET /api/admin/slave/download-php` + `GET /api/admin/slave/download-vercel` (ZIP)
+- [x] **SlaveDownloadController**: `injectConfig()` — PHP (`$_RAHATIO_CONFIG = [...]`) / JS (`const CONFIG = {...}`) otomatik tespit
+- [x] `var_export` kullanılır PHP için (geçersiz `json_encode` `{}` syntax yerine geçerli PHP `[]` array)
+- [x] `ensureSlaveApiKey()` her indirişte yeni `slv-xxx` key üretir, `plain_text` her zaman mevcut
+- [x] Template'ler Docker build context'te: `core-engine/resources/templates/slave/{php,vercel}/`
 - [x] **Frontend** settings sayfasında slave indirme UI'ı (PHP + Vercel butonları)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
+- [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
-### Phase 5 — Mobile App
-- [ ] React Native projesi
-- [ ] shared/ paketi (types, API client, hooks)
-- [ ] Store owner mobil paneli
-- [ ] AI görsel işleme takibi (WebSocket)
+### Phase 5 — Mobile App ✅ **TAMAM** (İskelet)
+- [x] **Expo SDK 52** projesi (`mobile-app/`) — Expo Router file-based routing
+- [x] **shared/ paket** (`mobile-app/src/shared/`): types (frontend ile senkron), api-client (RN: SecureStore/AsyncStorage, FileSystem), auth context, utils
+- [x] **Auth screens**: `(auth)/login.tsx`, `(auth)/register.tsx` — auth guard, redirect
+- [x] **Store owner panel** (bottom tabs): Dashboard (istatistikler, store bilgisi), Products (list view), Orders, AI (ImagePicker + process), Settings (store adı, logout)
+- [x] **Super admin panel** (dark theme tabs): Stores, Users, Plans list view
+- [x] **AI Görsel** — expo-image-picker ile seçim, FormData upload, sonuç görüntüleme
+- [x] **AGENTS.md** — Expo/RN kuralları, route yapısı, önemli farklar (frontend vs mobile)
 
 ## API Routes
 
@@ -188,6 +195,8 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | GET | `/api/admin/orders/{id}` | Sipariş detay |
 | GET | `/api/admin/settings` | Mağaza ayarları |
 | PUT | `/api/admin/settings` | Mağaza ayarlarını güncelle |
+| GET | `/api/admin/slave/download-php` | PHP slave indir (config enjekte edilmiş) |
+| GET | `/api/admin/slave/download-vercel` | Vercel slave ZIP indir |
 
 ### API Key Required (AuthenticateWithApiKey)
 | Method | Path | Açıklama |
@@ -289,6 +298,17 @@ GitHub Actions'ta `dorny/paths-filter` altındaki tüm filtreler aynı hizada ol
 ### Aimeos setup — `firstOrCreate` ile site_code
 Seeder `firstOrCreate` kullanır, bu yüzden aynı site_code ile tekrar çalıştırılabilir.
 
+### Slave config format — `injectConfig()`
+- PHP template: `var_export()` kullan (geçerli PHP `[]` array syntax)
+- JS template: `json_encode()` kullan (geçerli JS `{}` object syntax)
+- Tespit: `str_contains($template, '$_RAHATIO_CONFIG')` ile PHP/JS ayrımı
+- Template'de `// #CONFIG_START ... // #CONFIG_END` arası değiştirilir
+
+### Slave API key — `ensureSlaveApiKey()`
+- Her indirişte eski `slave-auto` key silinir, yenisi oluşturulur
+- `plain_text` her zaman return edilir (Eloquent model dinamik property)
+- Format: `slv-` prefix + 32 hex karakter
+
 ## Proje Yapısı (Full)
 
 ```
@@ -305,6 +325,7 @@ rr/
 │   │   │   │   ├── AuthController.php
 │   │   │   │   ├── OrderController.php
 │   │   │   │   ├── AiGatewayController.php
+│   │   │   │   ├── SlaveDownloadController.php
 │   │   │   │   └── WooCommerce/
 │   │   │   │       ├── ProductController.php
 │   │   │   │       └── StockController.php
@@ -331,6 +352,12 @@ rr/
 │   ├── database/
 │   │   ├── migrations/ (7 adet: stores, api_keys, users, orders, vendor_id, sanctum, custom_columns)
 │   │   └── seeders/DatabaseSeeder.php
+│   ├── resources/
+│   │   └── templates/slave/
+│   │       ├── php/slave.php    # PHP slave template
+│   │       └── vercel/
+│   │           ├── api/index.js  # Vercel serverless handler
+│   │           └── vercel.json   # Vercel config
 │   ├── routes/api.php, web.php, console.php
 │   └── docker/
 │       ├── nginx/ (default.conf, nginx.conf)
@@ -360,8 +387,33 @@ rr/
 │
 ├── ai-service/                # Node.js + TypeScript
 ├── integration-service/       # Node.js + TypeScript
-├── slave/                     # Slave node (PHP + Vercel)
-├── mobile-app/                # React Native (PLANLANAN)
+├── slave/                     # Slave node (PHP slave.php + Vercel api/)
+│   ├── php/slave.php          # PHP tek dosya, sıfır bağımlılık
+│   └── vercel/
+│       ├── api/index.js       # Vercel serverless handler
+│       └── vercel.json        # Vercel deploy config
+├── mobile-app/                # React Native (Expo SDK 52)
+│   ├── app.json
+│   ├── package.json
+│   ├── App.tsx
+│   ├── app/                   # Expo Router (file-based)
+│   │   ├── _layout.tsx
+│   │   ├── (auth)/login.tsx
+│   │   ├── (auth)/register.tsx
+│   │   ├── (tabs)/index.tsx   # Dashboard
+│   │   ├── (tabs)/products.tsx
+│   │   ├── (tabs)/orders.tsx
+│   │   ├── (tabs)/ai.tsx
+│   │   ├── (tabs)/settings.tsx
+│   │   ├── (super)/stores.tsx
+│   │   ├── (super)/users.tsx
+│   │   └── (super)/plans.tsx
+│   ├── src/shared/
+│   │   ├── types.ts
+│   │   ├── api-client.ts
+│   │   ├── auth.tsx
+│   │   └── utils.ts
+│   └── AGENTS.md
 │
 ├── docker-compose.yml
 ├── .github/workflows/deploy.yml
