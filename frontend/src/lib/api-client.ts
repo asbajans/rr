@@ -360,7 +360,7 @@ class ApiClient {
   }
 
   createProductVariant(data: { product_id: string; sku: string; price?: number; stock?: number; attributes?: Record<string, string>; image?: string }) {
-    return this.post<import('./types').ProductVariant>(`/api/admin/products/${productId}/variants`, data)
+    return this.post<import('./types').ProductVariant>(`/api/admin/products/${data.product_id}/variants`, data)
   }
 
   updateProductVariant(productId: string, variantId: number, data: { sku?: string; price?: number; stock?: number; attributes?: Record<string, string>; image?: string; is_active?: boolean }) {
