@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Minus } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Sparkles } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import type { StoreProduct } from '@/lib/types'
@@ -58,6 +58,24 @@ export default function StoreProductDetailPage() {
       </div>
     )
   }
+
+  const [recommendations, setRecommendations] = useState<StoreProduct[]>([])
+  const [loadingRecs, setLoadingRecs] = useState(false)
+
+  useEffect(() => {
+    if (!product || !siteCode) return
+    // Fetch all products for AI recommendations
+    api.getStoreFront(siteCode).then(r => {
+      const allProducts = r.products || []
+      if (allProducts.length > 1) {
+        setLoadingRecs(true)
+        api.aiRecommend(product, allProducts, 'similar')
+          .then(res => setRecommendations(res.results.slice(0, 4)))
+          .catch(() => {})
+          .finally(() => setLoadingRecs(false))
+      }
+    }).catch(() => {})
+  }, [product, siteCode])
 
   if (!product) return null
 
@@ -131,8 +149,39 @@ export default function StoreProductDetailPage() {
           >
             Hemen Al
           </button>
+          </div>
         </div>
-      </div>
+
+        {recommendations.length > 0 && (
+          <div className="mt-16">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-zinc-400" />
+              <h2 className="text-lg font-semibold text-zinc-900">Benzer Ürünler</h2>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {recommendations.map((p: any) => (
+                <Link key={p['product.id']} href={`/store/${siteCode}/products/${p['product.id']}`}
+                  className="group rounded-xl border border-zinc-200 p-3 transition-colors hover:border-zinc-300">
+                  <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
+                    {p.image ? (
+                      <img src={p.image} alt={p['product.label']} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-zinc-200">
+                        <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="mt-2 text-sm font-medium text-zinc-900 truncate">{p['product.label']}</h3>
+                  {p.price !== null && (
+                    <p className="text-sm font-semibold text-zinc-900">{p.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency ?? 'TRY'}</p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
     </div>
   )
 }

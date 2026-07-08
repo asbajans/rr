@@ -26,7 +26,7 @@ export default function AiPage() {
       fd.append('images', file)
       fd.append('action', 'remove-background')
       const res = await api.processImage(fd)
-      setResult(res.url)
+      setResult(res.url ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'İşlem başarısız')
     } finally {

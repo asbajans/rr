@@ -47,6 +47,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     Route::post('/ai/process-image', [AiGatewayController::class, 'proxy']);
+    Route::get('/ai/status/{sessionId}', [AiGatewayController::class, 'getStatus']);
+    Route::post('/ai/search', [AiGatewayController::class, 'search']);
+    Route::post('/ai/recommend', [AiGatewayController::class, 'recommend']);
+    Route::post('/ai/chat', [AiGatewayController::class, 'chat']);
 
     Route::get('/admin/dashboard', [DashboardController::class, 'index']);
 

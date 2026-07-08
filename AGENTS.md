@@ -166,6 +166,18 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6H — AI Özellikleri Geliştirme ✅ **TAMAM**
+- [x] AI service: `/ai/search` — semantic product search (Ollama ile doğal dil arama)
+- [x] AI service: `/ai/recommend` — AI product recommendations (benzer/trending)
+- [x] AI service: `/ai/chat` — AI customer support chat (Ollama LLM)
+- [x] Core-engine: `AiGatewayController` search/recommend/chat/getStatus proxy methods
+- [x] Routes: 4 yeni AI endpoint + status endpoint
+- [x] Frontend: Store catalog sayfası → AI semantic search bar
+- [x] Frontend: Store product detail → AI recommendations (Benzer Ürünler)
+- [x] Frontend: AI Chat widget (store layout, floating button + chat window)
+- [x] Frontend: Admin AI sayfası fix (response type)
+- [x] AGENTS.md: Phase 6H planı eklendi
+
 ### Phase 6D — Harita & Konum ✅ **TAMAM**
 - [x] Migration: `store_locations` (store_id, name, lat/lng, address, city, phone, working_hours, is_primary)
 - [x] Model: `StoreLocation` (store relation, casts)

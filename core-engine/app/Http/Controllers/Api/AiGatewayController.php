@@ -30,8 +30,7 @@ class AiGatewayController extends Controller
         $files = $request->allFiles();
         $hasFiles = !empty($files);
 
-        $aiUrl = env('AI_SERVICE_URL', 'http://rahat-ai:3000') . '/ai/process-image';
-
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/process-image';
         $internalKey = $this->keyService->generateEncryptedKey();
 
         $aiResponse = $hasFiles
@@ -40,11 +39,7 @@ class AiGatewayController extends Controller
 
         if ($aiResponse->successful()) {
             $user->consumeAiCredits(1);
-
-            return response()->json(
-                $aiResponse->json(),
-                $aiResponse->status()
-            );
+            return response()->json($aiResponse->json(), $aiResponse->status());
         }
 
         return response()->json(
@@ -53,13 +48,37 @@ class AiGatewayController extends Controller
         );
     }
 
+    public function search(Request $request)
+    {
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/search';
+        $response = Http::timeout(30)->post($aiUrl, $request->all());
+        return response()->json($response->json(), $response->status());
+    }
+
+    public function recommend(Request $request)
+    {
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/recommend';
+        $response = Http::timeout(30)->post($aiUrl, $request->all());
+        return response()->json($response->json(), $response->status());
+    }
+
+    public function getStatus(string $sessionId)
+    {
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/status/' . $sessionId;
+        $response = Http::timeout(10)->get($aiUrl);
+        return response()->json($response->json(), $response->status());
+    }
+
+    public function chat(Request $request)
+    {
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/chat';
+        $response = Http::timeout(60)->post($aiUrl, $request->all());
+        return response()->json($response->json(), $response->status());
+    }
+
     private function forwardWithFiles(string $url, Request $request, string $internalKey): \Illuminate\Http\Client\Response
     {
-        $http = Http::timeout(300)
-            ->withHeaders([
-                'X-Rahat-Internal-Key' => $internalKey,
-            ]);
-
+        $http = Http::timeout(300)->withHeaders(['X-Rahat-Internal-Key' => $internalKey]);
         $data = $request->except('images');
 
         foreach ($request->allFiles() as $key => $file) {

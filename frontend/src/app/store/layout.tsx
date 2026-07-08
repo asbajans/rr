@@ -2,19 +2,11 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { type ReactNode } from 'react'
+import { type ReactNode, useState, useEffect } from 'react'
 import { CartProvider, useCart } from '@/lib/cart'
-import { ShoppingCart } from 'lucide-react'
-
-function CartBadge() {
-  const { totalItems } = useCart()
-  if (totalItems === 0) return null
-  return (
-    <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-bold text-white">
-      {totalItems > 9 ? '9+' : totalItems}
-    </span>
-  )
-}
+import { ShoppingCart, MapPin } from 'lucide-react'
+import AiChat from '@/components/store/AiChat'
+import { api } from '@/lib/api-client'
 
 function StoreHeader({ siteCode }: { siteCode: string }) {
   const { totalItems } = useCart()
@@ -25,10 +17,10 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
           Rahatio
         </Link>
         <nav className="flex items-center gap-4">
-          <Link
-            href={`/store/${siteCode}/cart`}
-            className="relative flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900"
-          >
+          <Link href={`/store/${siteCode}/locations`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
+            <MapPin className="h-4 w-4" /> Mağazalar
+          </Link>
+          <Link href={`/store/${siteCode}/cart`} className="relative flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
             <ShoppingCart className="h-5 w-5" />
             Sepet{totalItems > 0 && ` (${totalItems})`}
           </Link>
@@ -41,12 +33,20 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
 export default function StoreLayout({ children }: { children: ReactNode }) {
   const params = useParams()
   const siteCode = params?.siteCode as string
+  const [storeName, setStoreName] = useState('')
+
+  useEffect(() => {
+    if (siteCode) {
+      api.getStoreFront(siteCode).then(r => setStoreName(r.store?.name || '')).catch(() => {})
+    }
+  }, [siteCode])
 
   return (
     <CartProvider siteCode={siteCode}>
       <div className="min-h-screen bg-white">
         <StoreHeader siteCode={siteCode} />
         <main>{children}</main>
+        {siteCode && <AiChat siteCode={siteCode} storeName={storeName} />}
       </div>
     </CartProvider>
   )
