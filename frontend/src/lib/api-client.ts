@@ -305,6 +305,39 @@ class ApiClient {
     return this.delete<void>(`/api/admin/categories/${id}/mappings/${marketplace}`)
   }
 
+  // External Feeds
+  getFeeds() {
+    return this.get<{ data: import('./types').ExternalFeed[] }>('/api/admin/feeds')
+  }
+
+  getFeed(id: number) {
+    return this.get<import('./types').ExternalFeed>(`/api/admin/feeds/${id}`)
+  }
+
+  createFeed(data: Partial<import('./types').ExternalFeed>) {
+    return this.post<import('./types').ExternalFeed>('/api/admin/feeds', data)
+  }
+
+  updateFeed(id: number, data: Partial<import('./types').ExternalFeed>) {
+    return this.put<import('./types').ExternalFeed>(`/api/admin/feeds/${id}`, data)
+  }
+
+  deleteFeed(id: number) {
+    return this.delete<void>(`/api/admin/feeds/${id}`)
+  }
+
+  testFeed(id: number) {
+    return this.post<import('./types').FeedTestResult>(`/api/admin/feeds/${id}/test`)
+  }
+
+  syncFeed(id: number) {
+    return this.post<import('./types').FeedSyncLog>(`/api/admin/feeds/${id}/sync`)
+  }
+
+  getFeedLogs(id: number) {
+    return this.get<{ data: import('./types').FeedSyncLog[] }>(`/api/admin/feeds/${id}/logs`)
+  }
+
   // B2B
   getB2bDiscover(page = 1, search?: string) {
     const params: Record<string, string> = { page: String(page) }

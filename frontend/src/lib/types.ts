@@ -149,6 +149,56 @@ export type Category = {
   updated_at: string
 }
 
+// External Feed Types
+export type ExternalFeed = {
+  id: number
+  store_id: number
+  name: string
+  feed_url: string
+  file_format: 'xml' | 'csv' | 'xlsx' | 'json'
+  auth_type: 'none' | 'basic' | 'bearer' | 'api-key'
+  auth_credentials: Record<string, string> | null
+  pricing_mode: 'fixed' | 'gold-formula'
+  currency: 'TRY' | 'USD'
+  default_gram_weight: number | null
+  default_milyem: number | null
+  default_profit_margin: number | null
+  price_multiplier: number
+  default_category: string | null
+  default_category_id: number | null
+  default_is_b2b_enabled: boolean
+  default_quantity: number
+  default_marketplaces: string[] | null
+  field_mapping: Record<string, string> | null
+  auto_sync: boolean
+  update_interval: 'manual' | 'hourly' | 'daily' | 'weekly'
+  last_sync_at: string | null
+  last_sync_result: { total?: number; imported?: number; failed?: number; error?: string; errors?: string[] } | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  sync_logs?: FeedSyncLog[]
+}
+
+export type FeedSyncLog = {
+  id: number
+  feed_id: number
+  store_id: number
+  status: 'running' | 'success' | 'failed'
+  started_at: string | null
+  completed_at: string | null
+  summary: { total?: number; imported?: number; failed?: number; error?: string; errors?: string[] } | null
+  created_at: string
+}
+
+export type FeedTestResult = {
+  success: boolean
+  message: string
+  headers: string | null
+  preview: string | null
+  error: string | null
+}
+
 // B2B Types
 export type B2bStoreInfo = {
   id: number

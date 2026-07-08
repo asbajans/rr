@@ -71,6 +71,8 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - `b2b_listed_products` — B2B ile klonlanmış ürünler (store, original_store, product_id, original_product_id)
 - `categories` — Evrensel kategori ağacı (parent_id, slug, name, translations, sort_order)
 - `marketplace_category_mappings` — Kategori → pazar yeri eşleme (category_id, marketplace, marketplace_category_id)
+- `external_feeds` — XML/CSV/XLSX/JSON dış kaynak feed (URL, auth, mapping, pricing, autoSync)
+- `feed_sync_logs` — Feed senkron log (feed_id, store_id, status, summary)
 
 ## Docker Port Haritası
 
@@ -161,6 +163,21 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6J — XML Feed Sistemi ✅ **TAMAM**
+- [x] Migration: `external_feeds` (URL, auth, format, mapping, pricing, autoSync)
+- [x] Migration: `feed_sync_logs` (feed_id, status, started_at, completed_at, summary)
+- [x] Model: `ExternalFeed` (fillable, casts, store/category/syncLogs relations)
+- [x] Model: `FeedSyncLog` (feed/store relations)
+- [x] Controller: `FeedController` (CRUD, test → curl + parse preview, sync → fetch + parse + Aimeos import)
+- [x] Controller: `parseFeed()` — XML, CSV, JSON (XLSX stub)
+- [x] Controller: `importProducts()` — field mapping, Aimeos product/price/stock/media/text oluşturma
+- [x] Routes: 8 feed endpoint (api.php)
+- [x] Frontend: Feed listesi sayfası (+ düzenle/sil/senkron düğmeleri)
+- [x] Frontend: Feed detay/wizard sayfası (4 adım: URL+Auth, Fiyat, Eşleme, Senkron)
+- [x] Frontend: Feed test sonucu görüntüleme + senkron geçmişi
+- [x] Frontend: Sidebar'da XML Feed bağlantısı
+- [x] AGENTS.md: Phase 6J planı eklendi
+
 ### Phase 6B — Evrensel Kategori Sistemi ✅ **TAMAM**
 - [x] Migration: `categories` (parent_id, slug, name, translations, icon, sort_order, is_active)
 - [x] Migration: `marketplace_category_mappings` (category_id, marketplace, marketplace_category_id, name, parent_id)
@@ -245,6 +262,18 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | POST | `/api/admin/categories/{id}/mappings` | Eşleme ekle/güncelle |
 | DELETE | `/api/admin/categories/{id}/mappings/{marketplace}` | Eşleme sil |
 
+### Feed Routes (auth:sanctum)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/api/admin/feeds` | Feed listesi (store bazlı) |
+| POST | `/api/admin/feeds` | Yeni feed oluştur |
+| GET | `/api/admin/feeds/{id}` | Feed detay + sync logs |
+| PUT | `/api/admin/feeds/{id}` | Feed güncelle |
+| DELETE | `/api/admin/feeds/{id}` | Feed sil |
+| POST | `/api/admin/feeds/{id}/test` | Test et (fetch + parse + preview) |
+| POST | `/api/admin/feeds/{id}/sync` | Senkronize et (ürünleri Aimeos'a aktar) |
+| GET | `/api/admin/feeds/{id}/logs` | Senkron geçmişi |
+
 ### B2B Routes (auth:sanctum)
 | Method | Path | Açıklama |
 |--------|------|----------|
@@ -285,6 +314,8 @@ src/app/
 │   ├── b2b/page.tsx       # B2B Keşfet (/b2b)
 │   ├── b2b/requests/page.tsx # B2B Talepler (/b2b/requests)
 │   ├── ai/page.tsx        # AI Görsel (/ai)
+│   ├── feeds/page.tsx     # XML Feed Yönetimi (/feeds)
+│   ├── feeds/[id]/page.tsx # Feed Detay/Wizard (/feeds/{id})
 │   └── settings/page.tsx  # Ayarlar (/settings)
 ├── (super)/               # Super admin (dark sidebar + auth guard)
 │   ├── stores/page.tsx    # Mağazalar (/stores)
@@ -394,6 +425,7 @@ rr/
 │   │   │   │   ├── AiGatewayController.php
 │   │   │   │   ├── SlaveDownloadController.php
 │   │   │   │   ├── Admin/CategoryController.php
+│   │   │   │   ├── Admin/FeedController.php
 │   │   │   │   └── WooCommerce/
 │   │   │   │       ├── ProductController.php
 │   │   │   │       └── StockController.php
@@ -409,6 +441,8 @@ rr/
 │   │   │   ├── B2bListedProduct.php
 │   │   │   ├── Category.php
 │   │   │   ├── DropshippingOrder.php
+│   │   │   ├── ExternalFeed.php
+│   │   │   ├── FeedSyncLog.php
 │   │   │   ├── MarketplaceCategoryMapping.php
 │   │   │   └── ProductB2bSetting.php
 │   │   ├── Providers/RouteServiceProvider.php

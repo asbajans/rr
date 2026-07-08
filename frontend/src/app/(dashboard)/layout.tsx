@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/b2b', label: 'B2B Keşfet', icon: Handshake },
   { href: '/b2b/requests', label: 'B2B Talepler', icon: Handshake },
   { href: '/ai', label: 'AI Görsel', icon: Sparkles },
+  { href: '/feeds', label: 'XML Feed', icon: Rss },
   { href: '/billing', label: 'Faturalandırma', icon: CreditCard },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]

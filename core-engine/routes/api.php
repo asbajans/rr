@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\ApiKeyController;
 use App\Http\Controllers\Api\Admin\CategoryController;
 use App\Http\Controllers\Api\Admin\DashboardController;
+use App\Http\Controllers\Api\Admin\FeedController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PlanController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
@@ -126,6 +127,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/requests/{id}', [B2bController::class, 'updateRequest']);
         Route::post('/requests/{id}/clone', [B2bController::class, 'cloneProduct']);
         Route::get('/listed', [B2bController::class, 'listedProducts']);
+    });
+
+    Route::prefix('admin/feeds')->group(function () {
+        Route::get('/', [FeedController::class, 'index']);
+        Route::post('/', [FeedController::class, 'store']);
+        Route::get('{feed}', [FeedController::class, 'show']);
+        Route::put('{feed}', [FeedController::class, 'update']);
+        Route::delete('{feed}', [FeedController::class, 'destroy']);
+        Route::post('{feed}/test', [FeedController::class, 'test']);
+        Route::post('{feed}/sync', [FeedController::class, 'sync']);
+        Route::get('{feed}/logs', [FeedController::class, 'syncLogs']);
     });
 });
 
