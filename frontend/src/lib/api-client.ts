@@ -338,6 +338,27 @@ class ApiClient {
     return this.get<{ data: import('./types').FeedSyncLog[] }>(`/api/admin/feeds/${id}/logs`)
   }
 
+  // Checkout / Store Endpoints
+  getAddresses(siteCode: string) {
+    return this.get<{ data: import('./types').CustomerAddress[] }>(`/api/store/${siteCode}/addresses`)
+  }
+
+  storeAddress(siteCode: string, data: Partial<import('./types').CustomerAddress> & { full_name: string; phone: string; city: string; address_line: string }) {
+    return this.post<import('./types').CustomerAddress>(`/api/store/${siteCode}/addresses`, data)
+  }
+
+  deleteAddress(siteCode: string, id: number) {
+    return this.delete(`/api/store/${siteCode}/addresses/${id}`)
+  }
+
+  checkout(siteCode: string, data: import('./types').CheckoutPayload) {
+    return this.post<{ success: boolean; order_id: string; total: number }>(`/api/store/${siteCode}/checkout`, data)
+  }
+
+  getCheckoutPaymentMethods(siteCode: string) {
+    return this.get<{ data: { method: string; label: string }[] }>(`/api/store/${siteCode}/checkout/payment-methods`)
+  }
+
   // Marketplace Integrations
   getIntegrations() {
     return this.get<{ data: import('./types').MarketplaceIntegration[] }>('/api/admin/integrations')

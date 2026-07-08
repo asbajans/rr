@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\StoreController as AdminStoreController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AiGatewayController;
+use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\B2bController;
 use App\Http\Controllers\Api\OrderController;
@@ -171,6 +172,14 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::get('/store/{siteCode}/payment-methods', [PaymentMethodController::class, 'checkoutMethods']);
+
+Route::prefix('store/{siteCode}')->group(function () {
+    Route::get('/addresses', [CheckoutController::class, 'addresses']);
+    Route::post('/addresses', [CheckoutController::class, 'storeAddress']);
+    Route::delete('/addresses/{address}', [CheckoutController::class, 'deleteAddress']);
+    Route::post('/checkout', [CheckoutController::class, 'checkout']);
+    Route::get('/checkout/payment-methods', [CheckoutController::class, 'paymentMethods']);
+});
 
 Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(function () {
 

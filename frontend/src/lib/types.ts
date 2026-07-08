@@ -190,6 +190,31 @@ export type StorePaymentMethod = {
   config: Record<string, string>
 }
 
+// Checkout Types
+export type CustomerAddress = {
+  id: number
+  store_id: number
+  user_id: string | null
+  full_name: string
+  phone: string
+  country: string
+  city: string
+  district: string | null
+  zip: string | null
+  address_line: string
+  is_default: boolean
+  created_at: string
+}
+
+export type CheckoutPayload = {
+  items: { product_id: string; sku: string; name: string; quantity: number; unit_price: number }[]
+  customer: { name: string; email: string; phone: string }
+  address_id?: number
+  shipping?: { full_name: string; phone: string; city: string; address_line: string }
+  payment_method: string
+  note?: string
+}
+
 // Marketplace Integration Types
 export type MarketplaceIntegration = {
   id: number | null

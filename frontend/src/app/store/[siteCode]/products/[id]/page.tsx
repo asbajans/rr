@@ -1,17 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Plus, Minus } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { useCart } from '@/lib/cart'
 import type { StoreProduct } from '@/lib/types'
 
 export default function StoreProductDetailPage() {
   const { siteCode, id } = useParams<{ siteCode: string; id: string }>()
+  const router = useRouter()
+  const { addItem } = useCart()
   const [product, setProduct] = useState<StoreProduct | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [quantity, setQuantity] = useState(1)
+  const [added, setAdded] = useState(false)
 
   useEffect(() => {
     if (!siteCode || !id) return
@@ -20,6 +25,20 @@ export default function StoreProductDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [siteCode, id])
+
+  function handleAddToCart() {
+    if (!product) return
+    addItem({
+      product_id: product['product.id'],
+      sku: product['product.code'],
+      name: product['product.label'],
+      price: product.price ?? 0,
+      image: product.image ?? undefined,
+      quantity,
+    })
+    setAdded(true)
+    setTimeout(() => setAdded(false), 2000)
+  }
 
   if (loading) {
     return (
@@ -72,6 +91,46 @@ export default function StoreProductDetailPage() {
             <div className="mt-6 text-sm leading-relaxed text-zinc-600">{product.description}</div>
           )}
           <div className="mt-4 text-xs text-zinc-400">SKU: {product['product.code']}</div>
+
+          <div className="mt-8 flex items-center gap-4">
+            <div className="flex items-center rounded-lg border border-zinc-300">
+              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 text-zinc-500 hover:text-zinc-900">
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="w-12 text-center text-sm font-medium">{quantity}</span>
+              <button onClick={() => setQuantity(quantity + 1)} className="p-2 text-zinc-500 hover:text-zinc-900">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+
+            <button
+              onClick={handleAddToCart}
+              className={`flex-1 rounded-lg px-6 py-3 text-sm font-medium transition-colors ${
+                added
+                  ? 'bg-green-500 text-white'
+                  : 'bg-zinc-900 text-white hover:bg-zinc-800'
+              }`}
+            >
+              {added ? 'Sepete Eklendi ✓' : 'Sepete Ekle'}
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              addItem({
+                product_id: product['product.id'],
+                sku: product['product.code'],
+                name: product['product.label'],
+                price: product.price ?? 0,
+                image: product.image ?? undefined,
+                quantity,
+              })
+              router.push(`/store/${siteCode}/cart`)
+            }}
+            className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Hemen Al
+          </button>
         </div>
       </div>
     </div>

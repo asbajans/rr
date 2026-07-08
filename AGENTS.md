@@ -166,6 +166,18 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6F — Express Checkout ✅ **TAMAM**
+- [x] Migration: `customer_addresses` (store_id, user_id, full_name, phone, country, city, district, zip, address_line, is_default)
+- [x] Model: `CustomerAddress` (store relation, scopeForUser)
+- [x] Controller: `CheckoutController` (address CRUD, checkout, paymentMethods)
+- [x] Routes: 5 checkout/store endpoint (api.php)
+- [x] Frontend: Cart context + localStorage persistence (lib/cart.tsx)
+- [x] Frontend: Store product detail → Sepete Ekle + Hemen Al
+- [x] Frontend: Store layout → sepet badge + header link
+- [x] Frontend: Cart page (sepet görüntüleme, miktar değiştirme, silme)
+- [x] Frontend: Checkout page (adres seç/ekle, ödeme yöntemi, not, sipariş özeti, onay)
+- [x] AGENTS.md: Phase 6F planı eklendi
+
 ### Phase 6C — Marketplace Entegrasyonları ✅ **TAMAM**
 - [x] Migration: `marketplace_integrations` (store_id, marketplace, is_active, config JSON)
 - [x] Model: `MarketplaceIntegration` (availableMarketplaces, store relation)
