@@ -18,6 +18,7 @@ const navItems = [
   { href: '/feeds', label: 'XML Feed', icon: Rss },
   { href: '/billing', label: 'Faturalandırma', icon: CreditCard },
   { href: '/payment', label: 'Ödeme', icon: CreditCard },
+  { href: '/integrations', label: 'Pazaryeri', icon: ShoppingCart },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 

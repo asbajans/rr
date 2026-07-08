@@ -338,6 +338,15 @@ class ApiClient {
     return this.get<{ data: import('./types').FeedSyncLog[] }>(`/api/admin/feeds/${id}/logs`)
   }
 
+  // Marketplace Integrations
+  getIntegrations() {
+    return this.get<{ data: import('./types').MarketplaceIntegration[] }>('/api/admin/integrations')
+  }
+
+  updateIntegration(marketplace: string, data: { is_active: boolean; config?: Record<string, string> }) {
+    return this.put<import('./types').MarketplaceIntegration>(`/api/admin/integrations/${marketplace}`, data)
+  }
+
   // Variations
   // Payment Methods
   getPaymentMethods() {

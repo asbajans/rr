@@ -190,6 +190,17 @@ export type StorePaymentMethod = {
   config: Record<string, string>
 }
 
+// Marketplace Integration Types
+export type MarketplaceIntegration = {
+  id: number | null
+  store_id?: number
+  marketplace: string
+  label: string
+  is_active: boolean
+  config: Record<string, string>
+  fields: Record<string, string>
+}
+
 // Variation Types
 export type Variation = {
   id: number

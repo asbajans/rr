@@ -166,6 +166,16 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6C — Marketplace Entegrasyonları ✅ **TAMAM**
+- [x] Migration: `marketplace_integrations` (store_id, marketplace, is_active, config JSON)
+- [x] Model: `MarketplaceIntegration` (availableMarketplaces, store relation)
+- [x] Controller: `MarketplaceIntegrationController` (list, update)
+- [x] Routes: 2 marketplace integration endpoint (api.php)
+- [x] Frontend: Entegrasyon ayar sayfası (toggle + config form)
+- [x] Frontend: Sidebar'da Pazaryeri linki
+- [x] Update: `SendProductWebhook` listener sends store marketplace configs
+- [x] AGENTS.md: Phase 6C planı eklendi
+
 ### Phase 6I — Ödeme Yöntemleri ✅ **TAMAM**
 - [x] Migration: `store_payment_methods` (store_id, method, is_active, config JSON)
 - [x] Model: `StorePaymentMethod` (availableMethods, store relation, casts)

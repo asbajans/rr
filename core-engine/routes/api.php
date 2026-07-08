@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\ApiKeyController;
 use App\Http\Controllers\Api\Admin\CategoryController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\FeedController;
+use App\Http\Controllers\Api\Admin\MarketplaceIntegrationController;
 use App\Http\Controllers\Api\Admin\PaymentMethodController;
 use App\Http\Controllers\Api\Admin\VariationController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
@@ -155,6 +156,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [VariationController::class, 'storeVariant']);
         Route::put('{variant}', [VariationController::class, 'updateVariant']);
         Route::delete('{variant}', [VariationController::class, 'destroyVariant']);
+    });
+
+    Route::prefix('admin/integrations')->group(function () {
+        Route::get('/', [MarketplaceIntegrationController::class, 'index']);
+        Route::put('{marketplace}', [MarketplaceIntegrationController::class, 'update']);
     });
 
     Route::prefix('admin/payment-methods')->group(function () {
