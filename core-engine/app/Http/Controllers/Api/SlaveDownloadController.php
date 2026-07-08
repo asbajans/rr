@@ -113,13 +113,27 @@ class SlaveDownloadController extends Controller
 
     private function injectConfig(string $template, array $config): string
     {
-        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $isPhp = str_contains($template, '$_RAHATIO_CONFIG');
 
+        $encoded = $isPhp
+            ? $this->toPhpArray($config)
+            : json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
         $replacement = $isPhp
-            ? "// #CONFIG_START\n\$_RAHATIO_CONFIG = $json;\n// #CONFIG_END"
-            : "// #CONFIG_START\nconst CONFIG = $json;\n// #CONFIG_END";
+            ? "// #CONFIG_START\n\$_RAHATIO_CONFIG = $encoded;\n// #CONFIG_END"
+            : "// #CONFIG_START\nconst CONFIG = $encoded;\n// #CONFIG_END";
 
         return preg_replace('/\/\/ #CONFIG_START.*?\/\/ #CONFIG_END/s', $replacement, $template);
+    }
+
+    private function toPhpArray(array $data): string
+    {
+        $parts = [];
+        foreach ($data as $key => $value) {
+            $k = var_export($key, true);
+            $v = var_export($value, true);
+            $parts[] = "    $k => $v,";
+        }
+        return "[\n" . implode("\n", $parts) . "\n]";
     }
 }
