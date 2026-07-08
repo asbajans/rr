@@ -35,12 +35,12 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/**'
-      slave:
-        - 'slave/**'
-        - '.github/**'
-      mobile:
-        - 'mobile-app/**'
-        - '.github/**'
+            slave:
+              - 'slave/**'
+              - '.github/**'
+            mobile:
+              - 'mobile-app/**'
+              - '.github/**'
 
   validate-frontend:
     needs: detect-changes
