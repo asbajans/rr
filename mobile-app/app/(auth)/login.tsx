@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
-import { Link, router } from 'expo-router'
+import { Link } from 'expo-router'
 import { useAuth } from '../../src/shared/auth'
 
 export default function LoginScreen() {
@@ -16,8 +16,8 @@ export default function LoginScreen() {
     }
     setLoading(true)
     try {
-      const user = await login(email, password)
-      router.replace(user.is_admin ? '/(super)/stores' : '/(tabs)/')
+      await login(email, password)
+      // AuthContext state güncellendi, _layout.tsx otomatik redirect yapar
     } catch (e: any) {
       Alert.alert('Login Failed', e.message)
     } finally {

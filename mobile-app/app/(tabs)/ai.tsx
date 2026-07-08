@@ -10,7 +10,7 @@ export default function AIScreen() {
 
   async function pickImage() {
     const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'] as any,
       quality: 0.8,
     })
     if (!res.canceled && res.assets[0]) {

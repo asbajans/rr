@@ -237,12 +237,14 @@ src/app/
 - Workflow: `.github/workflows/deploy.yml`
 - Path filter ile sadece değişen servis build edilir
 - Docker Hub → Portainer webhook (`d6050fb9...`)
-- **TODO:** Commit SHA tag'ı ekle, validate-core job'ı ekle
+- **Slave** Go → PHP geçişi yapıldı, slave validate/build kaldırıldı (PHP node panelden indirilir)
+- **Mobile** EAS Build ile APK/IPA üretilir (`expo/expo-github-action` + `eas build`)
 
 ### Gerekli GitHub Secrets
 - `DOCKER_HUB_USERNAME` — `asbajans`
 - `DOCKER_HUB_TOKEN`
 - `PORTAINER_WEBHOOK_URL` — `https://cont.asb.web.tr/api/webhooks/d6050fb9-2679-4422-902f-916da4785ca6`
+- `EXPO_TOKEN` — Expo account token (EAS Build için)
 
 ## Kullanılan Aimeos Özellikleri
 

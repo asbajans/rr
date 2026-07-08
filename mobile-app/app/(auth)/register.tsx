@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
-import { Link, router } from 'expo-router'
+import { Link } from 'expo-router'
 import { useAuth } from '../../src/shared/auth'
 
 export default function RegisterScreen() {
@@ -17,8 +17,8 @@ export default function RegisterScreen() {
     }
     setLoading(true)
     try {
-      const user = await register(name, email, password)
-      router.replace(user.is_admin ? '/(super)/stores' : '/(tabs)/')
+      await register(name, email, password)
+      // AuthContext state güncellendi, _layout.tsx otomatik redirect yapar
     } catch (e: any) {
       Alert.alert('Registration Failed', e.message)
     } finally {

@@ -15,8 +15,6 @@ export default function SuperLayout() {
 
   return (
     <Tabs screenOptions={{
-      tabBarActiveTintColor: '#000',
-      tabBarInactiveTintColor: '#999',
       headerStyle: { backgroundColor: '#1a1a2e' },
       headerTintColor: '#fff',
       headerTitleStyle: { fontWeight: '600' },
