@@ -263,6 +263,44 @@ class ApiClient {
   cancelSubscription() {
     return this.post<{ message: string }>('/api/admin/subscription/cancel')
   }
+
+  // B2B
+  getB2bDiscover(page = 1, search?: string) {
+    const params: Record<string, string> = { page: String(page) }
+    if (search) params.search = search
+    return this.get<{ data: import('./types').B2bProductItem[]; total: number; current_page: number; last_page: number; per_page: number }>('/api/b2b/discover', { params })
+  }
+
+  getB2bSettings(productId?: string) {
+    const path = productId ? `/api/b2b/settings/${productId}` : '/api/b2b/settings'
+    return this.get<import('./types').B2bSetting | { data: import('./types').B2bSetting[] }>(path)
+  }
+
+  updateB2bSettings(data: { product_id: string; is_b2b_enabled: boolean; b2b_discount?: number | null; b2b_price?: number | null }) {
+    return this.put<import('./types').B2bSetting>('/api/b2b/settings', data)
+  }
+
+  getB2bRequests(type: 'incoming' | 'outgoing', status?: string) {
+    const params: Record<string, string> = { type }
+    if (status) params.status = status
+    return this.get<{ data: import('./types').B2bRequestItem[]; total: number; current_page: number; last_page: number; per_page: number }>('/api/b2b/requests', { params })
+  }
+
+  createB2bRequest(data: { product_id: string; to_store_id: number; note?: string }) {
+    return this.post<import('./types').B2bRequestItem>('/api/b2b/requests', data)
+  }
+
+  updateB2bRequest(id: number, status: 'approved' | 'rejected') {
+    return this.put<import('./types').B2bRequestItem>(`/api/b2b/requests/${id}`, { status })
+  }
+
+  cloneB2bProduct(requestId: number) {
+    return this.post<{ message: string; product_id: string; code: string }>(`/api/b2b/requests/${requestId}/clone`)
+  }
+
+  getB2bListed() {
+    return this.get<{ data: { id: number; product: import('./types').B2bProductItem['product'] | null; original_product: import('./types').B2bProductItem['product'] | null; original_store: import('./types').B2bStoreInfo | null; created_at: string }[] }>('/api/b2b/listed')
+  }
 }
 
 export const api = new ApiClient()

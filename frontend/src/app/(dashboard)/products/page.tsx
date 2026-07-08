@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
-import type { Product } from '@/lib/types'
+import type { Product, B2bSetting } from '@/lib/types'
 
 type ProductForm = {
   code: string
@@ -12,9 +12,12 @@ type ProductForm = {
   stock: string
   status: number
   image: File | null
+  b2b_enabled: boolean
+  b2b_discount: string
+  b2b_price: string
 }
 
-const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, image: null }
+const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, image: null, b2b_enabled: false, b2b_discount: '', b2b_price: '' }
 
 export default function ProductsPage() {
   const { user } = useAuth()
@@ -54,9 +57,19 @@ export default function ProductsPage() {
       stock: p.stock?.toString() ?? '',
       status: p.status,
       image: null,
+      b2b_enabled: false,
+      b2b_discount: '',
+      b2b_price: '',
     })
     setPreview((p as unknown as Record<string, string>).image ?? null)
     setShowModal(true)
+
+    api.getB2bSettings(p.id).then((res) => {
+      const s = res as B2bSetting
+      if (s.is_b2b_enabled) {
+        setForm((prev) => ({ ...prev, b2b_enabled: true, b2b_discount: s.b2b_discount?.toString() ?? '', b2b_price: s.b2b_price?.toString() ?? '' }))
+      }
+    }).catch(() => {})
   }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -72,6 +85,7 @@ export default function ProductsPage() {
 
     try {
       let mediaUrl: string | null = null
+      let productId: string | null = editingId
 
       if (form.image) {
         const uploadRes = await api.uploadImage(form.image)
@@ -92,7 +106,17 @@ export default function ProductsPage() {
         if (!mediaUrl) delete payload.media_url
         await api.updateAdminProduct(editingId, payload as Parameters<typeof api.updateAdminProduct>[1])
       } else {
-        await api.createAdminProduct(payload as unknown as Parameters<typeof api.createAdminProduct>[0])
+        const created = await api.createAdminProduct(payload as unknown as Parameters<typeof api.createAdminProduct>[0])
+        productId = (created as unknown as Record<string, string>).id
+      }
+
+      if (productId) {
+        await api.updateB2bSettings({
+          product_id: productId,
+          is_b2b_enabled: form.b2b_enabled,
+          b2b_discount: form.b2b_discount ? parseFloat(form.b2b_discount) : null,
+          b2b_price: form.b2b_price ? parseFloat(form.b2b_price) : null,
+        })
       }
 
       setShowModal(false)
@@ -289,6 +313,48 @@ export default function ProductsPage() {
                   onChange={(e) => setForm({ ...form, status: e.target.checked ? 1 : 0 })}
                   className="h-4 w-4 rounded border-zinc-300"
                 />
+              </div>
+
+              <div className="border-t border-zinc-200 pt-4">
+                <h3 className="text-sm font-semibold text-zinc-900">B2B Ayarları</h3>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.b2b_enabled}
+                    onChange={(e) => setForm({ ...form, b2b_enabled: e.target.checked })}
+                    className="h-4 w-4 rounded border-zinc-300"
+                  />
+                  <label className="text-sm font-medium text-zinc-700">B2B'ye Aç</label>
+                </div>
+                {form.b2b_enabled && (
+                  <div className="mt-3 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-700">B2B İndirim (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={form.b2b_discount}
+                        onChange={(e) => setForm({ ...form, b2b_discount: e.target.value })}
+                        className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-700">B2B Fiyat (₺)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={form.b2b_price}
+                        onChange={(e) => setForm({ ...form, b2b_price: e.target.value })}
+                        className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

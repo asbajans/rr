@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Admin\StoreController as AdminStoreController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AiGatewayController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\B2bController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\SlaveDownloadController;
@@ -100,6 +101,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/admin/slave/download-php', [SlaveDownloadController::class, 'downloadPhp']);
     Route::get('/admin/slave/download-vercel', [SlaveDownloadController::class, 'downloadVercel']);
+
+    Route::prefix('b2b')->group(function () {
+        Route::get('/discover', [B2bController::class, 'discover']);
+        Route::get('/settings', [B2bController::class, 'getSettings']);
+        Route::get('/settings/{productId}', [B2bController::class, 'getSettings']);
+        Route::put('/settings', [B2bController::class, 'updateSettings']);
+        Route::get('/requests', [B2bController::class, 'requests']);
+        Route::post('/requests', [B2bController::class, 'createRequest']);
+        Route::put('/requests/{id}', [B2bController::class, 'updateRequest']);
+        Route::post('/requests/{id}/clone', [B2bController::class, 'cloneProduct']);
+        Route::get('/listed', [B2bController::class, 'listedProducts']);
+    });
 });
 
 Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(function () {

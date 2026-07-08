@@ -122,3 +122,65 @@ export type Subscription = {
   status: string
   plan?: Plan
 }
+
+// B2B Types
+export type B2bStoreInfo = {
+  id: number
+  name: string
+  site_code: string
+}
+
+export type B2bProductItem = {
+  id: string
+  product: {
+    id: string
+    code: string
+    label: string
+    status: number
+    price: number | null
+    currency: string
+    stock: number | null
+    image: string | null
+  }
+  store: B2bStoreInfo
+  b2b_discount: number | null
+  b2b_price: number | null
+  my_request_status: string | null
+  my_request_id: number | null
+}
+
+export type B2bRequestItem = {
+  id: number
+  product_id: string
+  product: {
+    id: string
+    code: string
+    label: string
+    status: number
+    price: number | null
+    currency: string
+    stock: number | null
+    image: string | null
+  } | null
+  from_store: B2bStoreInfo | null
+  to_store: B2bStoreInfo | null
+  status: string
+  note: string | null
+  created_at: string
+}
+
+export type B2bSetting = {
+  store_id?: number
+  product_id?: string
+  is_b2b_enabled: boolean
+  b2b_discount: number | null
+  b2b_price: number | null
+  product?: {
+    id: string
+    code: string
+    label: string
+    price: number | null
+    stock: number | null
+    image: string | null
+  }
+}

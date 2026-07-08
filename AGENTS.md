@@ -66,6 +66,9 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - `store_settings` — Tema, para birimi, vergi, kargo ayarları
 - `media` — CDN'deki dosyaların referansı
 - `slave_nodes` — Self-hosted slave kayıtları, son heartbeat
+- `product_b2b_settings` — Ürün B2B ayarları (is_b2b_enabled, b2b_discount, b2b_price)
+- `b2b_requests` — B2B talep yönetimi (from_store, to_store, product_id, status)
+- `b2b_listed_products` — B2B ile klonlanmış ürünler (store, original_store, product_id, original_product_id)
 
 ## Docker Port Haritası
 
@@ -156,6 +159,22 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6A — Multi-Vendor / B2B "Beatby" ✅ **TAMAM**
+- [x] Migration: `product_b2b_settings` (store_id, product_id, is_b2b_enabled, b2b_discount, b2b_price)
+- [x] Migration: `b2b_requests` (from_store_id, to_store_id, product_id, status, note)
+- [x] Migration: `b2b_listed_products` (store_id, original_store_id, product_id, original_product_id, b2b_request_id)
+- [x] Model: `ProductB2bSetting` (Eloquent, store_id + product_id unique)
+- [x] Model: `B2bRequest` (Eloquent, pending/approved/rejected)
+- [x] Model: `B2bListedProduct` (Eloquent, clone tracking)
+- [x] Controller: `B2bController` (discover, settings CRUD, requests CRUD, clone)
+- [x] Routes: 9 B2B endpoint (api.php)
+- [x] Backend: Ürün detayında B2B alanları (discount badge, B2B price)
+- [x] Frontend: B2B keşfet sayfası (discover, detail modal, request)
+- [x] Frontend: B2B talep sayfası (incoming/outgoing tabs, onay/red/klon)
+- [x] Frontend: Ürün düzenleme modal'ında B2B ayarları (toggle + indirim/fiyat)
+- [x] Frontend: Sidebar'da B2B linkleri (Keşfet + Talepler)
+- [x] AGENTS.md: Phase 6A planı eklendi
+
 ### Phase 5 — Mobile App ✅ **TAMAM** (İskelet)
 - [x] **Expo SDK 52** projesi (`mobile-app/`) — Expo Router file-based routing
 - [x] **shared/ paket** (`mobile-app/src/shared/`): types (frontend ile senkron), api-client (RN: SecureStore/AsyncStorage, FileSystem), auth context, utils
@@ -198,6 +217,19 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | GET | `/api/admin/slave/download-php` | PHP slave indir (config enjekte edilmiş) |
 | GET | `/api/admin/slave/download-vercel` | Vercel slave ZIP indir |
 
+### B2B Routes (auth:sanctum)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/api/b2b/discover` | B2B ürün keşfet (diğer mağazaların B2B açık ürünleri) |
+| GET | `/api/b2b/settings` | Kendi B2B ayarlarını listele |
+| GET | `/api/b2b/settings/{productId}` | Tek ürün B2B ayarı |
+| PUT | `/api/b2b/settings` | B2B ayarı güncelle/oluştur |
+| GET | `/api/b2b/requests` | Talepleri listele (type=incoming\|outgoing, status=?) |
+| POST | `/api/b2b/requests` | Talep oluştur |
+| PUT | `/api/b2b/requests/{id}` | Talebi onayla/reddet (status=approved\|rejected) |
+| POST | `/api/b2b/requests/{id}/clone` | Onaylanmış talepteki ürünü klonla |
+| GET | `/api/b2b/listed` | Mağazandaki B2B klonlanmış ürünler |
+
 ### API Key Required (AuthenticateWithApiKey)
 | Method | Path | Açıklama |
 |--------|------|----------|
@@ -222,6 +254,8 @@ src/app/
 │   ├── dashboard/page.tsx # Dashboard (/dashboard)
 │   ├── products/page.tsx  # Ürünler (/products)
 │   ├── orders/page.tsx    # Siparişler (/orders)
+│   ├── b2b/page.tsx       # B2B Keşfet (/b2b)
+│   ├── b2b/requests/page.tsx # B2B Talepler (/b2b/requests)
 │   ├── ai/page.tsx        # AI Görsel (/ai)
 │   └── settings/page.tsx  # Ayarlar (/settings)
 ├── (super)/               # Super admin (dark sidebar + auth guard)
@@ -325,6 +359,7 @@ rr/
 │   │   ├── Http/
 │   │   │   ├── Controllers/Api/
 │   │   │   │   ├── AuthController.php
+│   │   │   │   ├── B2bController.php
 │   │   │   │   ├── OrderController.php
 │   │   │   │   ├── AiGatewayController.php
 │   │   │   │   ├── SlaveDownloadController.php
@@ -339,7 +374,10 @@ rr/
 │   │   │   ├── User.php
 │   │   │   ├── Store.php
 │   │   │   ├── ApiKey.php
-│   │   │   └── DropshippingOrder.php
+│   │   │   ├── B2bRequest.php
+│   │   │   ├── B2bListedProduct.php
+│   │   │   ├── DropshippingOrder.php
+│   │   │   └── ProductB2bSetting.php
 │   │   ├── Providers/RouteServiceProvider.php
 │   │   ├── Services/InternalKeyService.php
 │   │   ├── Events/ (OrderReceived, ProductUpdated)
