@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\FeedController;
 use App\Http\Controllers\Api\Admin\MarketplaceIntegrationController;
 use App\Http\Controllers\Api\Admin\PaymentMethodController;
+use App\Http\Controllers\Api\Admin\StoreLocationController;
 use App\Http\Controllers\Api\Admin\VariationController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PlanController;
@@ -173,12 +174,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{marketplace}', [MarketplaceIntegrationController::class, 'update']);
     });
 
+    Route::prefix('admin/locations')->group(function () {
+        Route::get('/', [StoreLocationController::class, 'index']);
+        Route::post('/', [StoreLocationController::class, 'store']);
+        Route::put('{location}', [StoreLocationController::class, 'update']);
+        Route::delete('{location}', [StoreLocationController::class, 'destroy']);
+    });
+
     Route::prefix('admin/payment-methods')->group(function () {
         Route::get('/', [PaymentMethodController::class, 'index']);
         Route::get('{method}', [PaymentMethodController::class, 'show']);
         Route::put('{method}', [PaymentMethodController::class, 'update']);
     });
 });
+
+Route::get('/store/{siteCode}/locations', [StoreLocationController::class, 'publicLocations']);
 
 Route::get('/store/{siteCode}/payment-methods', [PaymentMethodController::class, 'checkoutMethods']);
 

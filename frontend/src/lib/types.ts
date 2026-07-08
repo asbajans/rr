@@ -190,6 +190,22 @@ export type StorePaymentMethod = {
   config: Record<string, string>
 }
 
+// Store Location Types
+export type StoreLocation = {
+  id: number
+  store_id: number
+  name: string | null
+  latitude: number
+  longitude: number
+  address: string
+  city: string
+  country: string
+  phone: string | null
+  working_hours: string[] | null
+  is_primary: boolean
+  created_at: string
+}
+
 // Order Workflow Types
 export type DropshippingOrder = {
   id: number

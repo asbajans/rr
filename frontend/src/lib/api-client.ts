@@ -359,6 +359,27 @@ class ApiClient {
     return this.get<{ data: import('./types').FeedSyncLog[] }>(`/api/admin/feeds/${id}/logs`)
   }
 
+  // Store Locations
+  getLocations() {
+    return this.get<{ data: import('./types').StoreLocation[] }>('/api/admin/locations')
+  }
+
+  createLocation(data: Partial<import('./types').StoreLocation>) {
+    return this.post<import('./types').StoreLocation>('/api/admin/locations', data)
+  }
+
+  updateLocation(id: number, data: Partial<import('./types').StoreLocation>) {
+    return this.put<import('./types').StoreLocation>(`/api/admin/locations/${id}`, data)
+  }
+
+  deleteLocation(id: number) {
+    return this.delete(`/api/admin/locations/${id}`)
+  }
+
+  getStoreLocations(siteCode: string) {
+    return this.get<{ data: import('./types').StoreLocation[] }>(`/api/store/${siteCode}/locations`)
+  }
+
   // Checkout / Store Endpoints
   getAddresses(siteCode: string) {
     return this.get<{ data: import('./types').CustomerAddress[] }>(`/api/store/${siteCode}/addresses`)

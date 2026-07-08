@@ -166,6 +166,16 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6D — Harita & Konum ✅ **TAMAM**
+- [x] Migration: `store_locations` (store_id, name, lat/lng, address, city, phone, working_hours, is_primary)
+- [x] Model: `StoreLocation` (store relation, casts)
+- [x] Controller: `StoreLocationController` (CRUD + public endpoint)
+- [x] Routes: 4 admin location endpoint + 1 public endpoint
+- [x] Frontend: Admin konum yönetimi (harita ile işaretleme, adres/çalışma saatleri formu, liste)
+- [x] Frontend: Store mağazalar sayfası (Leaflet harita, marker, konum detayları)
+- [x] Frontend: Sidebar'da Konumlar linki
+- [x] AGENTS.md: Phase 6D planı eklendi
+
 ### Phase 6G — Sipariş Yönetimi ✅ **TAMAM**
 - [x] Migration: `order_status_histories` + tracking fields on dropshipping_orders
 - [x] Model: `DropshippingOrder` status workflow (pending→processing→shipped→delivered, cancelled, returned), transition validation

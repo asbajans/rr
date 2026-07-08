@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/feeds', label: 'XML Feed', icon: Rss },
   { href: '/billing', label: 'Faturalandırma', icon: CreditCard },
   { href: '/payment', label: 'Ödeme', icon: CreditCard },
+  { href: '/locations', label: 'Konumlar', icon: MapPin },
   { href: '/integrations', label: 'Pazaryeri', icon: ShoppingCart },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]
