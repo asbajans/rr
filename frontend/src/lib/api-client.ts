@@ -339,6 +339,24 @@ class ApiClient {
   }
 
   // Variations
+  // Payment Methods
+  getPaymentMethods() {
+    return this.get<{ data: import('./types').StorePaymentMethod[] }>('/api/admin/payment-methods')
+  }
+
+  getPaymentMethod(method: string) {
+    return this.get<import('./types').StorePaymentMethod>(`/api/admin/payment-methods/${method}`)
+  }
+
+  updatePaymentMethod(method: string, data: { is_active: boolean; config?: Record<string, string> }) {
+    return this.put<import('./types').StorePaymentMethod>(`/api/admin/payment-methods/${method}`, data)
+  }
+
+  getStorePaymentMethods(siteCode: string) {
+    return this.get<{ data: { method: string; label: string; public: Record<string, string> }[] }>(`/api/store/${siteCode}/payment-methods`)
+  }
+
+  // Variations
   getVariations() {
     return this.get<{ data: import('./types').Variation[] }>('/api/admin/variations')
   }

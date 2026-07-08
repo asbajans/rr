@@ -17,6 +17,7 @@ const navItems = [
   { href: '/variations', label: 'Varyasyonlar', icon: FolderKanban },
   { href: '/feeds', label: 'XML Feed', icon: Rss },
   { href: '/billing', label: 'Faturalandırma', icon: CreditCard },
+  { href: '/payment', label: 'Ödeme', icon: CreditCard },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 

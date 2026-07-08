@@ -180,6 +180,16 @@ export type ExternalFeed = {
   sync_logs?: FeedSyncLog[]
 }
 
+// Payment Method Types
+export type StorePaymentMethod = {
+  id: number | null
+  store_id?: number
+  method: string
+  label: string
+  is_active: boolean
+  config: Record<string, string>
+}
+
 // Variation Types
 export type Variation = {
   id: number

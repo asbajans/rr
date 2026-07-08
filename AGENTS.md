@@ -166,6 +166,15 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 6I — Ödeme Yöntemleri ✅ **TAMAM**
+- [x] Migration: `store_payment_methods` (store_id, method, is_active, config JSON)
+- [x] Model: `StorePaymentMethod` (availableMethods, store relation, casts)
+- [x] Controller: `PaymentMethodController` (list, update, show, checkoutMethods)
+- [x] Routes: 4 ödeme endpoint + 1 public checkout endpoint
+- [x] Frontend: Ödeme yöntemleri ayar sayfası (toggle + config form)
+- [x] Frontend: Sidebar'da Ödeme linki
+- [x] AGENTS.md: Phase 6I planı eklendi
+
 ### Phase 6E — Varyasyon Sistemi ✅ **TAMAM**
 - [x] Migration: `variations` (store_id, name, type), `variation_options` (variation_id, value, sort_order), `product_variants` (store_id, product_id, sku, price, stock, attributes, image)
 - [x] Model: `Variation`, `VariationOption`, `ProductVariant`
@@ -341,6 +350,7 @@ src/app/
 │   ├── ai/page.tsx        # AI Görsel (/ai)
 │   ├── feeds/page.tsx     # XML Feed Yönetimi (/feeds)
 │   ├── feeds/[id]/page.tsx # Feed Detay/Wizard (/feeds/{id})
+│   ├── payment/page.tsx   # Ödeme Yöntemleri (/payment)
 │   └── settings/page.tsx  # Ayarlar (/settings)
 ├── (super)/               # Super admin (dark sidebar + auth guard)
 │   ├── stores/page.tsx    # Mağazalar (/stores)
