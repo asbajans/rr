@@ -180,6 +180,39 @@ export type ExternalFeed = {
   sync_logs?: FeedSyncLog[]
 }
 
+// Variation Types
+export type Variation = {
+  id: number
+  store_id: number
+  name: string
+  type: 'select' | 'color' | 'text'
+  options?: VariationOption[]
+  created_at: string
+  updated_at: string
+}
+
+export type VariationOption = {
+  id: number
+  variation_id: number
+  value: string
+  sort_order: number
+}
+
+export type ProductVariant = {
+  id: number
+  store_id: number
+  product_id: string
+  sku: string
+  price: number | null
+  currency: string
+  stock: number
+  attributes: Record<string, string> | null
+  image: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export type FeedSyncLog = {
   id: number
   feed_id: number

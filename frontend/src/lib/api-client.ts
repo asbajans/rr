@@ -338,6 +338,39 @@ class ApiClient {
     return this.get<{ data: import('./types').FeedSyncLog[] }>(`/api/admin/feeds/${id}/logs`)
   }
 
+  // Variations
+  getVariations() {
+    return this.get<{ data: import('./types').Variation[] }>('/api/admin/variations')
+  }
+
+  createVariation(data: { name: string; type: string; options?: { value: string; sort_order?: number }[] }) {
+    return this.post<import('./types').Variation>('/api/admin/variations', data)
+  }
+
+  updateVariation(id: number, data: { name?: string; type?: string; options?: { value: string; sort_order?: number }[] }) {
+    return this.put<import('./types').Variation>(`/api/admin/variations/${id}`, data)
+  }
+
+  deleteVariation(id: number) {
+    return this.delete<void>(`/api/admin/variations/${id}`)
+  }
+
+  getProductVariants(productId: string) {
+    return this.get<{ data: import('./types').ProductVariant[] }>(`/api/admin/products/${productId}/variants`)
+  }
+
+  createProductVariant(data: { product_id: string; sku: string; price?: number; stock?: number; attributes?: Record<string, string>; image?: string }) {
+    return this.post<import('./types').ProductVariant>(`/api/admin/products/${productId}/variants`, data)
+  }
+
+  updateProductVariant(productId: string, variantId: number, data: { sku?: string; price?: number; stock?: number; attributes?: Record<string, string>; image?: string; is_active?: boolean }) {
+    return this.put<import('./types').ProductVariant>(`/api/admin/products/${productId}/variants/${variantId}`, data)
+  }
+
+  deleteProductVariant(productId: string, variantId: number) {
+    return this.delete<void>(`/api/admin/products/${productId}/variants/${variantId}`)
+  }
+
   // B2B
   getB2bDiscover(page = 1, search?: string) {
     const params: Record<string, string> = { page: String(page) }

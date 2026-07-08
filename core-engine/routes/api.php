@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\ApiKeyController;
 use App\Http\Controllers\Api\Admin\CategoryController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\FeedController;
+use App\Http\Controllers\Api\Admin\VariationController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PlanController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
@@ -138,6 +139,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{feed}/test', [FeedController::class, 'test']);
         Route::post('{feed}/sync', [FeedController::class, 'sync']);
         Route::get('{feed}/logs', [FeedController::class, 'syncLogs']);
+    });
+
+    Route::prefix('admin/variations')->group(function () {
+        Route::get('/', [VariationController::class, 'index']);
+        Route::post('/', [VariationController::class, 'store']);
+        Route::get('{variation}', [VariationController::class, 'show']);
+        Route::put('{variation}', [VariationController::class, 'update']);
+        Route::delete('{variation}', [VariationController::class, 'destroy']);
+    });
+
+    Route::prefix('admin/products/{productId}/variants')->group(function () {
+        Route::get('/', [VariationController::class, 'variants']);
+        Route::post('/', [VariationController::class, 'storeVariant']);
+        Route::put('{variant}', [VariationController::class, 'updateVariant']);
+        Route::delete('{variant}', [VariationController::class, 'destroyVariant']);
     });
 });
 

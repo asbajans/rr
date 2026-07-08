@@ -71,6 +71,9 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - `b2b_listed_products` — B2B ile klonlanmış ürünler (store, original_store, product_id, original_product_id)
 - `categories` — Evrensel kategori ağacı (parent_id, slug, name, translations, sort_order)
 - `marketplace_category_mappings` — Kategori → pazar yeri eşleme (category_id, marketplace, marketplace_category_id)
+- `variations` — Varyasyon tanımları (store_id, name, type)
+- `variation_options` — Varyasyon seçenekleri (variation_id, value, sort_order)
+- `product_variants` — Ürün varyantları (product_id, sku, price, stock, attributes)
 - `external_feeds` — XML/CSV/XLSX/JSON dış kaynak feed (URL, auth, mapping, pricing, autoSync)
 - `feed_sync_logs` — Feed senkron log (feed_id, store_id, status, summary)
 
@@ -162,6 +165,15 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] **Frontend** settings sayfasında slave indirme UI'ı (PHP + Vercel butonları)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
+
+### Phase 6E — Varyasyon Sistemi ✅ **TAMAM**
+- [x] Migration: `variations` (store_id, name, type), `variation_options` (variation_id, value, sort_order), `product_variants` (store_id, product_id, sku, price, stock, attributes, image)
+- [x] Model: `Variation`, `VariationOption`, `ProductVariant`
+- [x] Controller: `VariationController` (CRUD + variants CRUD)
+- [x] Routes: 9 variation endpoint + 4 variant endpoint
+- [x] Frontend: Varyasyon yönetim sayfası (ekle/düzenle/sil, seçenek ekle/kaldır)
+- [x] Frontend: Sidebar'da Varyasyonlar linki
+- [x] AGENTS.md: Phase 6E planı eklendi
 
 ### Phase 6J — XML Feed Sistemi ✅ **TAMAM**
 - [x] Migration: `external_feeds` (URL, auth, format, mapping, pricing, autoSync)
@@ -261,6 +273,19 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 | GET | `/api/admin/categories/{id}/mappings` | Pazar yeri eşlemeleri |
 | POST | `/api/admin/categories/{id}/mappings` | Eşleme ekle/güncelle |
 | DELETE | `/api/admin/categories/{id}/mappings/{marketplace}` | Eşleme sil |
+
+### Variation Routes (auth:sanctum)
+| Method | Path | Açıklama |
+|--------|------|----------|
+| GET | `/api/admin/variations` | Varyasyon listesi (options ile) |
+| POST | `/api/admin/variations` | Varyasyon oluştur |
+| GET | `/api/admin/variations/{id}` | Varyasyon detay |
+| PUT | `/api/admin/variations/{id}` | Varyasyon güncelle |
+| DELETE | `/api/admin/variations/{id}` | Varyasyon sil |
+| GET | `/api/admin/products/{pid}/variants` | Ürün varyantları |
+| POST | `/api/admin/products/{pid}/variants` | Varyant oluştur |
+| PUT | `/api/admin/products/{pid}/variants/{id}` | Varyant güncelle |
+| DELETE | `/api/admin/products/{pid}/variants/{id}` | Varyant sil |
 
 ### Feed Routes (auth:sanctum)
 | Method | Path | Açıklama |
@@ -426,6 +451,7 @@ rr/
 │   │   │   │   ├── SlaveDownloadController.php
 │   │   │   │   ├── Admin/CategoryController.php
 │   │   │   │   ├── Admin/FeedController.php
+│   │   │   │   ├── Admin/VariationController.php
 │   │   │   │   └── WooCommerce/
 │   │   │   │       ├── ProductController.php
 │   │   │   │       └── StockController.php
@@ -444,7 +470,10 @@ rr/
 │   │   │   ├── ExternalFeed.php
 │   │   │   ├── FeedSyncLog.php
 │   │   │   ├── MarketplaceCategoryMapping.php
-│   │   │   └── ProductB2bSetting.php
+│   │   │   ├── ProductB2bSetting.php
+│   │   │   ├── ProductVariant.php
+│   │   │   ├── Variation.php
+│   │   │   └── VariationOption.php
 │   │   ├── Providers/RouteServiceProvider.php
 │   │   ├── Services/InternalKeyService.php
 │   │   ├── Events/ (OrderReceived, ProductUpdated)
