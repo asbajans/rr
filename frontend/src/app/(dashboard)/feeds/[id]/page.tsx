@@ -88,12 +88,11 @@ export default function FeedDetailPage() {
         is_active: form.is_active, field_mapping: form.field_mapping,
       }
       if (feed) {
-        await api.updateFeed(feed.id, data)
-        router.push('/feeds')
+        await api.updateFeed(feed.id, data as any)
       } else {
         await api.createFeed(data as any)
-        router.push('/feeds')
       }
+      router.push('/feeds')
     } catch (err: any) {
       setError(err.message || 'Failed to save feed')
     } finally {
