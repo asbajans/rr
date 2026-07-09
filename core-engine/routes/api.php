@@ -238,3 +238,5 @@ Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(fun
     });
 
 });
+
+Route::get('/plans', [PlanController::class, 'publicIndex']);

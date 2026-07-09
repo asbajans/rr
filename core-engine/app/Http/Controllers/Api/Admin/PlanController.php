@@ -13,6 +13,11 @@ class PlanController extends Controller
         return Plan::orderBy('price')->get();
     }
 
+    public function publicIndex()
+    {
+        return Plan::where('is_active', true)->orderBy('price')->get();
+    }
+
     public function show(Plan $plan)
     {
         return $plan;
