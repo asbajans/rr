@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
-import { Sparkles, ImageUp, Loader2, Check, X } from 'lucide-react'
+import { Sparkles, ImageUp, Loader2, Check } from 'lucide-react'
 
 interface AiAnalysis {
   title: string

@@ -131,6 +131,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/admin/upload', [MediaController::class, 'upload']);
 
+    Route::prefix('admin/credits')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\CreditController::class, 'index']);
+        Route::get('/stats', [\App\Http\Controllers\Api\CreditController::class, 'stats']);
+    });
+
     Route::prefix('admin/orders')->group(function () {
         Route::get('/dropshipping', [AdminOrderController::class, 'dropshippingOrders']);
         Route::get('/dropshipping/{order}', [AdminOrderController::class, 'showDropshipping']);

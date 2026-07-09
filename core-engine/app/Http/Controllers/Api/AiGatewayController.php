@@ -38,7 +38,7 @@ class AiGatewayController extends Controller
             : $this->forwardWithJson($aiUrl, $request, $internalKey);
 
         if ($aiResponse->successful()) {
-            $user->consumeAiCredits(1);
+            $user->consumeAiCredits(1, 'ai_image_generate', 'Background removal');
             return response()->json($aiResponse->json(), $aiResponse->status());
         }
 
@@ -95,7 +95,7 @@ class AiGatewayController extends Controller
             : $this->forwardWithJson($aiUrl, $request, $internalKey);
 
         if ($aiResponse->successful()) {
-            $user->consumeAiCredits(1);
+            $user->consumeAiCredits(1, 'ai_product_create', 'Product analysis');
             return response()->json($aiResponse->json());
         }
 

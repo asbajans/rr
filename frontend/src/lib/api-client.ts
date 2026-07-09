@@ -310,6 +310,15 @@ class ApiClient {
     return this.delete<void>(`/api/admin/pages/${id}`)
   }
 
+  // Credits
+  getCreditLogs() {
+    return this.get<{ id: number; action: string; module: string | null; amount: number; balance_before: number; balance_after: number; note: string | null; created_at: string }[]>('/api/admin/credits')
+  }
+
+  getCreditStats() {
+    return this.get<{ current_credits: number; total_consumed: number; total_granted: number }>('/api/admin/credits/stats')
+  }
+
   // Slave Download
   downloadSlavePhp() {
     return this.download('/api/admin/slave/download-php')
