@@ -115,6 +115,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/settings', [SettingController::class, 'index']);
     Route::put('/admin/settings', [SettingController::class, 'update']);
 
+    Route::prefix('admin/shipping')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\ShippingController::class, 'index']);
+        Route::put('/', [\App\Http\Controllers\Api\ShippingController::class, 'update']);
+    });
+
     Route::post('/admin/upload', [MediaController::class, 'upload']);
 
     Route::prefix('admin/orders')->group(function () {

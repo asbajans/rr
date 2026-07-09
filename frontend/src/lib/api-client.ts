@@ -280,6 +280,15 @@ class ApiClient {
     return this.post<{ type: string; results: any[]; count: number }>('/api/admin/ai/recommend', { product, allProducts, type })
   }
 
+  // Shipping
+  getShippingSettings() {
+    return this.get<{ id: number; store_id: number; method: string; flat_rate: number; free_shipping_threshold: number | null; zones: any[] | null; is_active: boolean }>('/api/admin/shipping')
+  }
+
+  updateShippingSettings(data: Record<string, any>) {
+    return this.put<{ id: number; store_id: number; method: string; flat_rate: number; free_shipping_threshold: number | null; zones: any[] | null; is_active: boolean }>('/api/admin/shipping', data)
+  }
+
   // Slave Download
   downloadSlavePhp() {
     return this.download('/api/admin/slave/download-php')
