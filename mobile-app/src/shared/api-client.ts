@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
-import * as FileSystem from 'expo-file-system'
+import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription } from './types'
 
@@ -125,8 +125,8 @@ class ApiClient {
 
   async downloadFile(path: string, filename: string) {
     const url = `${API_BASE}${path}?token=${this.token || ''}`
-    const dest = `${FileSystem.cacheDirectory}${filename}`
-    const result = await FileSystem.downloadAsync(url, dest)
+    const dest = `${cacheDirectory}${filename}`
+    const result = await downloadAsync(url, dest)
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(result.uri)
     }
