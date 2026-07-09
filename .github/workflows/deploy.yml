@@ -175,7 +175,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
       - run: npx tsc --noEmit
 
   build-mobile:
@@ -191,7 +191,7 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
         working-directory: mobile-app
       - run: eas build --platform all --non-interactive --no-wait
         working-directory: mobile-app
