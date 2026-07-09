@@ -7,7 +7,7 @@ type AuthContextType = {
   token: string | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string, store_name?: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -43,8 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user)
   }, [])
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
-    const res = await api.register(name, email, password)
+  const register = useCallback(async (name: string, email: string, password: string, store_name?: string) => {
+    const res = await api.register(name, email, password, store_name)
     await api.setToken(res.token)
     setToken(res.token)
     setUser(res.user)

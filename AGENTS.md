@@ -166,6 +166,18 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AuthenticateWithApiKey HMAC doğrulama desteği
 - [x] **Doğrulama**: PHP download 200 + geçerli PHP config, Vercel ZIP 200 + 4750 bytes
 
+### Phase 7A — Kayıtta Otomatik Store Oluşturma ✅ **TAMAM**
+- [x] `AuthController::register()` — otomatik Store oluşturma, varsayılan plan ata, store_id set
+- [x] `AuthController::me()` — store bilgisi döndür
+- [x] Frontend Register: store_name alanı eklendi
+- [x] Frontend api-client: register store_name parametresi
+- [x] Frontend auth.tsx: register store_name parametresi
+- [x] Mobile Register: store_name alanı eklendi
+- [x] Mobile api-client: register store_name parametresi
+- [x] Mobile auth.tsx: register store_name parametresi
+- [x] Types: AuthResponse store alanı eklendi (web + mobile)
+- [x] AGENTS.md: Phase 7A planı eklendi
+
 ### Phase 6H — AI Özellikleri Geliştirme ✅ **TAMAM**
 - [x] AI service: `/ai/search` — semantic product search (Ollama ile doğal dil arama)
 - [x] AI service: `/ai/recommend` — AI product recommendations (benzer/trending)

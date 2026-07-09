@@ -138,8 +138,8 @@ class ApiClient {
     return this.post<AuthResponse>('/api/auth/login', { email, password })
   }
 
-  register(name: string, email: string, password: string) {
-    return this.post<AuthResponse>('/api/auth/register', { name, email, password })
+  register(name: string, email: string, password: string, store_name?: string) {
+    return this.post<AuthResponse>('/api/auth/register', { name, email, password, store_name })
   }
 
   me() {

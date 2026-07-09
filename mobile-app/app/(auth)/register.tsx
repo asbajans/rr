@@ -6,21 +6,21 @@ import { useAuth } from '../../src/shared/auth'
 export default function RegisterScreen() {
   const { register } = useAuth()
   const [name, setName] = useState('')
+  const [storeName, setStoreName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleRegister() {
     if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields')
+      Alert.alert('Hata', 'Tüm alanları doldurun')
       return
     }
     setLoading(true)
     try {
-      await register(name, email, password)
-      // AuthContext state güncellendi, _layout.tsx otomatik redirect yapar
+      await register(name, email, password, storeName || undefined)
     } catch (e: any) {
-      Alert.alert('Registration Failed', e.message)
+      Alert.alert('Kayıt Başarısız', e.message)
     } finally {
       setLoading(false)
     }
@@ -29,12 +29,12 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.content}>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join Rahatio today</Text>
+        <Text style={styles.title}>Hesap Oluştur</Text>
+        <Text style={styles.subtitle}>Rahatio'ya hoş geldin</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Full Name"
+          placeholder="Ad Soyad"
           placeholderTextColor="#999"
           value={name}
           onChangeText={setName}
@@ -42,7 +42,15 @@ export default function RegisterScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder="Mağaza Adı (isteğe bağlı)"
+          placeholderTextColor="#999"
+          value={storeName}
+          onChangeText={setStoreName}
+          autoCapitalize="words"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="E-posta"
           placeholderTextColor="#999"
           value={email}
           onChangeText={setEmail}
@@ -51,7 +59,7 @@ export default function RegisterScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder="Şifre (en az 8 karakter)"
           placeholderTextColor="#999"
           value={password}
           onChangeText={setPassword}
@@ -59,11 +67,11 @@ export default function RegisterScreen() {
         />
 
         <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Kaydol</Text>}
         </TouchableOpacity>
 
         <Link href="/(auth)/login" style={styles.link}>
-          <Text style={styles.linkText}>Already have an account? Sign In</Text>
+          <Text style={styles.linkText}>Zaten hesabın var mı? Giriş Yap</Text>
         </Link>
       </View>
     </KeyboardAvoidingView>

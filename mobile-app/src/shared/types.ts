@@ -9,6 +9,13 @@ export type User = {
 
 export type AuthResponse = {
   user: User
+  store?: {
+    id: number
+    name: string
+    site_code: string
+    domain: string | null
+    email: string | null
+  }
   token: string
 }
 
