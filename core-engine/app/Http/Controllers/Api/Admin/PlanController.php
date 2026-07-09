@@ -15,7 +15,18 @@ class PlanController extends Controller
 
     public function publicIndex()
     {
-        return Plan::where('is_active', true)->orderBy('price')->get();
+        $plans = Plan::where('is_active', true)->orderBy('price')->get();
+
+        if ($plans->isEmpty()) {
+            $plans = collect([
+                ['id' => 1, 'name' => 'Ücretsiz', 'slug' => 'free', 'price' => 0, 'ai_credits' => 10, 'product_limit' => 10, 'store_limit' => 1, 'description' => 'Yeni başlayanlar için temel paket', 'is_active' => true],
+                ['id' => 2, 'name' => 'Başlangıç', 'slug' => 'starter', 'price' => 299, 'ai_credits' => 100, 'product_limit' => 100, 'store_limit' => 1, 'description' => 'Küçük işletmeler için ideal', 'is_active' => true],
+                ['id' => 3, 'name' => 'Profesyonel', 'slug' => 'pro', 'price' => 799, 'ai_credits' => 500, 'product_limit' => 1000, 'store_limit' => 3, 'description' => 'Büyüyen mağazalar için profesyonel paket', 'is_active' => true],
+                ['id' => 4, 'name' => 'Kurumsal', 'slug' => 'enterprise', 'price' => 2499, 'ai_credits' => 2000, 'product_limit' => -1, 'store_limit' => 10, 'description' => 'Sınırsız ürün ve öncelikli destek', 'is_active' => true],
+            ]);
+        }
+
+        return $plans->values();
     }
 
     public function show(Plan $plan)

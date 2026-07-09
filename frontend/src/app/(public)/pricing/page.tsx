@@ -4,17 +4,16 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { Plan } from '@/lib/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
-
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch(`${API_BASE}/plans`)
-      .then(r => r.json())
-      .then(setPlans)
-      .catch(() => setPlans([]))
+    fetch('https://api.rahatio.com.tr/api/plans')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(data => { setPlans(Array.isArray(data) ? data : []); setError('') })
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
 
@@ -42,7 +41,8 @@ export default function PricingPage() {
               </Link>
             </div>
           ))}
-          {!loading && plans.length === 0 && <p className="col-span-full text-sm text-zinc-400">Plan bulunamadı.</p>}
+          {!loading && plans.length === 0 && !error && <p className="col-span-full text-sm text-zinc-400">Henüz plan bulunmuyor.</p>}
+          {error && <p className="col-span-full text-sm text-red-400">API hatası: {error}</p>}
         </div>
       </div>
     </div>
