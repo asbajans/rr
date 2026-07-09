@@ -5,7 +5,7 @@ import { api } from '@/lib/api-client'
 import type { Page } from '@/lib/types'
 import { FileText, Plus, Pencil, Trash2, Globe, Newspaper } from 'lucide-react'
 
-const defaultForm = { type: 'page' as const, title: '', slug: '', content: '', meta_title: '', meta_description: '', is_published: false }
+const defaultForm: { type: 'page' | 'blog'; title: string; slug: string; content: string; meta_title: string; meta_description: string; is_published: boolean } = { type: 'page', title: '', slug: '', content: '', meta_title: '', meta_description: '', is_published: false }
 
 export default function PagesPage() {
   const [pages, setPages] = useState<Page[]>([])
