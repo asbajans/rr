@@ -166,7 +166,7 @@ class ApiClient {
     return this.get<import('./types').Product>(`/api/admin/products/${id}`)
   }
 
-  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number }) {
+  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number }) {
     return this.post<import('./types').Product>('/api/admin/products', data)
   }
 

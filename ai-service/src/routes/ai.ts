@@ -83,7 +83,7 @@ router.post(
         shortDescription: req.body.short_description,
         keywords: req.body.keywords,
         notes: req.body.notes,
-      }, []);
+      }, [], () => {});
 
       res.json({
         specs: {
