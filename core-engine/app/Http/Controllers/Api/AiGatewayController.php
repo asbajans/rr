@@ -76,6 +76,35 @@ class AiGatewayController extends Controller
         return response()->json($response->json(), $response->status());
     }
 
+    public function analyzeProduct(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->hasAiCredits(1)) {
+            return response()->json([
+                'error' => 'Yetersiz AI kredisi.',
+                'credits' => $user->ai_credits,
+            ], 403);
+        }
+
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/analyze-product';
+        $internalKey = app(\App\Services\InternalKeyService::class)->generateEncryptedKey();
+
+        $aiResponse = $request->hasFile('image')
+            ? $this->forwardWithFiles($aiUrl, $request, $internalKey)
+            : $this->forwardWithJson($aiUrl, $request, $internalKey);
+
+        if ($aiResponse->successful()) {
+            $user->consumeAiCredits(1);
+            return response()->json($aiResponse->json());
+        }
+
+        return response()->json(
+            $aiResponse->json() ?? ['error' => 'AI servisi yanıt vermedi.'],
+            $aiResponse->status()
+        );
+    }
+
     private function forwardWithFiles(string $url, Request $request, string $internalKey): \Illuminate\Http\Client\Response
     {
         $http = Http::timeout(300)->withHeaders(['X-Rahat-Internal-Key' => $internalKey]);

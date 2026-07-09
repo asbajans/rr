@@ -62,6 +62,51 @@ router.post(
   }
 );
 
+// AI Product Creator: analyze image → generate title/description/price/category
+router.post(
+  '/analyze-product',
+  upload.single('image'),
+  async (req: Request, res: Response) => {
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: 'Görsel gerekli' });
+      return;
+    }
+
+    try {
+      const { analyzeProductImage } = await import('../services/visionAnalyzer');
+      const { generateListings } = await import('../services/llmChain');
+
+      const specs = await analyzeProductImage(file.path, (req.body.category || 'diger') as any);
+
+      const result = await generateListings(specs, {
+        shortDescription: req.body.short_description,
+        keywords: req.body.keywords,
+        notes: req.body.notes,
+      }, []);
+
+      res.json({
+        specs: {
+          material: specs.material,
+          color: specs.color,
+          type: specs.type,
+          style: specs.style,
+          category: specs.category,
+        },
+        title: result.trendyol.title,
+        description: result.seo.longDescription,
+        short_description: result.trendyol.description,
+        meta_title: result.seo.metaTitle,
+        meta_description: result.seo.metaDescription,
+        keywords: result.seo.keywords,
+        slug: result.seo.slug,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 router.get('/status/:sessionId', (req: Request, res: Response) => {
   const { sessionId } = req.params;
   const outputDir = path.resolve('output', sessionId);

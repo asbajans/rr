@@ -51,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/search', [AiGatewayController::class, 'search']);
     Route::post('/ai/recommend', [AiGatewayController::class, 'recommend']);
     Route::post('/ai/chat', [AiGatewayController::class, 'chat']);
+    Route::post('/ai/analyze-product', [AiGatewayController::class, 'analyzeProduct']);
 
     Route::get('/admin/dashboard', [DashboardController::class, 'index']);
 

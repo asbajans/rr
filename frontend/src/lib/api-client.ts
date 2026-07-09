@@ -259,6 +259,19 @@ class ApiClient {
     return this.post<{ reply: string }>('/api/admin/ai/chat', { message, history, storeInfo })
   }
 
+  analyzeProduct(formData: FormData) {
+    return this.upload<{
+      specs: { material: string; color: string; type: string; style: string; category: string }
+      title: string
+      description: string
+      short_description: string
+      meta_title: string
+      meta_description: string
+      keywords: string[]
+      slug: string
+    }>('/api/admin/ai/analyze-product', formData)
+  }
+
   aiSearch(query: string, products: any[]) {
     return this.post<{ query: string; results: any[]; count: number }>('/api/admin/ai/search', { query, products })
   }
