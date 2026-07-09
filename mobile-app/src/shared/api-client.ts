@@ -223,7 +223,7 @@ class ApiClient {
     return this.get<Product>(`/api/admin/products/${id}`)
   }
 
-  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number }) {
+  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number }) {
     return this.post<Product>('/api/admin/products', data)
   }
 
@@ -269,6 +269,19 @@ class ApiClient {
   // AI
   processImage(formData: FormData) {
     return this.upload<{ url: string }>('/api/ai/process-image', formData)
+  }
+
+  analyzeProduct(formData: FormData) {
+    return this.upload<{
+      specs: { material: string; color: string; type: string; style: string; category: string }
+      title: string
+      description: string
+      short_description: string
+      meta_title: string
+      meta_description: string
+      keywords: string[]
+      slug: string
+    }>('/api/ai/analyze-product', formData)
   }
 
   // Subscription
