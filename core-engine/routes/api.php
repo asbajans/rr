@@ -150,6 +150,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/checkout', [\App\Http\Controllers\Api\SubscriptionController::class, 'checkout']);
         Route::post('/portal', [\App\Http\Controllers\Api\SubscriptionController::class, 'portal']);
         Route::post('/cancel', [\App\Http\Controllers\Api\SubscriptionController::class, 'cancel']);
+        Route::post('/purchase-credits', [\App\Http\Controllers\Api\SubscriptionController::class, 'purchaseCredits']);
     });
 
     Route::get('/admin/slave/download-php', [SlaveDownloadController::class, 'downloadPhp']);

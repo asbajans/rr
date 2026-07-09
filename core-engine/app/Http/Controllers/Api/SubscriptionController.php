@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Stripe\StripeClient;
@@ -126,6 +127,46 @@ class SubscriptionController extends Controller
         return response()->json(['message' => 'Subscription canceled.']);
     }
 
+    // Credit purchase: e.g. 50 credits = ₺50, 200 credits = ₺150, 500 credits = ₺300
+    public function purchaseCredits(Request $request)
+    {
+        $request->validate([
+            'credits' => 'required|integer|in:50,200,500',
+            'success_url' => 'nullable|string',
+            'cancel_url' => 'nullable|string',
+        ]);
+
+        $user = $request->user();
+        $credits = (int) $request->credits;
+
+        $priceMap = [50 => 50, 200 => 150, 500 => 300];
+        $amount = $priceMap[$credits] ?? 50;
+        $amountCents = $amount * 100;
+
+        $stripe = $this->stripe();
+        $session = $stripe->checkout->sessions->create([
+            'mode' => 'payment',
+            'payment_method_types' => ['card'],
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => 'try',
+                    'product_data' => ['name' => "$credits AI Kredisi"],
+                    'unit_amount' => $amountCents,
+                ],
+                'quantity' => 1,
+            ]],
+            'metadata' => [
+                'user_id' => (string) $user->id,
+                'credits' => (string) $credits,
+                'type' => 'credit_purchase',
+            ],
+            'success_url' => $request->input('success_url', env('APP_FRONTEND_URL', 'https://rahatio.com.tr') . '/dashboard/credits?success=1'),
+            'cancel_url' => $request->input('cancel_url', env('APP_FRONTEND_URL', 'https://rahatio.com.tr') . '/dashboard/credits?canceled=1'),
+        ]);
+
+        return response()->json(['url' => $session->url]);
+    }
+
     public function webhook(Request $request)
     {
         $payload = $request->getContent();
@@ -152,7 +193,16 @@ class SubscriptionController extends Controller
 
         switch ($event->type) {
             case 'checkout.session.completed':
-                if ($storeId && $planId) {
+                if ($session->metadata->type === 'credit_purchase') {
+                    $userId = $session->metadata->user_id ?? null;
+                    $credits = (int) ($session->metadata->credits ?? 0);
+                    if ($userId && $credits > 0) {
+                        $user = User::find($userId);
+                        if ($user) {
+                            $user->grantAiCredits($credits, 'Stripe ile satın alma');
+                        }
+                    }
+                } elseif ($storeId && $planId) {
                     $store = \App\Models\Store::find($storeId);
                     if ($store) {
                         $store->update(['plan_id' => $planId]);

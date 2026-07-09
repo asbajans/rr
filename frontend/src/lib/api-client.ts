@@ -319,6 +319,10 @@ class ApiClient {
     return this.get<{ current_credits: number; total_consumed: number; total_granted: number }>('/api/admin/credits/stats')
   }
 
+  buyCredits(credits: number) {
+    return this.post<{ url: string }>('/api/admin/subscription/purchase-credits', { credits })
+  }
+
   // Slave Download
   downloadSlavePhp() {
     return this.download('/api/admin/slave/download-php')
