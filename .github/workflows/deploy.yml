@@ -193,7 +193,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm install --legacy-peer-deps
         working-directory: mobile-app
-      - run: eas build --platform all --non-interactive --no-wait
+      - run: eas build --platform android --non-interactive --no-wait
         working-directory: mobile-app
 
   trigger-portainer:
