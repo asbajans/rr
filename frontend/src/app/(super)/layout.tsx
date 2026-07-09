@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { Store, Users, CreditCard, LogOut, FolderTree } from 'lucide-react'
+import { Store, Users, CreditCard, LogOut, FolderTree, Sparkles } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/users', label: 'Kullanıcılar', icon: Users },
   { href: '/plans', label: 'Planlar', icon: CreditCard },
   { href: '/categories', label: 'Kategoriler', icon: FolderTree },
+  { href: '/super-ai', label: 'AI Yönetimi', icon: Sparkles },
 ]
 
 function SuperShell({ children }: { children: React.ReactNode }) {
