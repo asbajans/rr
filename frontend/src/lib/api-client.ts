@@ -289,6 +289,27 @@ class ApiClient {
     return this.put<{ id: number; store_id: number; method: string; flat_rate: number; free_shipping_threshold: number | null; zones: any[] | null; is_active: boolean }>('/api/admin/shipping', data)
   }
 
+  // Pages
+  getAdminPages() {
+    return this.get<import('./types').Page[]>('/api/admin/pages')
+  }
+
+  getAdminPage(id: number) {
+    return this.get<import('./types').Page>(`/api/admin/pages/${id}`)
+  }
+
+  createAdminPage(data: Partial<import('./types').Page>) {
+    return this.post<import('./types').Page>('/api/admin/pages', data)
+  }
+
+  updateAdminPage(id: number, data: Partial<import('./types').Page>) {
+    return this.put<import('./types').Page>(`/api/admin/pages/${id}`, data)
+  }
+
+  deleteAdminPage(id: number) {
+    return this.delete<void>(`/api/admin/pages/${id}`)
+  }
+
   // Slave Download
   downloadSlavePhp() {
     return this.download('/api/admin/slave/download-php')

@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin, Truck } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin, Truck, FileText } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,7 @@ const navItems = [
   { href: '/locations', label: 'Konumlar', icon: MapPin },
   { href: '/integrations', label: 'Pazaryeri', icon: ShoppingCart },
   { href: '/shipping', label: 'Kargo', icon: Truck },
+  { href: '/pages', label: 'Sayfalar', icon: FileText },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 

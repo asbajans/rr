@@ -397,3 +397,17 @@ export type B2bSetting = {
     image: string | null
   }
 }
+
+export type Page = {
+  id: number
+  store_id: number
+  type: 'page' | 'blog'
+  title: string
+  slug: string
+  content: string
+  meta_title: string | null
+  meta_description: string | null
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}

@@ -40,6 +40,7 @@ Route::get('/resolve-domain', [StoreFrontController::class, 'resolveDomain']);
 Route::prefix('store/{siteCode}')->group(function () {
     Route::get('/', [StoreFrontController::class, 'show']);
     Route::get('products/{id}', [StoreFrontController::class, 'product']);
+    Route::get('pages/{slug}', [\App\Http\Controllers\Api\PageController::class, 'publicShow']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -118,6 +119,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin/shipping')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\ShippingController::class, 'index']);
         Route::put('/', [\App\Http\Controllers\Api\ShippingController::class, 'update']);
+    });
+
+    Route::prefix('admin/pages')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\PageController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Api\PageController::class, 'store']);
+        Route::get('{page}', [\App\Http\Controllers\Api\PageController::class, 'show']);
+        Route::put('{page}', [\App\Http\Controllers\Api\PageController::class, 'update']);
+        Route::delete('{page}', [\App\Http\Controllers\Api\PageController::class, 'destroy']);
     });
 
     Route::post('/admin/upload', [MediaController::class, 'upload']);
