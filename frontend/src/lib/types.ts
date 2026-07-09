@@ -38,6 +38,7 @@ export type Plan = {
   ai_credits: number
   product_limit: number
   store_limit: number
+  modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null
   is_active: boolean
   created_at: string
   updated_at: string

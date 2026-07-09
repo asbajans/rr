@@ -29,10 +29,17 @@ class PlanController extends Controller
             'ai_credits' => 'required|integer|min:0',
             'product_limit' => 'required|integer|min:0',
             'store_limit' => 'sometimes|integer|min:1',
+            'modules' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
 
-        return Plan::create($validated);
+        $plan = Plan::create($validated);
+
+        if ($request->has('modules')) {
+            $plan->update(['modules' => $request->modules]);
+        }
+
+        return $plan->fresh();
     }
 
     public function update(Request $request, Plan $plan)
@@ -46,10 +53,15 @@ class PlanController extends Controller
             'ai_credits' => 'sometimes|integer|min:0',
             'product_limit' => 'sometimes|integer|min:0',
             'store_limit' => 'sometimes|integer|min:1',
+            'modules' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
 
         $plan->update($validated);
+
+        if ($request->has('modules')) {
+            $plan->update(['modules' => $request->modules]);
+        }
 
         return $plan->fresh();
     }
