@@ -246,6 +246,14 @@ class ApiClient {
     return this.get<import('./types').StoreProduct>(`/api/store/${siteCode}/products/${id}`)
   }
 
+  getPublicBlog(siteCode: string) {
+    return this.get<{ id: number; title: string; slug: string; meta_title: string | null; meta_description: string | null; created_at: string }[]>(`/api/store/${siteCode}/blog`)
+  }
+
+  getPublicBlogPost(siteCode: string, slug: string) {
+    return this.get<{ id: number; title: string; slug: string; content: string; meta_title: string | null; meta_description: string | null; created_at: string }>(`/api/store/${siteCode}/blog/${slug}`)
+  }
+
   // AI
   processImage(formData: FormData) {
     return this.upload<{ url?: string; sessionId?: string; message?: string }>('/api/ai/process-image', formData)

@@ -82,6 +82,16 @@ class PageController extends Controller
         return $page;
     }
 
+    // Public: store frontend blog/liste gösterimi
+    public function publicList(Request $request, string $siteCode, string $type = 'blog')
+    {
+        return Page::whereHas('store', fn($q) => $q->where('site_code', $siteCode))
+            ->where('type', $type)
+            ->where('is_published', true)
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'title', 'slug', 'meta_title', 'meta_description', 'created_at']);
+    }
+
     private function ensureStore(Page $page): void
     {
         $storeId = request()->user()->store?->id;

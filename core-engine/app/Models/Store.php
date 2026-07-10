@@ -45,7 +45,14 @@ class Store extends Model
 
     public function productCount(): int
     {
-        return 0;
+        try {
+            $context = app('aimeos.context')->get();
+            $manager = \Aimeos\MShop::create($context, 'product');
+            $filter = $manager->filter();
+            return $manager->search($filter)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     public function canCreateProduct(): bool

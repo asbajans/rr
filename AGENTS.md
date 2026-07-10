@@ -81,15 +81,17 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 
 | Container | Internal | External |
 |-----------|----------|----------|
-| rahatio-mysql | 3306 | — |
-| rahatio-redis | 6379 | — |
-| rahatio-core (nginx) | 80 | 3680 |
+| rahatio-mysql | 3306 | 3606 |
+| rahatio-redis | 6379 | 3679 |
+| rahatio-minio | 9000/9001 | 3701 (console) |
+| rahatio-core (nginx) | 80 | 3680 (`NGINX_PORT`) |
 | rahatio-ai | 3000 | 3630 |
 | rahatio-integration | 3001 | 3631 |
-| rahatio-frontend (Next.js) | 3000 | 3690 |
+| rahatio-frontend (Next.js) | 3000 | 3690 (`FRONTEND_PORT`) |
 
 ### Docker Compose Volumes
-- `rahatio-stack_mysql_data` → `/var/lib/mysql` (persistent)
+- `mysql_data` → `/var/lib/mysql` (persistent) — Portainer'da stack prefix ile `rahatio-stack_mysql_data`
+- `minio_data` → `/data` (MinIO S3 depolama)
 
 ## Geliştirme Fazları
 
@@ -294,7 +296,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] AGENTS.md: Phase 6A planı eklendi
 
 ### Phase 5 — Mobile App ✅ **TAMAM** (İskelet)
-- [x] **Expo SDK 52** projesi (`mobile-app/`) — Expo Router file-based routing
+- [x] **Expo SDK 54** projesi (`mobile-app/`) — Expo Router file-based routing
 - [x] **shared/ paket** (`mobile-app/src/shared/`): types (frontend ile senkron), api-client (RN: SecureStore/AsyncStorage, FileSystem), auth context, utils
 - [x] **Auth screens**: `(auth)/login.tsx`, `(auth)/register.tsx` — auth guard, redirect
 - [x] **Store owner panel** (bottom tabs): Dashboard (istatistikler, store bilgisi), Products (list view), Orders, AI (ImagePicker + process), Settings (store adı, logout)
@@ -486,7 +488,7 @@ RAHAT_INTERNAL_KEY=change-me-internal-key
 MySQL volume varsa env'deki şifreler yok sayılır. Volume silinip stack redeploy edilmeli:
 ```bash
 DELETE /api/endpoints/2/docker/containers/rahatio-mysql?force=true
-DELETE /api/endpoints/2/docker/volumes/rahatio-stack_mysql_data
+DELETE /api/endpoints/2/docker/volumes/rahatio-stack_mysql_data   # Stack prefix'li: compose'da `mysql_data`
 PUT /api/stacks/66/git/redeploy?endpointId=2
 ```
 
@@ -604,7 +606,7 @@ rr/
 │   └── vercel/
 │       ├── api/index.js       # Vercel serverless handler
 │       └── vercel.json        # Vercel deploy config
-├── mobile-app/                # React Native (Expo SDK 52)
+├── mobile-app/                # React Native (Expo SDK 54)
 │   ├── app.json
 │   ├── package.json
 │   ├── App.tsx

@@ -41,6 +41,8 @@ Route::prefix('store/{siteCode}')->group(function () {
     Route::get('/', [StoreFrontController::class, 'show']);
     Route::get('products/{id}', [StoreFrontController::class, 'product']);
     Route::get('pages/{slug}', [\App\Http\Controllers\Api\PageController::class, 'publicShow']);
+    Route::get('blog', [\App\Http\Controllers\Api\PageController::class, 'publicList']);
+    Route::get('blog/{slug}', [\App\Http\Controllers\Api\PageController::class, 'publicShow']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
