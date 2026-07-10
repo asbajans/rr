@@ -69,9 +69,7 @@ services:
       retries: 5
 
   laravel-app:
-    build:
-      context: ./core-engine
-      target: rahatio-core
+    image: asbajans/rahatio-core:latest
     container_name: rahatio-core
     restart: unless-stopped
     networks:
@@ -106,9 +104,7 @@ services:
         condition: service_healthy
 
   ai-service:
-    build:
-      context: ./ai-service
-      target: rahatio-ai
+    image: asbajans/rahatio-ai:latest
     container_name: rahatio-ai
     restart: unless-stopped
     networks:
@@ -121,9 +117,7 @@ services:
       COMFY_URL: http://host.docker.internal:8188
 
   integration-service:
-    build:
-      context: ./integration-service
-      target: rahatio-integration
+    image: asbajans/rahatio-integration:latest
     container_name: rahatio-integration
     restart: unless-stopped
     networks:
@@ -146,9 +140,7 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: ./frontend
-      target: runner
+    image: asbajans/rahatio-frontend:latest
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:
