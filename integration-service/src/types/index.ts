@@ -19,6 +19,8 @@ export interface StockUpdate {
   sku: string;
   quantity: number;
   siteCode?: string;
+  type?: string;
+  price?: number;
 }
 
 export interface PriceUpdate {
