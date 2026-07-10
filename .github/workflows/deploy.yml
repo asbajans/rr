@@ -26,15 +26,19 @@ jobs:
             core:
               - 'core-engine/**'
               - '.github/**'
+              - 'docker-compose.yml'
             ai:
               - 'ai-service/**'
               - '.github/**'
+              - 'docker-compose.yml'
             integration:
               - 'integration-service/**'
               - '.github/**'
+              - 'docker-compose.yml'
             frontend:
               - 'frontend/**'
               - '.github/**'
+              - 'docker-compose.yml'
             slave:
               - 'slave/**'
               - '.github/**'
