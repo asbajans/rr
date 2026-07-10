@@ -33,27 +33,35 @@ class StoreFrontController extends Controller
 
             $prices = $item->getRefItems('price');
             $data['price'] = null;
-            if (!empty($prices)) {
-                $price = reset($prices);
+            $data['currency'] = null;
+            foreach ($prices as $price) {
+                if (!is_object($price)) {
+                    continue;
+                }
                 $data['price'] = $price->getValue();
                 $data['currency'] = $price->getCurrencyId();
+                break;
             }
 
             $medias = $item->getRefItems('media');
             $data['image'] = null;
-            if (!empty($medias)) {
-                $media = reset($medias);
+            foreach ($medias as $media) {
+                if (!is_object($media)) {
+                    continue;
+                }
                 $data['image'] = $media->getUrl();
+                break;
             }
 
             $texts = $item->getRefItems('text');
             $data['description'] = null;
-            if (!empty($texts)) {
-                foreach ($texts as $text) {
-                    if ($text->getType() === 'default' || $text->getType() === 'long') {
-                        $data['description'] = $text->getContent();
-                        break;
-                    }
+            foreach ($texts as $text) {
+                if (!is_object($text)) {
+                    continue;
+                }
+                if ($text->getType() === 'default' || $text->getType() === 'long') {
+                    $data['description'] = $text->getContent();
+                    break;
                 }
             }
 

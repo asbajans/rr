@@ -14,7 +14,11 @@ class SubscriptionController extends Controller
 {
     private function stripe(): StripeClient
     {
-        return new StripeClient(config('services.stripe.secret'));
+        $secret = config('services.stripe.secret');
+        if (empty($secret)) {
+            abort(400, 'Stripe yapılandırması eksik. Lütfen STRIPE_SECRET ortam değişkenini ayarlayın.');
+        }
+        return new StripeClient($secret);
     }
 
     public function index(Request $request)
