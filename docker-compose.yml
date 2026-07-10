@@ -93,6 +93,9 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
       REDIS_HOST: redis
       INTEGRATION_SERVICE_URL: http://rahatio-integration:3001
+      AI_SERVICE_URL: http://rahatio-ai:3000
+      CORE_API_KEY: ${CORE_API_KEY:-}
+      RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
     depends_on:
       mysql:
         condition: service_healthy
@@ -128,6 +131,10 @@ services:
       PORT: 3001
       NODE_ENV: ${APP_ENV:-production}
       REDIS_URL: redis://redis:6379
+      CORE_ENGINE_ORDER_URL: http://rahatio-core/api/orders
+      CORE_API_KEY: ${CORE_API_KEY:-}
+      HB_USERNAME: ${HB_USERNAME:-}
+      HB_PASSWORD: ${HB_PASSWORD:-}
       TRENDYOL_API_KEY: ${TRENDYOL_API_KEY:-}
       TRENDYOL_API_SECRET: ${TRENDYOL_API_SECRET:-}
       TRENDYOL_SUPPLIER_ID: ${TRENDYOL_SUPPLIER_ID:-}

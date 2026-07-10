@@ -89,7 +89,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('admin/orders')->group(function () {
         Route::get('/', [AdminOrderController::class, 'index']);
-        Route::get('{id}', [AdminOrderController::class, 'show']);
+        Route::get('{id}', [AdminOrderController::class, 'show'])->where('id', '[0-9]+');
     });
 
     Route::prefix('admin/api-keys')->group(function () {

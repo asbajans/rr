@@ -6,7 +6,7 @@ import { OrderDTO } from '../types';
 import { sendPushNotification } from './fcm';
 import axios from 'axios';
 
-const CORE_ENGINE_ORDER_URL = process.env.CORE_ENGINE_ORDER_URL || 'http://laravel-app:9000/api/orders';
+const CORE_ENGINE_ORDER_URL = process.env.CORE_ENGINE_ORDER_URL || 'http://laravel-app/api/orders';
 
 let lastCheck: string | null = null;
 

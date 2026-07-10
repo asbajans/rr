@@ -248,15 +248,15 @@ class ApiClient {
 
   // AI
   processImage(formData: FormData) {
-    return this.upload<{ url?: string; sessionId?: string; message?: string }>('/api/admin/ai/process-image', formData)
+    return this.upload<{ url?: string; sessionId?: string; message?: string }>('/api/ai/process-image', formData)
   }
 
   getAiStatus(sessionId: string) {
-    return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/admin/ai/status/${sessionId}`)
+    return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
   }
 
   aiChat(message: string, history?: { role: string; content: string }[], storeInfo?: Record<string, string>) {
-    return this.post<{ reply: string }>('/api/admin/ai/chat', { message, history, storeInfo })
+    return this.post<{ reply: string }>('/api/ai/chat', { message, history, storeInfo })
   }
 
   analyzeProduct(formData: FormData) {
@@ -269,15 +269,15 @@ class ApiClient {
       meta_description: string
       keywords: string[]
       slug: string
-    }>('/api/admin/ai/analyze-product', formData)
+    }>('/api/ai/analyze-product', formData)
   }
 
   aiSearch(query: string, products: any[]) {
-    return this.post<{ query: string; results: any[]; count: number }>('/api/admin/ai/search', { query, products })
+    return this.post<{ query: string; results: any[]; count: number }>('/api/ai/search', { query, products })
   }
 
   aiRecommend(product: any, allProducts: any[], type?: string) {
-    return this.post<{ type: string; results: any[]; count: number }>('/api/admin/ai/recommend', { product, allProducts, type })
+    return this.post<{ type: string; results: any[]; count: number }>('/api/ai/recommend', { product, allProducts, type })
   }
 
   // Shipping

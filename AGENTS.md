@@ -632,3 +632,34 @@ rr/
 ├── .env.example
 └── AGENTS.md
 ```
+
+## Vaziyet Raporu & Eylem Planı (Denetim — 2026-07)
+
+Kod denetimi sonucu tespit edilen eksiklik ve hatalar. Mimari sağlam, fazların çoğu gerçekten kodda; sorunlar ağırlıkla entegrasyon katmanında (frontend↔backend yol uyumsuzluğu, servisler arası config).
+
+### 🔴 Kritik (çalışmayan özellikler)
+- **A1 — Frontend AI yolları yanlış**: `frontend/src/lib/api-client.ts:251-280` `/api/admin/ai/*` çağırıyor; backend `routes/api.php:50-55` `/api/ai/*` altında. 6 metod 404. (admin AI, super-ai, store search/recommend, AiChat)
+- **A2 — Sipariş route gölgeleme**: `routes/api.php:92` `admin/orders/{id}`, `:140` `/dropshipping` ve `:145` `/stats`'tan önce → gölgeliyor. Dropshipping listesi + stats ölü.
+- **A3 — integration→core yanlış port**: `integration-service/src/services/orderSync.ts:9` `laravel-app:9000` kullanıyor; core nginx **80**'de. Sipariş senkronu başarısız.
+
+### 🟡 Orta
+- **B1 — Fiyat güncellemeleri düşüyor**: `integration-service/src/routes/webhook.ts:32-38` price.updated'ı queue'ya atıyor; `queues/workers.ts:46-54` yalnızca `updateStock()` çağırıp fiyatı yok sayıyor.
+- **B2 — Hepsiburada push kablolanmamış**: worker/webhook yalnız Trendyol; HB ürün/stok push ölü kod.
+- **B3 — Eksik ComfyUI workflow**: `ai-service/src/services/comfyui.ts:16-18` `product-studio-dekorasyon.json` / `product-studio-spor.json` referans veriyor, `ai-service/workflows/` içinde yok.
+- **C1 — mobile kurulum kırıcı**: `mobile-app/package.json` `typescript ~6.0.3` (yayınlanmamış) → CI install patlar. Ayrıca SDK 54 kullanımı, doküman "SDK 52" diyor.
+- **C2 — Eksik compose env**: `laravel-app`'te `AI_SERVICE_URL`/`CORE_API_KEY`/`RAHAT_INTERNAL_KEY`, integration'da `CORE_API_KEY`/`HB_USERNAME`/`HB_PASSWORD` yok.
+
+### 🟢 Düşük / Doküman kayması
+- **D1** — `core-engine/app/Models/Store.php:46-49` `productCount()` sabit `return 0`.
+- **D2** — `CheckPlanLimit` middleware kayıtlı değil, kullanılmıyor (ölü kod).
+- **D3** — `.env.example` eksik; `NGINX_PORT=80` doküman 3680 ile çelişiyor; volume adı doküman `rahatio-stack_mysql_data` vs compose `mysql_data`; MinIO servisi dokümansız.
+- **D4** — Frontend `getAdminProducts/Orders` düz `{data,total}` tipli; Aimeos JSON:API zarfı riski (boş liste).
+- **D5** — `frontend/src/app/(public)/blog/page.tsx` statik stub; backend `pages` sistemine bağlı değil.
+
+### Eylem Sırası
+- **Aşama A (kritik)**: A1, A2, A3  ← şu an
+- **Aşama B**: B1, B2, B3
+- **Aşama C**: C1, C2, `.env.example` tamamla
+- **Aşama D**: D1-D5 temizlik & doküman
+
+> Not: Önceki denetimde "`users.total_credits_consumed` migration yok" bulgusu YANLIŞ — sütun `database/migrations/2025_07_09_000004_create_credit_logs_table.php:24`'te mevcut.
