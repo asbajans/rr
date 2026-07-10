@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Models\MarketplaceIntegration;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\ValidationException;
@@ -18,8 +19,13 @@ class MarketplaceIntegrationController extends Controller
 
     public function index(Request $request)
     {
-        $store = $this->getStore($request);
-        $integrations = MarketplaceIntegration::where('store_id', $store->id)->get();
+        try {
+            $store = $this->getStore($request);
+            $integrations = MarketplaceIntegration::where('store_id', $store->id)->get();
+        } catch (QueryException $e) {
+            return response()->json(['error' => 'Database error: ' . $e->getMessage()], 500);
+        }
+
         $available = MarketplaceIntegration::availableMarketplaces();
         $result = [];
 
@@ -51,13 +57,17 @@ class MarketplaceIntegrationController extends Controller
             return response()->json(['error' => 'Invalid marketplace'], 422);
         }
 
-        $integration = MarketplaceIntegration::updateOrCreate(
-            ['store_id' => $store->id, 'marketplace' => $marketplace],
-            [
-                'is_active' => $validated['is_active'],
-                'config' => $validated['config'] ?? $this->defaultConfig($marketplace),
-            ]
-        );
+        try {
+            $integration = MarketplaceIntegration::updateOrCreate(
+                ['store_id' => $store->id, 'marketplace' => $marketplace],
+                [
+                    'is_active' => $validated['is_active'],
+                    'config' => $validated['config'] ?? $this->defaultConfig($marketplace),
+                ]
+            );
+        } catch (QueryException $e) {
+            return response()->json(['error' => 'Database error: ' . $e->getMessage()], 500);
+        }
 
         return response()->json($integration);
     }

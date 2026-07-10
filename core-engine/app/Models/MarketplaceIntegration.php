@@ -17,8 +17,26 @@ class MarketplaceIntegration extends Model
     {
         return [
             'is_active' => 'boolean',
-            'config' => 'array',
         ];
+    }
+
+    public function setConfigAttribute($value)
+    {
+        $this->attributes['config'] = is_array($value) || is_object($value)
+            ? json_encode($value)
+            : ($value ?? '{}');
+    }
+
+    public function getConfigAttribute($value)
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+        return [];
     }
 
     public function store()
