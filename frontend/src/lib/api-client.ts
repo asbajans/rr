@@ -137,7 +137,14 @@ class ApiClient {
   }
 
   // Admin Plans
-  getAdminPlans() {
+    assignPlanToUser(userId: number, planId: number) {
+        return this.post<{ message: string }>('/api/admin/subscription/assign', {
+            user_id: userId,
+            plan_id: planId,
+        })
+    }
+
+    getAdminPlans() {
     return this.get<import('./types').Plan[]>('/api/admin/plans')
   }
 

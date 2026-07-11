@@ -106,6 +106,44 @@ class SubscriptionController extends Controller
         return response()->json(['url' => $session->url]);
     }
 
+    public function assignPlan(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->is_admin) {
+            return response()->json(['error' => 'Yetkisiz. Yalnızca süper admin paket atayabilir.'], 403);
+        }
+
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'plan_id' => 'required|exists:plans,id',
+        ]);
+
+        $target = User::findOrFail($validated['user_id']);
+        $store = $target->store;
+        if (!$store) {
+            return response()->json(['error' => 'Kullanıcının mağazası yok.'], 400);
+        }
+
+        $plan = Plan::findOrFail($validated['plan_id']);
+
+        $store->update(['plan_id' => $plan->id]);
+        $subscription = Subscription::updateOrCreate(
+            ['store_id' => $store->id],
+            [
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'payment_method' => 'admin_assigned',
+                'renews_at' => now()->addMonth(),
+                'ends_at' => null,
+            ]
+        );
+
+        return response()->json([
+            'message' => "{$target->name} kullanıcısına '{$plan->name}' paketi (ücretsiz) atandı.",
+            'subscription' => $subscription->load('plan'),
+        ]);
+    }
+
     public function cancel(Request $request)
     {
         $store = $request->user()->store;

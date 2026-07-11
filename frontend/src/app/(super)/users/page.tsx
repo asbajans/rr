@@ -3,20 +3,27 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { User } from '@/lib/types'
-import { Pencil, Coins } from 'lucide-react'
+import type { Plan } from '@/lib/types'
+import { Pencil, Coins, Tag } from 'lucide-react'
 
 export default function SuperUsersPage() {
   const [users, setUsers] = useState<User[]>([])
+  const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creditAmount, setCreditAmount] = useState('')
+  const [planUserId, setPlanUserId] = useState<number | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    api.getAdminUsers()
-      .then((res) => setUsers(res.data))
+    Promise.all([api.getAdminUsers(), api.getAdminPlans()])
+      .then(([usersRes, plansRes]) => {
+        setUsers(usersRes.data)
+        setPlans(plansRes)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
@@ -39,12 +46,29 @@ export default function SuperUsersPage() {
     }
   }
 
+  async function assignPlan(user: User) {
+    const planId = parseInt(selectedPlan)
+    if (!planId) return
+    setSaving(true)
+    setMessage('')
+    try {
+      const res = await api.assignPlanToUser(user.id, planId)
+      setMessage(res.message)
+      setPlanUserId(null)
+      setSelectedPlan('')
+    } catch (err: any) {
+      setMessage(err.message || 'Paket atanamadı')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Kullanıcılar</h1>
-          <p className="mt-1 text-sm text-zinc-400">Tüm kullanıcıları yönet ve AI kredisi tanımla.</p>
+          <p className="mt-1 text-sm text-zinc-400">Tüm kullanıcıları yönet, AI kredisi ve paket ata.</p>
         </div>
       </div>
 
@@ -62,7 +86,7 @@ export default function SuperUsersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">E-posta</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">AI Kredisi</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">Yetki</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">Kredi Tanımla</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">İşlemler</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-700 bg-zinc-900">
@@ -78,23 +102,47 @@ export default function SuperUsersPage() {
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
-                    {editingId === user.id ? (
-                      <div className="flex items-center gap-2">
-                        <input type="number" min="1" value={creditAmount} onChange={e => setCreditAmount(e.target.value)}
-                          className="w-20 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white" placeholder="Adet" />
-                        <button onClick={() => grantCredits(user)} disabled={saving}
-                          className="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
-                          {saving ? '...' : 'Ver'}
-                        </button>
-                        <button onClick={() => { setEditingId(null); setCreditAmount('') }}
-                          className="text-xs text-zinc-500 hover:text-white">İptal</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setEditingId(user.id); setCreditAmount('') }}
-                        className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
-                        <Coins className="h-3 w-3" /> Kredi Tanımla
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {editingId === user.id ? (
+                        <div className="flex items-center gap-2">
+                          <input type="number" min="1" value={creditAmount} onChange={e => setCreditAmount(e.target.value)}
+                            className="w-20 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white" placeholder="Adet" />
+                          <button onClick={() => grantCredits(user)} disabled={saving}
+                            className="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
+                            {saving ? '...' : 'Ver'}
+                          </button>
+                          <button onClick={() => { setEditingId(null); setCreditAmount('') }}
+                            className="text-xs text-zinc-500 hover:text-white">İptal</button>
+                        </div>
+                      ) : planUserId === user.id ? (
+                        <div className="flex items-center gap-2">
+                          <select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value)}
+                            className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white">
+                            <option value="">Paket seç...</option>
+                            {plans.map((p) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                          <button onClick={() => assignPlan(user)} disabled={saving || !selectedPlan}
+                            className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+                            {saving ? '...' : 'Ata'}
+                          </button>
+                          <button onClick={() => { setPlanUserId(null); setSelectedPlan('') }}
+                            className="text-xs text-zinc-500 hover:text-white">İptal</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={() => { setEditingId(user.id); setCreditAmount('') }}
+                            className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
+                            <Coins className="h-3 w-3" /> Kredi
+                          </button>
+                          <button onClick={() => { setPlanUserId(user.id); setSelectedPlan('') }}
+                            className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300">
+                            <Tag className="h-3 w-3" /> Paket Ata
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
