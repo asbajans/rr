@@ -165,19 +165,20 @@ class ApiClient {
   }
 
   // Admin Products
-  getAdminProducts() {
-    return this.get<{ data: import('./types').Product[]; total: number }>('/api/admin/products')
+  getAdminProducts(marketplace?: string) {
+    const qs = marketplace ? `?marketplace=${encodeURIComponent(marketplace)}` : ''
+    return this.get<{ data: import('./types').Product[]; total: number }>(`/api/admin/products${qs}`)
   }
 
   getAdminProduct(id: string) {
     return this.get<import('./types').Product>(`/api/admin/products/${id}`)
   }
 
-  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number }) {
+  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[] }) {
     return this.post<import('./types').Product>('/api/admin/products', data)
   }
 
-  updateAdminProduct(id: string, data: { label?: string; price?: number; stock?: number; status?: number }) {
+  updateAdminProduct(id: string, data: { label?: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[] }) {
     return this.put<import('./types').Product>(`/api/admin/products/${id}`, data)
   }
 

@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
-import type { Product, B2bSetting } from '@/lib/types'
+import type { Product, B2bSetting, MarketplaceIntegration } from '@/lib/types'
+
+const MAX_IMAGES = 6
 
 type ProductForm = {
   code: string
@@ -11,32 +13,52 @@ type ProductForm = {
   price: string
   stock: string
   status: number
-  image: File | null
+  images: File[]
+  marketplaces: string[]
   b2b_enabled: boolean
   b2b_discount: string
   b2b_price: string
 }
 
-const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, image: null, b2b_enabled: false, b2b_discount: '', b2b_price: '' }
+const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, images: [], marketplaces: [], b2b_enabled: false, b2b_discount: '', b2b_price: '' }
+
+const MARKETPLACE_LABELS: Record<string, string> = {
+  own: 'Kendi Sitem',
+  trendyol: 'Trendyol',
+  hepsiburada: 'Hepsiburada',
+  pazarama: 'Pazarama',
+  n11: 'N11',
+  amazon: 'Amazon TR',
+}
 
 export default function ProductsPage() {
   const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
+  const [integrations, setIntegrations] = useState<MarketplaceIntegration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [filterMarketplace, setFilterMarketplace] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ProductForm>(emptyForm)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [previews, setPreviews] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
+  const marketplaceOptions = ['own', ...integrations.map((i) => i.marketplace)]
+
   const loadProducts = useCallback(() => {
     setLoading(true)
-    api.getAdminProducts()
+    api.getAdminProducts(filterMarketplace || undefined)
       .then((res) => setProducts(res.data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
+  }, [filterMarketplace])
+
+  useEffect(() => {
+    api.getIntegrations()
+      .then((res) => setIntegrations(res.data))
+      .catch(() => {})
   }, [])
 
   useEffect(() => { loadProducts() }, [loadProducts])
@@ -44,7 +66,7 @@ export default function ProductsPage() {
   function openCreate() {
     setEditingId(null)
     setForm(emptyForm)
-    setPreview(null)
+    setPreviews([])
     setShowModal(true)
   }
 
@@ -56,12 +78,13 @@ export default function ProductsPage() {
       price: p.price?.toString() ?? '',
       stock: p.stock?.toString() ?? '',
       status: p.status,
-      image: null,
+      images: [],
+      marketplaces: p.marketplaces ?? [],
       b2b_enabled: false,
       b2b_discount: '',
       b2b_price: '',
     })
-    setPreview((p as unknown as Record<string, string>).image ?? null)
+    setPreviews([])
     setShowModal(true)
 
     api.getB2bSettings(p.id).then((res) => {
@@ -72,11 +95,27 @@ export default function ProductsPage() {
     }).catch(() => {})
   }
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setForm({ ...form, image: file })
-    setPreview(URL.createObjectURL(file))
+  function handleImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).slice(0, MAX_IMAGES)
+    if (!files.length) return
+    const merged = [...form.images, ...files].slice(0, MAX_IMAGES)
+    setForm({ ...form, images: merged })
+    setPreviews(merged.map((f) => URL.createObjectURL(f)))
+  }
+
+  function removeImage(idx: number) {
+    const images = form.images.filter((_, i) => i !== idx)
+    setForm({ ...form, images })
+    setPreviews(images.map((f) => URL.createObjectURL(f)))
+  }
+
+  function toggleMarketplace(key: string) {
+    setForm((prev) => ({
+      ...prev,
+      marketplaces: prev.marketplaces.includes(key)
+        ? prev.marketplaces.filter((m) => m !== key)
+        : [...prev.marketplaces, key],
+    }))
   }
 
   async function handleSave() {
@@ -84,12 +123,12 @@ export default function ProductsPage() {
     setSaving(true)
 
     try {
-      let mediaUrl: string | null = null
+      let mediaUrls: string[] = []
       let productId: string | null = editingId
 
-      if (form.image) {
-        const uploadRes = await api.uploadImage(form.image)
-        mediaUrl = uploadRes.url
+      if (form.images.length) {
+        const uploads = await Promise.all(form.images.map((f) => api.uploadImage(f)))
+        mediaUrls = uploads.map((u) => u.url)
       }
 
       const payload: Record<string, unknown> = {
@@ -98,14 +137,15 @@ export default function ProductsPage() {
         price: form.price ? parseFloat(form.price) : null,
         stock: form.stock ? parseInt(form.stock) : null,
         status: form.status,
-        media_url: mediaUrl,
+        marketplaces: form.marketplaces,
       }
 
       if (editingId) {
         delete payload.code
-        if (!mediaUrl) delete payload.media_url
+        if (mediaUrls.length) (payload as any).media_urls = mediaUrls
         await api.updateAdminProduct(editingId, payload as Parameters<typeof api.updateAdminProduct>[1])
       } else {
+        if (mediaUrls.length) (payload as any).media_urls = mediaUrls
         const created = await api.createAdminProduct(payload as unknown as Parameters<typeof api.createAdminProduct>[0])
         productId = (created as unknown as Record<string, string>).id
       }
@@ -158,6 +198,21 @@ export default function ProductsPage() {
         </button>
       </div>
 
+      <div className="mt-4 flex items-center gap-3">
+        <label className="text-sm font-medium text-zinc-700">Pazaryeri Filtresi:</label>
+        <select
+          value={filterMarketplace}
+          onChange={(e) => setFilterMarketplace(e.target.value)}
+          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+        >
+          <option value="">Tümü</option>
+          <option value="own">Kendi Sitem</option>
+          {integrations.map((i) => (
+            <option key={i.marketplace} value={i.marketplace}>{MARKETPLACE_LABELS[i.marketplace] ?? i.marketplace}</option>
+          ))}
+        </select>
+      </div>
+
       {error && (
         <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
       )}
@@ -173,6 +228,7 @@ export default function ProductsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Kod</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Ürün</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Fiyat</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Pazaryerleri</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Durum</th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">İşlem</th>
               </tr>
@@ -189,7 +245,7 @@ export default function ProductsPage() {
                         ) : (
                           <div className="flex h-full items-center justify-center text-zinc-300">
                             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 0 002-2V6a2 0 00-2-2H6a2 0 00-2 2v12a2 0 002 2z" />
                             </svg>
                           </div>
                         )}
@@ -201,6 +257,16 @@ export default function ProductsPage() {
                       {p.price !== null && p.price !== undefined
                         ? `${p.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`
                         : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">
+                      <div className="flex flex-wrap gap-1">
+                        {(p.marketplaces ?? []).map((m) => (
+                          <span key={m} className="inline-flex rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
+                            {MARKETPLACE_LABELS[m] ?? m}
+                          </span>
+                        ))}
+                        {(!p.marketplaces || p.marketplaces.length === 0) && '-'}
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
                       <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${p.status === 1 ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-600'}`}>
@@ -235,7 +301,7 @@ export default function ProductsPage() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-zinc-900">
               {editingId ? 'Ürünü Düzenle' : 'Yeni Ürün'}
             </h2>
@@ -289,19 +355,56 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Görsel</label>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Görseller ({form.images.length}/{MAX_IMAGES})
+                </label>
                 <div className="mt-1">
-                  {preview && (
-                    <div className="mb-2 h-32 w-32 overflow-hidden rounded-lg bg-zinc-100">
-                      <img src={preview} alt="Preview" className="h-full w-full object-cover" />
+                  {previews.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {previews.map((src, idx) => (
+                        <div key={idx} className="relative h-20 w-20 overflow-hidden rounded-lg bg-zinc-100">
+                          <img src={src} alt="Preview" className="h-full w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeImage(idx)}
+                            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleImageChange}
-                    className="block w-full text-sm text-zinc-500 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
-                  />
+                  {form.images.length < MAX_IMAGES && (
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      onChange={handleImagesChange}
+                      className="block w-full text-sm text-zinc-500 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">Pazaryerleri / Kanal</label>
+                <p className="mt-1 text-xs text-zinc-400">Ürünün yayınlanacağı kanalları seçin.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {marketplaceOptions.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleMarketplace(key)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                        form.marketplaces.includes(key)
+                          ? 'border-zinc-900 bg-zinc-900 text-white'
+                          : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50'
+                      }`}
+                    >
+                      {MARKETPLACE_LABELS[key] ?? key}
+                    </button>
+                  ))}
                 </div>
               </div>
 

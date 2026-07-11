@@ -83,11 +83,21 @@ export class TrendyolApiClient {
 
   async getProducts(page: number = 0, size: number = 50): Promise<unknown> {
     await this.enforceRateLimit();
-    const res = await this.client.get(
-      `/suppliers/${this.credentials.supplierId}/products`,
-      { params: { page, size, approved: true } }
-    );
-    return res.data;
+    try {
+      const res = await this.client.get(
+        `/suppliers/${this.credentials.supplierId}/products`,
+        { params: { page, size, approved: true } }
+      );
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      const message =
+        (body && (body.message || body.errorMessage || body.error)) ||
+        err?.message ||
+        'Unknown error';
+      throw new Error(`Trendyol getProducts HTTP ${status}: ${message}`);
+    }
   }
 
   async getOrders(status?: string): Promise<unknown> {

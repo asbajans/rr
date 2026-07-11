@@ -51,6 +51,7 @@ export type Product = {
   status: number
   price?: number
   stock?: number
+  marketplaces?: string[]
 }
 
 export type DashboardData = {

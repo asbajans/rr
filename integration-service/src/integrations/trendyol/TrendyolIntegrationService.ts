@@ -70,19 +70,23 @@ export class TrendyolIntegrationService extends IntegrationInterface {
 
   async fetchProducts(page: number = 0): Promise<ProductData[]> {
     try {
-      const result = await this.api.getProducts(page, 50) as {
-        content?: any[];
-        totalPages?: number;
-      };
-      const items = result?.content || [];
+      const result = (await this.api.getProducts(page, 50)) as any;
+      let items: any[] = [];
+      if (Array.isArray(result?.content)) {
+        items = result.content;
+      } else if (Array.isArray(result?.content?.products)) {
+        items = result.content.products;
+      } else if (Array.isArray(result?.products)) {
+        items = result.products;
+      }
       return items.map((p: any) => ({
         id: String(p.id ?? p.productMainId ?? p.barcode ?? ''),
         sku: String(p.stockCode ?? p.productMainId ?? p.barcode ?? ''),
         name: p.title ?? '',
         description: p.description ?? '',
-        price: Number(p.salePrice ?? p.listPrice ?? 0),
+        price: Number(p.salePrice ?? p.listPrice ?? p.price ?? 0),
         currency: 'TRY',
-        stock: Number(p.quantity ?? 0),
+        stock: Number(p.quantity ?? p.stock ?? 0),
         category: String(p.categoryName ?? p.pimCategoryId ?? ''),
         barcode: p.barcode ?? undefined,
         brand: p.brand ?? undefined,

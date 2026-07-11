@@ -24,9 +24,14 @@ class ProductController extends Controller
         $total = 0;
         $items = $manager->search($search, [], $total);
 
+        $filterMarketplace = $request->query('marketplace');
         $products = [];
         foreach ($items as $item) {
-            $data = [
+            $marketplaces = $this->getMarketplaces($context, $item->getId());
+            if ($filterMarketplace && !in_array($filterMarketplace, $marketplaces)) {
+                continue;
+            }
+            $products[] = [
                 'id' => $item->getId(),
                 'code' => $item->getCode(),
                 'label' => $item->getLabel(),
@@ -35,8 +40,8 @@ class ProductController extends Controller
                 'currency' => 'TRY',
                 'stock' => null,
                 'image' => null,
+                'marketplaces' => $marketplaces,
             ];
-            $products[] = $data;
         }
 
         return response()->json([
@@ -60,6 +65,7 @@ class ProductController extends Controller
         $data['currency'] = 'TRY';
         $data['stock'] = null;
         $data['image'] = null;
+        $data['marketplaces'] = $this->getMarketplaces($context, $item->getId());
 
         try {
             $priceManager = MShop::create($context, 'price');
@@ -128,6 +134,10 @@ class ProductController extends Controller
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
             'media_url' => 'nullable|string|max:1024',
+            'media_urls' => 'nullable|array|max:6',
+            'media_urls.*' => 'nullable|string|max:1024',
+            'marketplaces' => 'nullable|array',
+            'marketplaces.*' => 'nullable|string|max:32',
         ]);
 
         $store = $request->user()->store;
@@ -181,6 +191,16 @@ class ProductController extends Controller
 
         if (!empty($validated['media_url'])) {
             $this->attachMedia($context, $item->getId(), $validated['media_url']);
+        } elseif (!empty($validated['media_urls'])) {
+            foreach (array_slice($validated['media_urls'], 0, 6) as $url) {
+                if (!empty($url)) {
+                    $this->attachMedia($context, $item->getId(), $url);
+                }
+            }
+        }
+
+        if (isset($validated['marketplaces'])) {
+            $this->saveMarketplaces($context, $item->getId(), $validated['marketplaces']);
         }
 
         return response()->json($item->toArray(), 201);
@@ -195,6 +215,10 @@ class ProductController extends Controller
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
             'media_url' => 'nullable|string|max:1024',
+            'media_urls' => 'nullable|array|max:6',
+            'media_urls.*' => 'nullable|string|max:1024',
+            'marketplaces' => 'nullable|array',
+            'marketplaces.*' => 'nullable|string|max:32',
         ]);
 
         $context = $this->context();
@@ -253,7 +277,7 @@ class ProductController extends Controller
             $propManager->save($prop);
         }
 
-        if (array_key_exists('media_url', $validated ?? [])) {
+        if (array_key_exists('media_url', $validated ?? []) || array_key_exists('media_urls', $validated ?? [])) {
             $listManager = MShop::create($context, 'product/lists');
             $ms = $listManager->filter();
             $ms->setConditions($ms->and([
@@ -267,7 +291,17 @@ class ProductController extends Controller
             }
             if (!empty($validated['media_url'])) {
                 $this->attachMedia($context, $item->getId(), $validated['media_url']);
+            } elseif (!empty($validated['media_urls'])) {
+                foreach (array_slice($validated['media_urls'], 0, 6) as $url) {
+                    if (!empty($url)) {
+                        $this->attachMedia($context, $item->getId(), $url);
+                    }
+                }
             }
+        }
+
+        if (array_key_exists('marketplaces', $validated ?? [])) {
+            $this->saveMarketplaces($context, $item->getId(), $validated['marketplaces']);
         }
 
         return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);
@@ -285,6 +319,54 @@ class ProductController extends Controller
         }
 
         return response()->json(['message' => 'Product deleted.']);
+    }
+
+    private function getMarketplaces(\Aimeos\MShop\ContextIface $context, string $productId): array
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'marketplaces'),
+            ]));
+            $props = $propManager->search($ps);
+            foreach ($props as $prop) {
+                $val = $prop->getValue();
+                if (empty($val)) {
+                    return [];
+                }
+                return array_filter(array_map('trim', explode(',', $val)));
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return [];
+    }
+
+    private function saveMarketplaces(\Aimeos\MShop\ContextIface $context, string $productId, array $marketplaces): void
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $ps = $propManager->filter();
+        $ps->setConditions($ps->and([
+            $ps->compare('==', 'product.property.parentid', $productId),
+            $ps->compare('==', 'product.property.type', 'marketplaces'),
+        ]));
+        foreach ($propManager->search($ps) as $op) {
+            $propManager->delete($op->getId());
+        }
+
+        $list = array_values(array_unique(array_filter(array_map('trim', $marketplaces))));
+        if (empty($list)) {
+            return;
+        }
+
+        $prop = $propManager->create();
+        $prop->setParentId($productId);
+        $prop->setType('marketplaces');
+        $prop->setValue(implode(',', $list));
+        $prop->setLanguageId(null);
+        $propManager->save($prop);
     }
 
     private function attachMedia(\Aimeos\MShop\ContextIface $context, string $productId, string $url): void
