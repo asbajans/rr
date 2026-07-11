@@ -1,5 +1,8 @@
 import { TrendyolIntegrationService } from './trendyol/TrendyolIntegrationService';
 import { HepsiburadaIntegrationService } from './hepsiburada/HepsiburadaIntegrationService';
+import { PazaramaIntegrationService } from './pazarama/PazaramaIntegrationService';
+import { N11IntegrationService } from './n11/N11IntegrationService';
+import { AmazonSpApiIntegrationService } from './amazon/AmazonSpApiIntegrationService';
 import { IntegrationInterface } from './IntegrationInterface';
 
 export function getIntegrations(): IntegrationInterface[] {
@@ -39,6 +42,40 @@ export function createIntegration(
       const password = config.password;
       if (!username || !password) return null;
       return new HepsiburadaIntegrationService(username, password);
+    }
+    case 'pazarama': {
+      const clientId = config.client_id || config.clientId;
+      const clientSecret = config.client_secret || config.clientSecret;
+      const apiKey = config.api_key || config.apiKey;
+      if (!clientId || !clientSecret || !apiKey) return null;
+      return new PazaramaIntegrationService(clientId, clientSecret, apiKey);
+    }
+    case 'n11': {
+      const username = config.username || config.api_key || config.apiKey;
+      const password = config.password || config.api_secret || config.apiSecret;
+      if (!username || !password) return null;
+      return new N11IntegrationService(username, password);
+    }
+    case 'amazon': {
+      const refreshToken = config.refresh_token || config.refreshToken;
+      const lwaClientId = config.lwa_client_id || config.lwaClientId;
+      const lwaClientSecret = config.lwa_client_secret || config.lwaClientSecret;
+      const awsAccessKey = config.aws_access_key || config.awsAccessKey;
+      const awsSecretKey = config.aws_secret_key || config.awsSecretKey;
+      const sellerId = config.seller_id || config.sellerId;
+      if (!refreshToken || !lwaClientId || !lwaClientSecret || !awsAccessKey || !awsSecretKey || !sellerId) {
+        return null;
+      }
+      return new AmazonSpApiIntegrationService({
+        refreshToken,
+        lwaClientId,
+        lwaClientSecret,
+        awsAccessKey,
+        awsSecretKey,
+        sellerId,
+        marketplaceId: config.marketplace_id || config.marketplaceId || 'A1O49J7X5Y7RJA',
+        region: config.region,
+      });
     }
     default:
       return null;

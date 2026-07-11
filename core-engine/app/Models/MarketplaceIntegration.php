@@ -55,6 +55,26 @@ class MarketplaceIntegration extends Model
                 'label' => 'Hepsiburada',
                 'fields' => ['username' => 'Kullanıcı Adı', 'password' => 'Şifre'],
             ],
+            'pazarama' => [
+                'label' => 'Pazarama',
+                'fields' => ['client_id' => 'Client ID', 'client_secret' => 'Client Secret', 'api_key' => 'API Key'],
+            ],
+            'n11' => [
+                'label' => 'N11',
+                'fields' => ['username' => 'API Kullanıcı Adı', 'password' => 'API Şifre'],
+            ],
+            'amazon' => [
+                'label' => 'Amazon TR (SP-API)',
+                'fields' => [
+                    'refresh_token' => 'LWA Refresh Token',
+                    'lwa_client_id' => 'LWA Client ID',
+                    'lwa_client_secret' => 'LWA Client Secret',
+                    'aws_access_key' => 'AWS Access Key',
+                    'aws_secret_key' => 'AWS Secret Key',
+                    'seller_id' => 'Seller ID',
+                    'marketplace_id' => 'Marketplace ID (varsayılan TR)',
+                ],
+            ],
         ];
     }
 }

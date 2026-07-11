@@ -224,6 +224,16 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] Frontend: Checkout page (adres seç/ekle, ödeme yöntemi, not, sipariş özeti, onay)
 - [x] AGENTS.md: Phase 6F planı eklendi
 
+### Phase 6C.2 — Amazon TR / N11 / Pazarama Entegrasyonları ✅ **TAMAM**
+- [x] `factory.createIntegration()` 'e 3 yeni sağlayıcı eklendi (pazarama, n11, amazon)
+- [x] **Pazarama**: OAuth2 client_credentials + REST `/product` (Trendyol-uyumlu alanlar)
+- [x] **N11**: SellerProductService SOAP (`GetProductList`, `ProductCreate`, stok/fiyat)
+- [x] **Amazon TR**: SP-API + AWS SigV4 imzalama (`listings`/`catalog`) + LWA token
+- [x] `core-engine MarketplaceIntegration.availableMarketplaces()` 3 yeni pazaryeri (alan etiketleri)
+- [x] `MarketplaceIntegrationController.defaultConfig()` 3 yeni varsayılan config
+- [x] `fast-xml-parser` bağımlılığı (N11 SOAP yanıtı)
+- [x] Tümü `fetchProducts` → `AimeosProductImporter` → "Ürünleri İçe Aktar" butonu ile çalışır
+
 ### Phase 6C.1 — Pazaryeri Ürün İçe Aktarma ✅ **TAMAM**
 - [x] `IntegrationInterface.fetchProducts(page)` abstract metod
 - [x] Trendyol: `api.getProducts()` + `TrendyolIntegrationService.fetchProducts()` (content → ProductData)
@@ -239,7 +249,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] Migration: `marketplace_integrations` (store_id, marketplace, is_active, config JSON)
 - [x] Model: `MarketplaceIntegration` (availableMarketplaces, store relation)
 - [x] Controller: `MarketplaceIntegrationController` (list, update)
-- [x] Routes: 3 marketplace integration endpoint (api.php: index, import, update)
+- [x] Routes: 3 marketplace integration endpoint (api.php: index, import, update) — 5 pazaryeri (trendyol, hepsiburada, pazarama, n11, amazon)
 - [x] Frontend: Entegrasyon ayar sayfası (toggle + config form)
 - [x] Frontend: Sidebar'da Pazaryeri linki
 - [x] Update: `SendProductWebhook` listener sends store marketplace configs
