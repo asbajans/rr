@@ -1,0 +1,129 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Store;
+
+class AimeosProductImporter
+{
+    /**
+     * Import a list of normalized product records into Aimeos.
+     *
+     * Each record supports: sku, name, description, price, currency,
+     * stock, images (array), category.
+     */
+    public function import(Store $store, array $records, string $source = 'import'): array
+    {
+        $imported = 0;
+        $updated = 0;
+        $failed = 0;
+        $errors = [];
+
+        $context = app('aimeos.context')->get();
+        $productManager = \Aimeos\MShop::create($context, 'product');
+        $priceManager = \Aimeos\MShop::create($context, 'price');
+        $listManager = \Aimeos\MShop::create($context, 'product/lists');
+        $mediaManager = \Aimeos\MShop::create($context, 'media');
+        $textManager = \Aimeos\MShop::create($context, 'text');
+        $propManager = \Aimeos\MShop::create($context, 'product/property');
+
+        foreach ($records as $index => $record) {
+            $sku = (string) ($record['sku'] ?? '');
+            if ($sku === '') {
+                $sku = $source . '-' . $store->id . '-' . $index;
+            }
+
+            try {
+                $search = $productManager->filter()->add(['product.code' => $sku])->slice(0, 1);
+                $existing = $productManager->search($search)->first();
+
+                $item = $existing ?: $productManager->create();
+                $item->setCode($sku);
+                $item->setLabel((string) ($record['name'] ?? $sku));
+                $item->setStatus(1);
+                $item = $productManager->save($item);
+
+                $price = (float) ($record['price'] ?? 0);
+                if ($price > 0) {
+                    $priceItem = $priceManager->create();
+                    $priceItem->setValue($price);
+                    $priceItem->setCurrencyId($record['currency'] ?? 'TRY');
+                    $priceItem->setType('default');
+                    $priceItem = $priceManager->save($priceItem);
+
+                    $list = $listManager->create();
+                    $list->setParentId($item->getId());
+                    $list->setRefId($priceItem->getId());
+                    $list->setDomain('price');
+                    $list->setType('default');
+                    $listManager->save($list);
+                }
+
+                $stock = (int) ($record['stock'] ?? 0);
+                if ($stock > 0) {
+                    $prop = $propManager->create();
+                    $prop->setParentId($item->getId());
+                    $prop->setValue((string) $stock);
+                    $prop->setType('stock');
+                    $prop->setLanguageId(null);
+                    $propManager->save($prop);
+                }
+
+                $images = $record['images'] ?? [];
+                if (is_array($images)) {
+                    foreach (array_slice($images, 0, 8) as $imageUrl) {
+                        if (empty($imageUrl)) {
+                            continue;
+                        }
+                        $media = $mediaManager->create();
+                        $media->setUrl($imageUrl);
+                        $media->setPreview($imageUrl);
+                        $media->setMimeType('image/jpeg');
+                        $media->setType('default');
+                        $media->setLabel((string) ($record['name'] ?? $sku));
+                        $media = $mediaManager->save($media);
+
+                        $ml = $listManager->create();
+                        $ml->setParentId($item->getId());
+                        $ml->setRefId($media->getId());
+                        $ml->setDomain('media');
+                        $ml->setType('default');
+                        $listManager->save($ml);
+                    }
+                }
+
+                if (!empty($record['description'])) {
+                    $text = $textManager->create();
+                    $text->setContent((string) $record['description']);
+                    $text->setType('default');
+                    $text->setLanguageId('tr');
+                    $text = $textManager->save($text);
+
+                    $tl = $listManager->create();
+                    $tl->setParentId($item->getId());
+                    $tl->setRefId($text->getId());
+                    $tl->setDomain('text');
+                    $tl->setType('default');
+                    $listManager->save($tl);
+                }
+
+                if ($existing) {
+                    $updated++;
+                } else {
+                    $imported++;
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors[] = "Row $index ($sku): " . $e->getMessage();
+            }
+        }
+
+        return [
+            'total' => count($records),
+            'imported' => $imported,
+            'updated' => $updated,
+            'failed' => $failed,
+            'errors' => array_slice($errors, 0, 20),
+        ];
+    }
+}

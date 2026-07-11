@@ -490,6 +490,15 @@ class ApiClient {
     return this.put<import('./types').MarketplaceIntegration>(`/api/admin/integrations/${marketplace}`, data)
   }
 
+  importIntegrationProducts(marketplace: string, maxPages = 5) {
+    return this.post<{
+      marketplace: string
+      fetched?: number
+      summary: { total: number; imported: number; updated: number; failed: number; errors: string[] }
+      message?: string
+    }>(`/api/admin/integrations/${marketplace}/import`, { max_pages: maxPages })
+  }
+
   // Variations
   // Payment Methods
   getPaymentMethods() {

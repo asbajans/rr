@@ -14,4 +14,6 @@ export abstract class IntegrationInterface {
   abstract updatePrice(sku: string, price: number, currency: string): Promise<{ success: boolean; error?: string }>;
 
   abstract fetchOrders(sinceDate?: string): Promise<Order[]>;
+
+  abstract fetchProducts(page?: number): Promise<ProductData[]>;
 }

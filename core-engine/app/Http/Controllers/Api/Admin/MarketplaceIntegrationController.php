@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Models\MarketplaceIntegration;
+use App\Services\AimeosProductImporter;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 class MarketplaceIntegrationController extends Controller
@@ -70,6 +72,66 @@ class MarketplaceIntegrationController extends Controller
         }
 
         return response()->json($integration);
+    }
+
+    public function importProducts(Request $request, string $marketplace, AimeosProductImporter $importer)
+    {
+        $store = $this->getStore($request);
+
+        if (!array_key_exists($marketplace, MarketplaceIntegration::availableMarketplaces())) {
+            return response()->json(['error' => 'Invalid marketplace'], 422);
+        }
+
+        $integration = MarketplaceIntegration::where('store_id', $store->id)
+            ->where('marketplace', $marketplace)
+            ->first();
+
+        if (!$integration || !$integration->is_active) {
+            return response()->json(['error' => 'Entegrasyon aktif değil'], 422);
+        }
+
+        $config = $integration->config;
+        if (empty($config)) {
+            return response()->json(['error' => 'Entegrasyon ayarları eksik'], 422);
+        }
+
+        $maxPages = (int) $request->input('max_pages', 5);
+
+        try {
+            $response = Http::timeout(120)
+                ->post(env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001') . '/import/products', [
+                    'marketplace' => $marketplace,
+                    'config' => $config,
+                    'maxPages' => $maxPages,
+                ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Integration service unreachable: ' . $e->getMessage()], 502);
+        }
+
+        if (!$response->successful()) {
+            return response()->json([
+                'error' => 'Pazaryeri ürünleri çekilemedi',
+                'detail' => $response->json('error') ?? $response->body(),
+            ], 502);
+        }
+
+        $products = $response->json('products') ?? [];
+
+        if (empty($products)) {
+            return response()->json([
+                'marketplace' => $marketplace,
+                'summary' => ['total' => 0, 'imported' => 0, 'updated' => 0, 'failed' => 0, 'errors' => []],
+                'message' => 'Pazaryerinde ürün bulunamadı',
+            ]);
+        }
+
+        $summary = $importer->import($store, $products, $marketplace);
+
+        return response()->json([
+            'marketplace' => $marketplace,
+            'fetched' => count($products),
+            'summary' => $summary,
+        ]);
     }
 
     private function defaultConfig(string $marketplace): array

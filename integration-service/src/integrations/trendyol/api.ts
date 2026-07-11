@@ -81,6 +81,15 @@ export class TrendyolApiClient {
     return res.data;
   }
 
+  async getProducts(page: number = 0, size: number = 50): Promise<unknown> {
+    await this.enforceRateLimit();
+    const res = await this.client.get(
+      `/suppliers/${this.credentials.supplierId}/products`,
+      { params: { page, size, approved: true } }
+    );
+    return res.data;
+  }
+
   async getOrders(status?: string): Promise<unknown> {
     await this.enforceRateLimit();
     const params: Record<string, string> = {};

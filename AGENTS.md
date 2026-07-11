@@ -224,11 +224,22 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] Frontend: Checkout page (adres seç/ekle, ödeme yöntemi, not, sipariş özeti, onay)
 - [x] AGENTS.md: Phase 6F planı eklendi
 
+### Phase 6C.1 — Pazaryeri Ürün İçe Aktarma ✅ **TAMAM**
+- [x] `IntegrationInterface.fetchProducts(page)` abstract metod
+- [x] Trendyol: `api.getProducts()` + `TrendyolIntegrationService.fetchProducts()` (content → ProductData)
+- [x] Hepsiburada: `HepsiburadaIntegrationService.fetchProducts()`
+- [x] `factory.createIntegration(marketplace, config)` — store config'ten integration örneği
+- [x] integration-service: `POST /import/products` route (marketplace + config + maxPages → products)
+- [x] core-engine: `AimeosProductImporter` servisi (create/update by SKU, price/stock/media/text)
+- [x] core-engine: `MarketplaceIntegrationController::importProducts()` — integration-service'ten çekip Aimeos'a aktarır
+- [x] Route: `POST /api/admin/integrations/{marketplace}/import`
+- [x] Frontend: entegrasyon kartında "Ürünleri İçe Aktar" butonu + `api.importIntegrationProducts()`
+
 ### Phase 6C — Marketplace Entegrasyonları ✅ **TAMAM**
 - [x] Migration: `marketplace_integrations` (store_id, marketplace, is_active, config JSON)
 - [x] Model: `MarketplaceIntegration` (availableMarketplaces, store relation)
 - [x] Controller: `MarketplaceIntegrationController` (list, update)
-- [x] Routes: 2 marketplace integration endpoint (api.php)
+- [x] Routes: 3 marketplace integration endpoint (api.php: index, import, update)
 - [x] Frontend: Entegrasyon ayar sayfası (toggle + config form)
 - [x] Frontend: Sidebar'da Pazaryeri linki
 - [x] Update: `SendProductWebhook` listener sends store marketplace configs

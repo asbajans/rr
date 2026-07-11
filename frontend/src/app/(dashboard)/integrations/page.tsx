@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
-import { ShoppingBag, Store } from 'lucide-react'
+import { ShoppingBag, Store, Download } from 'lucide-react'
 
 const MARKETPLACE_LOGOS: Record<string, string> = {
   trendyol: 'Trendyol',
@@ -24,6 +24,7 @@ export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<MarketplaceIntegration[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  const [importing, setImporting] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -63,6 +64,26 @@ export default function IntegrationsPage() {
       setMessage(err.message || 'Hata')
     } finally {
       setSaving(null)
+    }
+  }
+
+  async function importProducts(marketplace: string) {
+    setImporting(marketplace)
+    setMessage('')
+    try {
+      const res = await api.importIntegrationProducts(marketplace)
+      if (res.message) {
+        setMessage(res.message)
+      } else {
+        const s = res.summary
+        setMessage(
+          `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.imported} yeni, ${s.updated} güncellendi, ${s.failed} başarısız (${res.fetched ?? s.total} ürün çekildi)`
+        )
+      }
+    } catch (err: any) {
+      setMessage(err.message || 'Ürün içe aktarma başarısız')
+    } finally {
+      setImporting(null)
     }
   }
 
@@ -146,6 +167,23 @@ export default function IntegrationsPage() {
                 </button>
               </div>
               {integration.is_active && renderConfigForm(integration)}
+              {integration.is_active && (
+                <div className="mt-4 border-t border-zinc-100 pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-zinc-500">
+                      Pazaryerindeki mevcut ürünleri mağazana aktar.
+                    </p>
+                    <button
+                      onClick={() => importProducts(integration.marketplace)}
+                      disabled={importing === integration.marketplace}
+                      className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                    >
+                      <Download className="h-4 w-4" />
+                      {importing === integration.marketplace ? 'İçe aktarılıyor...' : 'Ürünleri İçe Aktar'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -21,3 +21,26 @@ export function getIntegrations(): IntegrationInterface[] {
 
   return list;
 }
+
+export function createIntegration(
+  marketplace: string,
+  config: Record<string, string>
+): IntegrationInterface | null {
+  switch (marketplace) {
+    case 'trendyol': {
+      const apiKey = config.api_key || config.apiKey;
+      const apiSecret = config.api_secret || config.apiSecret;
+      const supplierId = config.supplier_id || config.supplierId;
+      if (!apiKey || !apiSecret || !supplierId) return null;
+      return new TrendyolIntegrationService(apiKey, apiSecret, supplierId);
+    }
+    case 'hepsiburada': {
+      const username = config.username;
+      const password = config.password;
+      if (!username || !password) return null;
+      return new HepsiburadaIntegrationService(username, password);
+    }
+    default:
+      return null;
+  }
+}

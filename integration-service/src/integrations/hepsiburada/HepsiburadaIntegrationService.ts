@@ -73,4 +73,38 @@ export class HepsiburadaIntegrationService extends IntegrationInterface {
       createdAt: o.createdAt || '',
     }));
   }
+
+  async fetchProducts(page: number = 0): Promise<ProductData[]> {
+    try {
+      const res = await axios.get(`${this.baseUrl}/products`, {
+        headers: { Authorization: this.authHeader },
+        params: { offset: page * 50, limit: 50 },
+      });
+
+      const rawProducts = (res.data?.products || res.data?.listings || res.data || []) as any[];
+      if (!Array.isArray(rawProducts)) return [];
+
+      return rawProducts.map((p) => ({
+        id: String(p.id ?? p.merchantSku ?? p.hepsiburadaSku ?? ''),
+        sku: String(p.merchantSku ?? p.sku ?? p.hepsiburadaSku ?? ''),
+        name: p.productName ?? p.title ?? '',
+        description: p.description ?? '',
+        price: Number(p.price ?? p.salePrice ?? 0),
+        currency: 'TRY',
+        stock: Number(p.availableStock ?? p.stock ?? p.quantity ?? 0),
+        category: String(p.categoryName ?? p.categoryId ?? ''),
+        barcode: p.barcode ?? undefined,
+        brand: p.brand ?? undefined,
+        images: Array.isArray(p.images)
+          ? p.images.map((i: any) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)
+          : (p.image ? [p.image] : []),
+        attributes: (p.attributes && typeof p.attributes === 'object' && !Array.isArray(p.attributes))
+          ? p.attributes
+          : {},
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      throw new Error(`HB fetchProducts failed: ${message}`);
+    }
+  }
 }
