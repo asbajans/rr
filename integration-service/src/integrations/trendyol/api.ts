@@ -86,7 +86,7 @@ export class TrendyolApiClient {
     try {
       const res = await this.client.get(
         `/suppliers/${this.credentials.supplierId}/products`,
-        { params: { page, size, approved: true } }
+        { params: { page, size } }
       );
       return res.data;
     } catch (err: any) {
