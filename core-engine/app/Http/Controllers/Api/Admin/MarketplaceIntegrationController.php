@@ -97,18 +97,35 @@ class MarketplaceIntegrationController extends Controller
 
         $maxPages = (int) $request->input('max_pages', 5);
 
+        $integrationUrl = env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001') . '/import/products';
+        \Log::info('[MarketplaceImport] calling integration-service', [
+            'marketplace' => $marketplace,
+            'url' => $integrationUrl,
+            'maxPages' => $maxPages,
+        ]);
+
         try {
             $response = Http::timeout(120)
-                ->post(env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001') . '/import/products', [
+                ->post($integrationUrl, [
                     'marketplace' => $marketplace,
                     'config' => $config,
                     'maxPages' => $maxPages,
                 ]);
         } catch (\Throwable $e) {
+            \Log::error('[MarketplaceImport] integration-service unreachable', [
+                'marketplace' => $marketplace,
+                'url' => $integrationUrl,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json(['error' => 'Integration service unreachable: ' . $e->getMessage()], 502);
         }
 
         if (!$response->successful()) {
+            \Log::error('[MarketplaceImport] integration-service returned error', [
+                'marketplace' => $marketplace,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
             return response()->json([
                 'error' => 'Pazaryeri ürünleri çekilemedi',
                 'detail' => $response->json('error') ?? $response->body(),

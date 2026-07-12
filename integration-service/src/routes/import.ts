@@ -25,6 +25,7 @@ router.post('/import/products', async (req: Request, res: Response) => {
   const products = [];
 
   try {
+    console.log(`[import] fetching ${marketplace} products, pages=${pageLimit}`);
     for (let page = 0; page < pageLimit; page++) {
       const batch = await integration.fetchProducts(page);
       if (!batch.length) break;
@@ -32,9 +33,11 @@ router.post('/import/products', async (req: Request, res: Response) => {
       if (batch.length < 50) break;
     }
 
+    console.log(`[import] ${marketplace}: fetched ${products.length} products`);
     res.json({ marketplace, count: products.length, products });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[import] ${marketplace} fetch failed:`, message);
     res.status(502).json({ error: message });
   }
 });
