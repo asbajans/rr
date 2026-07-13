@@ -2,7 +2,7 @@ type FetchOptions = RequestInit & {
   params?: Record<string, string>
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '')
 
 class ApiClient {
   private token: string | null = null
