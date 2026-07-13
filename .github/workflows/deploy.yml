@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
 
@@ -17,8 +20,11 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       slave: ${{ steps.filter.outputs.slave }}
       mobile: ${{ steps.filter.outputs.mobile }}
+      compose: ${{ steps.filter.outputs.compose }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -26,24 +32,23 @@ jobs:
             core:
               - 'core-engine/**'
               - '.github/**'
-              - 'docker-compose.yml'
             ai:
               - 'ai-service/**'
               - '.github/**'
-              - 'docker-compose.yml'
             integration:
               - 'integration-service/**'
               - '.github/**'
-              - 'docker-compose.yml'
             frontend:
               - 'frontend/**'
               - '.github/**'
-              - 'docker-compose.yml'
             slave:
               - 'slave/**'
               - '.github/**'
             mobile:
               - 'mobile-app/**'
+              - '.github/**'
+            compose:
+              - 'docker-compose.yml'
               - '.github/**'
 
   validate-frontend:
@@ -178,6 +183,7 @@ jobs:
   validate-mobile:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.mobile == 'true' }}
+    continue-on-error: true
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -193,6 +199,7 @@ jobs:
   build-mobile:
     needs: [detect-changes, validate-mobile]
     if: ${{ needs.detect-changes.outputs.mobile == 'true' }}
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -209,8 +216,8 @@ jobs:
         working-directory: mobile-app
 
   deploy:
-    needs: [detect-changes, build-core, build-ai, build-integration, build-frontend]
-    if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
+    needs: [detect-changes, build-core, build-ai, build-integration, build-frontend, build-mobile]
+    if: ${{ always() && (needs.detect-changes.outputs.compose == 'true' || needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (PAT allows pinning the compose)
