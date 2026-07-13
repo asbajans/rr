@@ -10,7 +10,6 @@ return [
         'https://api.rahatio.com.tr',
     ],
     'allowed_origins_patterns' => ['#^https://([a-z0-9-]+\.)*rahatio\.com\.tr$#'],
-    'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
     'max_age' => 0,
