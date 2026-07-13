@@ -250,3 +250,6 @@ Route::get('/plans', [PlanController::class, 'publicIndex']);
 Route::get('/cors-test-502', function () {
     return response()->json(['error' => 'test 502'], 502);
 });
+Route::get('/cors-test-422', function () {
+    return response()->json(['error' => 'test 422'], 422);
+});
