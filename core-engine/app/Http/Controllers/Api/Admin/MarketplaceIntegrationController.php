@@ -117,7 +117,7 @@ class MarketplaceIntegrationController extends Controller
                 'url' => $integrationUrl,
                 'error' => $e->getMessage(),
             ]);
-            return response()->json(['error' => 'Integration service unreachable: ' . $e->getMessage()], 502);
+            return response()->json(['error' => 'Integration service unreachable: ' . $e->getMessage()], 422);
         }
 
         if (!$response->successful()) {
@@ -129,7 +129,7 @@ class MarketplaceIntegrationController extends Controller
             return response()->json([
                 'error' => 'Pazaryeri ürünleri çekilemedi',
                 'detail' => $response->json('error') ?? $response->body(),
-            ], 502);
+            ], 422);
         }
 
         $products = $response->json('products') ?? [];
