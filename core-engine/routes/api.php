@@ -245,3 +245,8 @@ Route::middleware(\App\Http\Middleware\AuthenticateWithApiKey::class)->group(fun
 });
 
 Route::get('/plans', [PlanController::class, 'publicIndex']);
+
+// TEMP CORS TEST ENDPOINT - remove after diagnosis
+Route::get('/cors-test-502', function () {
+    return response()->json(['error' => 'test 502'], 502);
+});
