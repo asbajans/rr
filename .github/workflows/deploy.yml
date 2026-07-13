@@ -110,7 +110,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:sha-${GITHUB_SHA::7}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:sha-${{ github.sha }}
 
   build-ai:
     needs: [detect-changes, validate-ai]
@@ -131,7 +131,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:sha-${GITHUB_SHA::7}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:sha-${{ github.sha }}
 
   build-integration:
     needs: [detect-changes, validate-integration]
@@ -152,7 +152,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:sha-${GITHUB_SHA::7}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:sha-${{ github.sha }}
 
   build-frontend:
     needs: [detect-changes, validate-frontend]
@@ -173,7 +173,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:sha-${GITHUB_SHA::7}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:sha-${{ github.sha }}
 
   validate-mobile:
     needs: detect-changes
@@ -218,7 +218,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Pin images to commit SHA tag
         run: |
-          TAG="sha-${GITHUB_SHA::7}"
+          TAG="sha-${GITHUB_SHA}"
           sed -i -E "s#(asbajans/rahatio-[a-z-]*):latest#\1:${TAG}#g" docker-compose.yml
           git config user.email "ci@rahatio.com"
           git config user.name "ci"
