@@ -108,7 +108,9 @@ jobs:
           context: ./core-engine
           target: rahatio-core
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:${{ github.sha }}
 
   build-ai:
     needs: [detect-changes, validate-ai]
@@ -127,7 +129,9 @@ jobs:
           context: ./ai-service
           target: rahatio-ai
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:${{ github.sha }}
 
   build-integration:
     needs: [detect-changes, validate-integration]
@@ -148,7 +152,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:fix5
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:${{ github.sha }}
 
   build-frontend:
     needs: [detect-changes, validate-frontend]
@@ -167,7 +171,9 @@ jobs:
           context: ./frontend
           target: runner
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:${{ github.sha }}
 
   validate-mobile:
     needs: detect-changes
@@ -202,15 +208,72 @@ jobs:
       - run: eas build --platform android --non-interactive --no-wait
         working-directory: mobile-app
 
-  trigger-portainer:
-    needs: [build-core, build-ai, build-integration, build-frontend]
+  deploy:
+    needs: [detect-changes, build-core, build-ai, build-integration, build-frontend]
     if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Portainer Webhook
+      - name: Checkout (PAT allows pinning the compose)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          ref: main
+
+      # Pin only the services that were (re)built to the commit SHA so the
+      # running image is always freshly pulled (avoids the :latest cache trap).
+      - name: Pin changed images to commit SHA
+        if: ${{ secrets.PAT_TOKEN != '' }}
         env:
-          WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+          SHA: ${{ github.sha }}
+          CORE: ${{ needs.detect-changes.outputs.core }}
+          AI: ${{ needs.detect-changes.outputs.ai }}
+          INTEGRATION: ${{ needs.detect-changes.outputs.integration }}
+          FRONTEND: ${{ needs.detect-changes.outputs.frontend }}
         run: |
-          if [ -n "$WEBHOOK_URL" ]; then
-            curl -s -X POST "$WEBHOOK_URL"
+          pin() {
+            local svc="$1"; local changed="$2"
+            if [ "$changed" = "true" ]; then
+              sed -i -E "s#(image: .*rahatio-${svc}:)[^ ]+#\1${SHA}#" docker-compose.yml
+              echo "pinned rahatio-${svc} -> ${SHA}"
+            fi
+          }
+          pin core "$CORE"
+          pin ai "$AI"
+          pin integration "$INTEGRATION"
+          pin frontend "$FRONTEND"
+
+      - name: Commit pinned compose
+        if: ${{ secrets.PAT_TOKEN != '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docker-compose.yml
+          if git diff --cached --quiet; then
+            echo "compose unchanged"
+          else
+            git commit -m "ci: pin images to ${{ github.sha }} [skip ci]"
+            git push
+          fi
+
+      # git/redeploy pulls the LATEST compose from git and recreates the stack.
+      # This is what actually deploys compose changes (the old generic webhook
+      # only re-ran the stored compose and never pulled from git).
+      - name: Redeploy Portainer stack from git
+        env:
+          PORTAINER_API_KEY: ${{ secrets.PORTAINER_API_KEY }}
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          if [ -n "$PORTAINER_API_KEY" ]; then
+            echo "Triggering Portainer git/redeploy (pulls latest compose + recreates)"
+            curl -s -X PUT \
+              -H "X-API-Key: $PORTAINER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "https://cont.asb.web.tr/api/stacks/66/git/redeploy?endpointId=2"
+            echo "git/redeploy done"
+          elif [ -n "$PORTAINER_WEBHOOK_URL" ]; then
+            echo "No API key set; falling back to generic webhook"
+            curl -s -X POST "$PORTAINER_WEBHOOK_URL"
+          else
+            echo "No Portainer credential configured; skipping redeploy"
           fi

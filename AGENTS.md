@@ -462,7 +462,9 @@ src/app/
 ### Gerekli GitHub Secrets
 - `DOCKER_HUB_USERNAME` — `asbajans`
 - `DOCKER_HUB_TOKEN`
-- `PORTAINER_WEBHOOK_URL` — `https://cont.asb.web.tr/api/webhooks/d6050fb9-2679-4422-902f-916da4785ca6`
+- `PORTAINER_WEBHOOK_URL` — `https://cont.asb.web.tr/api/webhooks/d6050fb9-2679-4422-902f-916da4785ca6` (fallback only)
+- `PORTAINER_API_KEY` — Portainer X-API-Key; used by CI to call `PUT /api/stacks/66/git/redeploy?endpointId=2` (REAL deploy — pulls latest compose from git + recreates). The generic webhook alone does NOT pull git, so this is required for deploys to take effect.
+- `PAT_TOKEN` — GitHub PAT with `repo` + branch-protection bypass; lets CI pin changed service images to the commit SHA in `docker-compose.yml` (committed with `[skip ci]`) so each deploy pulls a fresh, never-cached image. Without it, CI falls back to `:latest` tags (may serve cached images).
 - `EXPO_TOKEN` — Expo account token (EAS Build için)
 
 ## Kullanılan Aimeos Özellikleri
