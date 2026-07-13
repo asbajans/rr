@@ -119,8 +119,8 @@ services:
       COMFY_URL: http://host.docker.internal:8188
 
   integration-service:
-      image: asbajans/rahatio-integration:latest
-      pull_policy: always
+    image: asbajans/rahatio-integration:latest
+    pull_policy: always
     container_name: rahatio-integration
     restart: unless-stopped
     networks:
