@@ -148,7 +148,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:fix2
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:fix3
 
   build-frontend:
     needs: [detect-changes, validate-frontend]

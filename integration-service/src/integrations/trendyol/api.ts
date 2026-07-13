@@ -7,6 +7,16 @@ export interface TrendyolCredentials {
   supplierId: string;
 }
 
+let cachedOutboundIp = 'unknown';
+try {
+  fetch('https://api.ipify.org?format=json')
+    .then((r: any) => r.json())
+    .then((d: any) => { cachedOutboundIp = d?.ip ?? 'unknown'; })
+    .catch(() => {});
+} catch {
+  /* ignore */
+}
+
 export class TrendyolApiClient {
   private client: AxiosInstance;
   private credentials: TrendyolCredentials;
@@ -106,6 +116,8 @@ export class TrendyolApiClient {
       throw new Error(
         `Trendyol getProducts HTTP ${status}: ${message} ` +
         `(code=${code}, params=${JSON.stringify({ page, size })}, ` +
+        `outboundIp=${cachedOutboundIp}, ` +
+        `creds(apiKeyLen=${this.credentials.apiKey.length}, secretLen=${this.credentials.apiSecret.length}, supplierId=${this.credentials.supplierId || 'EMPTY'}), ` +
         `wwwAuthenticate=${headers?.['www-authenticate'] ?? headers?.['Www-Authenticate'] ?? 'n/a'})`
       );
     }
