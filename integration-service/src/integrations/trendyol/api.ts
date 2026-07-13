@@ -34,6 +34,7 @@ export class TrendyolApiClient {
       timeout: 30_000,
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': `${credentials.supplierId} - SelfIntegration`,
         'Authorization': `Basic ${Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64')}`,
       },
     });
