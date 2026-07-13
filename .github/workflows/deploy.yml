@@ -108,9 +108,7 @@ jobs:
           context: ./core-engine
           target: rahatio-core
           push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:sha-${{ github.sha }}
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
 
   build-ai:
     needs: [detect-changes, validate-ai]
@@ -129,9 +127,7 @@ jobs:
           context: ./ai-service
           target: rahatio-ai
           push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:sha-${{ github.sha }}
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:latest
 
   build-integration:
     needs: [detect-changes, validate-integration]
@@ -152,7 +148,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:sha-${{ github.sha }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:fix1
 
   build-frontend:
     needs: [detect-changes, validate-frontend]
@@ -171,9 +167,7 @@ jobs:
           context: ./frontend
           target: runner
           push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:sha-${{ github.sha }}
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
 
   validate-mobile:
     needs: detect-changes
@@ -208,27 +202,9 @@ jobs:
       - run: eas build --platform android --non-interactive --no-wait
         working-directory: mobile-app
 
-  patch-compose:
+  trigger-portainer:
     needs: [build-core, build-ai, build-integration, build-frontend]
     if: ${{ always() && (needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pin images to commit SHA tag
-        run: |
-          TAG="sha-${GITHUB_SHA}"
-          sed -i -E "s#(asbajans/rahatio-[a-z-]*):latest#\1:${TAG}#g" docker-compose.yml
-          git config user.email "ci@rahatio.com"
-          git config user.name "ci"
-          git add docker-compose.yml
-          git commit -m "ci: pin images to ${TAG} [skip ci]" || echo "nothing to commit"
-          git push
-
-  trigger-portainer:
-    needs: [patch-compose]
-    if: ${{ needs.patch-compose.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Portainer Webhook

@@ -83,22 +83,30 @@ export class TrendyolApiClient {
 
   async getProducts(page: number = 0, size: number = 50): Promise<unknown> {
     await this.enforceRateLimit();
+    const url = `/suppliers/${this.credentials.supplierId}/products`;
+    console.log(`[trendyol] getProducts GET ${url} params=${JSON.stringify({ page, size })}`);
     try {
       // NOTE: Only `page` and `size` are valid here. An extra `approved`
       // query param previously caused Trendyol to reject with HTTP 403.
-      const res = await this.client.get(
-        `/suppliers/${this.credentials.supplierId}/products`,
-        { params: { page, size } }
-      );
+      const res = await this.client.get(url, { params: { page, size } });
       return res.data;
     } catch (err: any) {
       const status = err?.response?.status;
       const body = err?.response?.data;
+      const headers = err?.response?.headers;
+      const code = err?.code;
+      console.error(
+        `[trendyol] getProducts FAILED status=${status} code=${code} ` +
+        `headers=${JSON.stringify(headers)} body=${JSON.stringify(body)}`
+      );
       const message =
         (body && (body.message || body.errorMessage || body.error)) ||
         err?.message ||
         'Unknown error';
-      throw new Error(`Trendyol getProducts HTTP ${status}: ${message}`);
+      throw new Error(
+        `Trendyol getProducts HTTP ${status}: ${message} ` +
+        `(code=${code}, wwwAuthenticate=${headers?.['www-authenticate'] ?? headers?.['Www-Authenticate'] ?? 'n/a'})`
+      );
     }
   }
 
