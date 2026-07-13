@@ -11,94 +11,7 @@ env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      core: ${{ steps.filter.outputs.core }}
-      ai: ${{ steps.filter.outputs.ai }}
-      integration: ${{ steps.filter.outputs.integration }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      slave: ${{ steps.filter.outputs.slave }}
-      mobile: ${{ steps.filter.outputs.mobile }}
-      compose: ${{ steps.filter.outputs.compose }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            core:
-              - 'core-engine/**'
-              - '.github/**'
-            ai:
-              - 'ai-service/**'
-              - '.github/**'
-            integration:
-              - 'integration-service/**'
-              - '.github/**'
-            frontend:
-              - 'frontend/**'
-              - '.github/**'
-            slave:
-              - 'slave/**'
-              - '.github/**'
-            mobile:
-              - 'mobile-app/**'
-              - '.github/**'
-            compose:
-              - 'docker-compose.yml'
-              - '.github/**'
-
-  validate-frontend:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npm run build
-
-  validate-ai:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.ai == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ai-service
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npm run build
-
-  validate-integration:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.integration == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: integration-service
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npm run build
-
   build-core:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.core == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,8 +31,6 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:${{ github.sha }}
 
   build-ai:
-    needs: [detect-changes, validate-ai]
-    if: ${{ needs.detect-changes.outputs.ai == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,8 +50,6 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-ai:${{ github.sha }}
 
   build-integration:
-    needs: [detect-changes, validate-integration]
-    if: ${{ needs.detect-changes.outputs.integration == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,8 +69,6 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:${{ github.sha }}
 
   build-frontend:
-    needs: [detect-changes, validate-frontend]
-    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -180,44 +87,8 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:latest
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-frontend:${{ github.sha }}
 
-  validate-mobile:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.mobile == 'true' }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mobile-app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install --legacy-peer-deps
-      - run: npx tsc --noEmit
-
-  build-mobile:
-    needs: [detect-changes, validate-mobile]
-    if: ${{ needs.detect-changes.outputs.mobile == 'true' }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm install --legacy-peer-deps
-        working-directory: mobile-app
-      - run: eas build --platform android --non-interactive --no-wait
-        working-directory: mobile-app
-
   deploy:
-    needs: [detect-changes, build-core, build-ai, build-integration, build-frontend, build-mobile]
-    if: ${{ always() && (needs.detect-changes.outputs.compose == 'true' || needs.build-core.result == 'success' || needs.build-ai.result == 'success' || needs.build-integration.result == 'success' || needs.build-frontend.result == 'success') }}
+    needs: [build-core, build-ai, build-integration, build-frontend]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (PAT allows pinning the compose)
@@ -226,28 +97,22 @@ jobs:
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           ref: main
 
-      # Pin only the services that were (re)built to the commit SHA so the
-      # running image is always freshly pulled (avoids the :latest cache trap).
-      - name: Pin changed images to commit SHA
+      # Pin every rebuilt service to the commit SHA so the running image is
+      # always freshly pulled (avoids the :latest cache trap on redeploy).
+      - name: Pin images to commit SHA
         if: ${{ secrets.PAT_TOKEN != '' }}
         env:
           SHA: ${{ github.sha }}
-          CORE: ${{ needs.detect-changes.outputs.core }}
-          AI: ${{ needs.detect-changes.outputs.ai }}
-          INTEGRATION: ${{ needs.detect-changes.outputs.integration }}
-          FRONTEND: ${{ needs.detect-changes.outputs.frontend }}
         run: |
           pin() {
-            local svc="$1"; local changed="$2"
-            if [ "$changed" = "true" ]; then
-              sed -i -E "s#(image: .*rahatio-${svc}:)[^ ]+#\1${SHA}#" docker-compose.yml
-              echo "pinned rahatio-${svc} -> ${SHA}"
-            fi
+            local svc="$1"
+            sed -i -E "s#(image: .*rahatio-${svc}:)[^ ]+#\1${SHA}#" docker-compose.yml
+            echo "pinned rahatio-${svc} -> ${SHA}"
           }
-          pin core "$CORE"
-          pin ai "$AI"
-          pin integration "$INTEGRATION"
-          pin frontend "$FRONTEND"
+          pin core
+          pin ai
+          pin integration
+          pin frontend
 
       - name: Commit pinned compose
         if: ${{ secrets.PAT_TOKEN != '' }}
