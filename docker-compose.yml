@@ -70,7 +70,6 @@ services:
 
   laravel-app:
     image: asbajans/rahatio-core:latest
-    pull_policy: always
     container_name: rahatio-core
     restart: unless-stopped
     networks:
@@ -106,7 +105,6 @@ services:
 
   ai-service:
     image: asbajans/rahatio-ai:latest
-    pull_policy: always
     container_name: rahatio-ai
     restart: unless-stopped
     networks:
@@ -120,7 +118,6 @@ services:
 
   integration-service:
     image: asbajans/rahatio-integration:latest
-    pull_policy: always
     container_name: rahatio-integration
     restart: unless-stopped
     networks:
@@ -144,7 +141,6 @@ services:
 
   frontend:
     image: asbajans/rahatio-frontend:latest
-    pull_policy: always
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:
