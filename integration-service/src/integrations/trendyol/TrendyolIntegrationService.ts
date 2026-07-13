@@ -71,37 +71,71 @@ export class TrendyolIntegrationService extends IntegrationInterface {
   async fetchProducts(page: number = 0): Promise<ProductData[]> {
     try {
       const result = (await this.api.getProducts(page, 50)) as any;
-      let items: any[] = [];
+      let products: any[] = [];
       if (Array.isArray(result?.content)) {
-        items = result.content;
+        // V2: content is an array of products, each with variants[]
+        products = result.content;
       } else if (Array.isArray(result?.content?.products)) {
-        items = result.content.products;
+        products = result.content.products;
       } else if (Array.isArray(result?.products)) {
-        items = result.products;
+        products = result.products;
       }
-      return items.map((p: any) => ({
-        id: String(p.id ?? p.productMainId ?? p.barcode ?? ''),
-        sku: String(p.stockCode ?? p.productMainId ?? p.barcode ?? ''),
-        name: p.title ?? '',
-        description: p.description ?? '',
-        price: Number(p.salePrice ?? p.listPrice ?? p.price ?? 0),
-        currency: 'TRY',
-        stock: Number(p.quantity ?? p.stock ?? 0),
-        category: String(p.categoryName ?? p.pimCategoryId ?? ''),
-        barcode: p.barcode ?? undefined,
-        brand: p.brand ?? undefined,
-        images: Array.isArray(p.images)
-          ? p.images.map((i: any) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)
-          : [],
-        attributes: Array.isArray(p.attributes)
+
+      const items: ProductData[] = [];
+      for (const p of products) {
+        const baseAttributes = Array.isArray(p.attributes)
           ? p.attributes.reduce((acc: Record<string, string>, a: any) => {
               const key = a.attributeName ?? String(a.attributeId ?? '');
               const val = a.attributeValue ?? a.customAttributeValue ?? '';
               if (key) acc[key] = String(val);
               return acc;
             }, {})
-          : {},
-      }));
+          : {};
+
+        const base = {
+          name: p.title ?? '',
+          description: p.description ?? '',
+          category: String(p.category?.name ?? p.categoryName ?? p.pimCategoryId ?? ''),
+          brand: p.brand?.name ?? p.brand ?? undefined,
+          images: Array.isArray(p.images)
+            ? p.images.map((i: any) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)
+            : [],
+          attributes: baseAttributes,
+        };
+
+        const variants: any[] = Array.isArray(p.variants) ? p.variants : [p];
+
+        for (const v of variants) {
+          const variantAttrs = Array.isArray(v.attributes)
+            ? v.attributes.reduce((acc: Record<string, string>, a: any) => {
+                const key = a.attributeName ?? String(a.attributeId ?? '');
+                const val = a.attributeValue ?? a.customAttributeValue ?? '';
+                if (key) acc[key] = String(val);
+                return acc;
+              }, {})
+            : {};
+
+          items.push({
+            ...base,
+            id: String(v.variantId ?? v.barcode ?? p.productMainId ?? p.id ?? ''),
+            sku: String(v.stockCode ?? v.barcode ?? p.productMainId ?? ''),
+            name: v.title ?? p.title ?? '',
+            price: Number(
+              v?.price?.salePrice ??
+                v?.price?.listPrice ??
+                v?.salePrice ??
+                v?.listPrice ??
+                p?.price?.salePrice ??
+                0
+            ),
+            currency: 'TRY',
+            stock: Number(v?.stock?.quantity ?? v?.quantity ?? p?.stock?.quantity ?? 0),
+            barcode: v.barcode ?? undefined,
+            attributes: { ...baseAttributes, ...variantAttrs },
+          });
+        }
+      }
+      return items;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`Trendyol fetchProducts failed: ${message}`);

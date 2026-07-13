@@ -19,6 +19,7 @@ try {
 
 export class TrendyolApiClient {
   private client: AxiosInstance;
+  private v2Client: AxiosInstance;
   private credentials: TrendyolCredentials;
   private requestCount: number = 0;
   private lastReset: number = Date.now();
@@ -29,17 +30,35 @@ export class TrendyolApiClient {
   constructor(credentials: TrendyolCredentials) {
     this.credentials = credentials;
 
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': `${credentials.supplierId} - SelfIntegration`,
+      'Authorization': `Basic ${Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64')}`,
+    };
+
+    // V1 endpoints (createProduct / stock / price)
     this.client = axios.create({
       baseURL: 'https://api.trendyol.com/sapigw',
       timeout: 30_000,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': `${credentials.supplierId} - SelfIntegration`,
-        'Authorization': `Basic ${Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64')}`,
-      },
+      headers,
+    });
+
+    // V2 endpoints (product filtering) live on a different host/path
+    this.v2Client = axios.create({
+      baseURL: 'https://apigw.trendyol.com/integration/product',
+      timeout: 30_000,
+      headers,
     });
 
     axiosRetry(this.client, {
+      retries: 3,
+      retryDelay: (retryCount) => retryCount * 2000,
+      retryCondition: (error) => {
+        return error.response?.status === 429 || (error.response?.status ?? 0) >= 500;
+      },
+    });
+
+    axiosRetry(this.v2Client, {
       retries: 3,
       retryDelay: (retryCount) => retryCount * 2000,
       retryCondition: (error) => {
@@ -94,12 +113,11 @@ export class TrendyolApiClient {
 
   async getProducts(page: number = 0, size: number = 50): Promise<unknown> {
     await this.enforceRateLimit();
-    const url = `/suppliers/${this.credentials.supplierId}/products`;
-    console.log(`[trendyol] getProducts GET ${url} params=${JSON.stringify({ page, size })}`);
+    // V2 approved products endpoint (host differs from V1 sapigw)
+    const url = `/sellers/${this.credentials.supplierId}/products/approved`;
+    console.log(`[trendyol] getProducts V2 GET ${url} params=${JSON.stringify({ page, size })}`);
     try {
-      // NOTE: Only `page` and `size` are valid here. An extra `approved`
-      // query param previously caused Trendyol to reject with HTTP 403.
-      const res = await this.client.get(url, { params: { page, size } });
+      const res = await this.v2Client.get(url, { params: { page, size } });
       return res.data;
     } catch (err: any) {
       const status = err?.response?.status;
@@ -116,7 +134,7 @@ export class TrendyolApiClient {
         'Unknown error';
       throw new Error(
         `Trendyol getProducts HTTP ${status}: ${message} ` +
-        `(code=${code}, params=${JSON.stringify({ page, size })}, ` +
+        `(v2 url=${url}, code=${code}, params=${JSON.stringify({ page, size })}, ` +
         `outboundIp=${cachedOutboundIp}, ` +
         `creds(apiKeyLen=${this.credentials.apiKey.length}, secretLen=${this.credentials.apiSecret.length}, supplierId=${this.credentials.supplierId || 'EMPTY'}), ` +
         `wwwAuthenticate=${headers?.['www-authenticate'] ?? headers?.['Www-Authenticate'] ?? 'n/a'})`
