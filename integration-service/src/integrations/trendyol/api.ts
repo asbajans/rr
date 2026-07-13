@@ -84,6 +84,8 @@ export class TrendyolApiClient {
   async getProducts(page: number = 0, size: number = 50): Promise<unknown> {
     await this.enforceRateLimit();
     try {
+      // NOTE: Only `page` and `size` are valid here. An extra `approved`
+      // query param previously caused Trendyol to reject with HTTP 403.
       const res = await this.client.get(
         `/suppliers/${this.credentials.supplierId}/products`,
         { params: { page, size } }
