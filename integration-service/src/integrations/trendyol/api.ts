@@ -105,7 +105,8 @@ export class TrendyolApiClient {
         'Unknown error';
       throw new Error(
         `Trendyol getProducts HTTP ${status}: ${message} ` +
-        `(code=${code}, wwwAuthenticate=${headers?.['www-authenticate'] ?? headers?.['Www-Authenticate'] ?? 'n/a'})`
+        `(code=${code}, params=${JSON.stringify({ page, size })}, ` +
+        `wwwAuthenticate=${headers?.['www-authenticate'] ?? headers?.['Www-Authenticate'] ?? 'n/a'})`
       );
     }
   }
