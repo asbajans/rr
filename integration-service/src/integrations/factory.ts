@@ -18,8 +18,9 @@ export function getIntegrations(): IntegrationInterface[] {
 
   const hbUsername = process.env.HB_USERNAME;
   const hbPassword = process.env.HB_PASSWORD;
-  if (hbUsername && hbPassword) {
-    list.push(new HepsiburadaIntegrationService(hbUsername, hbPassword));
+  const hbMerchantId = process.env.HB_MERCHANT_ID;
+  if (hbUsername && hbPassword && hbMerchantId) {
+    list.push(new HepsiburadaIntegrationService(hbUsername, hbPassword, hbMerchantId));
   }
 
   return list;
@@ -40,8 +41,9 @@ export function createIntegration(
     case 'hepsiburada': {
       const username = config.username;
       const password = config.password;
-      if (!username || !password) return null;
-      return new HepsiburadaIntegrationService(username, password);
+      const merchantId = config.merchant_id || config.merchantId;
+      if (!username || !password || !merchantId) return null;
+      return new HepsiburadaIntegrationService(username, password, merchantId);
     }
     case 'pazarama': {
       const clientId = config.client_id || config.clientId;

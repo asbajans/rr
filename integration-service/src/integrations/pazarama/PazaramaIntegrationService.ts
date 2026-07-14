@@ -132,7 +132,19 @@ export class PazaramaIntegrationService extends IntegrationInterface {
   }
 
   async fetchCategories(): Promise<MarketplaceCategory[]> {
-    console.log('[pazarama] fetchCategories not supported yet');
-    return [];
+    try {
+      const res = await this.client.get('/category', { headers: await this.authHeaders() });
+      const raw = (res.data?.items ?? res.data?.data ?? res.data ?? []) as any[];
+      if (!Array.isArray(raw)) return [];
+      if (raw[0]) console.log('[pazarama] sample raw category[0]:', JSON.stringify(raw[0]).slice(0, 800));
+      return raw.map((c: any) => ({
+        id: String(c.id ?? c.code ?? c.categoryId ?? ''),
+        name: String(c.name ?? c.title ?? c.categoryName ?? ''),
+        parentId: c.parentId != null ? String(c.parentId) : null,
+      }));
+    } catch (err) {
+      console.error('[pazarama] fetchCategories failed:', err instanceof Error ? err.message : 'Unknown');
+      return [];
+    }
   }
 }

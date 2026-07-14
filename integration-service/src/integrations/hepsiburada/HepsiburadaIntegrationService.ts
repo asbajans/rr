@@ -1,115 +1,75 @@
 import { IntegrationInterface } from '../IntegrationInterface';
 import { ProductData, Order, MarketplaceCategory } from '../../types';
-import axios from 'axios';
+import { HepsiburadaApiClient } from './api';
+import { mapToHepsiburadaCreatePayload, mapToHepsiburadaProduct } from './mapper';
 
 export class HepsiburadaIntegrationService extends IntegrationInterface {
-  private baseUrl: string;
-  private authHeader: string;
+  private api: HepsiburadaApiClient;
 
-  constructor(username: string, password: string) {
+  constructor(username: string, password: string, merchantId: string) {
     super('hepsiburada');
-    this.baseUrl = 'https://api.hepsiburada.com';
-    this.authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+    this.api = new HepsiburadaApiClient({ username, password, merchantId });
   }
 
   async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
     try {
-      const res = await axios.post(`${this.baseUrl}/products`, data, {
-        headers: { Authorization: this.authHeader },
-      });
-      return { success: true, marketplaceId: String(res.data?.id || '') };
-    } catch (err) {
-      return { success: false, error: `HB sendProduct: ${err instanceof Error ? err.message : 'Unknown'}` };
+      const payload = [mapToHepsiburadaCreatePayload(data, this.api.merchantId)];
+      const res = await this.api.importProducts(payload);
+      const trackingId = res?.trackingId ?? res?.tracking_id ?? '';
+      if (!trackingId && !(res?.status === 'OK' || res?.httpStatus === 200)) {
+        return { success: false, error: `HB import rejected: ${JSON.stringify(res)}` };
+      }
+      return { success: true, marketplaceId: trackingId };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'HB sendProduct failed' };
     }
   }
 
   async updateStock(sku: string, quantity: number): Promise<{ success: boolean; error?: string }> {
     try {
-      await axios.put(`${this.baseUrl}/stock`, { sku, quantity }, {
-        headers: { Authorization: this.authHeader },
-      });
+      await this.api.updateListing(sku, { availableStock: Number(quantity) });
       return { success: true };
-    } catch (err) {
-      return { success: false, error: `HB updateStock: ${err instanceof Error ? err.message : 'Unknown'}` };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'HB updateStock failed' };
     }
   }
 
-  async updatePrice(sku: string, price: number, _currency: string): Promise<{ success: boolean; error?: string }> {
+  async updatePrice(sku: string, price: number, currency: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await axios.put(`${this.baseUrl}/price`, { sku, price }, {
-        headers: { Authorization: this.authHeader },
-      });
+      await this.api.updateListing(sku, { price: Number(price) });
       return { success: true };
-    } catch (err) {
-      return { success: false, error: `HB updatePrice: ${err instanceof Error ? err.message : 'Unknown'}` };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'HB updatePrice failed' };
     }
-  }
-
-  async fetchOrders(sinceDate?: string): Promise<Order[]> {
-    const params: Record<string, string> = {};
-    if (sinceDate) params.startDate = sinceDate;
-
-    const res = await axios.get(`${this.baseUrl}/orders`, {
-      headers: { Authorization: this.authHeader },
-      params,
-    });
-
-    const rawOrders = (res.data?.orders || []) as any[];
-    return rawOrders.map((o) => ({
-      id: String(o.id || ''),
-      marketplace: 'hepsiburada',
-      status: o.status || '',
-      items: (o.items || []).map((i: any) => ({
-        sku: i.productCode || '',
-        name: i.productName || '',
-        quantity: i.quantity || 0,
-        price: Number(i.unitPrice) || 0,
-      })),
-      customer: {
-        name: o.customer?.name || '',
-        email: o.customer?.email || '',
-        phone: o.customer?.phone || '',
-      },
-      createdAt: o.createdAt || '',
-    }));
   }
 
   async fetchProducts(page: number = 0): Promise<ProductData[]> {
     try {
-      const res = await axios.get(`${this.baseUrl}/products`, {
-        headers: { Authorization: this.authHeader },
-        params: { offset: page * 50, limit: 50 },
-      });
-
-      const rawProducts = (res.data?.products || res.data?.listings || res.data || []) as any[];
-      if (!Array.isArray(rawProducts)) return [];
-
-      return rawProducts.map((p) => ({
-        id: String(p.id ?? p.merchantSku ?? p.hepsiburadaSku ?? ''),
-        sku: String(p.merchantSku ?? p.sku ?? p.hepsiburadaSku ?? ''),
-        name: p.productName ?? p.title ?? '',
-        description: p.description ?? '',
-        price: Number(p.price ?? p.salePrice ?? 0),
-        currency: 'TRY',
-        stock: Number(p.availableStock ?? p.stock ?? p.quantity ?? 0),
-        category: String(p.categoryName ?? p.categoryId ?? ''),
-        barcode: p.barcode ?? undefined,
-        brand: p.brand ?? undefined,
-        images: Array.isArray(p.images)
-          ? p.images.map((i: any) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)
-          : (p.image ? [p.image] : []),
-        attributes: (p.attributes && typeof p.attributes === 'object' && !Array.isArray(p.attributes))
-          ? p.attributes
-          : {},
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      throw new Error(`HB fetchProducts failed: ${message}`);
+      const res = await this.api.getListings(page, 50);
+      const raw = Array.isArray(res?.listings)
+        ? res.listings
+        : Array.isArray(res?.items)
+          ? res.items
+          : Array.isArray(res)
+            ? res
+            : [];
+      if (page === 0 && raw[0]) {
+        console.log('[hb] sample raw listing[0]:', JSON.stringify(raw[0]).slice(0, 1200));
+      }
+      return raw.map((p: any) => mapToHepsiburadaProduct(p));
+    } catch (err: any) {
+      console.error('[hb] fetchProducts error:', err?.message);
+      return [];
     }
   }
 
+  async fetchOrders(sinceDate?: string): Promise<Order[]> {
+    console.warn('[hb] fetchOrders not implemented');
+    return [];
+  }
+
   async fetchCategories(): Promise<MarketplaceCategory[]> {
-    console.log('[hb] fetchCategories not supported yet');
+    console.warn('[hb] fetchCategories not implemented (verify HB category endpoint)');
     return [];
   }
 }

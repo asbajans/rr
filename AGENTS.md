@@ -254,7 +254,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 ### Phase 6C.1 — Pazaryeri Ürün İçe Aktarma ✅ **TAMAM**
 - [x] `IntegrationInterface.fetchProducts(page)` abstract metod
 - [x] Trendyol: `api.getProducts()` + `TrendyolIntegrationService.fetchProducts()` (content → ProductData)
-- [x] Hepsiburada: `HepsiburadaIntegrationService.fetchProducts()`
+- [x] Hepsiburada: `HepsiburadaIntegrationService` — REST (mpop.hepsiburada.com + listing-external.hepsiburada.com), Basic auth + `User-Agent: {MERCHANT_ID} - SelfIntegration`, `merchant_id` config gerekli; `fetchProducts` (listing), `sendProduct` (catalog import, trackingId + comma-decimal price), `updateStock`/`updatePrice` (listing PUT)
 - [x] `factory.createIntegration(marketplace, config)` — store config'ten integration örneği
 - [x] integration-service: `POST /import/products` route (marketplace + config + maxPages → products)
 - [x] core-engine: `AimeosProductImporter` servisi (create/update by SKU, price/stock/media/text)
@@ -586,7 +586,7 @@ interface ProductData {
 - `INTEGRATION_SERVICE_URL` (core) → integration-service adresi
 - `QUEUE_CONNECTION=redis` + `redis.default` config (core) — import job kuyruğu
 - Trendyol: `TRENDYOL_API_KEY`, `TRENDYOL_API_SECRET`, `TRENDYOL_SUPPLIER_ID` (factory fallback; asıl config store'dan gelir)
-- Hepsiburada: `HB_USERNAME`, `HB_PASSWORD`
+- Hepsiburada: `HB_USERNAME`, `HB_PASSWORD`, `HB_MERCHANT_ID`
 - `CORE_API_KEY` (integration→core iç sync'ler için)
 
 ### Teşhis / Bilinen Davranış
@@ -782,7 +782,7 @@ Kod denetimi sonucu tespit edilen eksiklik ve hatalar. Mimari sağlam, fazların
 
 ### 🟡 Orta
 - **B1 — Fiyat güncellemeleri düşüyor**: `integration-service/src/routes/webhook.ts:32-38` price.updated'ı queue'ya atıyor; `queues/workers.ts:46-54` yalnızca `updateStock()` çağırıp fiyatı yok sayıyor.
-- **B2 — Hepsiburada push kablolanmamış**: worker/webhook yalnız Trendyol; HB ürün/stok push ölü kod.
+- **B2 — Hepsiburada push kablolanmamış**: ~~worker/webhook yalnız Trendyol; HB ürün/stok push ölü kod~~ → **ÇÖZÜLDÜ**: HB `sendProduct`/`updateStock`/`updatePrice` REST ile kablolandı (mpop + listing-external). Push worker'ın tüm pazaryerlerini kapsaması için `queues/workers.ts` güncellenecek (bkz. B1).
 - **B3 — Eksik ComfyUI workflow**: `ai-service/src/services/comfyui.ts:16-18` `product-studio-dekorasyon.json` / `product-studio-spor.json` referans veriyor, `ai-service/workflows/` içinde yok.
 - **C1 — mobile kurulum kırıcı**: `mobile-app/package.json` `typescript ~6.0.3` (yayınlanmamış) → CI install patlar. Ayrıca SDK 54 kullanımı, doküman "SDK 52" diyor.
 - **C2 — Eksik compose env**: `laravel-app`'te `AI_SERVICE_URL`/`CORE_API_KEY`/`RAHAT_INTERNAL_KEY`, integration'da `CORE_API_KEY`/`HB_USERNAME`/`HB_PASSWORD` yok.

@@ -53,7 +53,7 @@ class MarketplaceIntegration extends Model
             ],
             'hepsiburada' => [
                 'label' => 'Hepsiburada',
-                'fields' => ['username' => 'Kullanıcı Adı', 'password' => 'Şifre'],
+                'fields' => ['username' => 'API Kullanıcı Adı', 'password' => 'API Şifre', 'merchant_id' => 'Satıcı ID (Merchant ID)'],
             ],
             'pazarama' => [
                 'label' => 'Pazarama',

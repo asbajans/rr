@@ -247,7 +247,7 @@ class MarketplaceIntegrationController extends Controller
     {
         return match ($marketplace) {
             'trendyol' => ['api_key' => '', 'api_secret' => '', 'supplier_id' => ''],
-            'hepsiburada' => ['username' => '', 'password' => ''],
+            'hepsiburada' => ['username' => '', 'password' => '', 'merchant_id' => ''],
             'pazarama' => ['client_id' => '', 'client_secret' => '', 'api_key' => ''],
             'n11' => ['appkey' => '', 'appsecret' => ''],
             'amazon' => [
