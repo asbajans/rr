@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Product, B2bSetting, MarketplaceIntegration } from '@/lib/types'
 
-const MAX_IMAGES = 6
+const MAX_IMAGES = 12
+
+type ImageItem = { kind: 'file' | 'url'; file?: File; url?: string; preview: string }
 
 type ProductForm = {
   code: string
@@ -13,14 +15,17 @@ type ProductForm = {
   price: string
   stock: string
   status: number
-  images: File[]
+  description: string
+  category: string
+  brand: string
+  images: ImageItem[]
   marketplaces: string[]
   b2b_enabled: boolean
   b2b_discount: string
   b2b_price: string
 }
 
-const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, images: [], marketplaces: [], b2b_enabled: false, b2b_discount: '', b2b_price: '' }
+const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, description: '', category: '', brand: '', images: [], marketplaces: [], b2b_enabled: false, b2b_discount: '', b2b_price: '' }
 
 const MARKETPLACE_LABELS: Record<string, string> = {
   own: 'Kendi Sitem',
@@ -42,10 +47,43 @@ export default function ProductsPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriceMin, setFilterPriceMin] = useState('')
   const [filterPriceMax, setFilterPriceMax] = useState('')
+  const [marketplaceImages, setMarketplaceImages] = useState<string[]>([])
+  const [taxonomies, setTaxonomies] = useState<{ categories: Record<string, string[]>; brands: Record<string, string[]> }>({ categories: {}, brands: {} })
+  const [aiDescLoading, setAiDescLoading] = useState(false)
+  const [showAiImagePanel, setShowAiImagePanel] = useState(false)
+  const [aiEditSelected, setAiEditSelected] = useState<string[]>([])
+  const [aiEditPrompt, setAiEditPrompt] = useState('')
+  const [aiEditLoading, setAiEditLoading] = useState(false)
+  const [aiEditError, setAiEditError] = useState('')
+
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ProductForm>(emptyForm)
-  const [previews, setPreviews] = useState<string[]>([])
+
+  const categoryOptions = useMemo(() => {
+    const scopes = form.marketplaces.length ? form.marketplaces : Object.keys(taxonomies.categories)
+    const set = new Set<string>()
+    scopes.forEach((s) => (taxonomies.categories[s] ?? []).forEach((v) => set.add(v)))
+    if (form.category) set.add(form.category)
+    return Array.from(set)
+  }, [form.marketplaces, form.category, taxonomies])
+
+  const brandOptions = useMemo(() => {
+    const scopes = form.marketplaces.length ? form.marketplaces : Object.keys(taxonomies.brands)
+    const set = new Set<string>()
+    scopes.forEach((s) => (taxonomies.brands[s] ?? []).forEach((v) => set.add(v)))
+    if (form.brand) set.add(form.brand)
+    return Array.from(set)
+  }, [form.marketplaces, form.brand, taxonomies])
+
+  function loadTaxonomies() {
+    api.getProductTaxonomies().then((res) => setTaxonomies(res)).catch(() => {})
+  }
+
+  function toggleAiEditImage(u: string) {
+    setAiEditSelected((prev) => (prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u]))
+  }
+
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -90,25 +128,38 @@ export default function ProductsPage() {
   function openCreate() {
     setEditingId(null)
     setForm(emptyForm)
-    setPreviews([])
+    setMarketplaceImages([])
+    setShowAiImagePanel(false)
+    setAiEditSelected([])
+    setAiEditPrompt('')
+    setAiEditError('')
+    loadTaxonomies()
     setShowModal(true)
   }
 
   function openEdit(p: Product) {
     setEditingId(p.id)
+    setMarketplaceImages(p.images ?? [])
+    loadTaxonomies()
     setForm({
       code: p.code,
       label: p.label,
       price: p.price?.toString() ?? '',
       stock: p.stock?.toString() ?? '',
       status: p.status,
-      images: [],
+      description: p.description ?? '',
+      category: p.category ?? '',
+      brand: p.brand ?? '',
+      images: (p.images ?? []).map((u) => ({ kind: 'url' as const, url: u, preview: u })),
       marketplaces: p.marketplaces ?? [],
       b2b_enabled: false,
       b2b_discount: '',
       b2b_price: '',
     })
-    setPreviews([])
+    setShowAiImagePanel(false)
+    setAiEditSelected([])
+    setAiEditPrompt('')
+    setAiEditError('')
     setShowModal(true)
 
     api.getB2bSettings(p.id).then((res) => {
@@ -120,17 +171,84 @@ export default function ProductsPage() {
   }
 
   function handleImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []).slice(0, MAX_IMAGES)
+    const files = Array.from(e.target.files ?? []).slice(0, MAX_IMAGES - form.images.length)
     if (!files.length) return
-    const merged = [...form.images, ...files].slice(0, MAX_IMAGES)
-    setForm({ ...form, images: merged })
-    setPreviews(merged.map((f) => URL.createObjectURL(f)))
+    const added = files.map((f) => ({ kind: 'file' as const, file: f, preview: URL.createObjectURL(f) }))
+    setForm({ ...form, images: [...form.images, ...added].slice(0, MAX_IMAGES) })
   }
 
   function removeImage(idx: number) {
-    const images = form.images.filter((_, i) => i !== idx)
-    setForm({ ...form, images })
-    setPreviews(images.map((f) => URL.createObjectURL(f)))
+    setForm((prev) => {
+      const item = prev.images[idx]
+      if (item?.preview.startsWith('blob:')) URL.revokeObjectURL(item.preview)
+      return { ...prev, images: prev.images.filter((_, i) => i !== idx) }
+    })
+  }
+
+  async function generateDescription() {
+    if (!form.label.trim()) {
+      setError('Önce ürün adını girin')
+      return
+    }
+    setAiDescLoading(true)
+    try {
+      const res = await api.generateProductDescription({
+        name: form.label,
+        brand: form.brand || undefined,
+        category: form.category || undefined,
+        price: form.price ? parseFloat(form.price) : undefined,
+      })
+      setForm((prev) => ({ ...prev, description: res.description }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Açıklama üretilemedi')
+    } finally {
+      setAiDescLoading(false)
+    }
+  }
+
+  async function runAiEdit() {
+    if (aiEditSelected.length === 0 || !aiEditPrompt.trim()) return
+    setAiEditLoading(true)
+    setAiEditError('')
+    try {
+      const res = await api.editProductImage({
+        image_urls: aiEditSelected,
+        prompt: aiEditPrompt,
+        category: form.category || undefined,
+      })
+      const sessionId = res.sessionId
+      if (!sessionId) throw new Error('AI oturumu başlatılamadı')
+
+      let ready: string[] = []
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        const st = await api.getAiStatus(sessionId)
+        if (st.ready && st.ready.length > 0) {
+          ready = st.ready
+          break
+        }
+      }
+      if (ready.length === 0) throw new Error('Görsel üretilemedi')
+
+      for (const file of ready) {
+        const url = api.getAiOutputUrl(sessionId, file)
+        const blob = await fetch(url).then((r) => r.blob())
+        const uploaded = await api.uploadImage(new File([blob], file, { type: blob.type }))
+        const newImg: ImageItem = { kind: 'url', url: uploaded.url, preview: uploaded.url }
+        setForm((prev) => ({
+          ...prev,
+          images: [...prev.images, newImg].slice(0, MAX_IMAGES),
+        }))
+      }
+
+      setShowAiImagePanel(false)
+      setAiEditSelected([])
+      setAiEditPrompt('')
+    } catch (err) {
+      setAiEditError(err instanceof Error ? err.message : 'AI görsel hatası')
+    } finally {
+      setAiEditLoading(false)
+    }
   }
 
   function toggleMarketplace(key: string) {
@@ -150,10 +268,12 @@ export default function ProductsPage() {
       let mediaUrls: string[] = []
       let productId: string | null = editingId
 
-      if (form.images.length) {
-        const uploads = await Promise.all(form.images.map((f) => api.uploadImage(f)))
+      const fileItems = form.images.filter((i) => i.kind === 'file')
+      if (fileItems.length) {
+        const uploads = await Promise.all(fileItems.map((i) => api.uploadImage(i.file!)))
         mediaUrls = uploads.map((u) => u.url)
       }
+      mediaUrls.push(...form.images.filter((i) => i.kind === 'url').map((i) => i.url!))
 
       const payload: Record<string, unknown> = {
         code: form.code,
@@ -161,15 +281,17 @@ export default function ProductsPage() {
         price: form.price ? parseFloat(form.price) : null,
         stock: form.stock ? parseInt(form.stock) : null,
         status: form.status,
+        description: form.description || null,
+        category: form.category || null,
+        brand: form.brand || null,
         marketplaces: form.marketplaces,
+        media_urls: mediaUrls.slice(0, MAX_IMAGES),
       }
 
       if (editingId) {
         delete payload.code
-        if (mediaUrls.length) (payload as any).media_urls = mediaUrls
         await api.updateAdminProduct(editingId, payload as Parameters<typeof api.updateAdminProduct>[1])
       } else {
-        if (mediaUrls.length) (payload as any).media_urls = mediaUrls
         const created = await api.createAdminProduct(payload as unknown as Parameters<typeof api.createAdminProduct>[0])
         productId = (created as unknown as Record<string, string>).id
       }
@@ -401,6 +523,25 @@ export default function ProductsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">Açıklama</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  rows={4}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  placeholder="Ürün açıklaması"
+                />
+                <button
+                  type="button"
+                  onClick={generateDescription}
+                  disabled={aiDescLoading}
+                  className="mt-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  {aiDescLoading ? 'Üretiliyor…' : '✨ AI ile açıklama yaz (1 kredi)'}
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700">Fiyat (₺)</label>
@@ -427,16 +568,72 @@ export default function ProductsPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700">Kategori</label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Seçiniz</option>
+                    {categoryOptions.map((c: string) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  {form.marketplaces.length > 0 && categoryOptions.length === 0 && (
+                    <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride kategori henüz içe aktarılmamış.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700">Marka</label>
+                  <select
+                    value={form.brand}
+                    onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Seçiniz</option>
+                    {brandOptions.map((b: string) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                  {form.marketplaces.length > 0 && brandOptions.length === 0 && (
+                    <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride marka henüz içe aktarılmamış.</p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-zinc-700">
                   Görseller ({form.images.length}/{MAX_IMAGES})
                 </label>
-                <div className="mt-1">
-                  {previews.length > 0 && (
+
+                {marketplaceImages.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-zinc-400">Pazaryeri görselleri (AI düzenleme kaynağı)</p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {marketplaceImages.map((u, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => toggleAiEditImage(u)}
+                          className={`relative h-16 w-16 overflow-hidden rounded-lg border-2 ${
+                            aiEditSelected.includes(u) ? 'border-zinc-900' : 'border-transparent'
+                          }`}
+                        >
+                          <img src={u} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-2">
+                  {form.images.length > 0 && (
                     <div className="mb-2 flex flex-wrap gap-2">
-                      {previews.map((src, idx) => (
+                      {form.images.map((img, idx) => (
                         <div key={idx} className="relative h-20 w-20 overflow-hidden rounded-lg bg-zinc-100">
-                          <img src={src} alt="Preview" className="h-full w-full object-cover" />
+                          <img src={img.preview} alt="Preview" className="h-full w-full object-cover" />
                           <button
                             type="button"
                             onClick={() => removeImage(idx)}
@@ -456,6 +653,16 @@ export default function ProductsPage() {
                       onChange={handleImagesChange}
                       className="block w-full text-sm text-zinc-500 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
                     />
+                  )}
+                  {marketplaceImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAiImagePanel(true)}
+                      disabled={aiEditSelected.length === 0}
+                      className="mt-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                    >
+                      ✨ AI ile görsel düzenle{aiEditSelected.length > 0 ? ` (${aiEditSelected.length} seçili)` : ''}
+                    </button>
                   )}
                 </div>
               </div>
@@ -550,6 +757,58 @@ export default function ProductsPage() {
               </button>
             </div>
           </div>
+
+          {showAiImagePanel && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+              <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+                <h3 className="text-lg font-semibold text-zinc-900">AI ile Görsel Düzenle</h3>
+                <p className="mt-1 text-xs text-zinc-400">Pazaryerinden görselleri seçin ve bir prompt girin.</p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {marketplaceImages.map((u, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => toggleAiEditImage(u)}
+                      className={`h-20 w-20 overflow-hidden rounded-lg border-2 ${
+                        aiEditSelected.includes(u) ? 'border-zinc-900' : 'border-transparent'
+                      }`}
+                    >
+                      <img src={u} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={aiEditPrompt}
+                  onChange={(e) => setAiEditPrompt(e.target.value)}
+                  rows={3}
+                  placeholder="Örn: ürünü doğayla bağla, pastel tonlar, 4K"
+                  className="mt-3 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                />
+
+                {aiEditError && <div className="mt-2 text-sm text-red-600">{aiEditError}</div>}
+
+                <div className="mt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAiImagePanel(false)}
+                    className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runAiEdit}
+                    disabled={aiEditLoading || aiEditSelected.length === 0 || !aiEditPrompt.trim()}
+                    className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                  >
+                    {aiEditLoading ? 'Üretiliyor...' : 'Oluştur'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

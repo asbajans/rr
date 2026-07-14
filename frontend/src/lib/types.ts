@@ -52,6 +52,10 @@ export type Product = {
   price?: number
   stock?: number
   marketplaces?: string[]
+  images?: string[]
+  description?: string | null
+  category?: string | null
+  brand?: string | null
 }
 
 export type DashboardData = {

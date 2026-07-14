@@ -116,6 +116,35 @@ class AimeosProductImporter
                     $listManager->save($tl);
                 }
 
+                foreach (['category', 'brand'] as $ptype) {
+                    $ps = $propManager->filter();
+                    $ps->setConditions($ps->and([
+                        $ps->compare('==', 'product.property.parentid', $item->getId()),
+                        $ps->compare('==', 'product.property.type', $ptype),
+                    ]));
+                    foreach ($propManager->search($ps) as $op) {
+                        $propManager->delete($op->getId());
+                    }
+                }
+
+                if (!empty($record['category'])) {
+                    $cat = $propManager->create();
+                    $cat->setParentId($item->getId());
+                    $cat->setValue((string) $record['category']);
+                    $cat->setType('category');
+                    $cat->setLanguageId(null);
+                    $propManager->save($cat);
+                }
+
+                if (!empty($record['brand'])) {
+                    $brand = $propManager->create();
+                    $brand->setParentId($item->getId());
+                    $brand->setValue((string) $record['brand']);
+                    $brand->setType('brand');
+                    $brand->setLanguageId(null);
+                    $propManager->save($brand);
+                }
+
                 if ($existing) {
                     $updated++;
                 } else {

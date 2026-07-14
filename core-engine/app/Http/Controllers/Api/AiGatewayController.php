@@ -132,4 +132,145 @@ class AiGatewayController extends Controller
             ])
             ->post($url, $request->all());
     }
+
+    public function generateDescription(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->hasAiCredits(1)) {
+            return response()->json([
+                'error' => 'Yetersiz AI kredisi. Lütfen paket satın alın.',
+                'credits' => $user->ai_credits,
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'brand' => 'nullable|string',
+            'category' => 'nullable|string',
+            'price' => 'nullable|numeric',
+            'keywords' => 'nullable|string',
+        ]);
+
+        $prompt = "Aşağıdaki ürün için kısa ve ikna edici bir e-ticaret ürün açıklaması yaz. "
+            . "Türkçe, 2-4 cümle, SEO dostu, ürün özelliklerini vurgula.\n";
+        $prompt .= "Ürün Adı: " . $validated['name'] . "\n";
+        if (!empty($validated['brand'])) {
+            $prompt .= "Marka: " . $validated['brand'] . "\n";
+        }
+        if (!empty($validated['category'])) {
+            $prompt .= "Kategori: " . $validated['category'] . "\n";
+        }
+        if (!empty($validated['price'])) {
+            $prompt .= "Fiyat: " . $validated['price'] . " TL\n";
+        }
+        if (!empty($validated['keywords'])) {
+            $prompt .= "Anahtar kelimeler: " . $validated['keywords'] . "\n";
+        }
+        $prompt .= "Sadece açıklamayı döndür, başlık veya ek metin ekleme.";
+
+        $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/chat';
+        $response = Http::timeout(60)->post($aiUrl, [
+            'message' => $prompt,
+            'history' => [],
+            'storeInfo' => ['name' => $user->store?->name ?? 'Mağaza'],
+        ]);
+
+        if ($response->successful()) {
+            $user->consumeAiCredits(1, 'ai_description', 'AI description');
+            $reply = (string) ($response->json('reply') ?? '');
+            return response()->json(['description' => trim($reply)]);
+        }
+
+        return response()->json(
+            $response->json() ?? ['error' => 'AI servisi yanıt vermedi.'],
+            $response->status()
+        );
+    }
+
+    public function editImage(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->hasAiCredits(1)) {
+            return response()->json([
+                'error' => 'Yetersiz AI kredisi. Lütfen paket satın alın.',
+                'credits' => $user->ai_credits,
+            ], 403);
+        }
+
+        $urls = $request->input('image_urls', []);
+        if (is_string($urls)) {
+            $urls = [$urls];
+        }
+        $single = $request->input('image_url');
+        if ($single) {
+            $urls[] = $single;
+        }
+        $tmpFiles = [];
+
+        try {
+            if (!empty($urls)) {
+                foreach ($urls as $url) {
+                    $content = Http::timeout(30)->get($url)->body();
+                    $ext = strtolower((string) pathinfo(parse_url((string) $url, PHP_URL_PATH), PATHINFO_EXTENSION));
+                    $ext = in_array($ext, ['jpg', 'jpeg', 'png', 'webp']) ? $ext : 'jpg';
+                    $tmp = tempnam(sys_get_temp_dir(), 'aiimg') . '.' . $ext;
+                    file_put_contents($tmp, $content);
+                    $tmpFiles[] = $tmp;
+                }
+            } elseif ($request->hasFile('images')) {
+                $files = $request->file('images');
+                $files = is_array($files) ? $files : [$files];
+                foreach ($files as $f) {
+                    $tmpFiles[] = $f->getPathname();
+                }
+            } else {
+                return response()->json(['error' => 'En az bir görsel gerekli'], 400);
+            }
+
+            $internalKey = $this->keyService->generateEncryptedKey();
+            $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/process-image';
+
+            $http = Http::timeout(300)->withHeaders(['X-Rahat-Internal-Key' => $internalKey]);
+            $data = [
+                'category' => $request->input('category', 'diger'),
+                'notes' => $request->input('prompt') ?? $request->input('notes'),
+                'keywords' => $request->input('prompt'),
+            ];
+
+            foreach ($tmpFiles as $path) {
+                $name = basename($path);
+                $http->attach('images[]', fopen($path, 'r'), $name);
+            }
+
+            $aiResponse = $http->post($aiUrl, $data);
+
+            if ($aiResponse->successful()) {
+                $user->consumeAiCredits(1, 'ai_image_edit', 'AI image edit');
+                return response()->json($aiResponse->json(), $aiResponse->status());
+            }
+
+            return response()->json(
+                $aiResponse->json() ?? ['error' => 'AI servisi yanıt vermedi.'],
+                $aiResponse->status()
+            );
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Görsel işlenemedi: ' . $e->getMessage()], 400);
+        }
+    }
+
+    public function serveOutput(Request $request, string $sessionId, string $file)
+    {
+        $aiUrl = rtrim(env('AI_SERVICE_URL', 'http://rahatio-ai:3000'), '/')
+            . '/output/' . rawurlencode($sessionId) . '/' . rawurlencode($file);
+
+        $response = Http::timeout(30)->get($aiUrl);
+        if (!$response->successful()) {
+            abort(404);
+        }
+
+        $ct = $response->header('Content-Type') ?? 'image/png';
+        return response($response->body())->header('Content-Type', $ct);
+    }
 }

@@ -184,6 +184,10 @@ class ApiClient {
     return this.get<import('./types').Product>(`/api/admin/products/${id}`)
   }
 
+  getProductTaxonomies() {
+    return this.get<{ categories: Record<string, string[]>; brands: Record<string, string[]> }>('/api/admin/products/taxonomies')
+  }
+
   createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[] }) {
     return this.post<import('./types').Product>('/api/admin/products', data)
   }
@@ -279,6 +283,18 @@ class ApiClient {
 
   getAiStatus(sessionId: string) {
     return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
+  }
+
+  generateProductDescription(data: { name: string; brand?: string; category?: string; price?: number; keywords?: string }) {
+    return this.post<{ description: string }>('/api/ai/generate-description', data)
+  }
+
+  editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
+    return this.post<{ sessionId: string; message?: string }>('/api/ai/edit-image', data)
+  }
+
+  getAiOutputUrl(sessionId: string, file: string) {
+    return `${API_BASE}/api/ai/output/${encodeURIComponent(sessionId)}/${encodeURIComponent(file)}`
   }
 
   aiChat(message: string, history?: { role: string; content: string }[], storeInfo?: Record<string, string>) {

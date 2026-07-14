@@ -72,6 +72,10 @@ class ProductController extends Controller
                 'currency' => $details['currency'],
                 'stock' => $details['stock'],
                 'image' => $details['image'],
+                'images' => $details['images'],
+                'description' => $details['description'],
+                'category' => $details['category'],
+                'brand' => $details['brand'],
                 'marketplaces' => $marketplaces,
             ];
         }
@@ -102,7 +106,7 @@ class ProductController extends Controller
     private function productDetails(\Aimeos\MShop\ContextIface $context, \Aimeos\MShop\Common\Item\Iface $item): array
     {
         $id = $item->getId();
-        $data = ['price' => null, 'currency' => 'TRY', 'stock' => null, 'image' => null];
+        $data = ['price' => null, 'currency' => 'TRY', 'stock' => null, 'image' => null, 'images' => [], 'description' => null, 'category' => null, 'brand' => null];
 
         try {
             $priceManager = MShop::create($context, 'price');
@@ -145,14 +149,22 @@ class ProductController extends Controller
                 $ls2->compare('==', 'product.lists.parentid', $id),
                 $ls2->compare('==', 'product.lists.domain', 'media'),
             ]));
+            $ls2->setSortations([$ls2->sort('+', 'product.lists.position')]);
             foreach ($listManager2->search($ls2) as $ml) {
                 $mediaItem = $mediaManager->get($ml->getRefId());
-                $data['image'] = $mediaItem->getUrl();
-                break;
+                $url = $mediaItem->getUrl();
+                $data['images'][] = $url;
+                if ($data['image'] === null) {
+                    $data['image'] = $url;
+                }
             }
         } catch (\Throwable $e) {
             // media not available
         }
+
+        $data['description'] = $this->getText($context, $id);
+        $data['category'] = $this->getProp($context, $id, 'category');
+        $data['brand'] = $this->getProp($context, $id, 'brand');
 
         return $data;
     }
@@ -166,6 +178,9 @@ class ProductController extends Controller
             'currency' => 'nullable|string|size:3',
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string|max:255',
+            'brand' => 'nullable|string|max:255',
             'media_url' => 'nullable|string|max:1024',
             'media_urls' => 'nullable|array|max:6',
             'media_urls.*' => 'nullable|string|max:1024',
@@ -236,6 +251,16 @@ class ProductController extends Controller
             $this->saveMarketplaces($context, $item->getId(), $validated['marketplaces']);
         }
 
+        if (array_key_exists('description', $validated ?? [])) {
+            $this->saveText($context, $item->getId(), $validated['description'] ?? null);
+        }
+        if (array_key_exists('category', $validated ?? [])) {
+            $this->saveProp($context, $item->getId(), 'category', $validated['category'] ?? null);
+        }
+        if (array_key_exists('brand', $validated ?? [])) {
+            $this->saveProp($context, $item->getId(), 'brand', $validated['brand'] ?? null);
+        }
+
         return response()->json($item->toArray(), 201);
     }
 
@@ -247,6 +272,9 @@ class ProductController extends Controller
             'currency' => 'nullable|string|size:3',
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string|max:255',
+            'brand' => 'nullable|string|max:255',
             'media_url' => 'nullable|string|max:1024',
             'media_urls' => 'nullable|array|max:6',
             'media_urls.*' => 'nullable|string|max:1024',
@@ -337,7 +365,60 @@ class ProductController extends Controller
             $this->saveMarketplaces($context, $item->getId(), $validated['marketplaces']);
         }
 
+        if (array_key_exists('description', $validated ?? [])) {
+            $this->saveText($context, $item->getId(), $validated['description'] ?? null);
+        }
+        if (array_key_exists('category', $validated ?? [])) {
+            $this->saveProp($context, $item->getId(), 'category', $validated['category'] ?? null);
+        }
+        if (array_key_exists('brand', $validated ?? [])) {
+            $this->saveProp($context, $item->getId(), 'brand', $validated['brand'] ?? null);
+        }
+
         return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);
+    }
+
+    public function taxonomies(Request $request)
+    {
+        $context = $this->context();
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['categories' => [], 'brands' => []]);
+        }
+
+        $manager = MShop::create($context, 'product');
+        $items = $manager->search($manager->filter());
+
+        $cats = [];
+        $brands = [];
+        foreach ($items as $item) {
+            $id = $item->getId();
+            $mps = $this->getMarketplaces($context, $id);
+            $cat = $this->getProp($context, $id, 'category');
+            $brand = $this->getProp($context, $id, 'brand');
+            $scopes = !empty($mps) ? $mps : ['own'];
+            if ($cat) {
+                foreach ($scopes as $s) {
+                    $cats[$s][$cat] = true;
+                }
+            }
+            if ($brand) {
+                foreach ($scopes as $s) {
+                    $brands[$s][$brand] = true;
+                }
+            }
+        }
+
+        $categories = [];
+        foreach ($cats as $scope => $vals) {
+            $categories[$scope] = array_keys($vals);
+        }
+        $brandList = [];
+        foreach ($brands as $scope => $vals) {
+            $brandList[$scope] = array_keys($vals);
+        }
+
+        return response()->json(['categories' => $categories, 'brands' => $brandList]);
     }
 
     public function destroy(string $id)
@@ -375,6 +456,103 @@ class ProductController extends Controller
             // property not available
         }
         return [];
+    }
+
+    private function getText(\Aimeos\MShop\ContextIface $context, string $productId): ?string
+    {
+        try {
+            $textManager = MShop::create($context, 'text');
+            $listManager = MShop::create($context, 'product/lists');
+            $ls = $listManager->filter();
+            $ls->setConditions($ls->and([
+                $ls->compare('==', 'product.lists.parentid', $productId),
+                $ls->compare('==', 'product.lists.domain', 'text'),
+                $ls->compare('==', 'product.lists.type', 'long'),
+            ]));
+            foreach ($listManager->search($ls) as $li) {
+                $text = $textManager->get($li->getRefId());
+                return $text->getContent();
+            }
+        } catch (\Throwable $e) {
+            // text not available
+        }
+        return null;
+    }
+
+    private function saveText(\Aimeos\MShop\ContextIface $context, string $productId, ?string $text): void
+    {
+        $listManager = MShop::create($context, 'product/lists');
+        $ls = $listManager->filter();
+        $ls->setConditions($ls->and([
+            $ls->compare('==', 'product.lists.parentid', $productId),
+            $ls->compare('==', 'product.lists.domain', 'text'),
+            $ls->compare('==', 'product.lists.type', 'long'),
+        ]));
+        $textManager = MShop::create($context, 'text');
+        foreach ($listManager->search($ls) as $li) {
+            $textManager->delete($li->getRefId());
+            $listManager->delete($li->getId());
+        }
+
+        if ($text === null || $text === '') {
+            return;
+        }
+
+        $textItem = $textManager->create();
+        $textItem->setType('long');
+        $textItem->setLanguageId('tr');
+        $textItem->setContent($text);
+        $textItem->setLabel(mb_substr($text, 0, 100));
+        $textItem = $textManager->save($textItem);
+
+        $li = $listManager->create();
+        $li->setParentId($productId);
+        $li->setRefId($textItem->getId());
+        $li->setDomain('text');
+        $li->setType('long');
+        $listManager->save($li);
+    }
+
+    private function getProp(\Aimeos\MShop\ContextIface $context, string $productId, string $type): ?string
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', $type),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                return $prop->getValue();
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return null;
+    }
+
+    private function saveProp(\Aimeos\MShop\ContextIface $context, string $productId, string $type, ?string $value): void
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $ps = $propManager->filter();
+        $ps->setConditions($ps->and([
+            $ps->compare('==', 'product.property.parentid', $productId),
+            $ps->compare('==', 'product.property.type', $type),
+        ]));
+        foreach ($propManager->search($ps) as $op) {
+            $propManager->delete($op->getId());
+        }
+
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $prop = $propManager->create();
+        $prop->setParentId($productId);
+        $prop->setType($type);
+        $prop->setValue($value);
+        $prop->setLanguageId(null);
+        $propManager->save($prop);
     }
 
     private function saveMarketplaces(\Aimeos\MShop\ContextIface $context, string $productId, array $marketplaces): void

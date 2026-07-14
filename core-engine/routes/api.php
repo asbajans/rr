@@ -55,6 +55,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/recommend', [AiGatewayController::class, 'recommend']);
     Route::post('/ai/chat', [AiGatewayController::class, 'chat']);
     Route::post('/ai/analyze-product', [AiGatewayController::class, 'analyzeProduct']);
+    Route::post('/ai/generate-description', [AiGatewayController::class, 'generateDescription']);
+    Route::post('/ai/edit-image', [AiGatewayController::class, 'editImage']);
+    Route::get('/ai/output/{sessionId}/{file}', [AiGatewayController::class, 'serveOutput'])->where('file', '.*');
 
     Route::get('/admin/dashboard', [DashboardController::class, 'index']);
 
@@ -84,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin/products')->group(function () {
         Route::get('/', [AdminProductController::class, 'index']);
         Route::post('/', [AdminProductController::class, 'store']);
+        Route::get('taxonomies', [AdminProductController::class, 'taxonomies']);
         Route::get('{id}', [AdminProductController::class, 'show']);
         Route::put('{id}', [AdminProductController::class, 'update']);
         Route::delete('{id}', [AdminProductController::class, 'destroy']);
