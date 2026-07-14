@@ -25,7 +25,7 @@ router.post('/import/products', async (req: Request, res: Response) => {
   const products = [];
 
   try {
-    console.log(`[import] fetching ${marketplace} products, pages=${pageLimit}`);
+    console.log(`[import] fetching ${marketplace} products, pages=${pageLimit}, configKeys=[${Object.keys(config || {}).join(',')}]`);
     for (let page = 0; page < pageLimit; page++) {
       const batch = await integration.fetchProducts(page);
       if (!batch.length) break;
@@ -60,7 +60,7 @@ router.post('/import/categories', async (req: Request, res: Response) => {
   }
 
   try {
-    console.log(`[import] fetching ${marketplace} categories`);
+    console.log(`[import] fetching ${marketplace} categories, configKeys=[${Object.keys(config || {}).join(',')}]`);
     const categories = await integration.fetchCategories();
     console.log(`[import] ${marketplace}: fetched ${categories.length} categories`);
     res.json({ marketplace, count: categories.length, categories });

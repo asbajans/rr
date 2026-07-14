@@ -33,7 +33,7 @@ async function logDiagnostics() {
   const k = process.env.TRENDYOL_API_KEY;
   const s = process.env.TRENDYOL_API_SECRET;
   const sid = process.env.TRENDYOL_SUPPLIER_ID;
-  console.log(`[diag] trendyol creds: apiKey=${k ? 'set' : 'EMPTY'}, secret=${s ? 'set' : 'EMPTY'}, supplierId=${sid ? 'set' : 'EMPTY'}`);
+  console.log(`[diag] trendyol ENV fallback creds (unused for imports, per-request config is used): apiKey=${k ? 'set' : 'EMPTY'}, secret=${s ? 'set' : 'EMPTY'}, supplierId=${sid ? 'set' : 'EMPTY'}`);
 }
 
 app.listen(PORT, () => {
