@@ -131,10 +131,13 @@ export class PazaramaIntegrationService extends IntegrationInterface {
   }
 
   /** List brands (for brand name -> GUID resolution). */
-  async getBrands(page: number = 1, size: number = 100): Promise<{ id: string; name: string }[]> {
+  async getBrands(page: number = 1, size: number = 100000): Promise<{ id: string; name: string }[]> {
     if (this.brandCache) return this.brandCache;
     try {
-      const res = await this.client.get('/brand', { params: { page, size }, headers: await this.authHeaders() });
+      const res = await this.client.get('/brand/getBrands', {
+        params: { Page: page, Size: size },
+        headers: await this.authHeaders(),
+      });
       const raw = (res.data?.data ?? res.data ?? []) as any[];
       const brands = Array.isArray(raw) ? raw.map((b) => ({ id: String(b.id ?? ''), name: String(b.name ?? '') })) : [];
       this.brandCache = brands;
