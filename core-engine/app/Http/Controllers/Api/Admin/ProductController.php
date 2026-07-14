@@ -283,7 +283,7 @@ class ProductController extends Controller
         if (!empty($validated['media_url'])) {
             $this->attachMedia($context, $item->getId(), $validated['media_url']);
         } elseif (!empty($validated['media_urls'])) {
-            foreach (array_slice($validated['media_urls'], 0, 6) as $url) {
+            foreach (array_slice($validated['media_urls'], 0, 12) as $url) {
                 if (!empty($url)) {
                     $this->attachMedia($context, $item->getId(), $url);
                 }
@@ -395,7 +395,7 @@ class ProductController extends Controller
             if (!empty($validated['media_url'])) {
                 $this->attachMedia($context, $item->getId(), $validated['media_url']);
             } elseif (!empty($validated['media_urls'])) {
-                foreach (array_slice($validated['media_urls'], 0, 6) as $url) {
+                foreach (array_slice($validated['media_urls'], 0, 12) as $url) {
                     if (!empty($url)) {
                         $this->attachMedia($context, $item->getId(), $url);
                     }

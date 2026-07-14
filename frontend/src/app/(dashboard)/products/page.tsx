@@ -21,7 +21,7 @@ interface ProductModalData {
   category: string
   category_id: string
   brand: string
-  mediaUrl: string
+  images: string[]
   marketplaces: string[]
   marketplace_data: Record<string, MarketplaceEntry>
   description: string
@@ -87,7 +87,7 @@ export default function ProductsPage() {
 
   // bulk AI modal
   const [bulkAiOpen, setBulkAiOpen] = useState(false)
-  const [bulkAiField, setBulkAiField] = useState<'title' | 'description'>('description')
+  const [bulkAiField, setBulkAiField] = useState<'title' | 'description' | 'all'>('description')
   const [bulkAiRunning, setBulkAiRunning] = useState(false)
   const [bulkAiDone, setBulkAiDone] = useState(0)
   const [bulkAiTotal, setBulkAiTotal] = useState(0)
@@ -170,7 +170,7 @@ export default function ProductsPage() {
       category: md?.category ?? '',
       category_id: md?.category_id ?? '',
       brand: p.brand ?? md?.brand ?? '',
-      mediaUrl: p.media_url ?? '',
+      images: p.images && p.images.length ? p.images.map((u) => u) : (p.media_url ? [p.media_url] : []),
       marketplaces: p.marketplaces ?? [],
       marketplace_data: p.marketplace_data ?? {},
       description: p.description ?? '',
@@ -200,7 +200,8 @@ export default function ProductsPage() {
       marketplaces: product.marketplaces,
       marketplace_data,
     }
-    if (product.mediaUrl.trim()) payload.media_urls = [product.mediaUrl.trim()]
+    const imgs = product.images.map((s) => s.trim()).filter(Boolean)
+    if (imgs.length) payload.media_urls = imgs
     if (product.description.trim()) payload.description = product.description.trim()
 
     try {
@@ -286,6 +287,55 @@ export default function ProductsPage() {
     }
   }
 
+  async function handleImageAiEdit(index: number) {
+    if (!product) return
+    const url = product.images[index]?.trim()
+    if (!url) {
+      setError('Önce bir görsel URL girin')
+      return
+    }
+    const prompt = window.prompt(
+      'Görsel için AI düzenleme talimatı (örn: beyaz arka plan, profesyonel ürün fotoğrafı):',
+      'beyaz arka plan, daha parlak, profesyonel ürün fotoğrafı'
+    )
+    if (prompt === null) return
+    try {
+      const md = product.marketplace_data ? Object.values(product.marketplace_data)[0] : undefined
+      const res = await api.editProductImage({
+        image_urls: [url],
+        prompt,
+        category: md?.category || product.category || undefined,
+      })
+      const sid = res.sessionId
+      if (!sid) throw new Error('AI oturumu başlatılamadı')
+      let files: string[] = []
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        const st = await api.getAiStatus(sid)
+        if (st.ready && st.ready.length > 0) {
+          files = st.ready
+          break
+        }
+      }
+      if (files.length === 0) throw new Error('Görsel üretilemedi')
+      for (const file of files) {
+        const outUrl = api.getAiOutputUrl(sid, file)
+        const blob = await fetch(outUrl).then((r) => r.blob())
+        const uploaded = await api.uploadImage(new File([blob], file, { type: blob.type }))
+        if (uploaded.url) {
+          setProduct((prev) => {
+            if (!prev) return prev
+            const imgs = [...prev.images]
+            imgs[index] = uploaded.url as string
+            return { ...prev, images: imgs }
+          })
+        }
+      }
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
   function toggleSelect(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
@@ -323,10 +373,24 @@ export default function ProductsPage() {
           brand: p?.brand || md?.brand || '',
           category: md?.category || '',
           price: p?.price,
-          field: bulkAiField,
+          field: bulkAiField === 'all' ? 'description' : bulkAiField,
         })
         const patch: { label?: string; description?: string } =
-          bulkAiField === 'title' ? { label: res.title ?? p?.label ?? '' } : { description: res.description ?? '' }
+          bulkAiField === 'title'
+            ? { label: res.title ?? p?.label ?? '' }
+            : bulkAiField === 'description'
+              ? { description: res.description ?? '' }
+              : { label: res.title ?? p?.label ?? '', description: res.description ?? '' }
+        if (bulkAiField === 'all') {
+          const t = await api.generateProductDescription({
+            name: p?.label || '',
+            brand: p?.brand || md?.brand || '',
+            category: md?.category || '',
+            price: p?.price,
+            field: 'title',
+          })
+          patch.label = t.title ?? p?.label ?? ''
+        }
         await api.updateAdminProduct(id, patch)
       } catch (e: any) {
         setBulkAiError((err) => `${err}Ürün ${p?.label ?? id}: ${e.message}\n`)
@@ -599,16 +663,57 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Görsel URL</label>
-                <input
-                  value={product.mediaUrl}
-                  onChange={(e) => setProduct({ ...product, mediaUrl: e.target.value })}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
-                  placeholder="https://..."
-                />
-                {product.mediaUrl && (
-                  <img src={product.mediaUrl} alt="" className="mt-2 h-20 w-20 object-cover rounded border" />
-                )}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-gray-500">Görseller ({product.images.filter(Boolean).length})</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setProduct((prev) => (prev ? { ...prev, images: [...prev.images, ''] } : prev))
+                    }
+                    className="text-xs text-indigo-600 hover:underline"
+                  >
+                    + Görsel ekle
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {Array.from({ length: Math.max(product.images.length, 6) }).map((_, idx) => {
+                    const img = product.images[idx] ?? ''
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          value={img}
+                          onChange={(e) => {
+                            const next = [...product.images]
+                            next[idx] = e.target.value
+                            setProduct({ ...product, images: next })
+                          }}
+                          className="flex-1 border rounded px-2 py-1.5 text-sm"
+                          placeholder="https://..."
+                        />
+                        {img.trim() && (
+                          <img src={img} alt="" className="h-10 w-10 object-cover rounded border flex-shrink-0" />
+                        )}
+                        {img.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => handleImageAiEdit(idx)}
+                            className="text-xs text-indigo-600 hover:underline whitespace-nowrap"
+                            title="Yapay zeka ile düzenle"
+                          >
+                            AI Düzenle
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setProduct((prev) => (prev ? { ...prev, images: prev.images.filter((_, i) => i !== idx) } : prev))}
+                          className="text-xs text-red-600 hover:underline whitespace-nowrap"
+                        >
+                          Sil
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               <div>
@@ -787,6 +892,15 @@ export default function ProductsPage() {
                   disabled={bulkAiRunning}
                 />{' '}
                 Başlık
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  checked={bulkAiField === 'all'}
+                  onChange={() => setBulkAiField('all')}
+                  disabled={bulkAiRunning}
+                />{' '}
+                Tüm içeriği oluştur
               </label>
             </div>
 
