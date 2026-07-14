@@ -15,6 +15,7 @@ export class PazaramaIntegrationService extends IntegrationInterface {
   private creds: PazaramaCredentials;
   private token: string | null = null;
   private tokenExpiry = 0;
+  private brandCache: { id: string; name: string }[] | null = null;
 
   private readonly BASE_URL = 'https://isortagimapi.pazarama.com';
   private readonly AUTH_URL = 'https://isortagimgiris.pazarama.com/connect/token';
@@ -66,13 +67,15 @@ export class PazaramaIntegrationService extends IntegrationInterface {
   async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
     try {
       const code = data.sku || data.barcode || `${data.id}`;
+      const brandId = await this.resolveBrandId(data);
+      const attributes = await this.resolveAttributes(data);
       const payload = {
         products: [
           {
             Name: data.name,
             DisplayName: data.name,
             Description: data.description,
-            brandId: data.brand ?? '',
+            brandId,
             Desi: 1,
             Code: code,
             groupCode: String(code).slice(0, 10),
@@ -84,9 +87,7 @@ export class PazaramaIntegrationService extends IntegrationInterface {
             currencyType: 'TRY',
             CategoryId: data.category_id || '',
             images: (data.images || []).slice(0, 8).map((u) => ({ imageurl: u })),
-            attributes: Array.isArray((data as any).pazaramaAttributes)
-              ? (data as any).pazaramaAttributes
-              : [],
+            attributes,
             deliveries: [],
           },
         ],
@@ -99,6 +100,49 @@ export class PazaramaIntegrationService extends IntegrationInterface {
       return { success: ok, marketplaceId: String(batchRequestId) };
     } catch (err) {
       return { success: false, error: `Pazarama sendProduct: ${err instanceof Error ? err.message : 'Unknown'}` };
+    }
+  }
+
+  private async resolveBrandId(data: ProductData): Promise<string> {
+    const override = (data as any).pazaramaBrandId;
+    if (override) return String(override);
+    const name = data.brand?.trim();
+    if (!name) return '';
+    const brands = await this.getBrands();
+    const match = brands.find((b) => b.name?.toLowerCase() === name.toLowerCase());
+    return match?.id ?? '';
+  }
+
+  private async resolveAttributes(data: ProductData): Promise<any[]> {
+    const override = (data as any).pazaramaAttributes;
+    if (Array.isArray(override) && override.length) return override;
+    const autoFill = process.env.PAZARAMA_AUTO_FILL_ATTRIBUTES === '1';
+    if (autoFill && data.category_id) {
+      const schema = await this.getCategoryAttributes(data.category_id);
+      const required = (schema?.attributes ?? []).filter((a: any) => a.isRequired);
+      if (required.length) {
+        return required.map((a: any) => ({
+          attributeId: a.id,
+          attributeValueId: a.attributeValues?.[0]?.id ?? '',
+        }));
+      }
+    }
+    return [];
+  }
+
+  /** List brands (for brand name -> GUID resolution). */
+  async getBrands(page: number = 1, size: number = 100): Promise<{ id: string; name: string }[]> {
+    if (this.brandCache) return this.brandCache;
+    try {
+      const res = await this.client.get('/brand', { params: { page, size }, headers: await this.authHeaders() });
+      const raw = (res.data?.data ?? res.data ?? []) as any[];
+      const brands = Array.isArray(raw) ? raw.map((b) => ({ id: String(b.id ?? ''), name: String(b.name ?? '') })) : [];
+      this.brandCache = brands;
+      if (brands[0]) console.log('[pazarama] sample raw brand[0]:', JSON.stringify(brands[0]));
+      return brands;
+    } catch (err) {
+      console.error('[pazarama] getBrands failed:', err instanceof Error ? err.message : 'Unknown');
+      return [];
     }
   }
 
