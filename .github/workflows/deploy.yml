@@ -55,9 +55,9 @@ jobs:
           PORTAINER_API_KEY: ${{ secrets.PORTAINER_API_KEY }}
         run: |
           python3 - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.request, time
 
-          token = os.environ.get("PORTAINER_API_KEY")
+          token = (os.environ.get("PORTAINER_API_KEY") or "").strip()
           if not token:
               print("No PORTAINER_API_KEY set; skipping redeploy")
               raise SystemExit(0)
@@ -72,12 +72,30 @@ jobs:
           }).encode("utf-8")
 
           url = "https://cont.asb.web.tr/api/stacks/66?endpointId=2"
-          req = urllib.request.Request(
-              url,
-              data=body,
-              method="PUT",
-              headers={"X-API-Key": token, "Content-Type": "application/json"},
-          )
-          with urllib.request.urlopen(req, timeout=120) as r:
-              print("redeploy status:", r.status)
+
+          last_err = None
+          for attempt in range(3):
+              try:
+                  req = urllib.request.Request(
+                      url,
+                      data=body,
+                      method="PUT",
+                      headers={"X-API-Key": token, "Content-Type": "application/json"},
+                  )
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      print("redeploy status:", r.status)
+                      raise SystemExit(0)
+              except urllib.error.HTTPError as e:
+                  last_err = e
+                  detail = ""
+                  try:
+                      detail = e.read().decode("utf-8", "replace")
+                  except Exception:
+                      pass
+                  print(f"attempt {attempt+1} failed: HTTP {e.code}")
+                  print("body:", detail[:500])
+                  if e.code == 403 and "cloudflare" in detail.lower():
+                      print("NOTE: blocked by Cloudflare (not auth). Check Cloudflare Bot Fight Mode / WAF for CI runner IPs.")
+                  time.sleep(3)
+          raise last_err
           PY
