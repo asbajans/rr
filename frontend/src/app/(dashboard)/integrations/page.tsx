@@ -84,11 +84,13 @@ export default function IntegrationsPage() {
         if (status.status === 'done') {
           const s = status.summary
           if (s) {
-            setMessage(
-              `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.imported} yeni, ${s.updated} güncellendi, ${s.failed} başarısız (${s.fetched ?? s.total} ürün çekildi)`
-            )
-          } else if (s?.message) {
-            setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.message}`)
+            if (s.message) {
+              setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.message}`)
+            } else {
+              setMessage(
+                `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.imported} yeni, ${s.updated} güncellendi, ${s.failed} başarısız (${s.fetched ?? s.total} ürün çekildi)`
+              )
+            }
           } else {
             setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma tamamlandı`)
           }
