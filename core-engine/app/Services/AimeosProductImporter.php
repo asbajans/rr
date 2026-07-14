@@ -50,6 +50,13 @@ class AimeosProductImporter
                 $knownMarketplaces = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'];
                 if (in_array($source, $knownMarketplaces, true)) {
                     $this->saveMarketplace($context, $item->getId(), $source);
+                    $this->saveMarketplaceData($context, $item->getId(), [
+                        $source => [
+                            'category' => (string) ($record['category'] ?? ''),
+                            'brand' => (string) ($record['brand'] ?? ''),
+                            'on_sale' => $stock > 0,
+                        ],
+                    ]);
                 }
 
                 $price = (float) ($record['price'] ?? 0);
@@ -116,35 +123,6 @@ class AimeosProductImporter
                     $listManager->save($tl);
                 }
 
-                foreach (['category', 'brand'] as $ptype) {
-                    $ps = $propManager->filter();
-                    $ps->setConditions($ps->and([
-                        $ps->compare('==', 'product.property.parentid', $item->getId()),
-                        $ps->compare('==', 'product.property.type', $ptype),
-                    ]));
-                    foreach ($propManager->search($ps) as $op) {
-                        $propManager->delete($op->getId());
-                    }
-                }
-
-                if (!empty($record['category'])) {
-                    $cat = $propManager->create();
-                    $cat->setParentId($item->getId());
-                    $cat->setValue((string) $record['category']);
-                    $cat->setType('category');
-                    $cat->setLanguageId(null);
-                    $propManager->save($cat);
-                }
-
-                if (!empty($record['brand'])) {
-                    $brand = $propManager->create();
-                    $brand->setParentId($item->getId());
-                    $brand->setValue((string) $record['brand']);
-                    $brand->setType('brand');
-                    $brand->setLanguageId(null);
-                    $propManager->save($brand);
-                }
-
                 if ($existing) {
                     $updated++;
                 } else {
@@ -181,6 +159,42 @@ class AimeosProductImporter
         $prop->setParentId($productId);
         $prop->setType('marketplaces');
         $prop->setValue($marketplace);
+        $prop->setLanguageId(null);
+        $propManager->save($prop);
+    }
+
+    private function saveMarketplaceData(\Aimeos\MShop\ContextIface $context, string $productId, array $data): void
+    {
+        $propManager = \Aimeos\MShop::create($context, 'product/property');
+        $ps = $propManager->filter();
+        $ps->setConditions($ps->and([
+            $ps->compare('==', 'product.property.parentid', $productId),
+            $ps->compare('==', 'product.property.type', 'marketplace_data'),
+        ]));
+        foreach ($propManager->search($ps) as $op) {
+            $propManager->delete($op->getId());
+        }
+
+        $clean = [];
+        foreach ($data as $k => $v) {
+            if (!is_array($v)) {
+                continue;
+            }
+            $clean[(string) $k] = [
+                'category' => isset($v['category']) ? (string) $v['category'] : '',
+                'brand' => isset($v['brand']) ? (string) $v['brand'] : '',
+                'on_sale' => !empty($v['on_sale']),
+            ];
+        }
+
+        if (empty($clean)) {
+            return;
+        }
+
+        $prop = $propManager->create();
+        $prop->setParentId($productId);
+        $prop->setType('marketplace_data');
+        $prop->setValue(json_encode($clean, JSON_UNESCAPED_UNICODE));
         $prop->setLanguageId(null);
         $propManager->save($prop);
     }

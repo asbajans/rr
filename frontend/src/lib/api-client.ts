@@ -188,11 +188,11 @@ class ApiClient {
     return this.get<{ categories: Record<string, string[]>; brands: Record<string, string[]> }>('/api/admin/products/taxonomies')
   }
 
-  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[] }) {
+  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[]; marketplace_data?: Record<string, import('./types').MarketplaceEntry> }) {
     return this.post<import('./types').Product>('/api/admin/products', data)
   }
 
-  updateAdminProduct(id: string, data: { label?: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[] }) {
+  updateAdminProduct(id: string, data: { label?: string; price?: number; stock?: number; status?: number; media_urls?: string[]; marketplaces?: string[]; marketplace_data?: Record<string, import('./types').MarketplaceEntry> }) {
     return this.put<import('./types').Product>(`/api/admin/products/${id}`, data)
   }
 

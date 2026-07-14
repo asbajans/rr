@@ -9,6 +9,8 @@ const MAX_IMAGES = 12
 
 type ImageItem = { kind: 'file' | 'url'; file?: File; url?: string; preview: string }
 
+type MarketplaceEntry = { category: string; brand: string; on_sale: boolean }
+
 type ProductForm = {
   code: string
   label: string
@@ -16,16 +18,30 @@ type ProductForm = {
   stock: string
   status: number
   description: string
-  category: string
-  brand: string
-  images: ImageItem[]
   marketplaces: string[]
+  marketplaceData: Record<string, MarketplaceEntry>
+  images: ImageItem[]
   b2b_enabled: boolean
   b2b_discount: string
   b2b_price: string
 }
 
-const emptyForm: ProductForm = { code: '', label: '', price: '', stock: '', status: 1, description: '', category: '', brand: '', images: [], marketplaces: [], b2b_enabled: false, b2b_discount: '', b2b_price: '' }
+type VariantForm = { sku: string; price: string; stock: string; attributes: string }
+
+const emptyForm: ProductForm = {
+  code: '',
+  label: '',
+  price: '',
+  stock: '',
+  status: 1,
+  description: '',
+  images: [],
+  marketplaces: [],
+  marketplaceData: {},
+  b2b_enabled: false,
+  b2b_discount: '',
+  b2b_price: '',
+}
 
 const MARKETPLACE_LABELS: Record<string, string> = {
   own: 'Kendi Sitem',
@@ -60,21 +76,29 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ProductForm>(emptyForm)
 
-  const categoryOptions = useMemo(() => {
-    const scopes = form.marketplaces.length ? form.marketplaces : Object.keys(taxonomies.categories)
-    const set = new Set<string>()
-    scopes.forEach((s) => (taxonomies.categories[s] ?? []).forEach((v) => set.add(v)))
-    if (form.category) set.add(form.category)
-    return Array.from(set)
-  }, [form.marketplaces, form.category, taxonomies])
+  const [variants, setVariants] = useState<import('@/lib/types').ProductVariant[]>([])
+  const [variantForm, setVariantForm] = useState<VariantForm>({ sku: '', price: '', stock: '', attributes: '' })
+  const [variantLoading, setVariantLoading] = useState(false)
 
-  const brandOptions = useMemo(() => {
-    const scopes = form.marketplaces.length ? form.marketplaces : Object.keys(taxonomies.brands)
-    const set = new Set<string>()
-    scopes.forEach((s) => (taxonomies.brands[s] ?? []).forEach((v) => set.add(v)))
-    if (form.brand) set.add(form.brand)
-    return Array.from(set)
-  }, [form.marketplaces, form.brand, taxonomies])
+  function defaultMarketplaces(): string[] {
+    return ['own', ...integrations.map((i) => i.marketplace)]
+  }
+
+  function initMarketplaceData(keys: string[]): Record<string, MarketplaceEntry> {
+    const data: Record<string, MarketplaceEntry> = {}
+    keys.forEach((k) => {
+      data[k] = { category: '', brand: '', on_sale: true }
+    })
+    return data
+  }
+
+  function categoryOptions(mp: string): string[] {
+    return taxonomies.categories[mp] ?? []
+  }
+
+  function brandOptions(mp: string): string[] {
+    return taxonomies.brands[mp] ?? []
+  }
 
   function loadTaxonomies() {
     api.getProductTaxonomies().then((res) => setTaxonomies(res)).catch(() => {})
@@ -127,8 +151,11 @@ export default function ProductsPage() {
 
   function openCreate() {
     setEditingId(null)
-    setForm(emptyForm)
+    const mps = defaultMarketplaces()
+    setForm({ ...emptyForm, marketplaces: mps, marketplaceData: initMarketplaceData(mps) })
     setMarketplaceImages([])
+    setVariants([])
+    setVariantForm({ sku: '', price: '', stock: '', attributes: '' })
     setShowAiImagePanel(false)
     setAiEditSelected([])
     setAiEditPrompt('')
@@ -141,6 +168,17 @@ export default function ProductsPage() {
     setEditingId(p.id)
     setMarketplaceImages(p.images ?? [])
     loadTaxonomies()
+
+    const mps = p.marketplaces && p.marketplaces.length ? p.marketplaces : ['own']
+    const md = p.marketplace_data ?? {}
+    const data: Record<string, MarketplaceEntry> = {}
+    mps.forEach((mp) => {
+      const entry = md[mp]
+      data[mp] = entry
+        ? { category: entry.category ?? '', brand: entry.brand ?? '', on_sale: !!entry.on_sale }
+        : { category: p.category ?? '', brand: p.brand ?? '', on_sale: p.status === 1 }
+    })
+
     setForm({
       code: p.code,
       label: p.label,
@@ -148,10 +186,9 @@ export default function ProductsPage() {
       stock: p.stock?.toString() ?? '',
       status: p.status,
       description: p.description ?? '',
-      category: p.category ?? '',
-      brand: p.brand ?? '',
       images: (p.images ?? []).map((u) => ({ kind: 'url' as const, url: u, preview: u })),
-      marketplaces: p.marketplaces ?? [],
+      marketplaces: mps,
+      marketplaceData: data,
       b2b_enabled: false,
       b2b_discount: '',
       b2b_price: '',
@@ -168,6 +205,10 @@ export default function ProductsPage() {
         setForm((prev) => ({ ...prev, b2b_enabled: true, b2b_discount: s.b2b_discount?.toString() ?? '', b2b_price: s.b2b_price?.toString() ?? '' }))
       }
     }).catch(() => {})
+
+    api.getProductVariants(p.id).then((res) => {
+      setVariants(res.data ?? [])
+    }).catch(() => { setVariants([]) })
   }
 
   function handleImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -190,12 +231,13 @@ export default function ProductsPage() {
       setError('Önce ürün adını girin')
       return
     }
+    const ref = form.marketplaces[0] ? form.marketplaceData[form.marketplaces[0]] : undefined
     setAiDescLoading(true)
     try {
       const res = await api.generateProductDescription({
         name: form.label,
-        brand: form.brand || undefined,
-        category: form.category || undefined,
+        brand: ref?.brand || undefined,
+        category: ref?.category || undefined,
         price: form.price ? parseFloat(form.price) : undefined,
       })
       setForm((prev) => ({ ...prev, description: res.description }))
@@ -211,10 +253,11 @@ export default function ProductsPage() {
     setAiEditLoading(true)
     setAiEditError('')
     try {
+      const ref = form.marketplaces[0] ? form.marketplaceData[form.marketplaces[0]] : undefined
       const res = await api.editProductImage({
         image_urls: aiEditSelected,
         prompt: aiEditPrompt,
-        category: form.category || undefined,
+        category: ref?.category || undefined,
       })
       const sessionId = res.sessionId
       if (!sessionId) throw new Error('AI oturumu başlatılamadı')
@@ -252,11 +295,25 @@ export default function ProductsPage() {
   }
 
   function toggleMarketplace(key: string) {
+    setForm((prev) => {
+      const has = prev.marketplaces.includes(key)
+      const marketplaces = has
+        ? prev.marketplaces.filter((m) => m !== key)
+        : [...prev.marketplaces, key]
+      const marketplaceData = { ...prev.marketplaceData }
+      if (has) {
+        delete marketplaceData[key]
+      } else {
+        marketplaceData[key] = { category: '', brand: '', on_sale: true }
+      }
+      return { ...prev, marketplaces, marketplaceData }
+    })
+  }
+
+  function setEntry(key: string, patch: Partial<MarketplaceEntry>) {
     setForm((prev) => ({
       ...prev,
-      marketplaces: prev.marketplaces.includes(key)
-        ? prev.marketplaces.filter((m) => m !== key)
-        : [...prev.marketplaces, key],
+      marketplaceData: { ...prev.marketplaceData, [key]: { ...(prev.marketplaceData[key] ?? { category: '', brand: '', on_sale: true }), ...patch } },
     }))
   }
 
@@ -275,6 +332,11 @@ export default function ProductsPage() {
       }
       mediaUrls.push(...form.images.filter((i) => i.kind === 'url').map((i) => i.url!))
 
+      const marketplaceData: Record<string, MarketplaceEntry> = {}
+      form.marketplaces.forEach((mp) => {
+        marketplaceData[mp] = form.marketplaceData[mp] ?? { category: '', brand: '', on_sale: true }
+      })
+
       const payload: Record<string, unknown> = {
         code: form.code,
         label: form.label,
@@ -282,9 +344,8 @@ export default function ProductsPage() {
         stock: form.stock ? parseInt(form.stock) : null,
         status: form.status,
         description: form.description || null,
-        category: form.category || null,
-        brand: form.brand || null,
         marketplaces: form.marketplaces,
+        marketplace_data: marketplaceData,
         media_urls: mediaUrls.slice(0, MAX_IMAGES),
       }
 
@@ -327,6 +388,45 @@ export default function ProductsPage() {
     }
   }
 
+  async function handleAddVariant() {
+    if (!editingId || !variantForm.sku.trim()) return
+    setVariantLoading(true)
+    try {
+      let attrs: Record<string, string> | undefined
+      if (variantForm.attributes.trim()) {
+        try {
+          attrs = JSON.parse(variantForm.attributes)
+        } catch {
+          attrs = undefined
+        }
+      }
+      await api.createProductVariant({
+        product_id: editingId,
+        sku: variantForm.sku.trim(),
+        price: variantForm.price ? parseFloat(variantForm.price) : undefined,
+        stock: variantForm.stock ? parseInt(variantForm.stock) : undefined,
+        attributes: attrs,
+      })
+      setVariantForm({ sku: '', price: '', stock: '', attributes: '' })
+      const res = await api.getProductVariants(editingId)
+      setVariants(res.data ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Varyasyon eklenemedi')
+    } finally {
+      setVariantLoading(false)
+    }
+  }
+
+  async function handleDeleteVariant(variantId: number) {
+    if (!editingId) return
+    try {
+      await api.deleteProductVariant(editingId, variantId)
+      setVariants((prev) => prev.filter((v) => v.id !== variantId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Varyasyon silinemedi')
+    }
+  }
+
   if (!user) return null
 
   return (
@@ -362,14 +462,14 @@ export default function ProductsPage() {
           ))}
         </div>
 
-        <select
+          <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
         >
           <option value="">Tüm Durumlar</option>
-          <option value="1">Satışta</option>
-          <option value="0">Satışta Değil</option>
+          <option value="1">Aktif</option>
+          <option value="0">Aktif Değil</option>
         </select>
 
         <div className="flex items-center gap-2">
@@ -460,10 +560,10 @@ export default function ProductsPage() {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
                       {(() => {
-                        const onSale = p.stock !== null && p.stock !== undefined ? p.stock > 0 : p.status === 1
+                        const active = p.status === 1
                         return (
-                          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${onSale ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {onSale ? 'Satışta' : 'Satışta Değil'}
+                          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {active ? 'Aktif' : 'Aktif Değil'}
                           </span>
                         )
                       })()}
@@ -568,40 +668,66 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700">Kategori</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">Seçiniz</option>
-                    {categoryOptions.map((c: string) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  {form.marketplaces.length > 0 && categoryOptions.length === 0 && (
-                    <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride kategori henüz içe aktarılmamış.</p>
-                  )}
+              {form.marketplaces.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-zinc-700">Pazaryeri Bazında Kategori / Marka / Satış Durumu</p>
+                  {form.marketplaces.map((mp) => {
+                    const entry = form.marketplaceData[mp] ?? { category: '', brand: '', on_sale: true }
+                    const cats = categoryOptions(mp)
+                    const brands = brandOptions(mp)
+                    return (
+                      <div key={mp} className="rounded-lg border border-zinc-200 p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm font-semibold text-zinc-800">{MARKETPLACE_LABELS[mp] ?? mp}</span>
+                          <label className="flex items-center gap-2 text-xs text-zinc-600">
+                            Satışta
+                            <input
+                              type="checkbox"
+                              checked={entry.on_sale}
+                              onChange={(e) => setEntry(mp, { on_sale: e.target.checked })}
+                              className="h-4 w-4 rounded border-zinc-300"
+                            />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-zinc-600">Kategori</label>
+                            <select
+                              value={entry.category}
+                              onChange={(e) => setEntry(mp, { category: e.target.value })}
+                              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                            >
+                              <option value="">Seçiniz</option>
+                              {cats.map((c: string) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                            {cats.length === 0 && (
+                              <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride kategori henüz içe aktarılmamış.</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-zinc-600">Marka</label>
+                            <select
+                              value={entry.brand}
+                              onChange={(e) => setEntry(mp, { brand: e.target.value })}
+                              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                            >
+                              <option value="">Seçiniz</option>
+                              {brands.map((b: string) => (
+                                <option key={b} value={b}>{b}</option>
+                              ))}
+                            </select>
+                            {brands.length === 0 && (
+                              <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride marka henüz içe aktarılmamış.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700">Marka</label>
-                  <select
-                    value={form.brand}
-                    onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">Seçiniz</option>
-                    {brandOptions.map((b: string) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                  {form.marketplaces.length > 0 && brandOptions.length === 0 && (
-                    <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride marka henüz içe aktarılmamış.</p>
-                  )}
-                </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-zinc-700">
@@ -697,6 +823,73 @@ export default function ProductsPage() {
                   className="h-4 w-4 rounded border-zinc-300"
                 />
               </div>
+
+              {editingId && (
+                <div className="border-t border-zinc-200 pt-4">
+                  <h3 className="text-sm font-semibold text-zinc-900">Varyasyonlar</h3>
+                  {variants.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {variants.map((v) => (
+                        <div key={v.id} className="flex items-center gap-3 rounded-lg border border-zinc-200 p-2 text-xs">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-zinc-800">{v.sku}</p>
+                            <p className="text-zinc-500">
+                              {v.price !== null ? `${v.price} ₺` : '-'} · Stok: {v.stock} · {v.is_active ? 'Aktif' : 'Pasif'}
+                            </p>
+                            {v.attributes && Object.keys(v.attributes).length > 0 && (
+                              <p className="text-zinc-400">{Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(', ')}</p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVariant(v.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Sil
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    <input
+                      value={variantForm.sku}
+                      onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })}
+                      placeholder="SKU"
+                      className="rounded-lg border border-zinc-300 px-2 py-1.5 text-xs"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={variantForm.price}
+                      onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })}
+                      placeholder="Fiyat"
+                      className="rounded-lg border border-zinc-300 px-2 py-1.5 text-xs"
+                    />
+                    <input
+                      type="number"
+                      value={variantForm.stock}
+                      onChange={(e) => setVariantForm({ ...variantForm, stock: e.target.value })}
+                      placeholder="Stok"
+                      className="rounded-lg border border-zinc-300 px-2 py-1.5 text-xs"
+                    />
+                    <input
+                      value={variantForm.attributes}
+                      onChange={(e) => setVariantForm({ ...variantForm, attributes: e.target.value })}
+                      placeholder='{"renk":"kırmızı"}'
+                      className="rounded-lg border border-zinc-300 px-2 py-1.5 text-xs"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddVariant}
+                    disabled={variantLoading || !variantForm.sku.trim()}
+                    className="mt-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                  >
+                    {variantLoading ? 'Ekleniyor…' : 'Varyasyon Ekle'}
+                  </button>
+                </div>
+              )}
 
               <div className="border-t border-zinc-200 pt-4">
                 <h3 className="text-sm font-semibold text-zinc-900">B2B Ayarları</h3>

@@ -44,6 +44,12 @@ export type Plan = {
   updated_at: string
 }
 
+export type MarketplaceEntry = {
+  category?: string
+  brand?: string
+  on_sale?: boolean
+}
+
 export type Product = {
   id: string
   code: string
@@ -52,6 +58,7 @@ export type Product = {
   price?: number
   stock?: number
   marketplaces?: string[]
+  marketplace_data?: Record<string, MarketplaceEntry>
   images?: string[]
   description?: string | null
   category?: string | null

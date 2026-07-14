@@ -46,14 +46,6 @@ class ProductController extends Controller
             }
 
             $details = $this->productDetails($context, $item);
-            $stock = $details['stock'];
-            $onSale = $stock !== null ? $stock > 0 : $item->getStatus() === 1;
-
-            if ($statusParam !== null && $statusParam !== '') {
-                if (($statusParam === '1') !== $onSale) {
-                    continue;
-                }
-            }
 
             $price = $details['price'];
             if ($priceMin !== null && $priceMin !== '' && $price !== null && $price < (float) $priceMin) {
@@ -61,6 +53,12 @@ class ProductController extends Controller
             }
             if ($priceMax !== null && $priceMax !== '' && $price !== null && $price > (float) $priceMax) {
                 continue;
+            }
+
+            if ($statusParam !== null && $statusParam !== '') {
+                if (($statusParam === '1') !== ($item->getStatus() === 1)) {
+                    continue;
+                }
             }
 
             $products[] = [
@@ -77,6 +75,7 @@ class ProductController extends Controller
                 'category' => $details['category'],
                 'brand' => $details['brand'],
                 'marketplaces' => $marketplaces,
+                'marketplace_data' => $this->getMarketplaceData($context, $item->getId()),
             ];
         }
 
@@ -99,6 +98,7 @@ class ProductController extends Controller
         $data = $item->toArray();
         $data = array_merge($data, $this->productDetails($context, $item));
         $data['marketplaces'] = $this->getMarketplaces($context, $item->getId());
+        $data['marketplace_data'] = $this->getMarketplaceData($context, $item->getId());
 
         return response()->json($data);
     }
@@ -165,6 +165,7 @@ class ProductController extends Controller
         $data['description'] = $this->getText($context, $id);
         $data['category'] = $this->getProp($context, $id, 'category');
         $data['brand'] = $this->getProp($context, $id, 'brand');
+        $data['marketplace_data'] = $this->getMarketplaceData($context, $id);
 
         return $data;
     }
@@ -179,13 +180,15 @@ class ProductController extends Controller
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
             'description' => 'nullable|string',
-            'category' => 'nullable|string|max:255',
-            'brand' => 'nullable|string|max:255',
-            'media_url' => 'nullable|string|max:1024',
-            'media_urls' => 'nullable|array|max:6',
-            'media_urls.*' => 'nullable|string|max:1024',
             'marketplaces' => 'nullable|array',
             'marketplaces.*' => 'nullable|string|max:32',
+            'marketplace_data' => 'nullable|array',
+            'marketplace_data.*.category' => 'nullable|string|max:255',
+            'marketplace_data.*.brand' => 'nullable|string|max:255',
+            'marketplace_data.*.on_sale' => 'nullable|boolean',
+            'media_url' => 'nullable|string|max:1024',
+            'media_urls' => 'nullable|array|max:12',
+            'media_urls.*' => 'nullable|string|max:1024',
         ]);
 
         $store = $request->user()->store;
@@ -254,11 +257,8 @@ class ProductController extends Controller
         if (array_key_exists('description', $validated ?? [])) {
             $this->saveText($context, $item->getId(), $validated['description'] ?? null);
         }
-        if (array_key_exists('category', $validated ?? [])) {
-            $this->saveProp($context, $item->getId(), 'category', $validated['category'] ?? null);
-        }
-        if (array_key_exists('brand', $validated ?? [])) {
-            $this->saveProp($context, $item->getId(), 'brand', $validated['brand'] ?? null);
+        if (array_key_exists('marketplace_data', $validated ?? [])) {
+            $this->saveMarketplaceData($context, $item->getId(), $validated['marketplace_data'] ?? []);
         }
 
         return response()->json($item->toArray(), 201);
@@ -273,13 +273,15 @@ class ProductController extends Controller
             'stock' => 'nullable|integer|min:0',
             'status' => 'nullable|integer|in:0,1',
             'description' => 'nullable|string',
-            'category' => 'nullable|string|max:255',
-            'brand' => 'nullable|string|max:255',
-            'media_url' => 'nullable|string|max:1024',
-            'media_urls' => 'nullable|array|max:6',
-            'media_urls.*' => 'nullable|string|max:1024',
             'marketplaces' => 'nullable|array',
             'marketplaces.*' => 'nullable|string|max:32',
+            'marketplace_data' => 'nullable|array',
+            'marketplace_data.*.category' => 'nullable|string|max:255',
+            'marketplace_data.*.brand' => 'nullable|string|max:255',
+            'marketplace_data.*.on_sale' => 'nullable|boolean',
+            'media_url' => 'nullable|string|max:1024',
+            'media_urls' => 'nullable|array|max:12',
+            'media_urls.*' => 'nullable|string|max:1024',
         ]);
 
         $context = $this->context();
@@ -368,11 +370,8 @@ class ProductController extends Controller
         if (array_key_exists('description', $validated ?? [])) {
             $this->saveText($context, $item->getId(), $validated['description'] ?? null);
         }
-        if (array_key_exists('category', $validated ?? [])) {
-            $this->saveProp($context, $item->getId(), 'category', $validated['category'] ?? null);
-        }
-        if (array_key_exists('brand', $validated ?? [])) {
-            $this->saveProp($context, $item->getId(), 'brand', $validated['brand'] ?? null);
+        if (array_key_exists('marketplace_data', $validated ?? [])) {
+            $this->saveMarketplaceData($context, $item->getId(), $validated['marketplace_data'] ?? []);
         }
 
         return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);
@@ -394,17 +393,28 @@ class ProductController extends Controller
         foreach ($items as $item) {
             $id = $item->getId();
             $mps = $this->getMarketplaces($context, $id);
-            $cat = $this->getProp($context, $id, 'category');
-            $brand = $this->getProp($context, $id, 'brand');
-            $scopes = !empty($mps) ? $mps : ['own'];
-            if ($cat) {
-                foreach ($scopes as $s) {
-                    $cats[$s][$cat] = true;
+            $md = $this->getMarketplaceData($context, $id);
+
+            foreach ($md as $scope => $vals) {
+                if (!empty($vals['category'])) {
+                    $cats[$scope][$vals['category']] = true;
+                }
+                if (!empty($vals['brand'])) {
+                    $brands[$scope][$vals['brand']] = true;
                 }
             }
-            if ($brand) {
-                foreach ($scopes as $s) {
-                    $brands[$s][$brand] = true;
+
+            $legacyCat = $this->getProp($context, $id, 'category');
+            $legacyBrand = $this->getProp($context, $id, 'brand');
+            $legacyScopes = !empty($mps) ? $mps : ['own'];
+            if ($legacyCat) {
+                foreach ($legacyScopes as $s) {
+                    $cats[$s][$legacyCat] = true;
+                }
+            }
+            if ($legacyBrand) {
+                foreach ($legacyScopes as $s) {
+                    $brands[$s][$legacyBrand] = true;
                 }
             }
         }
@@ -456,6 +466,65 @@ class ProductController extends Controller
             // property not available
         }
         return [];
+    }
+
+    private function getMarketplaceData(\Aimeos\MShop\ContextIface $context, string $productId): array
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'marketplace_data'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                $val = $prop->getValue();
+                if (empty($val)) {
+                    return [];
+                }
+                $dec = json_decode($val, true);
+                return is_array($dec) ? $dec : [];
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return [];
+    }
+
+    private function saveMarketplaceData(\Aimeos\MShop\ContextIface $context, string $productId, array $data): void
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $ps = $propManager->filter();
+        $ps->setConditions($ps->and([
+            $ps->compare('==', 'product.property.parentid', $productId),
+            $ps->compare('==', 'product.property.type', 'marketplace_data'),
+        ]));
+        foreach ($propManager->search($ps) as $op) {
+            $propManager->delete($op->getId());
+        }
+
+        $clean = [];
+        foreach ($data as $k => $v) {
+            if (!is_array($v)) {
+                continue;
+            }
+            $clean[(string) $k] = [
+                'category' => isset($v['category']) ? (string) $v['category'] : '',
+                'brand' => isset($v['brand']) ? (string) $v['brand'] : '',
+                'on_sale' => !empty($v['on_sale']),
+            ];
+        }
+
+        if (empty($clean)) {
+            return;
+        }
+
+        $prop = $propManager->create();
+        $prop->setParentId($productId);
+        $prop->setType('marketplace_data');
+        $prop->setValue(json_encode($clean, JSON_UNESCAPED_UNICODE));
+        $prop->setLanguageId(null);
+        $propManager->save($prop);
     }
 
     private function getText(\Aimeos\MShop\ContextIface $context, string $productId): ?string
