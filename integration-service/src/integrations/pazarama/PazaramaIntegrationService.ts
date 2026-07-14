@@ -1,6 +1,6 @@
 import { IntegrationInterface } from '../IntegrationInterface';
 import { mapToPazaramaProduct } from './mapper';
-import { ProductData, StockUpdate, PriceUpdate, Order } from '../../types';
+import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../../types';
 import axios, { AxiosInstance } from 'axios';
 import axiosRetry from 'axios-retry';
 
@@ -129,5 +129,10 @@ export class PazaramaIntegrationService extends IntegrationInterface {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`Pazarama fetchProducts failed: ${message}`);
     }
+  }
+
+  async fetchCategories(): Promise<MarketplaceCategory[]> {
+    console.log('[pazarama] fetchCategories not supported yet');
+    return [];
   }
 }

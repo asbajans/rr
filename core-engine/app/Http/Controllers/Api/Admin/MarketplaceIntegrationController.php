@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Jobs\ImportMarketplaceProducts;
+use App\Models\MarketplaceCategory;
 use App\Models\MarketplaceImport;
 use App\Models\MarketplaceIntegration;
 use Illuminate\Database\QueryException;
@@ -110,9 +111,123 @@ class MarketplaceIntegrationController extends Controller
 
         return response()->json([
             'id' => $record->id,
-            'marketplace' => $marketplace,
+            'marketplace' => $record->marketplace,
             'status' => 'pending',
         ], 202);
+    }
+
+    public function importCategories(Request $request, string $marketplace)
+    {
+        $store = $this->getStore($request);
+
+        if (!array_key_exists($marketplace, MarketplaceIntegration::availableMarketplaces())) {
+            return response()->json(['error' => 'Invalid marketplace'], 422);
+        }
+
+        $integration = MarketplaceIntegration::where('store_id', $store->id)
+            ->where('marketplace', $marketplace)
+            ->first();
+
+        if (!$integration || !$integration->is_active) {
+            return response()->json(['error' => 'Entegrasyon aktif değil'], 422);
+        }
+
+        $config = $integration->config;
+        if (empty($config)) {
+            return response()->json(['error' => 'Entegrasyon ayarları eksik'], 422);
+        }
+
+        $url = env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001') . '/import/categories';
+
+        try {
+            $response = Http::timeout(120)->post($url, [
+                'marketplace' => $marketplace,
+                'config' => $config,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Integration service unreachable: ' . $e->getMessage()], 502);
+        }
+
+        if (!$response->successful()) {
+            return response()->json(['error' => 'Kategori ağacı çekilemedi: ' . ($response->json('error') ?? $response->body())], 502);
+        }
+
+        $categories = $response->json('categories') ?? [];
+        if (empty($categories)) {
+            return response()->json(['marketplace' => $marketplace, 'imported' => 0, 'message' => 'Pazaryerinde kategori bulunamadı']);
+        }
+
+        MarketplaceCategory::where('store_id', $store->id)
+            ->where('marketplace', $marketplace)
+            ->delete();
+
+        $trees = [];
+        foreach ($categories as $c) {
+            $mpId = (string) ($c['id'] ?? '');
+            $name = (string) ($c['name'] ?? '');
+            $parentId = isset($c['parentId']) && $c['parentId'] !== null && $c['parentId'] !== '' && $c['parentId'] !== 0
+                ? (string) $c['parentId']
+                : null;
+
+            $node = MarketplaceCategory::create([
+                'store_id' => $store->id,
+                'marketplace' => $marketplace,
+                'marketplace_category_id' => $mpId,
+                'name' => $name,
+                'parent_id' => $parentId,
+                'level' => 0,
+                'path' => null,
+            ]);
+            $trees[$mpId] = $node;
+        }
+
+        foreach ($trees as $mpId => $node) {
+            $this->fillLevelAndPath($trees, $mpId, 0, []);
+        }
+
+        return response()->json([
+            'marketplace' => $marketplace,
+            'imported' => count($categories),
+            'message' => count($categories) . ' kategori içe aktarıldı',
+        ]);
+    }
+
+    public function categories(Request $request, string $marketplace)
+    {
+        $store = $this->getStore($request);
+
+        $rows = MarketplaceCategory::where('store_id', $store->id)
+            ->where('marketplace', $marketplace)
+            ->orderBy('name')
+            ->get();
+
+        $flat = $rows->map(function ($r) {
+            return [
+                'id' => $r->marketplace_category_id,
+                'name' => $r->name,
+                'parent_id' => $r->parent_id,
+                'level' => $r->level,
+                'path' => $r->path,
+            ];
+        });
+
+        return response()->json(['data' => $flat]);
+    }
+
+    private function fillLevelAndPath(array $trees, string $id, int $level, array $path): void
+    {
+        $node = $trees[$id] ?? null;
+        if (!$node) {
+            return;
+        }
+        $node->level = $level;
+        $node->path = implode(' > ', [...$path, $node->name]);
+        $node->save();
+
+        $children = array_filter($trees, fn ($n) => $n->parent_id === $id);
+        foreach ($children as $childId => $child) {
+            $this->fillLevelAndPath($trees, $childId, $level + 1, [...$path, $node->name]);
+        }
     }
 
     public function importStatus(Request $request, string $marketplace, int $id)

@@ -532,6 +532,14 @@ class ApiClient {
     }>(`/api/admin/integrations/${marketplace}/import`, { max_pages: maxPages })
   }
 
+  importMarketplaceCategories(marketplace: string) {
+    return this.post<{ marketplace: string; imported?: number; message?: string; error?: string }>(`/api/admin/integrations/${marketplace}/categories`, {})
+  }
+
+  getMarketplaceCategories(marketplace: string) {
+    return this.get<{ data: import('./types').MarketplaceCategory[] }>(`/api/admin/integrations/${marketplace}/categories`)
+  }
+
   getMarketplaceImportStatus(marketplace: string, id: number) {
     return this.get<{
       id: number

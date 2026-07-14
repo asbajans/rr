@@ -1,5 +1,5 @@
 import { IntegrationInterface } from '../IntegrationInterface';
-import { ProductData, Order } from '../../types';
+import { ProductData, Order, MarketplaceCategory } from '../../types';
 import axios from 'axios';
 
 export class HepsiburadaIntegrationService extends IntegrationInterface {
@@ -106,5 +106,10 @@ export class HepsiburadaIntegrationService extends IntegrationInterface {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`HB fetchProducts failed: ${message}`);
     }
+  }
+
+  async fetchCategories(): Promise<MarketplaceCategory[]> {
+    console.log('[hb] fetchCategories not supported yet');
+    return [];
   }
 }

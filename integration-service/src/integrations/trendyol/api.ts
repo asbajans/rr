@@ -152,4 +152,19 @@ export class TrendyolApiClient {
     );
     return res.data;
   }
+
+  async getCategories(): Promise<unknown> {
+    await this.enforceRateLimit();
+    const url = `/product-categories`;
+    console.log(`[trendyol] getCategories GET ${url}`);
+    try {
+      const res = await this.client.get(url);
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(`[trendyol] getCategories FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw new Error(`Trendyol getCategories HTTP ${status}: ${body?.message || body?.errorMessage || err?.message || 'Unknown error'}`);
+    }
+  }
 }

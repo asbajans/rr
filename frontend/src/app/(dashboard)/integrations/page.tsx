@@ -67,6 +67,23 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function importCategories(marketplace: string) {
+    setImporting(marketplace)
+    setMessage('')
+    try {
+      const res = await api.importMarketplaceCategories(marketplace)
+      if (res.error) {
+        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: hata - ${res.error}`)
+      } else {
+        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${res.message || 'Kategori ağacı aktarıldı'}`)
+      }
+    } catch (err: any) {
+      setMessage(err.message || 'Kategori ağacı aktarılamadı')
+    } finally {
+      setImporting(null)
+    }
+  }
+
   async function importProducts(marketplace: string) {
     setImporting(marketplace)
     setMessage('')
@@ -207,12 +224,12 @@ export default function IntegrationsPage() {
                         {importing === integration.marketplace ? 'İçe aktarılıyor...' : 'Ürünleri İçe Aktar'}
                       </button>
                       <button
-                        onClick={() => importProducts(integration.marketplace)}
+                        onClick={() => importCategories(integration.marketplace)}
                         disabled={importing === integration.marketplace}
                         className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
                       >
                         <Download className="h-4 w-4" />
-                        {importing === integration.marketplace ? 'Aktarılıyor...' : 'Kategori & Marka Aktar'}
+                        {importing === integration.marketplace ? 'Aktarılıyor...' : 'Kategori Ağacını Aktar'}
                       </button>
                     </div>
                   </div>

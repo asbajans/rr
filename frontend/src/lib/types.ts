@@ -44,8 +44,17 @@ export type Plan = {
   updated_at: string
 }
 
+export type MarketplaceCategory = {
+  id: string
+  name: string
+  parent_id: string | null
+  level: number
+  path: string | null
+}
+
 export type MarketplaceEntry = {
   category?: string
+  category_id?: string
   brand?: string
   on_sale?: boolean
 }

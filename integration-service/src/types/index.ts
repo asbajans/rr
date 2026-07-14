@@ -15,6 +15,12 @@ export interface ProductData {
   siteCode?: string;
 }
 
+export interface MarketplaceCategory {
+  id: string | number;
+  name: string;
+  parentId: string | number | null;
+}
+
 export interface StockUpdate {
   sku: string;
   quantity: number;

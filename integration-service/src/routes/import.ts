@@ -42,4 +42,33 @@ router.post('/import/products', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/import/categories', async (req: Request, res: Response) => {
+  const { marketplace, config } = req.body as {
+    marketplace?: string;
+    config?: Record<string, string>;
+  };
+
+  if (!marketplace || !config) {
+    res.status(400).json({ error: 'marketplace and config are required' });
+    return;
+  }
+
+  const integration = createIntegration(marketplace, config);
+  if (!integration) {
+    res.status(422).json({ error: `Invalid or incomplete config for ${marketplace}` });
+    return;
+  }
+
+  try {
+    console.log(`[import] fetching ${marketplace} categories`);
+    const categories = await integration.fetchCategories();
+    console.log(`[import] ${marketplace}: fetched ${categories.length} categories`);
+    res.json({ marketplace, count: categories.length, categories });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[import] ${marketplace} categories fetch failed:`, message);
+    res.status(502).json({ error: message });
+  }
+});
+
 export default router;

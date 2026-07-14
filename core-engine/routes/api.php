@@ -205,6 +205,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [MarketplaceIntegrationController::class, 'index']);
         Route::post('{marketplace}/import', [MarketplaceIntegrationController::class, 'importProducts']);
         Route::get('{marketplace}/import/{id}', [MarketplaceIntegrationController::class, 'importStatus']);
+        Route::post('{marketplace}/categories', [MarketplaceIntegrationController::class, 'importCategories']);
+        Route::get('{marketplace}/categories', [MarketplaceIntegrationController::class, 'categories']);
         Route::put('{marketplace}', [MarketplaceIntegrationController::class, 'update']);
     });
 

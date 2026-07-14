@@ -1,4 +1,4 @@
-import { ProductData, StockUpdate, PriceUpdate, Order } from '../types';
+import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../types';
 
 export abstract class IntegrationInterface {
   constructor(protected marketplaceName: string) {}
@@ -16,4 +16,6 @@ export abstract class IntegrationInterface {
   abstract fetchOrders(sinceDate?: string): Promise<Order[]>;
 
   abstract fetchProducts(page?: number): Promise<ProductData[]>;
+
+  abstract fetchCategories(): Promise<MarketplaceCategory[]>;
 }

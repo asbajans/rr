@@ -1,7 +1,7 @@
 import { IntegrationInterface } from '../IntegrationInterface';
 import { mapToAmazonProduct } from './mapper';
 import { getLwaAccessToken, signRequest, AwsCredentials, LwaCredentials } from './sigv4';
-import { ProductData, StockUpdate, PriceUpdate, Order } from '../../types';
+import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../../types';
 import axios from 'axios';
 
 interface AmazonConfig {
@@ -162,5 +162,10 @@ export class AmazonSpApiIntegrationService extends IntegrationInterface {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`Amazon fetchProducts failed: ${message}`);
     }
+  }
+
+  async fetchCategories(): Promise<MarketplaceCategory[]> {
+    console.log('[amazon] fetchCategories not supported yet');
+    return [];
   }
 }

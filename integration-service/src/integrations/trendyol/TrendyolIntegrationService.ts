@@ -1,7 +1,7 @@
 import { IntegrationInterface } from '../IntegrationInterface';
 import { TrendyolApiClient } from './api';
 import { mapToTrendyolProduct } from './mapper';
-import { ProductData, StockUpdate, PriceUpdate, Order } from '../../types';
+import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../../types';
 
 export class TrendyolIntegrationService extends IntegrationInterface {
   private api: TrendyolApiClient;
@@ -167,5 +167,31 @@ export class TrendyolIntegrationService extends IntegrationInterface {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`Trendyol fetchProducts failed: ${message}`);
     }
+  }
+
+  async fetchCategories(): Promise<MarketplaceCategory[]> {
+    const raw = (await this.api.getCategories()) as any;
+    const nodes: any[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.categories) ? raw.categories : []);
+
+    const flat: MarketplaceCategory[] = [];
+    const walk = (list: any[]) => {
+      for (const n of list || []) {
+        if (n == null) continue;
+        flat.push({
+          id: String(n.id ?? ''),
+          name: String(n.name ?? ''),
+          parentId: n.parentId != null && n.parentId !== 0 ? String(n.parentId) : null,
+        });
+        if (Array.isArray(n.subCategories) && n.subCategories.length) {
+          walk(n.subCategories);
+        }
+      }
+    };
+    walk(nodes);
+
+    if (nodes.length > 0) {
+      console.log(`[trendyol] fetched ${flat.length} categories`);
+    }
+    return flat;
   }
 }

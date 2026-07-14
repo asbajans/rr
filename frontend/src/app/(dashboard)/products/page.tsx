@@ -9,7 +9,7 @@ const MAX_IMAGES = 12
 
 type ImageItem = { kind: 'file' | 'url'; file?: File; url?: string; preview: string }
 
-type MarketplaceEntry = { category: string; brand: string; on_sale: boolean }
+type MarketplaceEntry = { category: string; category_id?: string; brand: string; on_sale: boolean }
 
 type ProductForm = {
   code: string
@@ -79,6 +79,27 @@ export default function ProductsPage() {
   const [variants, setVariants] = useState<import('@/lib/types').ProductVariant[]>([])
   const [variantForm, setVariantForm] = useState<VariantForm>({ sku: '', price: '', stock: '', attributes: '' })
   const [variantLoading, setVariantLoading] = useState(false)
+
+  const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, import('@/lib/types').MarketplaceCategory[]>>({})
+
+  function loadTrees() {
+    const keys = integrations.map((i) => i.marketplace)
+    if (keys.length === 0) return
+    Promise.all(
+      keys.map((k) =>
+        api
+          .getMarketplaceCategories(k)
+          .then((r) => [k, r.data] as [string, import('@/lib/types').MarketplaceCategory[]])
+          .catch(() => [k, []] as [string, import('@/lib/types').MarketplaceCategory[]])
+      )
+    )
+      .then((pairs) => {
+        const map: Record<string, import('@/lib/types').MarketplaceCategory[]> = {}
+        pairs.forEach(([k, data]) => { map[k] = data })
+        setMarketplaceTrees(map)
+      })
+      .catch(() => {})
+  }
 
   function defaultMarketplaces(): string[] {
     return ['own', ...integrations.map((i) => i.marketplace)]
@@ -161,6 +182,7 @@ export default function ProductsPage() {
     setAiEditPrompt('')
     setAiEditError('')
     loadTaxonomies()
+    loadTrees()
     setShowModal(true)
   }
 
@@ -168,6 +190,7 @@ export default function ProductsPage() {
     setEditingId(p.id)
     setMarketplaceImages(p.images ?? [])
     loadTaxonomies()
+    loadTrees()
 
     const mps = p.marketplaces && p.marketplaces.length ? p.marketplaces : ['own']
     const md = p.marketplace_data ?? {}
@@ -175,8 +198,8 @@ export default function ProductsPage() {
     mps.forEach((mp) => {
       const entry = md[mp]
       data[mp] = entry
-        ? { category: entry.category ?? '', brand: entry.brand ?? '', on_sale: !!entry.on_sale }
-        : { category: p.category ?? '', brand: p.brand ?? '', on_sale: p.status === 1 }
+        ? { category: entry.category ?? '', category_id: entry.category_id ?? '', brand: entry.brand ?? '', on_sale: !!entry.on_sale }
+        : { category: p.category ?? '', category_id: '', brand: p.brand ?? '', on_sale: p.status === 1 }
     })
 
     setForm({
@@ -691,21 +714,41 @@ export default function ProductsPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-medium text-zinc-600">Kategori</label>
-                            <input
-                              list={`cat-${mp}`}
-                              value={entry.category}
-                              onChange={(e) => setEntry(mp, { category: e.target.value })}
-                              placeholder="Kategori yazın veya seçin"
-                              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                            />
+                            <label className="block text-xs font-medium text-zinc-600">Kategori (ID ile)</label>
+                            {marketplaceTrees[mp] && marketplaceTrees[mp].length > 0 ? (
+                              <select
+                                value={entry.category_id ?? ''}
+                                onChange={(e) => {
+                                  const sel = marketplaceTrees[mp].find((c) => c.id === e.target.value)
+                                  setEntry(mp, { category_id: e.target.value, category: sel?.name ?? '' })
+                                }}
+                                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                              >
+                                <option value="">Seçiniz</option>
+                                {marketplaceTrees[mp].map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {(c.path ?? c.name) + ` (${c.id})`}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                list={`cat-${mp}`}
+                                value={entry.category}
+                                onChange={(e) => setEntry(mp, { category: e.target.value })}
+                                placeholder="Kategori yazın veya seçin"
+                                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                              />
+                            )}
                             <datalist id={`cat-${mp}`}>
                               {cats.map((c: string) => (
                                 <option key={c} value={c} />
                               ))}
                             </datalist>
-                            {cats.length === 0 && (
-                              <p className="mt-1 text-xs text-zinc-400">Henüz kategori yok — yazabilir veya ürünleri pazaryerinden aktarabilirsiniz.</p>
+                            {(!marketplaceTrees[mp] || marketplaceTrees[mp].length === 0) && (
+                              <p className="mt-1 text-xs text-zinc-400">
+                                Henüz kategori ağacı yok — Pazaryeri sayfasından &quot;Kategori Ağacını Aktar&quot; ile çekebilirsiniz.
+                              </p>
                             )}
                           </div>
                           <div>

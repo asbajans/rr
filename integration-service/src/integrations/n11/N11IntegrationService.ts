@@ -1,6 +1,6 @@
 import { IntegrationInterface } from '../IntegrationInterface';
 import { mapToN11Product } from './mapper';
-import { ProductData, StockUpdate, PriceUpdate, Order } from '../../types';
+import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../../types';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 
@@ -152,5 +152,10 @@ export class N11IntegrationService extends IntegrationInterface {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`N11 fetchProducts failed: ${message}`);
     }
+  }
+
+  async fetchCategories(): Promise<MarketplaceCategory[]> {
+    console.log('[n11] fetchCategories not supported yet');
+    return [];
   }
 }
