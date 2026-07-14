@@ -1,152 +1,23 @@
 import { IntegrationInterface } from '../IntegrationInterface';
-import { mapToN11Product } from './mapper';
-import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../../types';
-import axios from 'axios';
-import { XMLParser } from 'fast-xml-parser';
-
-const SOAP_ENDPOINT = 'https://api.n11.com/wsdl/SellerProductService.wsdl';
-
-interface N11Credentials {
-  username: string;
-  password: string;
-}
+import { mapToN11Product, mapToN11CreatePayload, mapToN11PriceStockPayload } from './mapper';
+import { ProductData, Order, MarketplaceCategory } from '../../types';
+import { N11ApiClient } from './api';
 
 export class N11IntegrationService extends IntegrationInterface {
-  private creds: N11Credentials;
-  private parser: XMLParser;
+  private api: N11ApiClient;
 
-  constructor(username: string, password: string) {
+  constructor(appkey: string, appsecret: string) {
     super('n11');
-    this.creds = { username, password };
-    this.parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true });
-  }
-
-  private soapEnvelope(body: string): string {
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.n11.com/wsdl">
-  <soapenv:Header/>
-  <soapenv:Body>${body}</soapenv:Body>
-</soapenv:Envelope>`;
-  }
-
-  private authNode(): string {
-    return `<auth>
-      <username>${this.creds.username}</username>
-      <password>${this.creds.password}</password>
-    </auth>`;
-  }
-
-  private async call(operation: string, bodyInner: string): Promise<any> {
-    const envelope = this.soapEnvelope(`<${operation}>${bodyInner}</${operation}>`);
-    const res = await axios.post(SOAP_ENDPOINT, envelope, {
-      timeout: 30_000,
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        SOAPAction: `http://www.n11.com/wsdl/${operation}`,
-      },
-    });
-    return this.parser.parse(res.data);
-  }
-
-  async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
-    try {
-      const body = `<productCreate>
-        ${this.authNode()}
-        <product>
-          <productSellerCode>${data.sku}</productSellerCode>
-          <title>${data.name}</title>
-          <description>${data.description}</description>
-          <price>${data.price}</price>
-          <currencyType>${data.currency}</currencyType>
-        </product>
-      </productCreate>`;
-      const parsed = await this.call('ProductCreate', body);
-      const result = parsed?.Envelope?.Body?.ProductCreateResponse?.result;
-      if (result?.status !== 'success') {
-        return { success: false, error: `N11 ProductCreate: ${result?.errorMessage ?? 'failed'}` };
-      }
-      return { success: true, marketplaceId: String(result?.productId ?? '') };
-    } catch (err) {
-      return { success: false, error: `N11 sendProduct: ${err instanceof Error ? err.message : 'Unknown'}` };
-    }
-  }
-
-  async updateStock(sku: string, quantity: number): Promise<{ success: boolean; error?: string }> {
-    try {
-      const body = `<updateStockByProductSellerCode>
-        ${this.authNode()}
-        <productSellerCode>${sku}</productSellerCode>
-        <stockItem>
-          <quantity>${quantity}</quantity>
-        </stockItem>
-      </updateStockByProductSellerCode>`;
-      const parsed = await this.call('UpdateStockByProductSellerCode', body);
-      const result = parsed?.Envelope?.Body?.UpdateStockByProductSellerCodeResponse?.result;
-      return { success: result?.status === 'success', error: result?.errorMessage };
-    } catch (err) {
-      return { success: false, error: `N11 updateStock: ${err instanceof Error ? err.message : 'Unknown'}` };
-    }
-  }
-
-  async updatePrice(sku: string, price: number, currency: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const body = `<updateProductPriceByProductSellerCode>
-        ${this.authNode()}
-        <productSellerCode>${sku}</productSellerCode>
-        <price>${price}</price>
-        <currencyType>${currency}</currencyType>
-      </updateProductPriceByProductSellerCode>`;
-      const parsed = await this.call('UpdateProductPriceByProductSellerCode', body);
-      const result = parsed?.Envelope?.Body?.UpdateProductPriceByProductSellerCodeResponse?.result;
-      return { success: result?.status === 'success', error: result?.errorMessage };
-    } catch (err) {
-      return { success: false, error: `N11 updatePrice: ${err instanceof Error ? err.message : 'Unknown'}` };
-    }
-  }
-
-  async fetchOrders(sinceDate?: string): Promise<Order[]> {
-    try {
-      const params = sinceDate ? `<pagination><page>1</page><pageSize>50</pageSize></pagination>` : '';
-      const body = `<orderList ${sinceDate ? `startDate="${sinceDate}"` : ''}>
-        ${this.authNode()}
-        ${params}
-      </orderList>`;
-      const parsed = await this.call('OrderList', body);
-      const orders = parsed?.Envelope?.Body?.OrderListResponse?.orderList?.order ?? [];
-      const arr = Array.isArray(orders) ? orders : [orders];
-      return arr.map((o: any) => ({
-        id: String(o.id ?? ''),
-        marketplace: 'n11',
-        status: o.status ?? '',
-        items: (o.items?.item ?? []).map((i: any) => ({
-          sku: i.productSellerCode ?? i.productId ?? '',
-          name: i.title ?? '',
-          quantity: Number(i.quantity ?? 0),
-          price: Number(i.price ?? 0),
-        })),
-        customer: { name: o.customerName ?? '', email: o.customerEmail ?? '' },
-        createdAt: o.orderDate ?? '',
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      throw new Error(`N11 fetchOrders failed: ${message}`);
-    }
+    this.api = new N11ApiClient({ appkey, appsecret });
   }
 
   async fetchProducts(page: number = 0): Promise<ProductData[]> {
     try {
-      const body = `<getProductList>
-        ${this.authNode()}
-        <pagination>
-          <page>${page + 1}</page>
-          <pageSize>50</pageSize>
-        </pagination>
-      </getProductList>`;
-      const parsed = await this.call('GetProductList', body);
-      const response = parsed?.Envelope?.Body?.GetProductListResponse;
-      const productList = response?.productList?.product ?? [];
-      const arr = Array.isArray(productList) ? productList : productList ? [productList] : [];
+      const data = await this.api.getProducts(page, 50);
+      const content = data?.content;
+      const arr = Array.isArray(content) ? content : [];
       if (!arr.length) return [];
+      console.log('[n11] sample raw product[0]:', JSON.stringify(arr[0]).slice(0, 600));
       return arr.map(mapToN11Product);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -154,8 +25,83 @@ export class N11IntegrationService extends IntegrationInterface {
     }
   }
 
-  async fetchCategories(): Promise<MarketplaceCategory[]> {
-    console.log('[n11] fetchCategories not supported yet');
+  async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
+    try {
+      const payload = mapToN11CreatePayload(data, this.api.integratorName);
+      const res = await this.api.createProduct(payload);
+      const status = res?.status;
+      const ok = status === 'IN_QUEUE' || status === 'SUCCESS' || status === 'PROCESSING';
+      if (!ok) {
+        return { success: false, error: `N11 CreateProduct: ${JSON.stringify(res?.reasons ?? res)}` };
+      }
+      return { success: true, marketplaceId: String(res?.id ?? data.sku) };
+    } catch (err) {
+      return { success: false, error: `N11 sendProduct: ${err instanceof Error ? err.message : 'Unknown'}` };
+    }
+  }
+
+  async updateStock(sku: string, quantity: number): Promise<{ success: boolean; error?: string }> {
+    try {
+      const payload = mapToN11PriceStockPayload(sku, { quantity });
+      const res = await this.api.updatePriceStock(payload);
+      const ok = res?.status === 'IN_QUEUE' || res?.status === 'SUCCESS';
+      return ok
+        ? { success: true }
+        : { success: false, error: `N11 UpdatePriceStock: ${JSON.stringify(res?.reasons ?? res)}` };
+    } catch (err) {
+      return { success: false, error: `N11 updateStock: ${err instanceof Error ? err.message : 'Unknown'}` };
+    }
+  }
+
+  async updatePrice(sku: string, price: number, currency: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const payload = mapToN11PriceStockPayload(sku, { price, currency });
+      const res = await this.api.updatePriceStock(payload);
+      const ok = res?.status === 'IN_QUEUE' || res?.status === 'SUCCESS';
+      return ok
+        ? { success: true }
+        : { success: false, error: `N11 UpdatePriceStock: ${JSON.stringify(res?.reasons ?? res)}` };
+    } catch (err) {
+      return { success: false, error: `N11 updatePrice: ${err instanceof Error ? err.message : 'Unknown'}` };
+    }
+  }
+
+  async fetchOrders(_sinceDate?: string): Promise<Order[]> {
+    console.warn('[n11] fetchOrders not supported in REST integration (out of product scope)');
     return [];
   }
+
+  async fetchCategories(): Promise<MarketplaceCategory[]> {
+    try {
+      const data = await this.api.getCategories();
+      return mapN11Categories(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      throw new Error(`N11 fetchCategories failed: ${message}`);
+    }
+  }
+}
+
+/** Map the /cdn/categories response to a flat {id,name,parentId} list. */
+export function mapN11Categories(data: any): MarketplaceCategory[] {
+  const out: MarketplaceCategory[] = [];
+  // Defensive: the response may be { categories: [...] } or a bare array.
+  const list = Array.isArray(data) ? data : data?.categories ?? data?.data ?? [];
+  const arr = Array.isArray(list) ? list : [];
+
+  const walk = (nodes: any[], parentId: string | null) => {
+    for (const n of nodes) {
+      if (!n) continue;
+      const id = String(n.id ?? n.categoryId ?? '');
+      if (!id) continue;
+      const name = String(n.name ?? n.categoryName ?? n.title ?? id);
+      out.push({ id, name, parentId });
+      const children = n.subCategories ?? n.subcategories ?? n.children ?? n.childCategories ?? [];
+      if (Array.isArray(children) && children.length) {
+        walk(children, id);
+      }
+    }
+  };
+  walk(arr, null);
+  return out;
 }

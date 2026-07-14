@@ -244,7 +244,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 ### Phase 6C.2 — Amazon TR / N11 / Pazarama Entegrasyonları ✅ **TAMAM**
 - [x] `factory.createIntegration()` 'e 3 yeni sağlayıcı eklendi (pazarama, n11, amazon)
 - [x] **Pazarama**: OAuth2 client_credentials + REST `/product` (Trendyol-uyumlu alanlar)
-- [x] **N11**: SellerProductService SOAP (`GetProductList`, `ProductCreate`, stok/fiyat)
+- [x] **N11**: REST API (`appkey`/`appsecret` header). `GET /ms/product-query` (import, sayfalı), `POST /ms/product/tasks/product-create` (push), `POST /ms/product/tasks/price-stock-update` (stok/fiyat), `GET /cdn/categories` (kategori ağacı). `factory` + `defaultConfig` + `MarketplaceIntegration.fields` `appkey`/`appsecret` kullanır.
 - [x] **Amazon TR**: SP-API + AWS SigV4 imzalama (`listings`/`catalog`) + LWA token
 - [x] `core-engine MarketplaceIntegration.availableMarketplaces()` 3 yeni pazaryeri (alan etiketleri)
 - [x] `MarketplaceIntegrationController.defaultConfig()` 3 yeni varsayılan config

@@ -249,7 +249,7 @@ class MarketplaceIntegrationController extends Controller
             'trendyol' => ['api_key' => '', 'api_secret' => '', 'supplier_id' => ''],
             'hepsiburada' => ['username' => '', 'password' => ''],
             'pazarama' => ['client_id' => '', 'client_secret' => '', 'api_key' => ''],
-            'n11' => ['username' => '', 'password' => ''],
+            'n11' => ['appkey' => '', 'appsecret' => ''],
             'amazon' => [
                 'refresh_token' => '',
                 'lwa_client_id' => '',

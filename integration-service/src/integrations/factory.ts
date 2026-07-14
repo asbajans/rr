@@ -51,10 +51,10 @@ export function createIntegration(
       return new PazaramaIntegrationService(clientId, clientSecret, apiKey);
     }
     case 'n11': {
-      const username = config.username || config.api_key || config.apiKey;
-      const password = config.password || config.api_secret || config.apiSecret;
-      if (!username || !password) return null;
-      return new N11IntegrationService(username, password);
+      const appkey = config.appkey || config.api_key || config.apiKey;
+      const appsecret = config.appsecret || config.api_secret || config.apiSecret;
+      if (!appkey || !appsecret) return null;
+      return new N11IntegrationService(appkey, appsecret);
     }
     case 'amazon': {
       const refreshToken = config.refresh_token || config.refreshToken;

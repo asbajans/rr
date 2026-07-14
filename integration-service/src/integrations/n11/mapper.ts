@@ -1,39 +1,97 @@
 import { ProductData } from '../../types';
 
+/** Map an N11 GetProductQuery content item -> normalized ProductData. */
 export function mapToN11Product(p: any): ProductData {
-  const stockItems = Array.isArray(p.stockItems?.stockItem) ? p.stockItems.stockItem : [];
-  const stock = stockItems.reduce(
-    (sum: number, s: any) => sum + (Number(s.quantity ?? s.optionQuantity ?? 0) || 0),
-    0
-  );
-
-  const images: string[] = [];
-  const imgList = p.productImageList?.image ?? p.productImageList?.images ?? [];
-  const imgArr = Array.isArray(imgList) ? imgList : [imgList];
-  for (const img of imgArr) {
-    const url = typeof img === 'string' ? img : img.url ?? null;
-    if (url) images.push(url);
-  }
+  const images: string[] = Array.isArray(p.imageUrls) ? p.imageUrls.filter((u: any) => !!u) : [];
 
   const attributes: Record<string, string> = {};
-  const attrs = p.attributes?.attribute ?? [];
-  const attrArr = Array.isArray(attrs) ? attrs : [attrs];
-  for (const a of attrArr) {
-    if (a?.name) attributes[a.name] = String(a.value ?? '');
+  const attrs = Array.isArray(p.attributes) ? p.attributes : [];
+  let brand: string | undefined;
+  for (const a of attrs) {
+    const name = a?.attributeName ?? a?.name;
+    const value = a?.attributeValue ?? a?.value;
+    if (name) {
+      attributes[name] = String(value ?? '');
+      if (String(name).toLowerCase() === 'marka') brand = String(value ?? '');
+    }
+  }
+
+  const categoryId = p.categoryId ?? p.category?.id ?? p.categoryId;
+  const sku = String(p.stockCode ?? p.productSellerCode ?? p.n11ProductId ?? '');
+
+  return {
+    id: String(p.n11ProductId ?? p.stockCode ?? ''),
+    sku,
+    name: p.title ?? '',
+    description: p.description ?? '',
+    price: Number(p.salePrice ?? p.listPrice ?? 0),
+    currency: (p.currencyType ?? 'TL').toString().toUpperCase() === 'TL' ? 'TRY' : (p.currencyType ?? 'TL').toString().toUpperCase(),
+    stock: Number(p.quantity ?? 0),
+    category: String(categoryId ?? ''),
+    category_id: categoryId != null ? String(categoryId) : undefined,
+    barcode: p.barcode ?? undefined,
+    brand,
+    images: images.slice(0, 8),
+    attributes,
+  };
+}
+
+/** Map normalized ProductData -> N11 CreateProduct payload. */
+export function mapToN11CreatePayload(data: ProductData, integrator: string): any {
+  const attributes: any[] = [];
+  if (data.brand) {
+    // N11 "Marka" attribute id is conventionally 1; sent as free customValue.
+    attributes.push({ id: 1, valueId: null, customValue: data.brand });
+  }
+
+  const sku = data.sku || `${data.id}`;
+  const price = Number(data.price || 0);
+
+  return {
+    payload: {
+      integrator,
+      skus: [
+        {
+          title: data.name,
+          description: data.description,
+          categoryId: Number(data.category_id || 0),
+          currencyType: (data.currency || 'TL').toUpperCase(),
+          productMainId: sku,
+          preparingDay: 3,
+          shipmentTemplate: '1',
+          maxPurchaseQuantity: 5,
+          stockCode: sku,
+          catalogId: null,
+          barcode: data.barcode ?? null,
+          quantity: Number(data.stock || 0),
+          images: (data.images || []).slice(0, 8).map((url, i) => ({ url, order: i })),
+          attributes: attributes.length ? attributes : [],
+          salePrice: price,
+          listPrice: price,
+          vatRate: 10,
+        },
+      ],
+    },
+  };
+}
+
+/** Map a stock/price update -> N11 price-stock-update payload. */
+export function mapToN11PriceStockPayload(
+  sku: string,
+  update: { quantity?: number; price?: number; currency?: string }
+): any {
+  const skuEntry: any = { stockCode: sku };
+  if (typeof update.quantity === 'number') skuEntry.quantity = update.quantity;
+  if (typeof update.price === 'number') {
+    skuEntry.salePrice = update.price;
+    skuEntry.listPrice = update.price;
+    skuEntry.currencyType = (update.currency || 'TL').toUpperCase();
   }
 
   return {
-    id: String(p.id ?? p.productId ?? p.productSellerCode ?? ''),
-    sku: String(p.productSellerCode ?? p.productId ?? ''),
-    name: p.title ?? '',
-    description: p.description ?? '',
-    price: Number(p.price ?? 0),
-    currency: (p.currencyType ?? 'TRY').toString().toUpperCase(),
-    stock,
-    category: String(p.category?.name ?? p.category?.categoryId ?? ''),
-    barcode: p.barcode ?? p.gtin ?? undefined,
-    brand: p.brand ?? p.brandName ?? undefined,
-    images: images.slice(0, 8),
-    attributes,
+    payload: {
+      integrator: 'Rahatio',
+      skus: [skuEntry],
+    },
   };
 }

@@ -61,7 +61,7 @@ class MarketplaceIntegration extends Model
             ],
             'n11' => [
                 'label' => 'N11',
-                'fields' => ['username' => 'API Kullanıcı Adı', 'password' => 'API Şifre'],
+                'fields' => ['appkey' => 'App Key', 'appsecret' => 'App Secret'],
             ],
             'amazon' => [
                 'label' => 'Amazon TR (SP-API)',
