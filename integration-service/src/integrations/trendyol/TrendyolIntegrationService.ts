@@ -171,7 +171,7 @@ export class TrendyolIntegrationService extends IntegrationInterface {
   }
 
   async fetchCategories(): Promise<MarketplaceCategory[]> {
-    const raw = (await this.api.getCategories()) as any;
+    const raw = (await this.api.getCategoryTree()) as any;
     const nodes: any[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.categories) ? raw.categories : []);
 
     const flat: MarketplaceCategory[] = [];

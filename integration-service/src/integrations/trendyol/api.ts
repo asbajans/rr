@@ -153,18 +153,18 @@ export class TrendyolApiClient {
     return res.data;
   }
 
-  async getCategories(): Promise<unknown> {
+  async getCategoryTree(): Promise<unknown> {
     await this.enforceRateLimit();
     const url = `/product-categories`;
-    console.log(`[trendyol] getCategories GET ${url}`);
+    console.log(`[trendyol] getCategoryTree GET ${url} (v2)`);
     try {
-      const res = await this.client.get(url);
+      const res = await this.v2Client.get(url);
       return res.data;
     } catch (err: any) {
       const status = err?.response?.status;
       const body = err?.response?.data;
-      console.error(`[trendyol] getCategories FAILED status=${status} body=${JSON.stringify(body)}`);
-      throw new Error(`Trendyol getCategories HTTP ${status}: ${body?.message || body?.errorMessage || err?.message || 'Unknown error'}`);
+      console.error(`[trendyol] getCategoryTree FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw new Error(`Trendyol getCategoryTree HTTP ${status}: ${body?.message || body?.errorMessage || err?.message || 'Unknown error'}`);
     }
   }
 }
