@@ -500,11 +500,21 @@ class ApiClient {
 
   importIntegrationProducts(marketplace: string, maxPages = 5) {
     return this.post<{
+      id: number
       marketplace: string
-      fetched?: number
-      summary: { total: number; imported: number; updated: number; failed: number; errors: string[] }
-      message?: string
+      status: 'pending' | 'processing' | 'done' | 'failed'
     }>(`/api/admin/integrations/${marketplace}/import`, { max_pages: maxPages })
+  }
+
+  getMarketplaceImportStatus(marketplace: string, id: number) {
+    return this.get<{
+      id: number
+      marketplace: string
+      status: 'pending' | 'processing' | 'done' | 'failed'
+      summary?: { total: number; imported: number; updated: number; failed: number; errors: string[]; fetched?: number; message?: string }
+      error?: string
+      fetched?: number
+    }>(`/api/admin/integrations/${marketplace}/import/${id}`)
   }
 
   // Variations

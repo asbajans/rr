@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Jobs\ImportMarketplaceProducts;
+use App\Models\MarketplaceImport;
 use App\Models\MarketplaceIntegration;
-use App\Services\AimeosProductImporter;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -74,7 +75,7 @@ class MarketplaceIntegrationController extends Controller
         return response()->json($integration);
     }
 
-    public function importProducts(Request $request, string $marketplace, AimeosProductImporter $importer)
+    public function importProducts(Request $request, string $marketplace)
     {
         $store = $this->getStore($request);
 
@@ -97,57 +98,43 @@ class MarketplaceIntegrationController extends Controller
 
         $maxPages = (int) $request->input('max_pages', 5);
 
-        $integrationUrl = env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001') . '/import/products';
-        \Log::info('[MarketplaceImport] calling integration-service', [
+        $record = MarketplaceImport::create([
+            'store_id' => $store->id,
             'marketplace' => $marketplace,
-            'url' => $integrationUrl,
-            'maxPages' => $maxPages,
+            'config' => $config,
+            'max_pages' => $maxPages,
+            'status' => 'pending',
         ]);
 
-        try {
-            $response = Http::timeout(120)
-                ->post($integrationUrl, [
-                    'marketplace' => $marketplace,
-                    'config' => $config,
-                    'maxPages' => $maxPages,
-                ]);
-        } catch (\Throwable $e) {
-            \Log::error('[MarketplaceImport] integration-service unreachable', [
-                'marketplace' => $marketplace,
-                'url' => $integrationUrl,
-                'error' => $e->getMessage(),
-            ]);
-            return response()->json(['error' => 'Integration service unreachable: ' . $e->getMessage()], 422);
-        }
-
-        if (!$response->successful()) {
-            \Log::error('[MarketplaceImport] integration-service returned error', [
-                'marketplace' => $marketplace,
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            return response()->json([
-                'error' => 'Pazaryeri ürünleri çekilemedi',
-                'detail' => $response->json('error') ?? $response->body(),
-            ], 422);
-        }
-
-        $products = $response->json('products') ?? [];
-
-        if (empty($products)) {
-            return response()->json([
-                'marketplace' => $marketplace,
-                'summary' => ['total' => 0, 'imported' => 0, 'updated' => 0, 'failed' => 0, 'errors' => []],
-                'message' => 'Pazaryerinde ürün bulunamadı',
-            ]);
-        }
-
-        $summary = $importer->import($store, $products, $marketplace);
+        ImportMarketplaceProducts::dispatch($record->id);
 
         return response()->json([
+            'id' => $record->id,
             'marketplace' => $marketplace,
-            'fetched' => count($products),
-            'summary' => $summary,
+            'status' => 'pending',
+        ], 202);
+    }
+
+    public function importStatus(Request $request, string $marketplace, int $id)
+    {
+        $store = $this->getStore($request);
+
+        $record = MarketplaceImport::where('store_id', $store->id)
+            ->where('marketplace', $marketplace)
+            ->where('id', $id)
+            ->first();
+
+        if (!$record) {
+            return response()->json(['error' => 'Import not found'], 404);
+        }
+
+        return response()->json([
+            'id' => $record->id,
+            'marketplace' => $record->marketplace,
+            'status' => $record->status,
+            'summary' => $record->summary,
+            'error' => $record->error,
+            'fetched' => $record->summary['fetched'] ?? null,
         ]);
     }
 

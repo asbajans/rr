@@ -200,6 +200,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin/integrations')->group(function () {
         Route::get('/', [MarketplaceIntegrationController::class, 'index']);
         Route::post('{marketplace}/import', [MarketplaceIntegrationController::class, 'importProducts']);
+        Route::get('{marketplace}/import/{id}', [MarketplaceIntegrationController::class, 'importStatus']);
         Route::put('{marketplace}', [MarketplaceIntegrationController::class, 'update']);
     });
 

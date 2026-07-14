@@ -91,6 +91,7 @@ services:
       DB_USERNAME: ${MYSQL_USER:-rahatio}
       DB_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
       REDIS_HOST: redis
+      QUEUE_CONNECTION: redis
       INTEGRATION_SERVICE_URL: http://rahatio-integration:3001
       AI_SERVICE_URL: http://rahatio-ai:3000
       CORE_API_KEY: ${CORE_API_KEY:-}
