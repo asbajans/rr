@@ -180,6 +180,23 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] Types: AuthResponse store alanı eklendi (web + mobile)
 - [x] AGENTS.md: Phase 7A planı eklendi
 
+### Phase 8 — Ürün Yönetimi (Products) Geliştirmeleri ✅ **TAMAM**
+- [x] **Sayfalama + per-page**: `ProductController::index` server-side `page`/`per_page` (per_page=`all` desteklenir) → `{data,total,page,per_page,last_page}`. Frontend sayfa + adet seçici (10/25/50/100/500/Tümü).
+- [x] **Toplu silme**: `POST /api/admin/products/bulk-delete` (corresponding route + `deleteAdminProductsBulk` api-client). Frontend çoklu seçim (checkbox + tümünü seç) + "Seçilenleri Sil".
+- [x] **Toplu AI üretimi**: Modal ile sırayla (queue) açıklama/başlık/tüm içerik üretimi. `generateProductDescription({field:'description'|'title'})`. 3 seçenek: **Açıklama**, **Başlık**, **Tüm içeriği oluştur** (her ikisini de yazar).
+- [x] **Sabit/kırpılmış kolonlar**: ID, Kod, Görsel, Başlık, Fiyat, Stok, Pazaryerleri, Marka, Kategori, Durum (badge), İşlemler. Dikey kaydırma, başlık sabit.
+- [x] **Durum (status) düzeltmesi**: Liste badge'i ve filtre artık ürünün global `status` alanını kullanır (eski hatalı `marketplace_data.status` yerine). `activeCount` de `status`'a göre.
+- [x] **Pazaryeri başına kategori/marka**: Modal'da her pazaryeri için ayrı kategori + marka alanı. "Kendi Sitem" → evrensel `/api/admin/categories/flat`; diğerleri → `GET /api/admin/integrations/marketplace-trees` (özyinelemeli ağaç, `marketplace_category_id` ile seçim). `saveMarketplaceData` artık `category_id` + `status` saklar.
+- [x] **Çoklu görsel editörü (modal)**: En az 6 URL alanı (otomatik 6'ya tamamlanır, eklendikçe büyür). Tüm pazaryeri görselleri (`product.images`) listelenir, canlı önizleme + "Sil".
+- [x] **Bilgisayardan görsel yükleme**: Modalda "Bilgisayardan yükle" (çoklu dosya). `POST /api/admin/upload` → MinIO'ya `stores/{store_id}/products/{uuid}.ext` yoluna kaydeder; dönen relative URL `API_BASE` ile mutlak yapılır (`api.uploadImage` wrapper). Görsel URL'leri `product.images`'e eklenir.
+- [x] **Görsel başına AI düzenleme**: Her görsel satırında "AI Düzenle" → talimat prompt'u → `editProductImage({image_urls:[url],prompt,category})` → `getAiStatus` poll → `getAiOutputUrl` → `uploadImage` ile yeniden yükle → ilgili görseli değiştir.
+- [x] **Sağlam import (AimeosProductImporter)**: `label`≤255, `code`≤64 truncate; fiyat/medya/metin/stok için `clearLists`/`clearProperties` ile dedup; alan başına `try/catch`; başarısız ürünler job'u düşürmez. Hata mesajları entegrasyon sayfasında gösterilir.
+- [x] **Görsel cap**: `media_urls` yazma sınırı 6 → **12** yükseltildi (validasyon `max:12` ile uyumlu).
+- [x] Backend `ProductController::productDetails` tüm media listesini `images[]` olarak döndürür (tüm pazaryeri görselleri).
+- [x] `MediaController::upload` zaten per-store MinIO'ya yazar; `/api/media/{path}` public serve route'u mevcut (storefront `<img>` için cross-origin çalışır).
+- [x] Test token: `64|Mu0KQpeVoy81EiNc3bF4EcvlSppCTkOE79bPeVwNc139b1e5` (owner@test.com). Deploy: Portainer stack 66 `PUT /api/stacks/66?endpointId=2` (git redeploy).
+- [x] AGENTS.md: Phase 8 planı eklendi
+
 ### Phase 6H — AI Özellikleri Geliştirme ✅ **TAMAM**
 - [x] AI service: `/ai/search` — semantic product search (Ollama ile doğal dil arama)
 - [x] AI service: `/ai/recommend` — AI product recommendations (benzer/trending)

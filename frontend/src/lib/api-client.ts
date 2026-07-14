@@ -275,7 +275,10 @@ class ApiClient {
   uploadImage(file: File) {
     const formData = new FormData()
     formData.append('file', file)
-    return this.upload<{ path: string; url: string }>('/api/admin/upload', formData)
+    return this.upload<{ path: string; url: string }>('/api/admin/upload', formData).then((r) => ({
+      path: r.path,
+      url: r.url && r.url.startsWith('http') ? r.url : `${API_BASE}${r.url}`,
+    }))
   }
 
   // Store Frontend (public)

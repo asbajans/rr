@@ -88,6 +88,26 @@ export default function ProductsPage() {
   // bulk AI modal
   const [bulkAiOpen, setBulkAiOpen] = useState(false)
   const [bulkAiField, setBulkAiField] = useState<'title' | 'description' | 'all'>('description')
+  const [uploading, setUploading] = useState(false)
+
+  async function handleUploadFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    try {
+      const urls: string[] = []
+      for (const f of Array.from(files)) {
+        const res = await api.uploadImage(f)
+        if (res.url) urls.push(res.url)
+      }
+      if (urls.length) {
+        setProduct((prev) => (prev ? { ...prev, images: [...prev.images, ...urls] } : prev))
+      }
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setUploading(false)
+    }
+  }
   const [bulkAiRunning, setBulkAiRunning] = useState(false)
   const [bulkAiDone, setBulkAiDone] = useState(0)
   const [bulkAiTotal, setBulkAiTotal] = useState(0)
@@ -665,15 +685,30 @@ export default function ProductsPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs text-gray-500">Görseller ({product.images.filter(Boolean).length})</label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setProduct((prev) => (prev ? { ...prev, images: [...prev.images, ''] } : prev))
-                    }
-                    className="text-xs text-indigo-600 hover:underline"
-                  >
-                    + Görsel ekle
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setProduct((prev) => (prev ? { ...prev, images: [...prev.images, ''] } : prev))
+                      }
+                      className="text-xs text-indigo-600 hover:underline"
+                    >
+                      + Görsel ekle
+                    </button>
+                    <label className="text-xs text-green-600 hover:underline cursor-pointer">
+                      {uploading ? 'Yükleniyor...' : 'Bilgisayardan yükle'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          handleUploadFiles(e.target.files)
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {Array.from({ length: Math.max(product.images.length, 6) }).map((_, idx) => {
