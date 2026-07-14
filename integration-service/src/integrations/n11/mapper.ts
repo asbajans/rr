@@ -16,7 +16,7 @@ export function mapToN11Product(p: any): ProductData {
     }
   }
 
-  const categoryId = p.categoryId ?? p.category?.id ?? p.categoryId;
+  const categoryId = p.categoryId ?? p.category?.id;
   const sku = String(p.stockCode ?? p.productSellerCode ?? p.n11ProductId ?? '');
 
   return {
