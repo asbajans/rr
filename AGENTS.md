@@ -255,6 +255,7 @@ api.rahatio.com.tr        → Backend API (Laravel + Aimeos headless)
 - [x] `IntegrationInterface.fetchProducts(page)` abstract metod
 - [x] Trendyol: `api.getProducts()` + `TrendyolIntegrationService.fetchProducts()` (content → ProductData)
 - [x] Hepsiburada: `HepsiburadaIntegrationService` — REST (mpop.hepsiburada.com + listing-external.hepsiburada.com), Basic auth + `User-Agent: {MERCHANT_ID} - SelfIntegration`, `merchant_id` config gerekli; `fetchProducts` (listing), `sendProduct` (catalog import, trackingId + comma-decimal price), `updateStock`/`updatePrice` (listing PUT)
+- [x] Pazarama: OAuth2 client_credentials + Bearer/APIKey; `fetchProducts` (`GET /product` page+1/size/approved), `sendProduct` (`POST /product/create` `{products:[...]}`, brandId/CategoryId GUID + `attributes:[{attributeId,attributeValueId}]` zorunlu), `updateStock` (`POST /product/updateStock-v2` `{items:[{code,stockCount}]}`), `updatePrice` (`POST /product/updatePrice-v2` `{items:[{code,listPrice,salePrice}]}`), `fetchCategories` (`GET /category/getCategoryTree`), `getCategoryAttributes` (`GET /category/getCategoryWithAttributes?Id=`). Batch sonucu `GET /product/getProductBatchResult?BatchRequestId=` (status 1/2/3)
 - [x] `factory.createIntegration(marketplace, config)` — store config'ten integration örneği
 - [x] integration-service: `POST /import/products` route (marketplace + config + maxPages → products)
 - [x] core-engine: `AimeosProductImporter` servisi (create/update by SKU, price/stock/media/text)

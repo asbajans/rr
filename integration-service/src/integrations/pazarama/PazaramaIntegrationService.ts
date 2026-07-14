@@ -65,17 +65,65 @@ export class PazaramaIntegrationService extends IntegrationInterface {
 
   async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
     try {
-      const res = await this.client.post('/product', [data], { headers: await this.authHeaders() });
-      return { success: true, marketplaceId: String(res.data?.[0]?.id ?? '') };
+      const code = data.sku || data.barcode || `${data.id}`;
+      const payload = {
+        products: [
+          {
+            Name: data.name,
+            DisplayName: data.name,
+            Description: data.description,
+            brandId: data.brand ?? '',
+            Desi: 1,
+            Code: code,
+            groupCode: String(code).slice(0, 10),
+            StockCount: Number(data.stock || 0),
+            stockCode: code,
+            VatRate: 0,
+            ListPrice: Number(data.price || 0),
+            SalePrice: Number(data.price || 0),
+            currencyType: 'TRY',
+            CategoryId: data.category_id || '',
+            images: (data.images || []).slice(0, 8).map((u) => ({ imageurl: u })),
+            attributes: Array.isArray((data as any).pazaramaAttributes)
+              ? (data as any).pazaramaAttributes
+              : [],
+            deliveries: [],
+          },
+        ],
+        productBatchInfo: { batchNumber: '', serialNumber: '', expirationDate: '' },
+        securityDocuments: [],
+      };
+      const res = await this.client.post('/product/create', payload, { headers: await this.authHeaders() });
+      const batchRequestId = res.data?.data?.batchRequestId ?? '';
+      const ok = res.data?.success === true;
+      return { success: ok, marketplaceId: String(batchRequestId) };
     } catch (err) {
       return { success: false, error: `Pazarama sendProduct: ${err instanceof Error ? err.message : 'Unknown'}` };
     }
   }
 
+  /** Fetch category attribute schema (for mapping required attributes before push). */
+  async getCategoryAttributes(categoryId: string): Promise<any> {
+    try {
+      const res = await this.client.get('/category/getCategoryWithAttributes', {
+        params: { Id: categoryId },
+        headers: await this.authHeaders(),
+      });
+      return res.data?.data ?? null;
+    } catch (err) {
+      console.error('[pazarama] getCategoryAttributes failed:', err instanceof Error ? err.message : 'Unknown');
+      return null;
+    }
+  }
+
   async updateStock(sku: string, quantity: number): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.client.put('/product/stock', { code: sku, stock: quantity }, { headers: await this.authHeaders() });
-      return { success: true };
+      const res = await this.client.post(
+        '/product/updateStock-v2',
+        { items: [{ code: sku, stockCount: Number(quantity) }] },
+        { headers: await this.authHeaders() }
+      );
+      return { success: res.data?.success === true };
     } catch (err) {
       return { success: false, error: `Pazarama updateStock: ${err instanceof Error ? err.message : 'Unknown'}` };
     }
@@ -83,8 +131,12 @@ export class PazaramaIntegrationService extends IntegrationInterface {
 
   async updatePrice(sku: string, price: number, currency: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.client.put('/product/price', { code: sku, price, currency }, { headers: await this.authHeaders() });
-      return { success: true };
+      const res = await this.client.post(
+        '/product/updatePrice-v2',
+        { items: [{ code: sku, listPrice: Number(price), salePrice: Number(price) }] },
+        { headers: await this.authHeaders() }
+      );
+      return { success: res.data?.success === true };
     } catch (err) {
       return { success: false, error: `Pazarama updatePrice: ${err instanceof Error ? err.message : 'Unknown'}` };
     }
@@ -133,13 +185,13 @@ export class PazaramaIntegrationService extends IntegrationInterface {
 
   async fetchCategories(): Promise<MarketplaceCategory[]> {
     try {
-      const res = await this.client.get('/category', { headers: await this.authHeaders() });
-      const raw = (res.data?.items ?? res.data?.data ?? res.data ?? []) as any[];
+      const res = await this.client.get('/category/getCategoryTree', { headers: await this.authHeaders() });
+      const raw = (res.data?.data ?? res.data ?? []) as any[];
       if (!Array.isArray(raw)) return [];
       if (raw[0]) console.log('[pazarama] sample raw category[0]:', JSON.stringify(raw[0]).slice(0, 800));
       return raw.map((c: any) => ({
-        id: String(c.id ?? c.code ?? c.categoryId ?? ''),
-        name: String(c.name ?? c.title ?? c.categoryName ?? ''),
+        id: String(c.id ?? ''),
+        name: String(c.name ?? c.displayName ?? ''),
         parentId: c.parentId != null ? String(c.parentId) : null,
       }));
     } catch (err) {
