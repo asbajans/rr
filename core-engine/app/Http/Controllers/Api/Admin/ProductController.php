@@ -20,6 +20,7 @@ class ProductController extends Controller
 
         $search = $manager->filter();
         $search->setSortations([$search->sort('-', 'product.id')]);
+        $search->slice(0, 5000);
 
         $total = 0;
         $items = $manager->search($search, [], $total);

@@ -147,10 +147,9 @@ export class TrendyolIntegrationService extends IntegrationInterface {
             ),
             currency: 'TRY',
             stock: Number(
-              v?.stock?.quantity ??
+              (typeof v?.stock === 'number' ? v.stock : (v?.stock?.quantity ?? v?.stockQuantity ?? null)) ??
+                (typeof p?.stock === 'number' ? p.stock : (p?.stock?.quantity ?? p?.stockQuantity ?? null)) ??
                 v?.quantity ??
-                v?.stockQuantity ??
-                p?.stock?.quantity ??
                 p?.quantity ??
                 0
             ),
