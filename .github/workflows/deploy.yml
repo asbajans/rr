@@ -57,10 +57,12 @@ jobs:
           python3 - <<'PY'
           import json, os, urllib.request, time
 
-          token = (os.environ.get("PORTAINER_API_KEY") or "").strip()
+          raw = os.environ.get("PORTAINER_API_KEY") or ""
+          token = raw.strip().strip('"').strip("'")
           if not token:
               print("No PORTAINER_API_KEY set; skipping redeploy")
               raise SystemExit(0)
+          print(f"token length={len(token)} prefix={token[:4]!r}")
 
           with open("docker-compose.yml", encoding="utf-8") as f:
               content = f.read()
