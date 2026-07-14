@@ -533,7 +533,11 @@ class ApiClient {
   }
 
   importMarketplaceCategories(marketplace: string) {
-    return this.post<{ marketplace: string; imported?: number; message?: string; error?: string }>(`/api/admin/integrations/${marketplace}/categories`, {})
+    return this.post<{ marketplace: string; status: 'processing' }>(`/api/admin/integrations/${marketplace}/categories`, {})
+  }
+
+  getMarketplaceCategoryImportStatus(marketplace: string) {
+    return this.get<{ status: 'idle' | 'processing' | 'done' | 'failed'; imported?: number; error?: string; message?: string }>(`/api/admin/integrations/${marketplace}/categories/status`)
   }
 
   getMarketplaceCategories(marketplace: string) {

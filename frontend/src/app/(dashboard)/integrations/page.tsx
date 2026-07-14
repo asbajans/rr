@@ -72,10 +72,31 @@ export default function IntegrationsPage() {
     setMessage('')
     try {
       const res = await api.importMarketplaceCategories(marketplace)
-      if (res.error) {
-        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: hata - ${res.error}`)
-      } else {
-        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${res.message || 'Kategori ağacı aktarıldı'}`)
+      if (!res || res.status !== 'processing') {
+        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma başlatılamadı`)
+        return
+      }
+      setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: kategori ağacı yükleniyor...`)
+      const started = Date.now()
+      while (Date.now() - started < 3 * 60 * 1000) {
+        await new Promise((r) => setTimeout(r, 2500))
+        let status
+        try {
+          status = await api.getMarketplaceCategoryImportStatus(marketplace)
+        } catch {
+          continue
+        }
+        if (status.status === 'done') {
+          setMessage(
+            `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${status.imported ?? 0} kategori ağacı aktarıldı`
+          )
+          break
+        } else if (status.status === 'failed') {
+          setMessage(
+            `${MARKETPLACE_LOGOS[marketplace] || marketplace}: hata - ${status.error || 'bilinmeyen hata'}`
+          )
+          break
+        }
       }
     } catch (err: any) {
       setMessage(err.message || 'Kategori ağacı aktarılamadı')
