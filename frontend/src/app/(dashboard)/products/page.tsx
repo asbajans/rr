@@ -692,34 +692,38 @@ export default function ProductsPage() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-zinc-600">Kategori</label>
-                            <select
+                            <input
+                              list={`cat-${mp}`}
                               value={entry.category}
                               onChange={(e) => setEntry(mp, { category: e.target.value })}
+                              placeholder="Kategori yazın veya seçin"
                               className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                            >
-                              <option value="">Seçiniz</option>
+                            />
+                            <datalist id={`cat-${mp}`}>
                               {cats.map((c: string) => (
-                                <option key={c} value={c}>{c}</option>
+                                <option key={c} value={c} />
                               ))}
-                            </select>
+                            </datalist>
                             {cats.length === 0 && (
-                              <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride kategori henüz içe aktarılmamış.</p>
+                              <p className="mt-1 text-xs text-zinc-400">Henüz kategori yok — yazabilir veya ürünleri pazaryerinden aktarabilirsiniz.</p>
                             )}
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-zinc-600">Marka</label>
-                            <select
+                            <input
+                              list={`brand-${mp}`}
                               value={entry.brand}
                               onChange={(e) => setEntry(mp, { brand: e.target.value })}
+                              placeholder="Marka yazın veya seçin"
                               className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                            >
-                              <option value="">Seçiniz</option>
+                            />
+                            <datalist id={`brand-${mp}`}>
                               {brands.map((b: string) => (
-                                <option key={b} value={b}>{b}</option>
+                                <option key={b} value={b} />
                               ))}
-                            </select>
+                            </datalist>
                             {brands.length === 0 && (
-                              <p className="mt-1 text-xs text-zinc-400">Bu pazaryeride marka henüz içe aktarılmamış.</p>
+                              <p className="mt-1 text-xs text-zinc-400">Henüz marka yok — yazabilir veya ürünleri pazaryerinden aktarabilirsiniz.</p>
                             )}
                           </div>
                         </div>

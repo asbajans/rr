@@ -193,18 +193,28 @@ export default function IntegrationsPage() {
               {integration.is_active && renderConfigForm(integration)}
               {integration.is_active && (
                 <div className="mt-4 border-t border-zinc-100 pt-4">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-zinc-500">
-                      Pazaryerindeki mevcut ürünleri mağazana aktar.
+                      Pazaryerindeki mevcut ürünleri (kategori ve marka dahil) mağazana aktar.
                     </p>
-                    <button
-                      onClick={() => importProducts(integration.marketplace)}
-                      disabled={importing === integration.marketplace}
-                      className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-                    >
-                      <Download className="h-4 w-4" />
-                      {importing === integration.marketplace ? 'İçe aktarılıyor...' : 'Ürünleri İçe Aktar'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => importProducts(integration.marketplace)}
+                        disabled={importing === integration.marketplace}
+                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                      >
+                        <Download className="h-4 w-4" />
+                        {importing === integration.marketplace ? 'İçe aktarılıyor...' : 'Ürünleri İçe Aktar'}
+                      </button>
+                      <button
+                        onClick={() => importProducts(integration.marketplace)}
+                        disabled={importing === integration.marketplace}
+                        className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                      >
+                        <Download className="h-4 w-4" />
+                        {importing === integration.marketplace ? 'Aktarılıyor...' : 'Kategori & Marka Aktar'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
