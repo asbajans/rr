@@ -40,8 +40,17 @@ class AimeosProductImporter
                 $item = $existing ?: $productManager->create();
                 $item->setCode($sku);
                 $item->setLabel((string) ($record['name'] ?? $sku));
-                $item->setStatus(1);
+                $status = 1;
+                if (array_key_exists('stock', $record)) {
+                    $status = ($record['stock'] > 0) ? 1 : 0;
+                }
+                $item->setStatus($status);
                 $item = $productManager->save($item);
+
+                $knownMarketplaces = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'];
+                if (in_array($source, $knownMarketplaces, true)) {
+                    $this->saveMarketplace($context, $item->getId(), $source);
+                }
 
                 $price = (float) ($record['price'] ?? 0);
                 if ($price > 0) {
@@ -125,5 +134,25 @@ class AimeosProductImporter
             'failed' => $failed,
             'errors' => array_slice($errors, 0, 20),
         ];
+    }
+
+    private function saveMarketplace(\Aimeos\MShop\ContextIface $context, string $productId, string $marketplace): void
+    {
+        $propManager = \Aimeos\MShop::create($context, 'product/property');
+        $ps = $propManager->filter();
+        $ps->setConditions($ps->and([
+            $ps->compare('==', 'product.property.parentid', $productId),
+            $ps->compare('==', 'product.property.type', 'marketplaces'),
+        ]));
+        foreach ($propManager->search($ps) as $op) {
+            $propManager->delete($op->getId());
+        }
+
+        $prop = $propManager->create();
+        $prop->setParentId($productId);
+        $prop->setType('marketplaces');
+        $prop->setValue($marketplace);
+        $prop->setLanguageId(null);
+        $propManager->save($prop);
     }
 }

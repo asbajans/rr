@@ -269,9 +269,14 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${p.status === 1 ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-600'}`}>
-                        {p.status === 1 ? 'Aktif' : 'Pasif'}
-                      </span>
+                      {(() => {
+                        const onSale = p.stock !== null && p.stock !== undefined ? p.stock > 0 : p.status === 1
+                        return (
+                          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${onSale ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {onSale ? 'Satışta' : 'Satışta Değil'}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                       <button

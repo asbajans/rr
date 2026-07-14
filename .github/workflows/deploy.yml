@@ -45,8 +45,26 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:latest
             ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-core:${{ github.sha }}
 
+  build-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Build & Push integration-service
+        uses: docker/build-push-action@v6
+        with:
+          context: ./integration-service
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/rahatio-integration:${{ github.sha }}
+
   deploy:
-    needs: [build-frontend, build-core]
+    needs: [build-frontend, build-core, build-integration]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

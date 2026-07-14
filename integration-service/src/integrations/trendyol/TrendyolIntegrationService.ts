@@ -97,9 +97,12 @@ export class TrendyolIntegrationService extends IntegrationInterface {
           description: p.description ?? '',
           category: String(p.category?.name ?? p.categoryName ?? p.pimCategoryId ?? ''),
           brand: p.brand?.name ?? p.brand ?? undefined,
-          images: Array.isArray(p.images)
-            ? p.images.map((i: any) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)
-            : [],
+          images: [
+            ...(Array.isArray(p.images) ? p.images : []),
+            ...(Array.isArray(p.imageUrls) ? p.imageUrls : []),
+          ]
+            .map((i: any) => (typeof i === 'string' ? i : i?.url))
+            .filter(Boolean),
           attributes: baseAttributes,
         };
 
@@ -115,25 +118,49 @@ export class TrendyolIntegrationService extends IntegrationInterface {
               }, {})
             : {};
 
+          const images = [
+            ...base.images,
+            ...(Array.isArray(v.images) ? v.images : []),
+            ...(Array.isArray(v.imageUrls) ? v.imageUrls : []),
+          ]
+            .map((i: any) => (typeof i === 'string' ? i : i?.url))
+            .filter(Boolean);
+          const uniqueImages = images.filter((u: string, idx: number) => images.indexOf(u) === idx);
+
           items.push({
             ...base,
             id: String(v.variantId ?? v.barcode ?? p.productMainId ?? p.id ?? ''),
             sku: String(v.stockCode ?? v.barcode ?? p.productMainId ?? ''),
             name: v.title ?? p.title ?? '',
+            description: v.description ?? base.description ?? '',
             price: Number(
               v?.price?.salePrice ??
                 v?.price?.listPrice ??
                 v?.salePrice ??
                 v?.listPrice ??
+                v?.price ??
                 p?.price?.salePrice ??
+                p?.salePrice ??
+                p?.price ??
                 0
             ),
             currency: 'TRY',
-            stock: Number(v?.stock?.quantity ?? v?.quantity ?? p?.stock?.quantity ?? 0),
+            stock: Number(
+              v?.stock?.quantity ??
+                v?.quantity ??
+                v?.stockQuantity ??
+                p?.stock?.quantity ??
+                p?.quantity ??
+                0
+            ),
             barcode: v.barcode ?? undefined,
+            images: uniqueImages,
             attributes: { ...baseAttributes, ...variantAttrs },
           });
         }
+      }
+      if (products.length > 0) {
+        console.log('[trendyol] sample raw product[0]:', JSON.stringify(products[0]).slice(0, 3000));
       }
       return items;
     } catch (err) {

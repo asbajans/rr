@@ -31,15 +31,16 @@ class ProductController extends Controller
             if ($filterMarketplace && !in_array($filterMarketplace, $marketplaces)) {
                 continue;
             }
+            $details = $this->productDetails($context, $item);
             $products[] = [
                 'id' => $item->getId(),
                 'code' => $item->getCode(),
                 'label' => $item->getLabel(),
                 'status' => $item->getStatus(),
-                'price' => null,
-                'currency' => 'TRY',
-                'stock' => null,
-                'image' => null,
+                'price' => $details['price'],
+                'currency' => $details['currency'],
+                'stock' => $details['stock'],
+                'image' => $details['image'],
                 'marketplaces' => $marketplaces,
             ];
         }
@@ -61,23 +62,26 @@ class ProductController extends Controller
         }
 
         $data = $item->toArray();
-        $data['price'] = null;
-        $data['currency'] = 'TRY';
-        $data['stock'] = null;
-        $data['image'] = null;
+        $data = array_merge($data, $this->productDetails($context, $item));
         $data['marketplaces'] = $this->getMarketplaces($context, $item->getId());
+
+        return response()->json($data);
+    }
+
+    private function productDetails(\Aimeos\MShop\ContextIface $context, \Aimeos\MShop\Common\Item\Iface $item): array
+    {
+        $id = $item->getId();
+        $data = ['price' => null, 'currency' => 'TRY', 'stock' => null, 'image' => null];
 
         try {
             $priceManager = MShop::create($context, 'price');
-            $ps = $priceManager->filter();
             $listManager = MShop::create($context, 'product/lists');
             $ls = $listManager->filter();
             $ls->setConditions($ls->and([
-                $ls->compare('==', 'product.lists.parentid', $item->getId()),
+                $ls->compare('==', 'product.lists.parentid', $id),
                 $ls->compare('==', 'product.lists.domain', 'price'),
             ]));
-            $listItems = $listManager->search($ls);
-            foreach ($listItems as $li) {
+            foreach ($listManager->search($ls) as $li) {
                 $priceItem = $priceManager->get($li->getRefId());
                 $data['price'] = $priceItem->getValue();
                 $data['currency'] = $priceItem->getCurrencyId();
@@ -91,11 +95,10 @@ class ProductController extends Controller
             $propManager = MShop::create($context, 'product/property');
             $ps = $propManager->filter();
             $ps->setConditions($ps->and([
-                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.parentid', $id),
                 $ps->compare('==', 'product.property.type', 'stock'),
             ]));
-            $props = $propManager->search($ps);
-            foreach ($props as $prop) {
+            foreach ($propManager->search($ps) as $prop) {
                 $data['stock'] = (int) $prop->getValue();
                 break;
             }
@@ -108,11 +111,10 @@ class ProductController extends Controller
             $listManager2 = MShop::create($context, 'product/lists');
             $ls2 = $listManager2->filter();
             $ls2->setConditions($ls2->and([
-                $ls2->compare('==', 'product.lists.parentid', $item->getId()),
+                $ls2->compare('==', 'product.lists.parentid', $id),
                 $ls2->compare('==', 'product.lists.domain', 'media'),
             ]));
-            $mediaLists = $listManager2->search($ls2);
-            foreach ($mediaLists as $ml) {
+            foreach ($listManager2->search($ls2) as $ml) {
                 $mediaItem = $mediaManager->get($ml->getRefId());
                 $data['image'] = $mediaItem->getUrl();
                 break;
@@ -121,7 +123,7 @@ class ProductController extends Controller
             // media not available
         }
 
-        return response()->json($data);
+        return $data;
     }
 
     public function store(Request $request)
