@@ -7,6 +7,7 @@ export interface ProductData {
   currency: string;
   stock: number;
   category: string;
+  category_id?: string;
   barcode?: string;
   brand?: string;
   images: string[];

@@ -56,6 +56,7 @@ const MARKETPLACE_LABELS: Record<string, string> = {
 export default function ProductsPage() {
   const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
+  const [total, setTotal] = useState(0)
   const [integrations, setIntegrations] = useState<MarketplaceIntegration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -144,7 +145,7 @@ export default function ProductsPage() {
       priceMin: filterPriceMin,
       priceMax: filterPriceMax,
     })
-      .then((res) => setProducts(res.data))
+      .then((res) => { setProducts(res.data); setTotal(res.total ?? res.data.length) })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [filterMarketplaces, filterStatus, filterPriceMin, filterPriceMax])
@@ -530,6 +531,10 @@ export default function ProductsPage() {
         <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
       )}
 
+      {!loading && !error && (
+        <p className="mt-4 text-sm text-zinc-500">{total} ürün bulundu</p>
+      )}
+
       {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
 
       {!loading && !error && (
@@ -714,40 +719,41 @@ export default function ProductsPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-medium text-zinc-600">Kategori (ID ile)</label>
-                            {marketplaceTrees[mp] && marketplaceTrees[mp].length > 0 ? (
-                              <select
-                                value={entry.category_id ?? ''}
-                                onChange={(e) => {
-                                  const sel = marketplaceTrees[mp].find((c) => c.id === e.target.value)
-                                  setEntry(mp, { category_id: e.target.value, category: sel?.name ?? '' })
-                                }}
-                                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                              >
-                                <option value="">Seçiniz</option>
-                                {marketplaceTrees[mp].map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {(c.path ?? c.name) + ` (${c.id})`}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                list={`cat-${mp}`}
-                                value={entry.category}
-                                onChange={(e) => setEntry(mp, { category: e.target.value })}
-                                placeholder="Kategori yazın veya seçin"
-                                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                              />
-                            )}
+                            <label className="block text-xs font-medium text-zinc-600">Kategori</label>
+                            <input
+                              list={`cat-${mp}`}
+                              value={entry.category}
+                              onChange={(e) => {
+                                const name = e.target.value
+                                const match = (marketplaceTrees[mp] ?? []).find((c) => c.name === name)
+                                setEntry(mp, match ? { category: name, category_id: match.id } : { category: name, category_id: '' })
+                              }}
+                              placeholder="Kategori seçin veya yazın"
+                              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                            />
                             <datalist id={`cat-${mp}`}>
+                              {(marketplaceTrees[mp] ?? []).map((c) => (
+                                <option key={c.id} value={c.name}>{`${c.path ?? c.name} (${c.id})`}</option>
+                              ))}
                               {cats.map((c: string) => (
-                                <option key={c} value={c} />
+                                <option key={`t-${c}`} value={c} />
                               ))}
                             </datalist>
+                            {entry.category &&
+                              !(marketplaceTrees[mp] ?? []).some((c) => c.name === entry.category) && (
+                                <div className="mt-2">
+                                  <label className="block text-xs font-medium text-zinc-600">Kategori ID (yeni kategori için)</label>
+                                  <input
+                                    value={entry.category_id ?? ''}
+                                    onChange={(e) => setEntry(mp, { category_id: e.target.value })}
+                                    placeholder="Trendyol kategori ID"
+                                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono"
+                                  />
+                                </div>
+                              )}
                             {(!marketplaceTrees[mp] || marketplaceTrees[mp].length === 0) && (
                               <p className="mt-1 text-xs text-zinc-400">
-                                Henüz kategori ağacı yok — Pazaryeri sayfasından &quot;Kategori Ağacını Aktar&quot; ile çekebilirsiniz.
+                                Henüz kategori yok — ürünleri pazaryerinden aktardığınızda otomatik gelir. Yeni kategori için yukarıya ID girin.
                               </p>
                             )}
                           </div>

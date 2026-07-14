@@ -96,6 +96,7 @@ export class TrendyolIntegrationService extends IntegrationInterface {
           name: p.title ?? '',
           description: p.description ?? '',
           category: String(p.category?.name ?? p.categoryName ?? p.pimCategoryId ?? ''),
+          category_id: String(p.category?.id ?? p.categoryId ?? p.pimCategoryId ?? ''),
           brand: p.brand?.name ?? p.brand ?? undefined,
           images: [
             ...(Array.isArray(p.images) ? p.images : []),

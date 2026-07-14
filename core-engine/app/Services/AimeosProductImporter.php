@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\MarketplaceCategory;
 use App\Models\Store;
 
 class AimeosProductImporter
@@ -18,6 +19,8 @@ class AimeosProductImporter
         $updated = 0;
         $failed = 0;
         $errors = [];
+        $categories = [];
+        $knownMarketplaces = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'];
 
         $context = app('aimeos.context')->get();
         $productManager = \Aimeos\MShop::create($context, 'product');
@@ -47,16 +50,19 @@ class AimeosProductImporter
                 $item->setStatus($status);
                 $item = $productManager->save($item);
 
-                $knownMarketplaces = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'];
                 if (in_array($source, $knownMarketplaces, true)) {
                     $this->saveMarketplace($context, $item->getId(), $source);
                     $this->saveMarketplaceData($context, $item->getId(), [
                         $source => [
                             'category' => (string) ($record['category'] ?? ''),
                             'brand' => (string) ($record['brand'] ?? ''),
-                            'on_sale' => $stock > 0,
+                            'on_sale' => (int) ($record['stock'] ?? 0) > 0,
                         ],
                     ]);
+
+                    if (!empty($record['category_id']) && !empty($record['category'])) {
+                        $categories[(string) $record['category_id']] = (string) $record['category'];
+                    }
                 }
 
                 $price = (float) ($record['price'] ?? 0);
@@ -132,6 +138,26 @@ class AimeosProductImporter
                 $failed++;
                 $errors[] = "Row $index ($sku): " . $e->getMessage();
             }
+        }
+
+        if (!empty($categories) && in_array($source, $knownMarketplaces, true)) {
+            $rows = [];
+            foreach ($categories as $cid => $cname) {
+                $rows[] = [
+                    'store_id' => $store->id,
+                    'marketplace' => $source,
+                    'marketplace_category_id' => (string) $cid,
+                    'name' => $cname,
+                    'parent_id' => null,
+                    'level' => 0,
+                    'path' => $cname,
+                ];
+            }
+            MarketplaceCategory::upsert(
+                $rows,
+                ['store_id', 'marketplace', 'marketplace_category_id'],
+                ['name', 'parent_id', 'level', 'path']
+            );
         }
 
         return [
