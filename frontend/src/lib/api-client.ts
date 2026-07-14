@@ -447,6 +447,10 @@ class ApiClient {
     return this.delete<void>(`/api/admin/categories/${id}`)
   }
 
+  getCategoriesFlat() {
+    return this.get<{ data: import('./types').Category[] }>('/api/admin/categories/flat')
+  }
+
   getCategoryMappings(id: number) {
     return this.get<{ data: import('./types').MarketplaceMapping[] }>(`/api/admin/categories/${id}/mappings`)
   }

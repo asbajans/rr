@@ -550,8 +550,10 @@ class ProductController extends Controller
             }
             $clean[(string) $k] = [
                 'category' => isset($v['category']) ? (string) $v['category'] : '',
+                'category_id' => isset($v['category_id']) ? (string) $v['category_id'] : '',
                 'brand' => isset($v['brand']) ? (string) $v['brand'] : '',
                 'on_sale' => !empty($v['on_sale']),
+                'status' => !empty($v['on_sale']) ? 1 : 0,
             ];
         }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '@/lib/api-client'
-import { Product, MarketplaceEntry, MarketplaceCategory } from '@/lib/types'
+import { Product, MarketplaceEntry, MarketplaceCategory, Category } from '@/lib/types'
 
 interface Filters {
   marketplaces: string[]
@@ -44,6 +44,40 @@ export default function ProductsPage() {
 
   const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', priceMin: '', priceMax: '' })
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
+  const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
+
+  // category options per marketplace (marketplace trees, or universal categories for Kendi Sitem)
+  function catOptionsFor(mp: string): { id: string; name: string }[] {
+    if (mp === 'Kendi Sitem') {
+      return (categoriesFlat ?? []).map((c) => ({ id: String(c.id), name: c.path || c.name }))
+    }
+    const tree = marketplaceTrees[mp] ?? []
+    const opts: { id: string; name: string }[] = []
+    const walk = (nodes: MarketplaceCategory[], prefix: string) => {
+      nodes.forEach((n) => {
+        const name = prefix ? `${prefix} / ${n.name}` : n.name
+        opts.push({ id: String(n.marketplace_category_id), name })
+        if (n.children?.length) walk(n.children, name)
+      })
+    }
+    walk(tree, '')
+    const seen = new Set<string>()
+    return opts.filter((o) => {
+      if (seen.has(o.id)) return false
+      seen.add(o.id)
+      return true
+    })
+  }
+
+  // brand options collected from products for a given marketplace
+  function brandsFor(mp: string): string[] {
+    const set = new Set<string>()
+    products.forEach((p) => {
+      const md = p.marketplace_data?.[mp]
+      if (md?.brand) set.add(md.brand)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'))
+  }
 
   const [selected, setSelected] = useState<string[]>([])
 
@@ -66,40 +100,7 @@ export default function ProductsPage() {
     { value: '0', label: 'Satışta Değil' },
   ]
 
-  // brands from loaded products (legacy)
-  const brandOptions = useMemo(() => {
-    const set = new Set<string>()
-    products.forEach((p) => {
-      if (p.brand) set.add(p.brand)
-      const md = firstMd(p)
-      if (md?.brand) set.add(md.brand)
-    })
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'))
-  }, [products])
-
-  // category options from marketplace trees
-  const categoryOptions = useMemo(() => {
-    const opts: { id: string; name: string }[] = []
-    Object.values(marketplaceTrees).forEach((tree) => {
-      const walk = (nodes: MarketplaceCategory[], prefix: string) => {
-        nodes.forEach((n) => {
-          const name = prefix ? `${prefix} / ${n.name}` : n.name
-          opts.push({ id: String(n.marketplace_category_id), name })
-          if (n.children?.length) walk(n.children, name)
-        })
-      }
-      walk(tree, '')
-    })
-    // unique by id
-    const seen = new Set<string>()
-    return opts.filter((o) => {
-      if (seen.has(o.id)) return false
-      seen.add(o.id)
-      return true
-    })
-  }, [marketplaceTrees])
-
-  // load marketplace trees once
+  // load marketplace trees + universal categories once
   useEffect(() => {
     const token = api.getToken()
     if (!token) return
@@ -107,6 +108,12 @@ export default function ProductsPage() {
       try {
         const res = await api.getMarketplaceTrees()
         setMarketplaceTrees(res.trees ?? {})
+      } catch {
+        // ignore
+      }
+      try {
+        const res = await api.getCategoriesFlat()
+        setCategoriesFlat(res.data ?? [])
       } catch {
         // ignore
       }
@@ -139,7 +146,7 @@ export default function ProductsPage() {
   }, [filters, page, perPage, reloadKey])
 
   const activeCount = useMemo(
-    () => products.filter((p) => (p.marketplace_data ? Object.values(p.marketplace_data).some((mp) => mp.status === 1) : false)).length,
+    () => products.filter((p) => p.status === 1).length,
     [products]
   )
 
@@ -173,15 +180,15 @@ export default function ProductsPage() {
 
   async function handleSubmit() {
     if (!product) return
-    const marketplace_data: Record<string, MarketplaceEntry> = { ...product.marketplace_data }
+    const marketplace_data: Record<string, MarketplaceEntry> = {}
     product.marketplaces.forEach((m) => {
-      const existing = marketplace_data[m] ?? { on_sale: false }
+      const md = product.marketplace_data[m] ?? {}
       marketplace_data[m] = {
-        ...existing,
-        category: product.category || existing.category || '',
-        category_id: product.category_id || existing.category_id || '',
-        brand: product.brand || existing.brand || '',
-        on_sale: m === 'Kendi Sitem' ? product.status === 1 : existing.on_sale,
+        category: md.category ?? '',
+        category_id: md.category_id ?? '',
+        brand: md.brand ?? '',
+        on_sale: m === 'Kendi Sitem' ? product.status === 1 : !!md.on_sale,
+        status: m === 'Kendi Sitem' ? product.status : (md.on_sale ? 1 : 0),
       }
     })
 
@@ -205,6 +212,20 @@ export default function ProductsPage() {
     }
   }
 
+  function updateMd(mp: string, patch: Partial<MarketplaceEntry>) {
+    setProduct((prev) => {
+      if (!prev) return prev
+      const cur = prev.marketplace_data[mp] ?? {}
+      return {
+        ...prev,
+        marketplace_data: {
+          ...prev.marketplace_data,
+          [mp]: { ...cur, ...patch },
+        },
+      }
+    })
+  }
+
   async function handleDelete() {
     if (!product) return
     if (!confirm(`${product.label} silinecek. Emin misiniz?`)) return
@@ -217,16 +238,49 @@ export default function ProductsPage() {
     }
   }
 
-  async function handleGenerateDescription() {
+  function aiContext() {
+    const md = product?.marketplace_data ? Object.values(product.marketplace_data)[0] : undefined
+    return {
+      name: product?.label ?? '',
+      brand: md?.brand ?? product?.brand ?? '',
+      category: md?.category ?? '',
+      price: product?.price,
+    }
+  }
+
+  async function handleAiDescription() {
     if (!product) return
     try {
-      const res = await api.generateProductDescription({
-        name: product.label,
-        brand: product.brand,
-        category: product.category,
-        price: product.price,
-      })
+      const res = await api.generateProductDescription({ ...aiContext(), field: 'description' })
       if (res.description) setProduct({ ...product, description: res.description })
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
+  async function handleAiTitle() {
+    if (!product) return
+    try {
+      const res = await api.generateProductDescription({ ...aiContext(), field: 'title' })
+      if (res.title) setProduct({ ...product, label: res.title })
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
+  async function handleAiAll() {
+    if (!product) return
+    const ctx = aiContext()
+    try {
+      const [d, t] = await Promise.all([
+        api.generateProductDescription({ ...ctx, field: 'description' }),
+        api.generateProductDescription({ ...ctx, field: 'title' }),
+      ])
+      setProduct((prev) =>
+        prev
+          ? { ...prev, description: d.description ?? prev.description, label: t.title ?? prev.label }
+          : prev
+      )
     } catch (e: any) {
       setError(e.message)
     }
@@ -477,13 +531,9 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {md ? (
-                        <span className={`px-2 py-0.5 rounded text-xs ${md.status === 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {md.status === 1 ? 'Satışta' : 'Satışta Değil'}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                      <span className={`px-2 py-0.5 rounded text-xs ${p.status === 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {p.status === 1 ? 'Satışta' : 'Satışta Değil'}
+                      </span>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <button onClick={() => openModal(p)} className="text-indigo-600 hover:underline">
@@ -549,44 +599,6 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Marka</label>
-                <input
-                  list="brand-options"
-                  value={product.brand}
-                  onChange={(e) => setProduct({ ...product, brand: e.target.value })}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
-                  placeholder="Marka girin"
-                />
-                <datalist id="brand-options">
-                  {brandOptions.map((b) => (
-                    <option key={b} value={b} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Kategori</label>
-                <input
-                  list="category-options"
-                  value={product.category}
-                  onChange={(e) => {
-                    const match = categoryOptions.find((o) => o.name === e.target.value)
-                    setProduct({ ...product, category: e.target.value, category_id: match?.id ?? product.category_id })
-                  }}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
-                  placeholder="Kategori adı yazın veya seçin"
-                />
-                <datalist id="category-options">
-                  {categoryOptions.map((o) => (
-                    <option key={o.id} value={o.name}>
-                      {o.id}
-                    </option>
-                  ))}
-                </datalist>
-                {product.category_id && <p className="text-xs text-gray-400 mt-1">Kategori ID: {product.category_id}</p>}
-              </div>
-
-              <div>
                 <label className="block text-xs text-gray-500 mb-1">Görsel URL</label>
                 <input
                   value={product.mediaUrl}
@@ -602,12 +614,17 @@ export default function ProductsPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs text-gray-500">Açıklama</label>
-                  <button
-                    onClick={handleGenerateDescription}
-                    className="text-xs text-indigo-600 hover:underline"
-                  >
-                    Yapay Zeka ile Üret
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={handleAiDescription} className="text-xs text-indigo-600 hover:underline">
+                      Yapay Zeka ile açıklama oluştur
+                    </button>
+                    <button onClick={handleAiTitle} className="text-xs text-indigo-600 hover:underline">
+                      Yapay Zeka ile başlık oluştur
+                    </button>
+                    <button onClick={handleAiAll} className="text-xs text-indigo-600 hover:underline">
+                      Yapay Zeka ile tüm içeriği düzenle
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   value={product.description}
@@ -648,6 +665,72 @@ export default function ProductsPage() {
                     ))}
                 </div>
               </div>
+
+              {product.marketplaces.length > 0 && (
+                <div className="border rounded p-3 space-y-3">
+                  <p className="text-xs font-medium text-gray-500">Pazaryeri Detayları</p>
+                  {product.marketplaces.map((mp) => {
+                    const md = product.marketplace_data[mp] ?? {}
+                    const catOpts = catOptionsFor(mp)
+                    const brOpts = brandsFor(mp)
+                    return (
+                      <div key={mp} className="border rounded p-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">{mp}</span>
+                          {mp !== 'Kendi Sitem' && (
+                            <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={!!md.on_sale}
+                                onChange={(e) => updateMd(mp, { on_sale: e.target.checked })}
+                              />
+                              Bu pazaryerinde satışta
+                            </label>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Kategori</label>
+                            <input
+                              list={`cat-${mp}`}
+                              value={md.category ?? ''}
+                              onChange={(e) => {
+                                const match = catOpts.find((o) => o.name === e.target.value)
+                                updateMd(mp, { category: e.target.value, category_id: match?.id ?? md.category_id ?? '' })
+                              }}
+                              className="w-full border rounded px-2 py-1.5 text-sm"
+                              placeholder={mp === 'Kendi Sitem' ? 'Kategori seçin' : 'Kategori seçin'}
+                            />
+                            <datalist id={`cat-${mp}`}>
+                              {catOpts.map((o) => (
+                                <option key={o.id} value={o.name}>
+                                  {o.id}
+                                </option>
+                              ))}
+                            </datalist>
+                            {md.category_id && <p className="text-xs text-gray-400 mt-1">ID: {md.category_id}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Marka</label>
+                            <input
+                              list={`brand-${mp}`}
+                              value={md.brand ?? ''}
+                              onChange={(e) => updateMd(mp, { brand: e.target.value })}
+                              className="w-full border rounded px-2 py-1.5 text-sm"
+                              placeholder="Marka"
+                            />
+                            <datalist id={`brand-${mp}`}>
+                              {brOpts.map((b) => (
+                                <option key={b} value={b} />
+                              ))}
+                            </datalist>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               <div>
                 <label className="flex items-center gap-2 text-sm">

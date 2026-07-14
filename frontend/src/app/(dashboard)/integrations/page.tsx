@@ -125,9 +125,11 @@ export default function IntegrationsPage() {
             if (s.message) {
               setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.message}`)
             } else {
-              setMessage(
-                `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.imported} yeni, ${s.updated} güncellendi, ${s.failed} başarısız (${s.fetched ?? s.total} ürün çekildi)`
-              )
+              let msg = `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.imported} yeni, ${s.updated} güncellendi, ${s.failed} başarısız (${s.fetched ?? s.total} ürün çekildi)`
+              if (s.failed > 0 && Array.isArray(s.errors) && s.errors.length) {
+                msg += `\nHatalar:\n` + s.errors.slice(0, 8).join('\n')
+              }
+              setMessage(msg)
             }
           } else {
             setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma tamamlandı`)
