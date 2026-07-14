@@ -482,6 +482,102 @@ Aimeos headless backend olarak kullanılır, frontend sıfırdan yazılır.
 | Tax manager | Vergi hesaplama |
 | Coupon manager | İndirim/kupon sistemi |
 
+## Pazaryeri Entegrasyonu — Teknik Detaylar
+
+Pazaryeri entegrasyonu, harici pazaryerlerinden (Trendyol, Hepsiburada, Pazarama, N11, Amazon TR) ürün çekip Aimeos'a aktarır. Sipariş/stok geri-sync ve ürün push (createProduct/stock/price) altyapısı ayrıdır (bkz. orderSync/webhook). Bu bölüm **ürün içe aktarma (import)** hattını belgeler.
+
+### Mimari Veri Akışı
+
+```
+[Frontend /integrations]  ──POST /api/admin/integrations/{marketplace}/import──▶  [core-engine]
+                                                                                     │  MarketplaceIntegrationController::importProducts
+                                                                                     │  MarketplaceImport kaydı (status=pending) + 202 döner
+                                                                                     │  ImportMarketplaceProducts job'ı dispatch edilir (Redis queue)
+                                                                                     ▼
+                                                                        [core-engine worker: queue:work]
+                                                                                     │  integration-service'e HTTP POST /import/products
+                                                                                     ▼
+                                                              [integration-service]  factory.createIntegration(marketplace, config)
+                                                                                     │  IntegrationInterface.fetchProducts(page)  (sayfa sayfa)
+                                                                                     │  her pazaryeri kendi api client + mapper'ı
+                                                                                     ▼  {products:[ProductData...]}
+                                                                        [core-engine worker]
+                                                                                     │  AimeosProductImporter::import(store, products, marketplace)
+                                                                                     │  → Aimeos product/price/stock/media/text + 'marketplaces' property
+                                                                                     ▼
+                                                                  MarketplaceImport.status='done', summary={imported,updated,failed,errors}
+[Frontend]  ──GET /api/admin/integrations/{marketplace}/import/{id}──▶  polling ile durum/özet gösterilir
+```
+
+**Neden async?** Senkron import Cloudflare ücretsiz plan ~100s timeout'a takılıyordu (504). Bu yüzden import arka plan job'a alındı; frontend 3sn'de bir `importStatus` poll eder.
+
+### Bileşenler
+
+#### integration-service (Node.js + TypeScript, port 3631)
+- `src/integrations/factory.ts` — `createIntegration(marketplace, config)`: store config'inden pazaryeri örneği üretir. 5 sağlayıcı: `trendyol`, `hepsiburada`, `pazarama`, `n11`, `amazon`.
+- `src/integrations/IntegrationInterface.ts` — sözleşme: `fetchProducts(page): ProductData[]`, vb.
+- `src/routes/import.ts` — `POST /import/products`: `{marketplace, config, maxPages}` alır; `maxPages` 1–50 (vars. 5) sayfa çeker, her sayfa 50 kayıt; `{marketplace, count, products}` döner. Hata → 502.
+- **Trendyol** (`trendyol/api.ts` + `TrendyolIntegrationService.ts` + `mapper.ts`):
+  - V1 client (`https://api.trendyol.com/sapigw`) → `createProduct`, `updateStock`, `updatePrice`, `getOrders`.
+  - V2 client (`https://apigw.trendyol.com/integration/product`) → `GET /sellers/{supplierId}/products/approved` (onaylı ürünler). **Bu endpoint ürün listesi içindir.**
+  - Auth: `Basic base64(apiKey:apiSecret)`, `User-Agent: "{supplierId} - SelfIntegration"` (zorunlu).
+  - Rate limit: 100 istek/dk (enforceRateLimit), axios-retry 3x (429/5xx).
+  - `mapper.ts`: Trendyol yanıtını `ProductData`'ya çevirir. `price`/`stock`/`images`/`description` birden çok olası alan yolundan okunur (defensive). İlk ham ürün `console.log('[trendyol] sample raw product[0]: …')` ile loglanır (alan eksikse teşhis için).
+- **Hepsiburada / Pazarama / N11 / Amazon**: kendi `IntegrationService` + `mapper`'ları. Amazon AWS SigV4 + LWA token kullanır.
+
+#### core-engine (Laravel + Aimeos)
+- `app/Http/Controllers/Api/Admin/MarketplaceIntegrationController.php`:
+  - `index` — `MarketplaceIntegration::availableMarketplaces()` ile tüm pazaryerlerini (label, is_active, config, fields) döner.
+  - `update` — `updateOrCreate` ile store bazlı aktif/config kaydeder.
+  - `importProducts($marketplace)` — aktif kontrolü, `MarketplaceImport` kaydı (status=`pending`), **`ImportMarketplaceProducts::dispatch($id)` → 202 `{id, marketplace, status}`**.
+  - `importStatus($marketplace, $id)` — kaydın `status` / `summary` / `error` / `fetched` döner.
+- `app/Models/MarketplaceImport.php` + migration `marketplace_imports` — import kaydı (`store_id, marketplace, config, max_pages, status, summary, error`).
+- `app/Jobs/ImportMarketplaceProducts.php` — `ShouldQueue`, `$timeout=1800`. `INTEGRATION_SERVICE_URL` (env, vars. `http://rahatio-integration:3001`) + `/import/products`'e POST; dönen ürünleri `AimeosProductImporter::import()` ile işler; `summary['fetched']` ekler. Worker `supervisord` ile `php artisan queue:work redis` olarak çalışır.
+- `app/Services/AimeosProductImporter.php` — `import(Store $store, array $records, string $source): array`. SKU'ya göre ürün oluşturur/günceller:
+  - `price` → `price` manager + `product/lists` (domain=price)
+  - `stock` → `product/property` (type=`stock`)
+  - `image` → `media` + `product/lists` (domain=media)
+  - `description`/`name` → `product` text (type=name/short/long)
+  - **`marketplaces` property**: `product/property` type=`marketplaces`, değer `source` (örn. `trendyol`). Birden çok kaynak varsa virgülle birleşik.
+  - **Durum**: `stock > 0` ise `status=1` (satışta), değilse `0`.
+  - Dönüş: `{total, imported, updated, failed, errors[]}`.
+- `app/Http/Controllers/Api/Admin/ProductController.php` — `index` ürün listesi. Artık `productDetails()` ile `price`/`stock`/`image` yükler (eski kod null'dı). **Filtreler** (query param): `marketplaces` (virgülle, `__none__` = pazaryeri yok), `status` (`1`=satışta, `0`=değil), `price_min`, `price_max`.
+
+#### frontend (Next.js)
+- `src/app/(dashboard)/integrations/page.tsx` — pazaryeri kartları (toggle + config form), "Ürünleri İçe Aktar" butonu → `api.importIntegrationProducts()` → 3sn'de bir `api.getMarketplaceImportStatus()` poll, özet gösterir.
+- `src/app/(dashboard)/products/page.tsx` — ürün tablosu. Filtreler: **pazaryeri çoktan seçim** (chip'ler: Kendi Sitem / Trendyol / … / **Pazaryeri Yok**), **durum** (Tümü / Satışta / Satışta Değil), **fiyat min-max**. `api.getAdminProducts({marketplaces, status, priceMin, priceMax})`. "Satışta" = `stock > 0`. Boş pazaryeri = `marketplaces` boş (sentinel `__none__`).
+
+### ProductData sözleşmesi (integration→core)
+```ts
+interface ProductData {
+  id: string            // benzersiz (variantId/barcode/productMainId)
+  sku: string           // stockCode/barcode
+  name: string
+  description?: string
+  price: number         // TRY
+  currency?: string
+  stock: number
+  barcode?: string
+  images?: string[]     // URL'ler
+  category?: string
+  brand?: string
+  attributes?: Record<string,string>
+}
+```
+
+### Gerekli Ortam Değişkenleri (docker-compose)
+- `INTEGRATION_SERVICE_URL` (core) → integration-service adresi
+- `QUEUE_CONNECTION=redis` + `redis.default` config (core) — import job kuyruğu
+- Trendyol: `TRENDYOL_API_KEY`, `TRENDYOL_API_SECRET`, `TRENDYOL_SUPPLIER_ID` (factory fallback; asıl config store'dan gelir)
+- Hepsiburada: `HB_USERNAME`, `HB_PASSWORD`
+- `CORE_API_KEY` (integration→core iç sync'ler için)
+
+### Teşhis / Bilinen Davranış
+- **401 Unauthorized** → Trendyol API key/secret/supplierId hatalı (V2 `www-authenticate` logta).
+- **Ürün geliyor ama fiyat/stok/görsel boş** → `integration-service` container logundaki `[trendyol] sample raw product[0]: …` satırı Trendyol'un gerçek yanıt şeklini gösterir; `mapper.ts` alan yolları buna göre güncellenir.
+- Import job'u worker çalışmıyorsa takılır: `supervisord` `queue` programı `php artisan queue:work redis` çalıştırmalı (`config/database.php`'de `redis.default` tanımlı olmalı).
+- `marketplaces` property Aimeos'ta virgülle ayrılmış tek bir `product/property` kaydıdır; boşsa hiç kayıt yazılmaz.
+
 ## Önemli Portainer Env
 
 ```

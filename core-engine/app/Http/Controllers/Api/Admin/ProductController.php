@@ -24,14 +24,45 @@ class ProductController extends Controller
         $total = 0;
         $items = $manager->search($search, [], $total);
 
-        $filterMarketplace = $request->query('marketplace');
+        $marketplacesParam = $request->query('marketplaces');
+        $statusParam = $request->query('status');
+        $priceMin = $request->query('price_min');
+        $priceMax = $request->query('price_max');
+
+        $wanted = $marketplacesParam !== null ? array_filter(array_map('trim', explode(',', $marketplacesParam))) : null;
+        $wantsNone = $wanted !== null && in_array('__none__', $wanted, true);
+        $wantsNamed = $wanted !== null ? array_values(array_diff($wanted, ['__none__'])) : [];
+
         $products = [];
         foreach ($items as $item) {
             $marketplaces = $this->getMarketplaces($context, $item->getId());
-            if ($filterMarketplace && !in_array($filterMarketplace, $marketplaces)) {
+
+            if ($wanted !== null) {
+                $matchNamed = !empty($wantsNamed) && (bool) array_intersect($marketplaces, $wantsNamed);
+                $matchNone = $wantsNone && empty($marketplaces);
+                if (!$matchNamed && !$matchNone) {
+                    continue;
+                }
+            }
+
+            $details = $this->productDetails($context, $item);
+            $stock = $details['stock'];
+            $onSale = $stock !== null ? $stock > 0 : $item->getStatus() === 1;
+
+            if ($statusParam !== null && $statusParam !== '') {
+                if (($statusParam === '1') !== $onSale) {
+                    continue;
+                }
+            }
+
+            $price = $details['price'];
+            if ($priceMin !== null && $priceMin !== '' && $price !== null && $price < (float) $priceMin) {
                 continue;
             }
-            $details = $this->productDetails($context, $item);
+            if ($priceMax !== null && $priceMax !== '' && $price !== null && $price > (float) $priceMax) {
+                continue;
+            }
+
             $products[] = [
                 'id' => $item->getId(),
                 'code' => $item->getCode(),
@@ -47,7 +78,7 @@ class ProductController extends Controller
 
         return response()->json([
             'data' => $products,
-            'total' => $total,
+            'total' => count($products),
         ]);
     }
 

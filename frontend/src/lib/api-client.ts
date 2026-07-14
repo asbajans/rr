@@ -165,9 +165,19 @@ class ApiClient {
   }
 
   // Admin Products
-  getAdminProducts(marketplace?: string) {
-    const qs = marketplace ? `?marketplace=${encodeURIComponent(marketplace)}` : ''
-    return this.get<{ data: import('./types').Product[]; total: number }>(`/api/admin/products${qs}`)
+  getAdminProducts(filters?: {
+    marketplaces?: string[]
+    status?: '' | '1' | '0'
+    priceMin?: string | number
+    priceMax?: string | number
+  }) {
+    const params = new URLSearchParams()
+    if (filters?.marketplaces?.length) params.set('marketplaces', filters.marketplaces.join(','))
+    if (filters?.status) params.set('status', filters.status)
+    if (filters?.priceMin !== undefined && filters.priceMin !== '') params.set('price_min', String(filters.priceMin))
+    if (filters?.priceMax !== undefined && filters.priceMax !== '') params.set('price_max', String(filters.priceMax))
+    const qs = params.toString()
+    return this.get<{ data: import('./types').Product[]; total: number }>(`/api/admin/products${qs ? '?' + qs : ''}`)
   }
 
   getAdminProduct(id: string) {

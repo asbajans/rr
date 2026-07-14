@@ -29,6 +29,7 @@ const MARKETPLACE_LABELS: Record<string, string> = {
   pazarama: 'Pazarama',
   n11: 'N11',
   amazon: 'Amazon TR',
+  __none__: 'Pazaryeri Yok',
 }
 
 export default function ProductsPage() {
@@ -37,7 +38,10 @@ export default function ProductsPage() {
   const [integrations, setIntegrations] = useState<MarketplaceIntegration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filterMarketplace, setFilterMarketplace] = useState('')
+  const [filterMarketplaces, setFilterMarketplaces] = useState<string[]>([])
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterPriceMin, setFilterPriceMin] = useState('')
+  const [filterPriceMax, setFilterPriceMax] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ProductForm>(emptyForm)
@@ -46,14 +50,34 @@ export default function ProductsPage() {
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const marketplaceOptions = ['own', ...integrations.map((i) => i.marketplace)]
+  const NONE_SENTINEL = '__none__'
+  const marketplaceFilterOptions = [...marketplaceOptions, NONE_SENTINEL]
 
   const loadProducts = useCallback(() => {
     setLoading(true)
-    api.getAdminProducts(filterMarketplace || undefined)
+    api.getAdminProducts({
+      marketplaces: filterMarketplaces,
+      status: filterStatus as '' | '1' | '0',
+      priceMin: filterPriceMin,
+      priceMax: filterPriceMax,
+    })
       .then((res) => setProducts(res.data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [filterMarketplace])
+  }, [filterMarketplaces, filterStatus, filterPriceMin, filterPriceMax])
+
+  function toggleFilterMarketplace(key: string) {
+    setFilterMarketplaces((prev) =>
+      prev.includes(key) ? prev.filter((m) => m !== key) : [...prev, key]
+    )
+  }
+
+  function clearFilters() {
+    setFilterMarketplaces([])
+    setFilterStatus('')
+    setFilterPriceMin('')
+    setFilterPriceMax('')
+  }
 
   useEffect(() => {
     api.getIntegrations()
@@ -198,19 +222,63 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        <label className="text-sm font-medium text-zinc-700">Pazaryeri Filtresi:</label>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {marketplaceFilterOptions.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleFilterMarketplace(key)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                filterMarketplaces.includes(key)
+                  ? 'border-zinc-900 bg-zinc-900 text-white'
+                  : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50'
+              }`}
+            >
+              {MARKETPLACE_LABELS[key] ?? key}
+            </button>
+          ))}
+        </div>
+
         <select
-          value={filterMarketplace}
-          onChange={(e) => setFilterMarketplace(e.target.value)}
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
           className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
         >
-          <option value="">Tümü</option>
-          <option value="own">Kendi Sitem</option>
-          {integrations.map((i) => (
-            <option key={i.marketplace} value={i.marketplace}>{MARKETPLACE_LABELS[i.marketplace] ?? i.marketplace}</option>
-          ))}
+          <option value="">Tüm Durumlar</option>
+          <option value="1">Satışta</option>
+          <option value="0">Satışta Değil</option>
         </select>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min="0"
+            value={filterPriceMin}
+            onChange={(e) => setFilterPriceMin(e.target.value)}
+            placeholder="Min ₺"
+            className="w-24 rounded-lg border border-zinc-300 px-2 py-2 text-sm"
+          />
+          <span className="text-zinc-400">-</span>
+          <input
+            type="number"
+            min="0"
+            value={filterPriceMax}
+            onChange={(e) => setFilterPriceMax(e.target.value)}
+            placeholder="Max ₺"
+            className="w-24 rounded-lg border border-zinc-300 px-2 py-2 text-sm"
+          />
+        </div>
+
+        {(filterMarketplaces.length > 0 || filterStatus !== '' || filterPriceMin !== '' || filterPriceMax !== '') && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+          >
+            Temizle
+          </button>
+        )}
       </div>
 
       {error && (
