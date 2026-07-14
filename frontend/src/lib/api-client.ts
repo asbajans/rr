@@ -72,8 +72,13 @@ class ApiClient {
     return this.request<T>(path, { method: 'POST', body, isFormData: true })
   }
 
-  delete<T>(path: string, options?: FetchOptions) {
-    return this.request<T>(path, { ...options, method: 'DELETE' })
+  delete<T>(path: string, options?: FetchOptions & { body?: unknown }) {
+    const { body, ...rest } = options ?? {}
+    return this.request<T>(path, {
+      ...rest,
+      method: 'DELETE',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
   }
 
   // Auth
@@ -170,14 +175,24 @@ class ApiClient {
     status?: '' | '1' | '0'
     priceMin?: string | number
     priceMax?: string | number
+    page?: number
+    perPage?: number | 'all'
   }) {
     const params = new URLSearchParams()
     if (filters?.marketplaces?.length) params.set('marketplaces', filters.marketplaces.join(','))
     if (filters?.status) params.set('status', filters.status)
     if (filters?.priceMin !== undefined && filters.priceMin !== '') params.set('price_min', String(filters.priceMin))
     if (filters?.priceMax !== undefined && filters.priceMax !== '') params.set('price_max', String(filters.priceMax))
+    if (filters?.page) params.set('page', String(filters.page))
+    if (filters?.perPage) params.set('per_page', String(filters.perPage))
     const qs = params.toString()
-    return this.get<{ data: import('./types').Product[]; total: number }>(`/api/admin/products${qs ? '?' + qs : ''}`)
+    return this.get<{
+      data: import('./types').Product[]
+      total: number
+      page: number
+      per_page: number
+      last_page: number
+    }>(`/api/admin/products${qs ? '?' + qs : ''}`)
   }
 
   getAdminProduct(id: string) {
@@ -198,6 +213,10 @@ class ApiClient {
 
   deleteAdminProduct(id: string) {
     return this.delete<void>(`/api/admin/products/${id}`)
+  }
+
+  deleteAdminProductsBulk(ids: string[]) {
+    return this.post<void>('/api/admin/products/bulk-delete', { ids })
   }
 
   // Admin Orders
@@ -285,8 +304,8 @@ class ApiClient {
     return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
   }
 
-  generateProductDescription(data: { name: string; brand?: string; category?: string; price?: number; keywords?: string }) {
-    return this.post<{ description: string }>('/api/ai/generate-description', data)
+  generateProductDescription(data: { name: string; brand?: string; category?: string; price?: number; keywords?: string; field?: 'description' | 'title' }) {
+    return this.post<{ description?: string; title?: string }>('/api/ai/generate-description', data)
   }
 
   editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
@@ -542,6 +561,10 @@ class ApiClient {
 
   getMarketplaceCategories(marketplace: string) {
     return this.get<{ data: import('./types').MarketplaceCategory[] }>(`/api/admin/integrations/${marketplace}/categories`)
+  }
+
+  getMarketplaceTrees() {
+    return this.get<{ trees: Record<string, import('./types').MarketplaceCategory[]> }>('/api/admin/integrations/marketplace-trees')
   }
 
   getMarketplaceImportStatus(marketplace: string, id: number) {

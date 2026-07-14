@@ -88,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [AdminProductController::class, 'index']);
         Route::post('/', [AdminProductController::class, 'store']);
         Route::get('taxonomies', [AdminProductController::class, 'taxonomies']);
+        Route::post('bulk-delete', [AdminProductController::class, 'destroyMany']);
         Route::get('{id}', [AdminProductController::class, 'show']);
         Route::put('{id}', [AdminProductController::class, 'update']);
         Route::delete('{id}', [AdminProductController::class, 'destroy']);
@@ -203,6 +204,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('admin/integrations')->group(function () {
         Route::get('/', [MarketplaceIntegrationController::class, 'index']);
+        Route::get('marketplace-trees', [MarketplaceIntegrationController::class, 'trees']);
         Route::post('{marketplace}/import', [MarketplaceIntegrationController::class, 'importProducts']);
         Route::get('{marketplace}/import/{id}', [MarketplaceIntegrationController::class, 'importStatus']);
     Route::post('{marketplace}/categories', [MarketplaceIntegrationController::class, 'importCategories']);

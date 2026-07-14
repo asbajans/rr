@@ -30,6 +30,11 @@ class ProductController extends Controller
         $priceMin = $request->query('price_min');
         $priceMax = $request->query('price_max');
 
+        $perPageRaw = $request->query('per_page');
+        $all = $perPageRaw === 'all';
+        $page = max(1, (int) ($request->query('page') ?? 1));
+        $perPage = $all ? 100000 : max(1, min(500, (int) ($perPageRaw ?: 25)));
+
         $wanted = $marketplacesParam !== null ? array_filter(array_map('trim', explode(',', $marketplacesParam))) : null;
         $wantsNone = $wanted !== null && in_array('__none__', $wanted, true);
         $wantsNamed = $wanted !== null ? array_values(array_diff($wanted, ['__none__'])) : [];
@@ -80,9 +85,43 @@ class ProductController extends Controller
             ];
         }
 
+        $total = count($products);
+        if (!$all) {
+            $products = array_slice($products, ($page - 1) * $perPage, $perPage);
+        }
+
         return response()->json([
             'data' => $products,
-            'total' => count($products),
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'last_page' => $all ? 1 : (int) ceil($total / $perPage),
+        ]);
+    }
+
+    public function destroyMany(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'string',
+        ]);
+
+        $context = $this->context();
+        $manager = MShop::create($context, 'product');
+        $deleted = 0;
+
+        foreach ($validated['ids'] as $id) {
+            try {
+                $manager->delete($id);
+                $deleted++;
+            } catch (\Throwable $e) {
+                // skip products that no longer exist
+            }
+        }
+
+        return response()->json([
+            'message' => $deleted . ' product(s) deleted.',
+            'deleted' => $deleted,
         ]);
     }
 

@@ -179,6 +179,47 @@ class MarketplaceIntegrationController extends Controller
         return response()->json(['data' => $flat]);
     }
 
+    public function trees(Request $request)
+    {
+        $store = $this->getStore($request);
+
+        $marketplaces = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'];
+        $trees = [];
+
+        foreach ($marketplaces as $mp) {
+            $rows = MarketplaceCategory::where('store_id', $store->id)
+                ->where('marketplace', $mp)
+                ->get();
+            $trees[$mp] = $this->buildCategoryTree($rows);
+        }
+
+        return response()->json(['trees' => $trees]);
+    }
+
+    private function buildCategoryTree($rows)
+    {
+        $byParent = [];
+        foreach ($rows as $r) {
+            $byParent[$r->parent_id ?? 0][] = $r;
+        }
+
+        $build = function ($parentId) use (&$build, $byParent) {
+            $children = $byParent[$parentId] ?? [];
+            return array_map(function ($r) use (&$build) {
+                return [
+                    'marketplace_category_id' => $r->marketplace_category_id,
+                    'name' => $r->name,
+                    'parent_id' => $r->parent_id,
+                    'level' => $r->level,
+                    'path' => $r->path,
+                    'children' => $build($r->marketplace_category_id),
+                ];
+            }, $children);
+        };
+
+        return $build(0);
+    }
+
     public function importStatus(Request $request, string $marketplace, int $id)
     {
         $store = $this->getStore($request);

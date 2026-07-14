@@ -45,11 +45,13 @@ export type Plan = {
 }
 
 export type MarketplaceCategory = {
-  id: string
+  id?: string
+  marketplace_category_id?: string
   name: string
   parent_id: string | null
   level: number
   path: string | null
+  children?: MarketplaceCategory[]
 }
 
 export type MarketplaceEntry = {
@@ -57,6 +59,7 @@ export type MarketplaceEntry = {
   category_id?: string
   brand?: string
   on_sale?: boolean
+  status?: number
 }
 
 export type Product = {
@@ -69,6 +72,7 @@ export type Product = {
   marketplaces?: string[]
   marketplace_data?: Record<string, MarketplaceEntry>
   images?: string[]
+  media_url?: string
   description?: string | null
   category?: string | null
   brand?: string | null

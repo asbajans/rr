@@ -150,10 +150,18 @@ class AiGatewayController extends Controller
             'category' => 'nullable|string',
             'price' => 'nullable|numeric',
             'keywords' => 'nullable|string',
+            'field' => 'nullable|in:description,title',
         ]);
 
-        $prompt = "Aşağıdaki ürün için kısa ve ikna edici bir e-ticaret ürün açıklaması yaz. "
-            . "Türkçe, 2-4 cümle, SEO dostu, ürün özelliklerini vurgula.\n";
+        $field = $validated['field'] ?? 'description';
+
+        if ($field === 'title') {
+            $prompt = "Aşağıdaki ürün için kısa, dikkat çekici, SEO dostu bir e-ticaret ürün BAŞLIĞI yaz. "
+                . "Türkçe, en fazla 60 karakter, ambalajsız. Sadece başlığı döndür, açıklama ekleme.\n\n";
+        } else {
+            $prompt = "Aşağıdaki ürün için kısa ve ikna edici bir e-ticaret ürün açıklaması yaz. "
+                . "Türkçe, 2-4 cümle, SEO dostu, ürün özelliklerini vurgula.\n\n";
+        }
         $prompt .= "Ürün Adı: " . $validated['name'] . "\n";
         if (!empty($validated['brand'])) {
             $prompt .= "Marka: " . $validated['brand'] . "\n";
@@ -167,7 +175,9 @@ class AiGatewayController extends Controller
         if (!empty($validated['keywords'])) {
             $prompt .= "Anahtar kelimeler: " . $validated['keywords'] . "\n";
         }
-        $prompt .= "Sadece açıklamayı döndür, başlık veya ek metin ekleme.";
+        $prompt .= $field === 'title'
+            ? "Sadece başlığı döndür, açıklama ekleme."
+            : "Sadece açıklamayı döndür, başlık veya ek metin ekleme.";
 
         $aiUrl = env('AI_SERVICE_URL', 'http://rahatio-ai:3000') . '/ai/chat';
         $response = Http::timeout(60)->post($aiUrl, [
@@ -177,9 +187,9 @@ class AiGatewayController extends Controller
         ]);
 
         if ($response->successful()) {
-            $user->consumeAiCredits(1, 'ai_description', 'AI description');
+            $user->consumeAiCredits(1, $field === 'title' ? 'ai_title' : 'ai_description', 'AI ' . $field);
             $reply = (string) ($response->json('reply') ?? '');
-            return response()->json(['description' => trim($reply)]);
+            return response()->json($field === 'title' ? ['title' => trim($reply)] : ['description' => trim($reply)]);
         }
 
         return response()->json(
