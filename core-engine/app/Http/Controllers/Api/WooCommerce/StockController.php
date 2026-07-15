@@ -55,7 +55,25 @@ class StockController extends Controller
 
         return response()->json([
             'sku' => $item->getCode(),
-            'stock' => (int) $item->getPropertyValue('stock', 'stock'),
+            'stock' => $this->getStock($context, $item->getId()),
         ]);
+    }
+
+    private function getStock(\Aimeos\MShop\ContextIface $context, string $productId): ?int
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'stock'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                return (int) $prop->getValue();
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return null;
     }
 }

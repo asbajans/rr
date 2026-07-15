@@ -65,11 +65,17 @@ class SplitOrderByVendor
     private function getVendorIdForSku(string $sku): ?int
     {
         try {
-            $manager = MShop::create('product');
-            $item = $manager->find($sku, ['product']);
-            if ($item) {
-                $vendorId = $item->getPropertyValue('vendor_id', 'vendor');
-                return $vendorId ? (int) $vendorId : null;
+            $context = app('aimeos.context')->get();
+            $manager = MShop::create($context, 'product');
+            $item = $manager->find($sku);
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.type', 'vendor'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                return (int) $prop->getValue();
             }
         } catch (\Exception $e) {
             logger()->warning("Vendor lookup failed for SKU {$sku}: {$e->getMessage()}");
