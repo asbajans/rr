@@ -1,5 +1,18 @@
 import { ProductData } from '../../types';
 
+/** N11 accepts only its own currency enum; TRY must be mapped to TL. */
+function normalizeN11Currency(code?: string): string {
+  const c = (code || 'TRY').toUpperCase();
+  const map: Record<string, string> = {
+    TRY: 'TL',
+    TL: 'TL',
+    EUR: 'EUR',
+    USD: 'USD',
+    GBP: 'GBP',
+  };
+  return map[c] ?? 'TL';
+}
+
 /** Map an N11 GetProductQuery content item -> normalized ProductData. */
 export function mapToN11Product(p: any): ProductData {
   const images: string[] = Array.isArray(p.imageUrls) ? p.imageUrls.filter((u: any) => !!u) : [];
@@ -55,7 +68,7 @@ export function mapToN11CreatePayload(data: ProductData, integrator: string): an
           title: data.name,
           description: data.description,
           categoryId: Number(data.category_id || 0),
-          currencyType: (data.currency || 'TL').toUpperCase(),
+          currencyType: normalizeN11Currency(data.currency),
           productMainId: sku,
           preparingDay: 3,
           shipmentTemplate: '1',
@@ -85,7 +98,7 @@ export function mapToN11PriceStockPayload(
   if (typeof update.price === 'number') {
     skuEntry.salePrice = update.price;
     skuEntry.listPrice = update.price;
-    skuEntry.currencyType = (update.currency || 'TL').toUpperCase();
+      skuEntry.currencyType = normalizeN11Currency(update.currency);
   }
 
   return {
