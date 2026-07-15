@@ -18,6 +18,8 @@ class VerifyInternalKey
             $expected = (string) env('RAHAT_INTERNAL_KEY');
         }
 
+        error_log('VerifyInternalKey debug: key=' . var_export($key, true) . ' expected=' . var_export($expected, true));
+
         if (!$key || $expected === '' || !hash_equals($expected, (string) $key)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
