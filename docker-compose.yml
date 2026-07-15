@@ -137,8 +137,8 @@ services:
       CORE_API_KEY: ${CORE_API_KEY:-}
       RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
       # Store id (stores.id) that inbound marketplace orders are attached to.
-      # Default 2 = "Default Store" (the merchant store with the active Trendyol integration).
-      ORDER_SYNC_VENDOR_ID: ${ORDER_SYNC_VENDOR_ID:-2}
+      # 2 = "Default Store" (the merchant store with the active Trendyol integration).
+      ORDER_SYNC_VENDOR_ID: "2"
       HB_USERNAME: ${HB_USERNAME:-}
       HB_PASSWORD: ${HB_PASSWORD:-}
       HB_MERCHANT_ID: ${HB_MERCHANT_ID:-}
