@@ -27,6 +27,9 @@ export class TrendyolApiClient {
   private readonly RATE_LIMIT = 100;
   private readonly RATE_WINDOW_MS = 60_000;
 
+  private brandCache = new Map<string, any[]>();
+  private attrCache = new Map<number, any[]>();
+
   constructor(credentials: TrendyolCredentials) {
     this.credentials = credentials;
 
@@ -182,6 +185,75 @@ export class TrendyolApiClient {
       }
       const body = err?.response?.data;
       console.error(`[trendyol] getProductByBarcode FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw err;
+    }
+  }
+
+  /** V2 create products. Body: { items: [...] }. Returns { content: { batchRequestId, id } } or { batchRequestId }. */
+  async createProductV2(items: any[]): Promise<unknown> {
+    await this.enforceRateLimit();
+    const url = `/sellers/${this.credentials.supplierId}/v2/products`;
+    try {
+      const res = await this.v2Client.post(url, { items });
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(
+        `[trendyol] createProductV2 FAILED status=${status} body=${JSON.stringify(body)} payload=${JSON.stringify({ items })}`
+      );
+      throw err;
+    }
+  }
+
+  /** Brand list. Optional name filter. Returns array of { id, name }. */
+  async getBrands(name?: string): Promise<any[]> {
+    const key = (name || '').toLowerCase();
+    if (this.brandCache.has(key)) {
+      return this.brandCache.get(key)!;
+    }
+    await this.enforceRateLimit();
+    try {
+      const res = await this.v2Client.get('/brands', { params: name ? { name } : {} });
+      const list = res.data?.brands ?? res.data?.result ?? [];
+      this.brandCache.set(key, list);
+      return list;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(`[trendyol] getBrands FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw err;
+    }
+  }
+
+  /** Resolve a brand name to a brandId. Returns null if not found. */
+  async resolveBrandId(name?: string): Promise<number | null> {
+    if (!name) return null;
+    const brands = await this.getBrands(name);
+    const match =
+      brands.find((b: any) => String(b.name ?? '').toLowerCase() === name.toLowerCase()) || brands[0];
+    return match ? Number(match.id) : null;
+  }
+
+  /** Required attributes for a leaf category. Returns array of { attributeId, name, allowCustom, allowedValues:[{id,value}] }. */
+  async getCategoryAttributes(categoryId: number): Promise<any[]> {
+    if (this.attrCache.has(categoryId)) {
+      return this.attrCache.get(categoryId)!;
+    }
+    await this.enforceRateLimit();
+    try {
+      const res = await this.v2Client.get(`/categories/${categoryId}/attributes`, {
+        params: { required: true },
+      });
+      const list = res.data?.categoryAttributes ?? res.data?.result ?? [];
+      this.attrCache.set(categoryId, list);
+      return list;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(
+        `[trendyol] getCategoryAttributes FAILED status=${status} categoryId=${categoryId} body=${JSON.stringify(body)}`
+      );
       throw err;
     }
   }

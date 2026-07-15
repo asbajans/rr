@@ -1,6 +1,6 @@
 import { IntegrationInterface } from '../IntegrationInterface';
 import { TrendyolApiClient } from './api';
-import { mapToTrendyolProduct } from './mapper';
+import { buildTrendyolV2Item } from './mapper';
 import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } from '../../types';
 
 export class TrendyolIntegrationService extends IntegrationInterface {
@@ -13,9 +13,20 @@ export class TrendyolIntegrationService extends IntegrationInterface {
 
   async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
     try {
-      const payload = mapToTrendyolProduct(data);
-      const result = await this.api.createProduct(payload) as { content?: { id?: string } };
-      return { success: true, marketplaceId: result?.content?.id };
+      const categoryId = Number(data.category_id);
+      if (!categoryId || categoryId <= 0) {
+        return { success: false, error: 'Trendyol: ürünün Trendyol kategori ID\'si tanımlı değil (N11/TY kategori seçin)' };
+      }
+      const brandId = await this.api.resolveBrandId(data.brand);
+      if (!brandId) {
+        return { success: false, error: `Trendyol: marka bulunamadı (${data.brand || 'boş'})` };
+      }
+      const requiredAttributes = await this.api.getCategoryAttributes(categoryId);
+      const item = buildTrendyolV2Item({ data, brandId, categoryId, requiredAttributes });
+      const result = (await this.api.createProductV2([item])) as any;
+      const batchRequestId = result?.content?.batchRequestId ?? result?.batchRequestId;
+      const id = result?.content?.id ?? batchRequestId ?? data.sku;
+      return { success: true, marketplaceId: String(id) };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return { success: false, error: `Trendyol sendProduct failed: ${message}` };
