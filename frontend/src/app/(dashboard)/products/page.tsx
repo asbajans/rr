@@ -83,6 +83,7 @@ export default function ProductsPage() {
 
   // product edit modal
   const [modalOpen, setModalOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [product, setProduct] = useState<ProductModalData | null>(null)
 
   // bulk AI modal
@@ -195,6 +196,27 @@ export default function ProductsPage() {
       marketplace_data: p.marketplace_data ?? {},
       description: p.description ?? '',
     })
+    setCreating(false)
+    setModalOpen(true)
+  }
+
+  function openCreateModal() {
+    setProduct({
+      id: '',
+      code: '',
+      label: '',
+      price: 0,
+      stock: 0,
+      status: 1,
+      category: '',
+      category_id: '',
+      brand: '',
+      images: [],
+      marketplaces: [],
+      marketplace_data: {},
+      description: '',
+    })
+    setCreating(true)
     setModalOpen(true)
   }
 
@@ -220,13 +242,21 @@ export default function ProductsPage() {
       marketplaces: product.marketplaces,
       marketplace_data,
     }
+    const code = product.code.trim()
+    if (code) payload.code = code
     const imgs = product.images.map((s) => s.trim()).filter(Boolean)
     if (imgs.length) payload.media_urls = imgs
     if (product.description.trim()) payload.description = product.description.trim()
 
     try {
-      await api.updateAdminProduct(product.id, payload)
+      if (creating) {
+        const finalCode = code || `PRD-${Date.now()}`
+        await api.createAdminProduct({ ...(payload as any), code: finalCode })
+      } else {
+        await api.updateAdminProduct(product.id, payload)
+      }
       setModalOpen(false)
+      setCreating(false)
       setReloadKey((k) => k + 1)
     } catch (e: any) {
       setError(e.message)
@@ -438,6 +468,12 @@ export default function ProductsPage() {
             {total} ürün bulundu · {activeCount} satışta · Sayfa {page} / {lastPage}
           </p>
         </div>
+        <button
+          onClick={openCreateModal}
+          className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap"
+        >
+          + Ürün Ekle
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
@@ -636,7 +672,7 @@ export default function ProductsPage() {
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 overflow-auto p-4">
           <div className="bg-white rounded-lg p-6 w-[560px] max-w-full my-8 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Ürün Düzenle</h3>
+              <h3 className="font-semibold text-lg">{creating ? 'Ürün Ekle' : 'Ürün Düzenle'}</h3>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 ✕
               </button>
@@ -885,9 +921,11 @@ export default function ProductsPage() {
             </div>
 
             <div className="flex justify-between items-center mt-6">
-              <button onClick={handleDelete} className="px-3 py-1.5 text-red-600 hover:underline text-sm">
-                Sil
-              </button>
+              {!creating && (
+                <button onClick={handleDelete} className="px-3 py-1.5 text-red-600 hover:underline text-sm">
+                  Sil
+                </button>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => setModalOpen(false)} className="px-4 py-1.5 border rounded text-sm">
                   İptal

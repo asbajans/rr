@@ -138,7 +138,7 @@ class AimeosProductImporter
                         $this->clearLists($context, $item->getId(), ['text']);
                         $text = $textManager->create();
                         $text->setContent((string) $record['description']);
-                        $text->setType('default');
+                        $text->setType('long');
                         $text->setLanguageId('tr');
                         $text = $textManager->save($text);
 

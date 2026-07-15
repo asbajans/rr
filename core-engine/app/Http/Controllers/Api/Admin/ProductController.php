@@ -578,11 +578,17 @@ class ProductController extends Controller
             $ls->setConditions($ls->and([
                 $ls->compare('==', 'product.lists.parentid', $productId),
                 $ls->compare('==', 'product.lists.domain', 'text'),
-                $ls->compare('==', 'product.lists.type', 'long'),
+                $ls->or([
+                    $ls->compare('==', 'product.lists.type', 'long'),
+                    $ls->compare('==', 'product.lists.type', 'default'),
+                ]),
             ]));
+            $ls->setSortations([$ls->sort('+', 'product.lists.type')]);
             foreach ($listManager->search($ls) as $li) {
                 $text = $textManager->get($li->getRefId());
-                return $text->getContent();
+                if (($text->getContent() ?? '') !== '') {
+                    return $text->getContent();
+                }
             }
         } catch (\Throwable $e) {
             // text not available
