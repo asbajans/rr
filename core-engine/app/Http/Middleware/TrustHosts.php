@@ -14,6 +14,11 @@ class TrustHosts extends Middleware
             'www.rahatio.com.tr',
             'app.rahatio.com.tr',
             'api.rahatio.com.tr',
+            // Internal Docker service hostnames (service-to-service calls)
+            'rahatio-core',
+            'rahatio-ai',
+            'rahatio-integration',
+            'rahatio-frontend',
         ];
     }
 }
