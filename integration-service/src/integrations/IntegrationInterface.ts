@@ -23,4 +23,27 @@ export abstract class IntegrationInterface {
   async verifyProduct(_data: ProductData): Promise<{ exists: boolean; marketplaceId?: string; error?: string; detail?: any }> {
     return { exists: false, error: 'Bu pazaryeri için doğrulama desteklenmiyor' };
   }
+
+  /**
+   * Push a cargo tracking number back to the marketplace.
+   * Returns success:false with an explanatory error when not supported.
+   */
+  async updateTracking(_data: {
+    externalId: string;
+    trackingNumber: string;
+    trackingCompany?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    return { success: false, error: `${this.marketplaceName} için kargo bilgisi gönderimi desteklenmiyor` };
+  }
+
+  /**
+   * Push an order status change back to the marketplace.
+   * Returns success:false with an explanatory error when not supported.
+   */
+  async updateOrderStatus(_data: {
+    externalId: string;
+    status: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    return { success: false, error: `${this.marketplaceName} için sipariş durumu gönderimi desteklenmiyor` };
+  }
 }

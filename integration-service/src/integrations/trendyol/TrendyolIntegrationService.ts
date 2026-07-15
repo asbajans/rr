@@ -5,9 +5,11 @@ import { ProductData, StockUpdate, PriceUpdate, Order, MarketplaceCategory } fro
 
 export class TrendyolIntegrationService extends IntegrationInterface {
   private api: TrendyolApiClient;
+  private supplierId: string;
 
   constructor(apiKey: string, apiSecret: string, supplierId: string) {
     super('trendyol');
+    this.supplierId = supplierId;
     this.api = new TrendyolApiClient({ apiKey, apiSecret, supplierId });
   }
 
@@ -70,6 +72,10 @@ export class TrendyolIntegrationService extends IntegrationInterface {
         customer: {
           name: o.customerName || '',
           email: o.customerEmail || '',
+          phone: o.customerPhone || '',
+          address: o.shippingAddress?.address || o.shippingAddressLine || '',
+          city: o.shippingAddress?.city || o.city || '',
+          country: o.shippingAddress?.country || 'Türkiye',
         },
         createdAt: o.orderDate || '',
       }));
@@ -77,6 +83,53 @@ export class TrendyolIntegrationService extends IntegrationInterface {
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new Error(`Trendyol fetchOrders failed: ${message}`);
     }
+  }
+
+  async updateTracking(data: {
+    externalId: string;
+    trackingNumber: string;
+    trackingCompany?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    try {
+      const result = (await this.api.getOrders()) as { content?: any[] };
+      const orders = result?.content || [];
+      const order = orders.find((o: any) => String(o.id) === String(data.externalId));
+      const packageId = order?.shipmentPackageId ?? order?.packageId;
+
+      if (!packageId) {
+        return {
+          success: false,
+          error: 'Trendyol: sipariş paketi bulunamadı (shipmentPackageId). Sipariş henüz Trendyol listesinde yok.',
+        };
+      }
+
+      await this.api.updateTrackingNumber(
+        packageId,
+        data.trackingNumber,
+        data.trackingCompany || 'Diğer'
+      );
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown';
+      return { success: false, error: `Trendyol kargo güncelleme hatası: ${msg}` };
+    }
+  }
+
+  async updateOrderStatus(data: {
+    externalId: string;
+    status: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    // Trendyol marks an order as shipped by setting its tracking number.
+    if (data.status === 'shipped' || data.status === 'delivered') {
+      return {
+        success: false,
+        error: 'Trendyol: kargo takip no gönderimi ile "/orders/tracking" endpointini kullanın (Trendyol siparişi takip no ile kargolanır).',
+      };
+    }
+    return {
+      success: false,
+      error: `Trendyol: "${data.status}" durumu için otomatik güncelleme desteklenmiyor.`,
+    };
   }
 
   async fetchProducts(page: number = 0): Promise<ProductData[]> {

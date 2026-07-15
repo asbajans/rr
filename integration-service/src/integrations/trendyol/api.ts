@@ -114,6 +114,28 @@ export class TrendyolApiClient {
     return res.data;
   }
 
+  async updateTrackingNumber(
+    shipmentPackageId: string | number,
+    trackingNumber: string,
+    trackingProvider: string
+  ): Promise<unknown> {
+    await this.enforceRateLimit();
+    const url = `/suppliers/${this.credentials.supplierId}/shipment-packages/${shipmentPackageId}/trackings`;
+    console.log(`[trendyol] updateTrackingNumber PUT ${url}`);
+    try {
+      const res = await this.client.put(url, {
+        trackingNumber,
+        trackingProvider,
+      });
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(`[trendyol] updateTrackingNumber FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw new Error(`Trendyol updateTrackingNumber HTTP ${status}: ${body?.message || body?.errorMessage || err?.message || 'Unknown error'}`);
+    }
+  }
+
   async getProducts(page: number = 0, size: number = 50): Promise<unknown> {
     await this.enforceRateLimit();
     // V2 approved products endpoint (host differs from V1 sapigw)

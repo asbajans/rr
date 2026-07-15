@@ -136,6 +136,9 @@ services:
       CORE_URL: http://rahatio-core
       CORE_API_KEY: ${CORE_API_KEY:-}
       RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
+      # Store id (stores.id) that inbound marketplace orders are attached to.
+      # REQUIRED for two-way order sync: set to the target store's id (e.g. 1).
+      ORDER_SYNC_VENDOR_ID: ${ORDER_SYNC_VENDOR_ID:-}
       HB_USERNAME: ${HB_USERNAME:-}
       HB_PASSWORD: ${HB_PASSWORD:-}
       HB_MERCHANT_ID: ${HB_MERCHANT_ID:-}

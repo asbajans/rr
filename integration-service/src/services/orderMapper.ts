@@ -11,6 +11,9 @@ export function mapToOrderDTO(order: Order): OrderDTO {
       name: order.customer.name,
       email: order.customer.email,
       phone: order.customer.phone,
+      address: order.customer.address,
+      city: order.customer.city,
+      country: order.customer.country,
     },
     items: order.items.map((item) => ({
       sku: item.sku,

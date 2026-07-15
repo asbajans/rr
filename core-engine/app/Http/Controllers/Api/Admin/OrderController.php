@@ -4,15 +4,43 @@ namespace App\Http\Controllers\Api\Admin;
 
 use Aimeos\MShop;
 use App\Models\DropshippingOrder;
+use App\Models\MarketplaceIntegration;
 use App\Models\OrderStatusHistory;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Http;
 
 class OrderController extends Controller
 {
     private function context(): \Aimeos\MShop\ContextIface
     {
         return app('aimeos.context')->get();
+    }
+
+    /** Push a status/tracking update back to the source marketplace via integration-service. */
+    private function pushToMarketplace(DropshippingOrder $order, string $endpoint, array $payload): void
+    {
+        try {
+            $base = rtrim(env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001'), '/');
+            if (!$base) {
+                return;
+            }
+            Http::withHeaders([
+                'X-Internal-Key' => env('RAHAT_INTERNAL_KEY', ''),
+                'Content-Type' => 'application/json',
+            ])->timeout(10)->post($base . $endpoint, $payload);
+        } catch (\Exception $e) {
+            logger()->warning("Marketplace push {$endpoint} failed for order {$order->id}: {$e->getMessage()}");
+        }
+    }
+
+    private function marketplaceConfig(DropshippingOrder $order): ?array
+    {
+        $integration = MarketplaceIntegration::where('store_id', $order->vendor_id)
+            ->where('marketplace', $order->marketplace)
+            ->first();
+
+        return $integration?->config;
     }
 
     public function index(Request $request)
@@ -101,6 +129,15 @@ class OrderController extends Controller
             ], 422);
         }
 
+        if ($config = $this->marketplaceConfig($order)) {
+            $this->pushToMarketplace($order, '/orders/status', [
+                'marketplace' => $order->marketplace,
+                'config' => $config,
+                'externalId' => $order->external_id,
+                'status' => $validated['status'],
+            ]);
+        }
+
         return response()->json($order->fresh()->load('statusHistory.user'));
     }
 
@@ -117,6 +154,16 @@ class OrderController extends Controller
         ]);
 
         $order->update($validated);
+
+        if ($config = $this->marketplaceConfig($order)) {
+            $this->pushToMarketplace($order, '/orders/tracking', [
+                'marketplace' => $order->marketplace,
+                'config' => $config,
+                'externalId' => $order->external_id,
+                'trackingNumber' => $validated['tracking_number'],
+                'trackingCompany' => $validated['tracking_company'] ?? null,
+            ]);
+        }
 
         return response()->json($order);
     }

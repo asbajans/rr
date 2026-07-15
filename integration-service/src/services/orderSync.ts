@@ -5,20 +5,28 @@ import { OrderDTO } from '../types';
 import { sendPushNotification } from './fcm';
 import axios from 'axios';
 
-const CORE_ENGINE_ORDER_URL = process.env.CORE_ENGINE_ORDER_URL || 'http://rahatio-core/api/orders';
+const CORE_URL = (process.env.CORE_URL || 'http://rahatio-core').replace(/\/$/, '');
+const DROPSHIPPING_ORDER_URL = `${CORE_URL}/api/dropshipping-orders`;
+const VENDOR_ID = process.env.ORDER_SYNC_VENDOR_ID ? Number(process.env.ORDER_SYNC_VENDOR_ID) : undefined;
 
 let lastCheck: string | null = null;
 
 async function sendOrderToCoreEngine(dto: OrderDTO): Promise<void> {
   try {
-    await axios.post(CORE_ENGINE_ORDER_URL, dto, {
+    const payload: OrderDTO = { ...dto, vendorId: dto.vendorId ?? VENDOR_ID };
+    if (!payload.vendorId) {
+      console.error(`Order ${dto.externalId}: ORDER_SYNC_VENDOR_ID not set, skipping`);
+      return;
+    }
+
+    await axios.post(DROPSHIPPING_ORDER_URL, payload, {
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.CORE_API_KEY || '',
+        'X-Internal-Key': process.env.RAHAT_INTERNAL_KEY || '',
       },
       timeout: 15_000,
     });
-    console.log(`Order ${dto.externalId} sent to core-engine`);
+    console.log(`Order ${dto.externalId} sent to dropshipping-orders`);
 
     await sendPushNotification(
       `marketplace_${dto.marketplace}`,

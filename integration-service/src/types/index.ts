@@ -57,6 +57,9 @@ export interface OrderCustomer {
   name: string;
   email: string;
   phone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
 }
 
 export type QueueName = 'product-push-queue' | 'stock-sync-queue';
@@ -93,4 +96,5 @@ export interface OrderDTO {
   };
   createdAt: string;
   paidAt?: string;
+  vendorId?: number;
 }

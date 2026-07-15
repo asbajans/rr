@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\AiGatewayController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\B2bController;
+use App\Http\Controllers\Api\DropshippingInboundController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\SlaveDownloadController;
@@ -230,6 +231,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware(\App\Http\Middleware\VerifyInternalKey::class)->group(function () {
     Route::post('/admin/products/{id}/sync-status', [AdminProductController::class, 'syncStatus']);
+    Route::post('/dropshipping-orders', [DropshippingInboundController::class, 'upsert']);
 });
 
 Route::get('/store/{siteCode}/locations', [StoreLocationController::class, 'publicLocations']);

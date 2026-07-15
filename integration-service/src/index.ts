@@ -1,6 +1,7 @@
 import express from 'express';
 import webhookRouter from './routes/webhook';
 import importRouter from './routes/import';
+import ordersRouter from './routes/orders';
 import { startWorkers } from './queues/workers';
 import { startOrderSync } from './services/orderSync';
 
@@ -9,6 +10,7 @@ app.use(express.json());
 
 app.use(webhookRouter);
 app.use(importRouter);
+app.use(ordersRouter);
 
 app.get('/health', (_req, res) => {
   res.json({
