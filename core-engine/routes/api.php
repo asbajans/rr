@@ -151,6 +151,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/dropshipping/{order}/status', [AdminOrderController::class, 'updateStatus']);
         Route::put('/dropshipping/{order}/tracking', [AdminOrderController::class, 'updateTracking']);
         Route::get('/dropshipping/{order}/history', [AdminOrderController::class, 'statusHistory']);
+        Route::delete('/dropshipping/{order}', [AdminOrderController::class, 'destroy']);
         Route::get('/stats', [AdminOrderController::class, 'stats']);
     });
 

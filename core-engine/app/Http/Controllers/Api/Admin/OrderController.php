@@ -200,4 +200,16 @@ class OrderController extends Controller
 
         return response()->json(['data' => $stats]);
     }
+
+    public function destroy(Request $request, DropshippingOrder $order)
+    {
+        $store = $request->user()->store;
+        if (!$store || $order->vendor_id !== $store->id) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $order->delete();
+
+        return response()->json(['deleted' => true, 'id' => $order->id]);
+    }
 }
