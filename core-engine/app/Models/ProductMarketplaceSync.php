@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductMarketplaceSync extends Model
 {
+    protected $table = 'product_marketplace_sync';
+
     protected $fillable = [
         'store_id',
         'product_id',
