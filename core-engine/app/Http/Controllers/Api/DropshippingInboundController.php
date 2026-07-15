@@ -11,7 +11,6 @@ class DropshippingInboundController extends Controller
 {
     public function upsert(Request $request)
     {
-        error_log('upsert reached method=' . $request->method());
         $validated = $request->validate([
             'externalId' => 'required|string',
             'marketplace' => 'required|string',

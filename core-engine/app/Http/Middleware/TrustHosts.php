@@ -6,12 +6,6 @@ use Illuminate\Http\Middleware\TrustHosts as Middleware;
 
 class TrustHosts extends Middleware
 {
-    public function handle($request, $next)
-    {
-        error_log('TrustHosts method=' . $request->method() . ' host=' . $request->getHost() . ' trusted=' . json_encode($this->hosts()));
-        return parent::handle($request, $next);
-    }
-
     public function hosts(): array
     {
         return [
