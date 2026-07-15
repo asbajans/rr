@@ -26,6 +26,9 @@ export class N11IntegrationService extends IntegrationInterface {
   }
 
   async sendProduct(data: ProductData): Promise<{ success: boolean; marketplaceId?: string; error?: string }> {
+    if (!data.category_id || Number(data.category_id) <= 0) {
+      return { success: false, error: 'N11 sendProduct: product N11 category not set (category_id missing)' };
+    }
     try {
       const payload = mapToN11CreatePayload(data, this.api.integratorName);
       const res = await this.api.createProduct(payload);

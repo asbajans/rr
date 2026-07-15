@@ -78,15 +78,33 @@ export class N11ApiClient {
   /** Create products. Body: { payload: { integrator, skus:[...] } } */
   async createProduct(payload: unknown): Promise<any> {
     await this.enforceRateLimit();
-    const res = await this.client.post('/ms/product/tasks/product-create', payload);
-    return res.data;
+    try {
+      const res = await this.client.post('/ms/product/tasks/product-create', payload);
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(
+        `[n11] createProduct FAILED status=${status} body=${JSON.stringify(body)} payload=${JSON.stringify(payload)}`
+      );
+      throw err;
+    }
   }
 
   /** Price + stock update. Body: { payload: { integrator, skus:[...] } } */
   async updatePriceStock(payload: unknown): Promise<any> {
     await this.enforceRateLimit();
-    const res = await this.client.post('/ms/product/tasks/price-stock-update', payload);
-    return res.data;
+    try {
+      const res = await this.client.post('/ms/product/tasks/price-stock-update', payload);
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error(
+        `[n11] updatePriceStock FAILED status=${status} body=${JSON.stringify(body)} payload=${JSON.stringify(payload)}`
+      );
+      throw err;
+    }
   }
 
   /** Category tree. Response: { categories:[...] } (shape may vary) */
