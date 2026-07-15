@@ -13,7 +13,10 @@ class SendProductWebhook
     public function handle(ProductUpdated $event): void
     {
         $product = $event->product;
-        $storeId = $event->storeId ?? $product->getPropertyValue('vendor_id', 'vendor');
+        $productId = $product->getId();
+        $context = app('aimeos.context')->get();
+
+        $storeId = $event->storeId ?? $this->getVendorId($context, $productId);
         $store = $storeId ? Store::find($storeId) : null;
 
         $marketplaces = [];
@@ -22,8 +25,7 @@ class SendProductWebhook
                 ->where('is_active', true)
                 ->get();
 
-            $context = app('aimeos.context')->get();
-            $selected = $this->getSelectedMarketplaces($context, $product->getId());
+            $selected = $this->getSelectedMarketplaces($context, $productId);
 
             foreach ($integrations as $integration) {
                 if (!empty($selected) && !in_array($integration->marketplace, $selected)) {
@@ -41,48 +43,25 @@ class SendProductWebhook
             ->post(env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001') . '/webhook/product', [
                 'event' => 'product.updated',
                 'data' => [
-                    'id' => $product->getId(),
+                    'id' => $productId,
                     'sku' => $product->getCode(),
                     'name' => $product->getLabel(),
-                    'description' => $this->getDescription($context, $product->getId()),
+                    'description' => $this->getDescription($context, $productId),
                     'status' => $product->getStatus(),
-                    'stock' => $product->getPropertyValue('stock', 'stock'),
-                    'price' => $product->getPropertyValue('price', 'price'),
+                    'stock' => $this->getStock($context, $productId),
+                    'price' => $this->getPrice($context, $productId),
                     'currency' => 'TRY',
-                    'images' => $this->getImages($context, $product->getId()),
-                    'category' => $product->getPropertyValue('category', 'category'),
-                    'brand' => $product->getPropertyValue('brand', 'brand'),
+                    'images' => $this->getImages($context, $productId),
+                    'category' => $this->getProp($context, $productId, 'category'),
+                    'brand' => $this->getProp($context, $productId, 'brand'),
                     'attributes' => (object) [],
                     'vendor_id' => $storeId,
                     'siteCode' => $store?->site_code,
                     'marketplaces' => $marketplaces,
-                    'marketplace_data' => $this->getMarketplaceData($context, $product->getId()),
+                    'marketplace_data' => $this->getMarketplaceData($context, $productId),
                     'updated_at' => now()->toIso8601String(),
                 ],
             ]);
-    }
-
-    private function getMarketplaceData(\Aimeos\MShop\ContextIface $context, string $productId): array
-    {
-        try {
-            $propManager = MShop::create($context, 'product/property');
-            $ps = $propManager->filter();
-            $ps->setConditions($ps->and([
-                $ps->compare('==', 'product.property.parentid', $productId),
-                $ps->compare('==', 'product.property.type', 'marketplace_data'),
-            ]));
-            foreach ($propManager->search($ps) as $prop) {
-                $val = $prop->getValue();
-                if (empty($val)) {
-                    return [];
-                }
-                $dec = json_decode($val, true);
-                return is_array($dec) ? $dec : [];
-            }
-        } catch (\Throwable $e) {
-            // property not available
-        }
-        return [];
     }
 
     private function getDescription(\Aimeos\MShop\ContextIface $context, string $productId): ?string
@@ -134,6 +113,91 @@ class SendProductWebhook
             // media not available
         }
         return $images;
+    }
+
+    private function getStock(\Aimeos\MShop\ContextIface $context, string $productId): ?int
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'stock'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                return (int) $prop->getValue();
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return null;
+    }
+
+    private function getPrice(\Aimeos\MShop\ContextIface $context, string $productId): ?float
+    {
+        try {
+            $priceManager = MShop::create($context, 'price');
+            $listManager = MShop::create($context, 'product/lists');
+            $ls = $listManager->filter();
+            $ls->setConditions($ls->and([
+                $ls->compare('==', 'product.lists.parentid', $productId),
+                $ls->compare('==', 'product.lists.domain', 'price'),
+            ]));
+            foreach ($listManager->search($ls) as $li) {
+                $price = $priceManager->get($li->getRefId());
+                return (float) $price->getValue();
+            }
+        } catch (\Throwable $e) {
+            // price not available
+        }
+        return null;
+    }
+
+    private function getVendorId(\Aimeos\MShop\ContextIface $context, string $productId): ?int
+    {
+        $val = $this->getProp($context, $productId, 'vendor');
+        return $val !== null ? (int) $val : null;
+    }
+
+    private function getProp(\Aimeos\MShop\ContextIface $context, string $productId, string $type): ?string
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', $type),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                return $prop->getValue();
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return null;
+    }
+
+    private function getMarketplaceData(\Aimeos\MShop\ContextIface $context, string $productId): array
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'marketplace_data'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                $val = $prop->getValue();
+                if (empty($val)) {
+                    return [];
+                }
+                $dec = json_decode($val, true);
+                return is_array($dec) ? $dec : [];
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return [];
     }
 
     private function getSelectedMarketplaces(\Aimeos\MShop\ContextIface $context, string $productId): array
