@@ -626,7 +626,7 @@ class ProductController extends Controller
         $li->setParentId($productId);
         $li->setRefId($textItem->getId());
         $li->setDomain('text');
-        $li->setType('long');
+        $li->setType('default');
         $listManager->save($li);
     }
 
