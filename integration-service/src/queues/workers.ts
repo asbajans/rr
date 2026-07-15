@@ -21,9 +21,19 @@ const productWorker = new Worker(
       throw new Error('No marketplace integration configured');
     }
 
+    const md = (data as ProductPushData & { marketplace_data?: Record<string, { category?: string; category_id?: string; brand?: string }> }).marketplace_data || {};
+
     const results = await Promise.all(
       integrations.map(async (integration) => {
-        const result = await integration.sendProduct(data);
+        const mpName = integration.name;
+        const scope = md[mpName] || {};
+        const perMarketplaceData: ProductData = {
+          ...(data as ProductData),
+          category: scope.category || data.category || '',
+          category_id: scope.category_id || '',
+          brand: scope.brand || data.brand || '',
+        };
+        const result = await integration.sendProduct(perMarketplaceData);
         return { name: integration.name, result };
       })
     );

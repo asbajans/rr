@@ -56,9 +56,33 @@ class SendProductWebhook
                     'vendor_id' => $storeId,
                     'siteCode' => $store?->site_code,
                     'marketplaces' => $marketplaces,
+                    'marketplace_data' => $this->getMarketplaceData($context, $product->getId()),
                     'updated_at' => now()->toIso8601String(),
                 ],
             ]);
+    }
+
+    private function getMarketplaceData(\Aimeos\MShop\ContextIface $context, string $productId): array
+    {
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'marketplace_data'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                $val = $prop->getValue();
+                if (empty($val)) {
+                    return [];
+                }
+                $dec = json_decode($val, true);
+                return is_array($dec) ? $dec : [];
+            }
+        } catch (\Throwable $e) {
+            // property not available
+        }
+        return [];
     }
 
     private function getDescription(\Aimeos\MShop\ContextIface $context, string $productId): ?string
