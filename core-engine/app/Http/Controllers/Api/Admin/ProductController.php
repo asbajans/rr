@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use Aimeos\MShop;
+use App\Events\ProductUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -247,21 +248,34 @@ class ProductController extends Controller
 
         $context = $this->context();
         $manager = MShop::create($context, 'product');
-        $item = $manager->create();
+
+        $existingSearch = $manager->filter()->add(['product.code' => $validated['code']])->slice(0, 1);
+        $existing = $manager->search($existingSearch)->first();
+
+        $item = $existing ?: $manager->create();
         $item->setCode($validated['code']);
         $item->setLabel($validated['label']);
         $item->setStatus($validated['status'] ?? 1);
-        $manager->save($item);
+        $item = $manager->save($item);
 
         if (isset($validated['price'])) {
             $priceManager = MShop::create($context, 'price');
+            $listManager = MShop::create($context, 'product/lists');
+            $ps = $listManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.lists.parentid', $item->getId()),
+                $ps->compare('==', 'product.lists.domain', 'price'),
+            ]));
+            foreach ($listManager->search($ps) as $ol) {
+                $priceManager->delete($ol->getRefId());
+                $listManager->delete($ol->getId());
+            }
             $price = $priceManager->create();
             $price->setValue((float) $validated['price']);
             $price->setCurrencyId($validated['currency'] ?? 'TRY');
             $price->setType('default');
             $priceManager->save($price);
 
-            $listManager = MShop::create($context, 'product/lists');
             $list = $listManager->create();
             $list->setParentId($item->getId());
             $list->setRefId($price->getId());
@@ -278,6 +292,20 @@ class ProductController extends Controller
             $prop->setType('stock');
             $prop->setLanguageId(null);
             $propManager->save($prop);
+        }
+
+        if ($existing) {
+            $listManager = MShop::create($context, 'product/lists');
+            $ms = $listManager->filter();
+            $ms->setConditions($ms->and([
+                $ms->compare('==', 'product.lists.parentid', $item->getId()),
+                $ms->compare('==', 'product.lists.domain', 'media'),
+            ]));
+            $mediaManager = MShop::create($context, 'media');
+            foreach ($listManager->search($ms) as $ol) {
+                $mediaManager->delete($ol->getRefId());
+                $listManager->delete($ol->getId());
+            }
         }
 
         if (!empty($validated['media_url'])) {
@@ -299,6 +327,10 @@ class ProductController extends Controller
         }
         if (array_key_exists('marketplace_data', $validated ?? [])) {
             $this->saveMarketplaceData($context, $item->getId(), $validated['marketplace_data'] ?? []);
+        }
+
+        if (!empty($validated['marketplaces'])) {
+            ProductUpdated::dispatch($item, $store?->id);
         }
 
         return response()->json($item->toArray(), 201);
@@ -412,6 +444,10 @@ class ProductController extends Controller
         }
         if (array_key_exists('marketplace_data', $validated ?? [])) {
             $this->saveMarketplaceData($context, $item->getId(), $validated['marketplace_data'] ?? []);
+        }
+
+        if (array_key_exists('marketplaces', $validated ?? []) && !empty($validated['marketplaces'])) {
+            ProductUpdated::dispatch($item, $request->user()->store?->id);
         }
 
         return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);
@@ -695,6 +731,22 @@ class ProductController extends Controller
         $prop->setValue(implode(',', $list));
         $prop->setLanguageId(null);
         $propManager->save($prop);
+    }
+
+    private function clearLists(\Aimeos\MShop\ContextIface $context, string $productId, array $domains): void
+    {
+        $listManager = MShop::create($context, 'product/lists');
+        $ps = $listManager->filter();
+        $conds = [$ps->compare('==', 'product.lists.parentid', $productId)];
+        if (count($domains) === 1) {
+            $conds[] = $ps->compare('==', 'product.lists.domain', $domains[0]);
+        } else {
+            $conds[] = $ps->or(array_map(fn ($d) => $ps->compare('==', 'product.lists.domain', $d), $domains));
+        }
+        $ps->setConditions($ps->and($conds));
+        foreach ($listManager->search($ps) as $list) {
+            $listManager->delete($list->getId());
+        }
     }
 
     private function attachMedia(\Aimeos\MShop\ContextIface $context, string $productId, string $url): void

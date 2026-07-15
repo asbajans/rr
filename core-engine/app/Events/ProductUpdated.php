@@ -11,6 +11,7 @@ class ProductUpdated
     use Dispatchable, InteractsWithSockets;
 
     public function __construct(
-        public Iface $product
+        public Iface $product,
+        public ?int $storeId = null
     ) {}
 }

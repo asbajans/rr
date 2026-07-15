@@ -13,8 +13,8 @@ class SendProductWebhook
     public function handle(ProductUpdated $event): void
     {
         $product = $event->product;
-        $storeId = $product->getPropertyValue('vendor_id', 'vendor');
-        $store = Store::find($storeId);
+        $storeId = $event->storeId ?? $product->getPropertyValue('vendor_id', 'vendor');
+        $store = $storeId ? Store::find($storeId) : null;
 
         $marketplaces = [];
         if ($store) {
@@ -48,9 +48,11 @@ class SendProductWebhook
                     'status' => $product->getStatus(),
                     'stock' => $product->getPropertyValue('stock', 'stock'),
                     'price' => $product->getPropertyValue('price', 'price'),
+                    'currency' => 'TRY',
                     'images' => $this->getImages($context, $product->getId()),
                     'category' => $product->getPropertyValue('category', 'category'),
                     'brand' => $product->getPropertyValue('brand', 'brand'),
+                    'attributes' => (object) [],
                     'vendor_id' => $storeId,
                     'siteCode' => $store?->site_code,
                     'marketplaces' => $marketplaces,

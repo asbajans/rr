@@ -1,14 +1,22 @@
 import { Worker } from 'bullmq';
-import { getIntegrations } from '../integrations/factory';
+import { createIntegration, getIntegrations } from '../integrations/factory';
+import { IntegrationInterface } from '../integrations/IntegrationInterface';
 import { connection } from './queueManager';
 import { ProductData, StockUpdate } from '../types';
 import { sendPushNotification } from '../services/fcm';
 
+interface ProductPushData extends ProductData {
+  marketplaces?: { marketplace: string; config: Record<string, string> }[];
+}
+
 const productWorker = new Worker(
   'product-push-queue',
   async (job) => {
-    const data = job.data as ProductData;
-    const integrations = getIntegrations();
+    const data = job.data as ProductPushData;
+    const marketplaceConfigs = Array.isArray(data.marketplaces) ? data.marketplaces : [];
+    const integrations: IntegrationInterface[] = marketplaceConfigs
+      .map((m) => createIntegration(m.marketplace, m.config ?? {}))
+      .filter((i): i is IntegrationInterface => i !== null);
     if (integrations.length === 0) {
       throw new Error('No marketplace integration configured');
     }
