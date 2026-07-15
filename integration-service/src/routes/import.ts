@@ -21,7 +21,7 @@ router.post('/import/products', async (req: Request, res: Response) => {
     return;
   }
 
-  const pageLimit = Math.min(Math.max(Number(maxPages) || 5, 1), 50);
+  const pageLimit = Math.min(Math.max(Number(maxPages) || 50, 1), 200);
   const products = [];
 
   try {

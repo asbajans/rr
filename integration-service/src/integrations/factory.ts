@@ -56,7 +56,8 @@ export function createIntegration(
       const appkey = config.appkey || config.api_key || config.apiKey;
       const appsecret = config.appsecret || config.api_secret || config.apiSecret;
       if (!appkey || !appsecret) return null;
-      return new N11IntegrationService(appkey, appsecret);
+      const shipmentTemplate = config.shipment_template || config.shipmentTemplate || '';
+      return new N11IntegrationService(appkey, appsecret, shipmentTemplate);
     }
     case 'amazon': {
       const refreshToken = config.refresh_token || config.refreshToken;

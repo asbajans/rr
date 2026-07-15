@@ -98,7 +98,7 @@ class MarketplaceIntegrationController extends Controller
             return response()->json(['error' => 'Entegrasyon ayarları eksik'], 422);
         }
 
-        $maxPages = (int) $request->input('max_pages', 5);
+        $maxPages = min(200, max(1, (int) $request->input('max_pages', 50)));
 
         $record = MarketplaceImport::create([
             'store_id' => $store->id,

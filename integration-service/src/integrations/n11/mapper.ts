@@ -50,7 +50,7 @@ export function mapToN11Product(p: any): ProductData {
 }
 
 /** Map normalized ProductData -> N11 CreateProduct payload. */
-export function mapToN11CreatePayload(data: ProductData, integrator: string): any {
+export function mapToN11CreatePayload(data: ProductData, integrator: string, shipmentTemplate?: string): any {
   const attributes: any[] = [];
   if (data.brand) {
     // N11 "Marka" attribute id is conventionally 1; sent as free customValue.
@@ -71,7 +71,7 @@ export function mapToN11CreatePayload(data: ProductData, integrator: string): an
           currencyType: normalizeN11Currency(data.currency),
           productMainId: sku,
           preparingDay: 3,
-          shipmentTemplate: '1',
+          shipmentTemplate: shipmentTemplate || '',
           maxPurchaseQuantity: 5,
           stockCode: sku,
           catalogId: null,

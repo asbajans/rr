@@ -61,7 +61,7 @@ class MarketplaceIntegration extends Model
             ],
             'n11' => [
                 'label' => 'N11',
-                'fields' => ['appkey' => 'App Key', 'appsecret' => 'App Secret'],
+                'fields' => ['appkey' => 'App Key', 'appsecret' => 'App Secret', 'shipment_template' => 'Kargo Şablonu (N11 panelinden oluşturulan teslimat şablonu adı)'],
             ],
             'amazon' => [
                 'label' => 'Amazon TR (SP-API)',

@@ -5,10 +5,12 @@ import { N11ApiClient } from './api';
 
 export class N11IntegrationService extends IntegrationInterface {
   private api: N11ApiClient;
+  private shipmentTemplate: string;
 
-  constructor(appkey: string, appsecret: string) {
+  constructor(appkey: string, appsecret: string, shipmentTemplate: string = '') {
     super('n11');
     this.api = new N11ApiClient({ appkey, appsecret });
+    this.shipmentTemplate = shipmentTemplate;
   }
 
   async fetchProducts(page: number = 0): Promise<ProductData[]> {
@@ -29,8 +31,14 @@ export class N11IntegrationService extends IntegrationInterface {
     if (!data.category_id || Number(data.category_id) <= 0) {
       return { success: false, error: 'N11 sendProduct: product N11 category not set (category_id missing)' };
     }
+    if (!this.shipmentTemplate) {
+      return {
+        success: false,
+        error: 'N11 sendProduct: Kargo şablonu (shipmentTemplate) ayarlanmamış. N11 panelinden bir teslimat şablonu oluşturup entegrasyon ayarlarına girin.',
+      };
+    }
     try {
-      const payload = mapToN11CreatePayload(data, this.api.integratorName);
+      const payload = mapToN11CreatePayload(data, this.api.integratorName, this.shipmentTemplate);
       const res = await this.api.createProduct(payload);
       const status = res?.status;
       const ok = status === 'IN_QUEUE' || status === 'SUCCESS' || status === 'PROCESSING';
