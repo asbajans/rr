@@ -62,6 +62,15 @@ export type MarketplaceEntry = {
   status?: number
 }
 
+export type MarketplaceSyncStatus = 'none' | 'pending' | 'synced' | 'error'
+
+export type MarketplaceSyncEntry = {
+  status: MarketplaceSyncStatus
+  marketplace_product_id?: string | null
+  error_message?: string | null
+  checked_at?: string | null
+}
+
 export type Product = {
   id: string
   code: string
@@ -71,6 +80,7 @@ export type Product = {
   stock?: number
   marketplaces?: string[]
   marketplace_data?: Record<string, MarketplaceEntry>
+  marketplace_sync?: Record<string, MarketplaceSyncEntry>
   images?: string[]
   media_url?: string
   description?: string | null

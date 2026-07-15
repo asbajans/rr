@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use Aimeos\MShop;
 use App\Events\ProductUpdated;
+use App\Models\ProductMarketplaceSync;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -18,6 +19,7 @@ class ProductController extends Controller
     {
         $context = $this->context();
         $manager = MShop::create($context, 'product');
+        $storeId = $request->user()->store_id ?? null;
 
         $search = $manager->filter();
         $search->setSortations([$search->sort('-', 'product.id')]);
@@ -83,6 +85,7 @@ class ProductController extends Controller
                 'brand' => $details['brand'],
                 'marketplaces' => $marketplaces,
                 'marketplace_data' => $this->getMarketplaceData($context, $item->getId()),
+                'marketplace_sync' => $this->syncMap($storeId, $item->getId()),
             ];
         }
 
@@ -136,12 +139,121 @@ class ProductController extends Controller
             return response()->json(['error' => 'Product not found'], 404);
         }
 
+        $storeId = $request->user()->store_id ?? null;
         $data = $item->toArray();
         $data = array_merge($data, $this->productDetails($context, $item));
         $data['marketplaces'] = $this->getMarketplaces($context, $item->getId());
         $data['marketplace_data'] = $this->getMarketplaceData($context, $item->getId());
+        $data['marketplace_sync'] = $this->syncMap($storeId, $item->getId());
 
         return response()->json($data);
+    }
+
+    private function syncMap(?int $storeId, string $productId): array
+    {
+        $query = ProductMarketplaceSync::where('product_id', $productId);
+        if ($storeId !== null) {
+            $query->where('store_id', $storeId);
+        }
+
+        $map = [];
+        foreach ($query->get() as $row) {
+            $map[$row->marketplace] = [
+                'status' => $row->status,
+                'marketplace_product_id' => $row->marketplace_product_id,
+                'error_message' => $row->error_message,
+                'checked_at' => $row->checked_at?->toISOString(),
+            ];
+        }
+
+        return $map;
+    }
+
+    public function syncStatus(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'store_id' => 'required|integer',
+            'marketplace' => 'required|string',
+            'success' => 'required|boolean',
+            'marketplaceId' => 'nullable|string',
+            'error' => 'nullable|string',
+        ]);
+
+        ProductMarketplaceSync::syncResult(
+            (int) $validated['store_id'],
+            $id,
+            $validated['marketplace'],
+            (bool) $validated['success'],
+            $validated['marketplaceId'] ?? null,
+            $validated['error'] ?? null
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function verify(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'marketplace' => 'required|string|in:trendyol,n11,pazarama,hepsiburada,amazon',
+        ]);
+
+        $store = $request->user()->store;
+        if (!$store) {
+            return response()->json(['error' => 'Store not found'], 404);
+        }
+
+        $context = $this->context();
+        $manager = MShop::create($context, 'product');
+        $item = $manager->get($id);
+
+        $sku = $item->getCode();
+        $barcode = $this->getProp($context, $id, 'barcode') ?: $sku;
+
+        $mi = \App\Models\MarketplaceIntegration::where('store_id', $store->id)
+            ->where('marketplace', $validated['marketplace'])
+            ->first();
+
+        if (!$mi || !$mi->is_active) {
+            return response()->json(['error' => 'Marketplace not configured'], 400);
+        }
+
+        $config = $mi->config ?? [];
+
+        $base = rtrim(env('INTEGRATION_SERVICE_URL', 'http://rahatio-integration:3001'), '/');
+        $response = \Illuminate\Support\Facades\Http::withHeaders([
+            'X-Internal-Key' => env('RAHAT_INTERNAL_KEY', ''),
+        ])->timeout(30)->post($base . '/verify/product', [
+            'marketplace' => $validated['marketplace'],
+            'config' => $config,
+            'sku' => $sku,
+            'barcode' => $barcode,
+        ]);
+
+        if (!$response->successful()) {
+            return response()->json(['error' => 'Verification request failed'], 502);
+        }
+
+        $result = $response->json();
+        $exists = (bool) ($result['exists'] ?? false);
+        $marketplaceId = $result['marketplaceId'] ?? null;
+
+        ProductMarketplaceSync::syncResult(
+            $store->id,
+            $id,
+            $validated['marketplace'],
+            $exists,
+            $marketplaceId,
+            $exists ? null : ($result['error'] ?? 'Pazaryerinde bulunamadı')
+        );
+
+        return response()->json([
+            'marketplace' => $validated['marketplace'],
+            'exists' => $exists,
+            'marketplace_product_id' => $marketplaceId,
+            'error' => $result['error'] ?? null,
+            'detail' => $result['detail'] ?? null,
+            'sync' => $this->syncMap($store->id, $id)[$validated['marketplace']] ?? null,
+        ]);
     }
 
     private function productDetails(\Aimeos\MShop\ContextIface $context, \Aimeos\MShop\Common\Item\Iface $item): array
@@ -331,6 +443,8 @@ class ProductController extends Controller
         }
 
         if (!empty($validated['marketplaces'])) {
+            ProductMarketplaceSync::markPending($store?->id, $item->getId(), $validated['marketplaces']);
+            ProductMarketplaceSync::markRemoved($store?->id, $item->getId(), $validated['marketplaces']);
             ProductUpdated::dispatch($item, $store?->id);
         }
 
@@ -448,8 +562,13 @@ class ProductController extends Controller
             $this->saveMarketplaceData($context, $item->getId(), $validated['marketplace_data'] ?? []);
         }
 
-        if (array_key_exists('marketplaces', $validated ?? []) && !empty($validated['marketplaces'])) {
-            ProductUpdated::dispatch($item, $request->user()->store?->id);
+        if (array_key_exists('marketplaces', $validated ?? [])) {
+            $mps = $validated['marketplaces'] ?? [];
+            ProductMarketplaceSync::markPending($request->user()->store?->id, $item->getId(), $mps);
+            ProductMarketplaceSync::markRemoved($request->user()->store?->id, $item->getId(), $mps);
+            if (!empty($mps)) {
+                ProductUpdated::dispatch($item, $request->user()->store?->id);
+            }
         }
 
         return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);

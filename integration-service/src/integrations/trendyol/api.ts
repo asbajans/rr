@@ -167,4 +167,22 @@ export class TrendyolApiClient {
       throw new Error(`Trendyol getCategoryTree HTTP ${status}: ${body?.message || body?.errorMessage || err?.message || 'Unknown error'}`);
     }
   }
+
+  /** Verify a product by barcode (V2). 404 => not found. Returns { content: ... } or { content: null }. */
+  async getProductByBarcode(barcode: string): Promise<unknown> {
+    await this.enforceRateLimit();
+    const url = `/sellers/${this.credentials.supplierId}/product/${encodeURIComponent(barcode)}`;
+    try {
+      const res = await this.v2Client.get(url);
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 404) {
+        return { content: null };
+      }
+      const body = err?.response?.data;
+      console.error(`[trendyol] getProductByBarcode FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw err;
+    }
+  }
 }

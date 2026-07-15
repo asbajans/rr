@@ -24,6 +24,7 @@ interface ProductModalData {
   images: string[]
   marketplaces: string[]
   marketplace_data: Record<string, MarketplaceEntry>
+  marketplace_sync: Record<string, import('@/lib/types').MarketplaceSyncEntry>
   description: string
 }
 
@@ -90,6 +91,9 @@ export default function ProductsPage() {
   const [bulkAiOpen, setBulkAiOpen] = useState(false)
   const [bulkAiField, setBulkAiField] = useState<'title' | 'description' | 'all'>('description')
   const [uploading, setUploading] = useState(false)
+
+  // per-marketplace verify
+  const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
 
   async function handleUploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -194,6 +198,7 @@ export default function ProductsPage() {
       images: p.images && p.images.length ? p.images.map((u) => u) : (p.media_url ? [p.media_url] : []),
       marketplaces: p.marketplaces ?? [],
       marketplace_data: p.marketplace_data ?? {},
+      marketplace_sync: p.marketplace_sync ?? {},
       description: p.description ?? '',
     })
     setCreating(false)
@@ -214,6 +219,7 @@ export default function ProductsPage() {
       images: [],
       marketplaces: [],
       marketplace_data: {},
+      marketplace_sync: {},
       description: '',
     })
     setCreating(true)
@@ -258,6 +264,9 @@ export default function ProductsPage() {
       setModalOpen(false)
       setCreating(false)
       setReloadKey((k) => k + 1)
+      if (!creating && product && (product.marketplaces ?? []).length > 0) {
+        setTimeout(() => setReloadKey((k) => k + 1), 8000)
+      }
     } catch (e: any) {
       setError(e.message)
     }
@@ -275,6 +284,30 @@ export default function ProductsPage() {
         },
       }
     })
+  }
+
+  async function handleVerify(mp: string) {
+    if (!product) return
+    setVerifyingMp(mp)
+    try {
+      const res = await api.verifyProduct(product.id, mp)
+      const entry: import('@/lib/types').MarketplaceSyncEntry = res.sync ?? {
+        status: res.exists ? 'synced' : 'error',
+        marketplace_product_id: res.marketplace_product_id ?? null,
+        error_message: res.error ?? null,
+        checked_at: new Date().toISOString(),
+      }
+      setProduct((prev) =>
+        prev
+          ? { ...prev, marketplace_sync: { ...(prev.marketplace_sync ?? {}), [mp]: entry } }
+          : prev
+      )
+      if (!res.exists) setError(res.error || 'Pazaryerinde bulunamadı')
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setVerifyingMp(null)
+    }
   }
 
   async function handleDelete() {
@@ -637,16 +670,33 @@ export default function ProductsPage() {
                     <td className="px-3 py-2 whitespace-nowrap">{p.brand ?? md?.brand ?? '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1">
-                        {(p.marketplaces ?? []).map((m) => (
-                          <span
-                            key={m}
-                            className={`px-1.5 py-0.5 rounded text-[10px] ${
-                              m === 'Kendi Sitem' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700'
-                            }`}
-                          >
-                            {m}
-                          </span>
-                        ))}
+                        {(p.marketplaces ?? []).map((m) => {
+                          const sync = p.marketplace_sync?.[m]
+                          const dot =
+                            sync?.status === 'synced'
+                              ? 'bg-green-500'
+                              : sync?.status === 'error'
+                                ? 'bg-red-500'
+                                : sync?.status === 'pending'
+                                  ? 'bg-amber-500'
+                                  : 'bg-gray-300'
+                          return (
+                            <span
+                              key={m}
+                              className={`px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 ${
+                                m === 'Kendi Sitem' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700'
+                              }`}
+                              title={
+                                sync
+                                  ? `Durum: ${sync.status}${sync.error_message ? ` - ${sync.error_message}` : ''}`
+                                  : 'Henüz gönderilmedi'
+                              }
+                            >
+                              <span className={`inline-block w-2 h-2 rounded-full ${dot}`} />
+                              {m}
+                            </span>
+                          )
+                        })}
                         {(!p.marketplaces || p.marketplaces.length === 0) && <span className="text-gray-400">-</span>}
                       </div>
                     </td>
@@ -847,23 +897,58 @@ export default function ProductsPage() {
                   <p className="text-xs font-medium text-gray-500">Pazaryeri Detayları</p>
                   {product.marketplaces.map((mp) => {
                     const md = product.marketplace_data[mp] ?? {}
+                    const sync = product.marketplace_sync[mp]
                     const catOpts = catOptionsFor(mp)
                     const brOpts = brandsFor(mp)
+                    const syncLabel =
+                      sync?.status === 'synced'
+                        ? 'Pazaryerinde var'
+                        : sync?.status === 'error'
+                          ? 'Hata'
+                          : sync?.status === 'pending'
+                            ? 'Gönderildi, kontrol ediliyor…'
+                            : 'Henüz gönderilmedi'
+                    const syncColor =
+                      sync?.status === 'synced'
+                        ? 'bg-green-100 text-green-700'
+                        : sync?.status === 'error'
+                          ? 'bg-red-100 text-red-700'
+                          : sync?.status === 'pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-gray-100 text-gray-600'
                     return (
                       <div key={mp} className="border rounded p-2">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">{mp}</span>
-                          {mp !== 'Kendi Sitem' && (
-                            <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                              <input
-                                type="checkbox"
-                                checked={!!md.on_sale}
-                                onChange={(e) => updateMd(mp, { on_sale: e.target.checked })}
-                              />
-                              Bu pazaryerinde satışta
-                            </label>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {mp !== 'Kendi Sitem' && (
+                              <span className={`px-2 py-0.5 rounded text-[10px] ${syncColor}`}>{syncLabel}</span>
+                            )}
+                            {mp !== 'Kendi Sitem' && (
+                              <button
+                                type="button"
+                                onClick={() => handleVerify(mp)}
+                                disabled={verifyingMp === mp}
+                                className="text-xs text-indigo-600 hover:underline disabled:opacity-40"
+                              >
+                                {verifyingMp === mp ? 'Doğrulanıyor…' : 'Doğrula'}
+                              </button>
+                            )}
+                            {mp !== 'Kendi Sitem' && (
+                              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                                <input
+                                  type="checkbox"
+                                  checked={!!md.on_sale}
+                                  onChange={(e) => updateMd(mp, { on_sale: e.target.checked })}
+                                />
+                                Bu pazaryerinde satışta
+                              </label>
+                            )}
+                          </div>
                         </div>
+                        {mp !== 'Kendi Sitem' && sync?.error_message && (
+                          <p className="text-xs text-red-600 mb-2">{sync.error_message}</p>
+                        )}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Kategori</label>

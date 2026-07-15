@@ -194,4 +194,36 @@ export class TrendyolIntegrationService extends IntegrationInterface {
     }
     return flat;
   }
+
+  async verifyProduct(data: ProductData): Promise<{ exists: boolean; marketplaceId?: string; error?: string; detail?: any }> {
+    try {
+      const res = (await this.api.getProductByBarcode(data.barcode || data.sku)) as any;
+      const content = res?.content;
+      if (!content) {
+        return { exists: false, error: 'Trendyol\'da bulunamadı' };
+      }
+      let found: any = null;
+      if (Array.isArray(content.products) && content.products.length) {
+        found =
+          content.products.find(
+            (p: any) =>
+              String(p.barcode ?? p.productMainId ?? '') === String(data.barcode || data.sku) ||
+              String(p.stockCode ?? '') === String(data.sku)
+          ) || content.products[0];
+      } else {
+        found = content;
+      }
+      const id = found?.contentId ?? found?.id ?? found?.listingId;
+      if (found && id) {
+        return {
+          exists: true,
+          marketplaceId: String(id),
+          detail: { approved: found.approved, listingId: found.listingId },
+        };
+      }
+      return { exists: false, error: 'Trendyol\'da bulunamadı' };
+    } catch (err) {
+      return { exists: false, error: `Trendyol verify: ${err instanceof Error ? err.message : 'Unknown'}` };
+    }
+  }
 }

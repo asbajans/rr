@@ -133,7 +133,9 @@ services:
       NODE_ENV: ${APP_ENV:-production}
       REDIS_URL: redis://redis:6379
       CORE_ENGINE_ORDER_URL: http://rahatio-core/api/orders
+      CORE_URL: http://rahatio-core
       CORE_API_KEY: ${CORE_API_KEY:-}
+      RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
       HB_USERNAME: ${HB_USERNAME:-}
       HB_PASSWORD: ${HB_PASSWORD:-}
       HB_MERCHANT_ID: ${HB_MERCHANT_ID:-}

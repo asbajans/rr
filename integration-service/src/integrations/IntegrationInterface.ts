@@ -18,4 +18,9 @@ export abstract class IntegrationInterface {
   abstract fetchProducts(page?: number): Promise<ProductData[]>;
 
   abstract fetchCategories(): Promise<MarketplaceCategory[]>;
+
+  /** Check whether a product exists on the marketplace. Override per-integration. */
+  async verifyProduct(_data: ProductData): Promise<{ exists: boolean; marketplaceId?: string; error?: string; detail?: any }> {
+    return { exists: false, error: 'Bu pazaryeri için doğrulama desteklenmiyor' };
+  }
 }

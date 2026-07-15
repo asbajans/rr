@@ -219,6 +219,17 @@ class ApiClient {
     return this.post<void>('/api/admin/products/bulk-delete', { ids })
   }
 
+  verifyProduct(id: string, marketplace: string) {
+    return this.post<{
+      marketplace: string
+      exists: boolean
+      marketplace_product_id?: string | null
+      error?: string | null
+      detail?: unknown
+      sync?: import('./types').MarketplaceSyncEntry | null
+    }>(`/api/admin/products/${id}/verify`, { marketplace })
+  }
+
   // Admin Orders
   getAdminOrders() {
     return this.get<{ data: import('./types').Order[]; total: number }>('/api/admin/orders')

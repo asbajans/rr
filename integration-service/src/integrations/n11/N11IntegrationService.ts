@@ -83,6 +83,26 @@ export class N11IntegrationService extends IntegrationInterface {
       throw new Error(`N11 fetchCategories failed: ${message}`);
     }
   }
+
+  async verifyProduct(data: ProductData): Promise<{ exists: boolean; marketplaceId?: string; error?: string; detail?: any }> {
+    try {
+      const res = await this.api.queryProductByStockCode(data.sku);
+      const content = res?.content;
+      let arr: any[] = [];
+      if (Array.isArray(content)) {
+        arr = content;
+      } else if (Array.isArray(content?.product)) {
+        arr = content.product;
+      }
+      if (!arr.length) {
+        return { exists: false, error: 'N11\'de bulunamadı' };
+      }
+      const found = arr[0];
+      return { exists: true, marketplaceId: String(found.id ?? data.sku), detail: found };
+    } catch (err) {
+      return { exists: false, error: `N11 verify: ${err instanceof Error ? err.message : 'Unknown'}` };
+    }
+  }
 }
 
 /** Map the /cdn/categories response to a flat {id,name,parentId} list. */

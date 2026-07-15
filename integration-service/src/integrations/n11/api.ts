@@ -132,4 +132,23 @@ export class N11ApiClient {
   get integratorName(): string {
     return INTEGRATOR;
   }
+
+  /** Query a single product by stockCode. 404 => not found. Returns { content: ... } or { content: null }. */
+  async queryProductByStockCode(stockCode: string): Promise<any> {
+    await this.enforceRateLimit();
+    try {
+      const res = await this.client.get('/ms/product-query', {
+        params: { stockCode, page: 0, size: 1 },
+      });
+      return res.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 404) {
+        return { content: null };
+      }
+      const body = err?.response?.data;
+      console.error(`[n11] queryProductByStockCode FAILED status=${status} body=${JSON.stringify(body)}`);
+      throw err;
+    }
+  }
 }

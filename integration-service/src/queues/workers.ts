@@ -4,6 +4,7 @@ import { IntegrationInterface } from '../integrations/IntegrationInterface';
 import { connection } from './queueManager';
 import { ProductData, StockUpdate } from '../types';
 import { sendPushNotification } from '../services/fcm';
+import { notifyCoreSyncStatus } from '../services/coreSync';
 
 interface ProductPushData extends ProductData {
   marketplaces?: { marketplace: string; config: Record<string, string> }[];
@@ -33,10 +34,26 @@ const productWorker = new Worker(
           category_id: scope.category_id || '',
           brand: scope.brand || data.brand || '',
         };
-        const result = await integration.sendProduct(perMarketplaceData);
-        return { name: integration.name, result };
+        try {
+          const result = await integration.sendProduct(perMarketplaceData);
+          return { name: integration.name, result };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          return { name: integration.name, result: { success: false, error: message } };
+        }
       })
     );
+
+    for (const r of results) {
+      await notifyCoreSyncStatus({
+        productId: String(data.id),
+        storeId: data.vendorId,
+        marketplace: r.name,
+        success: r.result.success,
+        marketplaceId: r.result.marketplaceId ?? null,
+        error: r.result.error ?? null,
+      });
+    }
 
     const failed = results.find((r) => !r.result.success);
     if (failed) {

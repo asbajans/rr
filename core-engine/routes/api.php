@@ -92,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{id}', [AdminProductController::class, 'show']);
         Route::put('{id}', [AdminProductController::class, 'update']);
         Route::delete('{id}', [AdminProductController::class, 'destroy']);
+        Route::post('{id}/verify', [AdminProductController::class, 'verify']);
     });
 
     Route::prefix('admin/orders')->group(function () {
@@ -225,6 +226,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{method}', [PaymentMethodController::class, 'show']);
         Route::put('{method}', [PaymentMethodController::class, 'update']);
     });
+});
+
+Route::middleware(\App\Http\Middleware\VerifyInternalKey::class)->group(function () {
+    Route::post('/admin/products/{id}/sync-status', [AdminProductController::class, 'syncStatus']);
 });
 
 Route::get('/store/{siteCode}/locations', [StoreLocationController::class, 'publicLocations']);
