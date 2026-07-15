@@ -13,7 +13,10 @@ class VerifyInternalKey
         $key = $request->header('X-Internal-Key')
             ?? $request->bearerToken();
 
-        $expected = (string) env('RAHAT_INTERNAL_KEY');
+        $expected = getenv('RAHAT_INTERNAL_KEY');
+        if ($expected === false || $expected === '') {
+            $expected = (string) env('RAHAT_INTERNAL_KEY');
+        }
 
         if (!$key || $expected === '' || !hash_equals($expected, (string) $key)) {
             return response()->json(['error' => 'Unauthorized'], 401);
