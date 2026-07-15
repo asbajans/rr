@@ -52,6 +52,15 @@ class DropshippingOrder extends Model
         'note',
     ];
 
+    protected $casts = [
+        'items' => 'array',
+        'subtotal' => 'decimal:2',
+        'shipping' => 'decimal:2',
+        'tax' => 'decimal:2',
+        'grand_total' => 'decimal:2',
+        'ordered_at' => 'datetime',
+    ];
+
     protected function casts(): array
     {
         return [
