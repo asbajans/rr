@@ -10,6 +10,7 @@ class VerifyInternalKey
 {
     public function handle(Request $request, Closure $next): Response
     {
+        error_log('VIR reached method=' . $request->method() . ' uri=' . $request->getRequestUri());
         $key = $request->header('X-Internal-Key')
             ?? $request->bearerToken();
 
