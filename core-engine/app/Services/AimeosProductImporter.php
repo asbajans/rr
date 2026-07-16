@@ -51,6 +51,8 @@ class AimeosProductImporter
                 $item->setStatus($status);
                 $item = $productManager->save($item);
 
+                $this->saveStoreId($context, $item->getId(), (string) $store->id);
+
                 if (in_array($source, $knownMarketplaces, true)) {
                     $this->saveMarketplace($context, $item->getId(), $source);
                     $stockVal = (int) ($record['stock'] ?? 0);
@@ -191,6 +193,26 @@ class AimeosProductImporter
             'failed' => $failed,
             'errors' => array_slice($errors, 0, 20),
         ];
+    }
+
+    private function saveStoreId(\Aimeos\MShop\ContextIface $context, string $productId, string $storeId): void
+    {
+        $propManager = \Aimeos\MShop::create($context, 'product/property');
+        $ps = $propManager->filter();
+        $ps->setConditions($ps->and([
+            $ps->compare('==', 'product.property.parentid', $productId),
+            $ps->compare('==', 'product.property.type', 'store_id'),
+        ]));
+        foreach ($propManager->search($ps) as $op) {
+            $propManager->delete($op->getId());
+        }
+
+        $prop = $propManager->create();
+        $prop->setParentId($productId);
+        $prop->setType('store_id');
+        $prop->setValue($storeId);
+        $prop->setLanguageId(null);
+        $propManager->save($prop);
     }
 
     private function saveMarketplace(\Aimeos\MShop\ContextIface $context, string $productId, string $marketplace): void

@@ -29,13 +29,12 @@ class ProductController extends Controller
 
         $search = $manager->filter();
         $search->setSortations([$search->sort('-', 'product.id')]);
-        try {
-            $siteId = $context->locale()->getSiteId();
-            if ($siteId) {
-                $search->add($search->compare('==', 'product.siteid', $siteId));
-            }
-        } catch (\Throwable $e) {
-            // site filter not applicable
+        $storeFilterId = $request->user()->store_id ?? null;
+        if ($storeFilterId) {
+            $search->add($search->and([
+                $search->compare('==', 'product.property.type', 'store_id'),
+                $search->compare('==', 'product.property.value', (string) $storeFilterId),
+            ]));
         }
         $search->slice(0, 5000);
 
@@ -153,13 +152,21 @@ class ProductController extends Controller
             return response()->json(['error' => 'Product not found'], 404);
         }
 
-        try {
-            $siteId = $context->locale()->getSiteId();
-            if ($siteId && $item->getSiteId() && $item->getSiteId() !== $siteId) {
+        $storeFilterId = $request->user()->store_id ?? null;
+        if ($storeFilterId) {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.type', 'store_id'),
+            ]));
+            $ownStore = null;
+            foreach ($propManager->search($ps) as $op) {
+                $ownStore = $op->getValue();
+            }
+            if ($ownStore !== null && (string) $ownStore !== (string) $storeFilterId) {
                 return response()->json(['error' => 'Product not found'], 404);
             }
-        } catch (\Throwable $e) {
-            // site check skipped
         }
 
         $storeId = $request->user()->store_id ?? null;
@@ -394,6 +401,24 @@ class ProductController extends Controller
         $item->setStatus($validated['status'] ?? 1);
         $item = $manager->save($item);
 
+        if ($store) {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.type', 'store_id'),
+            ]));
+            foreach ($propManager->search($ps) as $op) {
+                $propManager->delete($op->getId());
+            }
+            $prop = $propManager->create();
+            $prop->setParentId($item->getId());
+            $prop->setType('store_id');
+            $prop->setValue((string) $store->id);
+            $prop->setLanguageId(null);
+            $propManager->save($prop);
+        }
+
         if (isset($validated['price'])) {
             $priceManager = MShop::create($context, 'price');
             $listManager = MShop::create($context, 'product/lists');
@@ -502,6 +527,23 @@ class ProductController extends Controller
             $item = $manager->get($id);
         } catch (\Aimeos\MShop\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);
+        }
+
+        $storeFilterId = $request->user()->store_id ?? null;
+        if ($storeFilterId) {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $item->getId()),
+                $ps->compare('==', 'product.property.type', 'store_id'),
+            ]));
+            $ownStore = null;
+            foreach ($propManager->search($ps) as $op) {
+                $ownStore = $op->getValue();
+            }
+            if ($ownStore !== null && (string) $ownStore !== (string) $storeFilterId) {
+                return response()->json(['error' => 'Product not found'], 404);
+            }
         }
 
         if (isset($validated['label'])) { $item->setLabel($validated['label']); }
