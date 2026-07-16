@@ -177,6 +177,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/requests/{id}', [B2bController::class, 'updateRequest']);
         Route::post('/requests/{id}/clone', [B2bController::class, 'cloneProduct']);
         Route::get('/listed', [B2bController::class, 'listedProducts']);
+        Route::post('/bulk', [B2bController::class, 'bulkSetB2b']);
     });
 
     Route::prefix('admin/feeds')->group(function () {

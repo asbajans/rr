@@ -185,6 +185,32 @@ class B2bController extends Controller
         return response()->json($setting);
     }
 
+    public function bulkSetB2b(Request $request)
+    {
+        $store = $this->getUserStore($request);
+
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|string|max:36',
+            'is_b2b_enabled' => 'required|boolean',
+        ]);
+
+        $updated = 0;
+        foreach ($validated['ids'] as $productId) {
+            ProductB2bSetting::updateOrCreate(
+                ['store_id' => $store->id, 'product_id' => $productId],
+                [
+                    'is_b2b_enabled' => $validated['is_b2b_enabled'],
+                    'b2b_discount' => null,
+                    'b2b_price' => null,
+                ]
+            );
+            $updated++;
+        }
+
+        return response()->json(['updated' => $updated]);
+    }
+
     public function getSettings(Request $request, ?string $productId = null)
     {
         $store = $this->getUserStore($request);

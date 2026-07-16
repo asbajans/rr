@@ -12,6 +12,11 @@ class ProductController extends Controller
 {
     private function context(): \Aimeos\MShop\ContextIface
     {
+        $store = request()->user()?->store;
+        if ($store && $store->site_code) {
+            putenv('AIMEOS_SITE_CODE=' . $store->site_code);
+            $_ENV['AIMEOS_SITE_CODE'] = $store->site_code;
+        }
         return app('aimeos.context')->get();
     }
 
