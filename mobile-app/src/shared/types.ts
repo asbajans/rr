@@ -99,6 +99,7 @@ export type Category = {
 export type DashboardData = {
   user: User
   store: Store | null
+  plan: Plan | null
   stats: {
     total_products: number
     total_orders: number

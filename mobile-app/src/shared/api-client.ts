@@ -412,6 +412,14 @@ class ApiClient {
     return this.post<{ message: string }>('/api/admin/subscription/cancel')
   }
 
+  getPlans() {
+    return this.get<Plan[]>('/api/admin/plans')
+  }
+
+  purchaseCredits(credits: number) {
+    return this.post<{ url: string }>('/api/admin/subscription/purchase-credits', { credits })
+  }
+
   // Slave Download
   downloadSlavePhp() {
     return this.downloadFile('/api/admin/slave/download-php', 'rahatio-slave.php')

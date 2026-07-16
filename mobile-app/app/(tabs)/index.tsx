@@ -5,6 +5,7 @@ import { useI18n, LOCALES } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import type { DashboardData } from '../../src/shared/types'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 
 type StatCard = {
   label: string
@@ -15,6 +16,7 @@ type StatCard = {
 export default function DashboardScreen() {
   const { user } = useAuth()
   const { t, locale, setLocale } = useI18n()
+  const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
@@ -61,6 +63,15 @@ export default function DashboardScreen() {
           <Text style={styles.storeCode}>{data.store.site_code}</Text>
         )}
         <Text style={styles.langHint}>{t('selectLanguage')}: {LOCALES.find((l) => l.code === locale)?.label}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.planCard} onPress={() => router.push('/(tabs)/billing')}>
+        <View style={styles.planLeft}>
+          <Text style={styles.planLabel}>{t('currentPlan')}</Text>
+          <Text style={styles.planName}>{data?.plan ? data.plan.name : t('planFree')}</Text>
+          <Text style={styles.planCredits}>{t('remainingCredits')}: {data?.stats.ai_credits ?? 0}</Text>
+        </View>
+        <Ionicons name="wallet-outline" size={28} color="#000" />
       </TouchableOpacity>
 
       <View style={styles.statsRow}>
@@ -115,6 +126,14 @@ const styles = StyleSheet.create({
   storeName: { fontSize: 18, fontWeight: '600', marginTop: 4 },
   storeCode: { fontSize: 14, color: '#666', marginTop: 2 },
   langHint: { fontSize: 13, color: '#059669', marginTop: 8, fontWeight: '600' },
+  planCard: {
+    backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 12,
+    padding: 16, marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  planLeft: { flex: 1 },
+  planLabel: { fontSize: 12, color: '#999', textTransform: 'uppercase', letterSpacing: 1 },
+  planName: { fontSize: 18, fontWeight: '600', marginTop: 4 },
+  planCredits: { fontSize: 13, color: '#059669', marginTop: 4, fontWeight: '600' },
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12 },
   statCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center',
