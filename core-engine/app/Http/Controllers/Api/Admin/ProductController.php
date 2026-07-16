@@ -27,6 +27,16 @@ class ProductController extends Controller
         $manager = MShop::create($context, 'product');
         $storeId = $request->user()->store_id ?? null;
 
+        if (!$storeId) {
+            return response()->json([
+                'data' => [],
+                'total' => 0,
+                'page' => max(1, (int) ($request->query('page') ?? 1)),
+                'per_page' => (int) ($request->query('per_page') ?: 25),
+                'last_page' => 1,
+            ]);
+        }
+
         $search = $manager->filter();
         $search->setSortations([$search->sort('-', 'product.id')]);
         $storeFilterId = $request->user()->store_id ?? null;
@@ -125,6 +135,9 @@ class ProductController extends Controller
 
     public function destroyMany(Request $request)
     {
+        if (!$request->user()->store_id) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
             'ids.*' => 'string',
@@ -151,6 +164,9 @@ class ProductController extends Controller
 
     public function show(Request $request, string $id)
     {
+        if (!$request->user()->store_id) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
         try {
             $context = $this->context();
             $manager = MShop::create($context, 'product');
@@ -350,6 +366,9 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        if (!$request->user()->store_id) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
         $validated = $request->validate([
             'code' => 'required|string|max:255',
             'label' => 'required|string|max:255',
@@ -496,6 +515,9 @@ class ProductController extends Controller
 
     public function update(Request $request, string $id)
     {
+        if (!$request->user()->store_id) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
         $validated = $request->validate([
             'label' => 'sometimes|string|max:255',
             'price' => 'nullable|numeric|min:0',
@@ -678,6 +700,9 @@ class ProductController extends Controller
 
     public function destroy(string $id)
     {
+        if (!$request->user()->store_id) {
+            return response()->json(['error' => 'No store assigned'], 403);
+        }
         $context = $this->context();
         $manager = MShop::create($context, 'product');
 
