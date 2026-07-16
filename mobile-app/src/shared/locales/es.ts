@@ -115,4 +115,6 @@
   bulkAiField: 'Campo a generar',
   productCreated: 'Producto creado',
   uploadImageDesc: 'Subiendo imagen...',
+  image: 'Imagen',
+  aiEditPromptPlaceholder: 'ej. fondo blanco, foto de producto profesional',
 }

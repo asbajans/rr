@@ -115,4 +115,6 @@
   bulkAiField: 'Üretilecek alan',
   productCreated: 'Ürün oluşturuldu',
   uploadImageDesc: 'Görsel yükleniyor...',
+  image: 'Görsel',
+  aiEditPromptPlaceholder: 'Örn: beyaz arka plan, profesyonel ürün fotoğrafı',
 }

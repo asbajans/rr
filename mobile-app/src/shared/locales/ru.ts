@@ -115,4 +115,6 @@
   bulkAiField: 'Поле для генерации',
   productCreated: 'Товар создан',
   uploadImageDesc: 'Загрузка изображения...',
+  image: 'Изображение',
+  aiEditPromptPlaceholder: 'напр. белый фон, профессиональное фото товара',
 }

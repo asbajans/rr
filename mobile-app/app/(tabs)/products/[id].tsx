@@ -201,6 +201,21 @@ export default function ProductDetailScreen() {
         <Text style={styles.code}>#{product.code}</Text>
       </View>
 
+      {editingImg !== null && (
+        <View style={styles.card}>
+          <Text style={styles.label}>{t('aiEdit')}: {images[editingImg] ? t('image') + ' ' + (editingImg + 1) : ''}</Text>
+          <TextInput style={[styles.input, styles.textArea]} value={imgPrompt} onChangeText={setImgPrompt} multiline numberOfLines={2} placeholder={t('aiEditPromptPlaceholder')} />
+          <View style={styles.row}>
+            <TouchableOpacity style={[styles.btn, styles.cancelBtn]} onPress={() => { setEditingImg(null); setImgPrompt('') }}>
+              <Text style={styles.btnText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btn, styles.saveBtn, uploading && styles.disabled]} onPress={() => runImageAiEdit(editingImg)} disabled={uploading}>
+              {uploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>{t('start')}</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {images.length > 0 && (
         <ScrollView horizontal style={styles.gallery} showsHorizontalScrollIndicator={false}>
           {images.map((img: string, i: number) => (
@@ -250,11 +265,17 @@ export default function ProductDetailScreen() {
 
         <View style={styles.labelRow}>
           <Text style={styles.label}>{t('description')}</Text>
-          <View style={styles.labelBtns}>
-            <TouchableOpacity onPress={() => handleAi('description')}><Text style={styles.linkBtn}>{t('aiGenerateDesc')}</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => handleAi('title')}><Text style={styles.linkBtn}>{t('aiGenerateTitle')}</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => handleAi('all')}><Text style={styles.linkBtn}>{t('aiGenerateAll')}</Text></TouchableOpacity>
-          </View>
+        </View>
+        <View style={styles.labelBtns}>
+          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('description')} disabled={saving}>
+            <Text style={styles.aiBtnText}>{t('aiGenerateDesc')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('title')} disabled={saving}>
+            <Text style={styles.aiBtnText}>{t('aiGenerateTitle')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('all')} disabled={saving}>
+            <Text style={styles.aiBtnText}>{t('aiGenerateAll')}</Text>
+          </TouchableOpacity>
         </View>
         <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} multiline numberOfLines={4} />
 
@@ -312,21 +333,6 @@ export default function ProductDetailScreen() {
         </View>
       )}
 
-      {editingImg !== null && (
-        <View style={styles.card}>
-          <Text style={styles.label}>{t('aiEdit')}</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={imgPrompt} onChangeText={setImgPrompt} multiline numberOfLines={2} />
-          <View style={styles.row}>
-            <TouchableOpacity style={[styles.btn, styles.cancelBtn]} onPress={() => { setEditingImg(null); setImgPrompt('') }}>
-              <Text style={styles.btnText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.saveBtn, uploading && styles.disabled]} onPress={() => runImageAiEdit(editingImg)} disabled={uploading}>
-              {uploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>{t('start')}</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       <TouchableOpacity style={[styles.btn, styles.delBtn, saving && styles.disabled]} onPress={handleDelete} disabled={saving}>
         <Text style={styles.delBtnText}>{t('delete')}</Text>
       </TouchableOpacity>
@@ -352,7 +358,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 4, marginTop: 10 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  labelBtns: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  labelBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  aiBtn: { backgroundColor: '#000', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginRight: 8 },
+  aiBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   linkBtn: { fontSize: 12, color: '#000', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: '#fafafa' },
   textArea: { height: 90, textAlignVertical: 'top' },

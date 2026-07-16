@@ -115,4 +115,6 @@
   bulkAiField: 'الحقل المراد إنشاؤه',
   productCreated: 'تم إنشاء المنتج',
   uploadImageDesc: 'جارٍ رفع الصورة...',
+  image: 'صورة',
+  aiEditPromptPlaceholder: 'مثال: خلفية بيضاء، صورة منتج احترافية',
 }
