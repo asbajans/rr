@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert } from 'react-native'
+import { useRouter } from 'expo-router'
 import { api } from '../../src/shared/api-client'
 import type { Product } from '../../src/shared/types'
 
 export default function ProductsScreen() {
+  const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [total, setTotal] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -36,7 +38,7 @@ export default function ProductsScreen() {
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <TouchableOpacity style={styles.card} onPress={() => router.push(`/products/${item.id}`)}>
             <View style={styles.cardLeft}>
               <Text style={styles.productName}>{item.label}</Text>
               <Text style={styles.productCode}>{item.code}</Text>
@@ -47,7 +49,7 @@ export default function ProductsScreen() {
                 {item.status === 1 ? 'Active' : 'Inactive'}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
         contentContainerStyle={styles.list}
       />

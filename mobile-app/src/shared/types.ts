@@ -129,3 +129,76 @@ export type Subscription = {
   status: string
   plan?: Plan
 }
+
+// per-marketplace sync data (keyed by marketplace slug)
+export interface MarketplaceData {
+  status?: 'pending' | 'active' | 'rejected' | string
+  on_sale?: boolean
+  category?: string
+  brand?: string
+  error?: string
+  raw?: any
+}
+
+// rich product detail returned by GET /api/admin/products/{id}
+export interface ProductDetail {
+  id: string | number
+  code?: string
+  label?: string
+  status?: number
+  price?: number | string
+  currency?: string
+  stock?: number | string
+  image?: string
+  images?: string[]
+  description?: string
+  category?: string
+  brand?: string
+  marketplaces?: string[]
+  marketplace_data?: Record<string, MarketplaceData>
+  marketplace_sync?: any[]
+  created_at?: string
+  updated_at?: string
+}
+
+// dropshipping order (marketplace order) returned by /api/admin/orders/dropshipping
+export interface DropshippingOrder {
+  id: number
+  external_id?: string
+  marketplace?: string
+  status?: string
+  status_label?: string
+  status_color?: string
+  customer_name?: string
+  customer_email?: string
+  customer_phone?: string
+  shipping_address?: string
+  shipping_city?: string
+  shipping_district?: string
+  shipping_country?: string
+  zip_code?: string
+  items?: any[]
+  subtotal?: number
+  shipping_cost?: number
+  discount?: number
+  tax?: number
+  grand_total?: number
+  currency?: string
+  ordered_at?: string
+  tracking_number?: string
+  tracking_company?: string
+  shipping_company?: string
+  carrier?: string
+  created_at?: string
+  updated_at?: string
+  status_history?: OrderStatusHistory[]
+}
+
+export interface OrderStatusHistory {
+  id: number
+  from_status?: string | null
+  to_status?: string
+  note?: string | null
+  created_at?: string
+  user?: { id: number; name: string } | null
+}

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription } from './types'
+import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -220,14 +220,23 @@ class ApiClient {
   }
 
   getAdminProduct(id: string) {
-    return this.get<Product>(`/api/admin/products/${id}`)
+    return this.get<ProductDetail>(`/api/admin/products/${id}`)
   }
 
   createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number }) {
     return this.post<Product>('/api/admin/products', data)
   }
 
-  updateAdminProduct(id: string, data: { label?: string; price?: number; stock?: number; status?: number }) {
+  updateAdminProduct(id: string, data: {
+    label?: string
+    price?: number
+    stock?: number
+    status?: number
+    description?: string
+    marketplaces?: string[]
+    marketplace_data?: Record<string, MarketplaceData>
+    images?: string[]
+  }) {
     return this.put<Product>(`/api/admin/products/${id}`, data)
   }
 
@@ -235,13 +244,30 @@ class ApiClient {
     return this.delete<void>(`/api/admin/products/${id}`)
   }
 
-  // Admin Orders
+  // Admin Orders (storefront / Aimeos)
   getAdminOrders() {
     return this.get<{ data: Order[]; total: number }>('/api/admin/orders')
   }
 
   getAdminOrder(id: string) {
     return this.get<Order>(`/api/admin/orders/${id}`)
+  }
+
+  // Admin Dropshipping / Marketplace Orders
+  getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number }) {
+    const qs = params
+      ? '?' + Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== null && v !== '')
+          .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+          .join('&')
+      : ''
+    return this.get<{ data: DropshippingOrder[]; total: number; current_page: number; last_page: number }>(
+      `/api/admin/orders/dropshipping${qs}`,
+    )
+  }
+
+  getAdminDropshippingOrder(id: number) {
+    return this.get<DropshippingOrder>(`/api/admin/orders/dropshipping/${id}`)
   }
 
   // Admin API Keys
