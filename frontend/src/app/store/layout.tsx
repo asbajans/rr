@@ -13,8 +13,9 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
   return (
     <header className="border-b border-zinc-200">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href={`/store/${siteCode}`} className="text-xl font-bold tracking-tight text-zinc-900">
-          Rahatio
+        <Link href={`/store/${siteCode}`} className="flex items-center gap-2">
+          <img src="/logo.jpeg" alt="Rahatio" className="h-8 w-auto" />
+          <span className="text-xl font-bold tracking-tight text-zinc-900">Rahatio</span>
         </Link>
         <nav className="flex items-center gap-4">
           <Link href={`/store/${siteCode}/locations`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">

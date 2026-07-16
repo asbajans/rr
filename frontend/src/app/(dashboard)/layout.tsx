@@ -41,7 +41,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       <aside className="flex w-64 flex-col border-r border-zinc-200 bg-zinc-50 p-4">
         <div className="flex items-center gap-2 px-2 pb-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">R</div>
+          <img src="/logo.jpeg" alt="Rahatio" className="h-8 w-auto" />
           <span className="text-sm font-semibold text-zinc-900">{user.name}</span>
         </div>
         <nav className="flex-1 space-y-1">

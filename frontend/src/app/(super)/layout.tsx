@@ -30,7 +30,9 @@ function SuperShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       <aside className="flex w-64 flex-col border-r border-zinc-200 bg-zinc-900 p-4">
         <div className="flex items-center gap-2 px-2 pb-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-sm font-bold text-white">S</div>
+          <div className="rounded-lg bg-white p-1">
+            <img src="/logo.jpeg" alt="Rahatio" className="h-7 w-auto" />
+          </div>
           <span className="text-sm font-semibold text-white">Super Admin</span>
         </div>
         <nav className="flex-1 space-y-1">

@@ -35,6 +35,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-8 border-t border-zinc-200 pt-8 text-center">
+          <img src="/logo.jpeg" alt="Rahatio" className="mx-auto mb-3 h-8 w-auto" />
           <p className="text-sm text-zinc-500">&copy; {new Date().getFullYear()} Rahatio. Tüm hakları saklıdır.</p>
         </div>
       </div>
