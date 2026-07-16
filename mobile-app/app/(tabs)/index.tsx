@@ -45,15 +45,13 @@ export default function DashboardScreen() {
   return (
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerTop}>
           <Image source={require('../../assets/logo.jpeg')} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.greeting}>{t('welcome')}, {user?.name}</Text>
-        </View>
-        <View style={styles.headerRight}>
           <TouchableOpacity onPress={() => setLangOpen(true)} style={styles.langBtn}>
             <Ionicons name="language-outline" size={22} color="#666" />
           </TouchableOpacity>
         </View>
+        <Text style={styles.greeting}>{t('welcome')}, {user?.name}</Text>
       </View>
 
       <TouchableOpacity style={styles.storeCard} onPress={() => setLangOpen(true)}>
@@ -110,14 +108,13 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
   },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  langBtn: { padding: 8, marginRight: 4 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  langBtn: { padding: 8 },
   logoutBtn: { padding: 8 },
-  logo: { width: 120, height: 32, marginBottom: 4 },
-  greeting: { fontSize: 14, color: '#666' },
+  logo: { width: 180, height: 48 },
+  greeting: { fontSize: 14, color: '#666', marginTop: 12 },
   name: { fontSize: 22, fontWeight: '700' },
   storeCard: {
     backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 12,

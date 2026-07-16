@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Ale
 import { useRouter } from 'expo-router'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
-import { Logo } from '../../src/shared/components/Logo'
 import { formatPrice } from '../../src/shared/utils'
 import type { DropshippingOrder } from '../../src/shared/types'
 
@@ -63,7 +62,6 @@ export default function OrdersScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Logo width={100} height={26} />
             <Text style={styles.title}>{t('orders')}</Text>
           </View>
         }

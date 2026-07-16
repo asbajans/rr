@@ -7,7 +7,6 @@ import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
-import { Logo } from '../../src/shared/components/Logo'
 import type { Product, MarketplaceCategory, Category, MarketplaceEntry } from '../../src/shared/types'
 
 const MARKETPLACE_OPTIONS = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'Pazaryeri Yok']
@@ -175,7 +174,6 @@ export default function ProductsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Logo width={100} height={26} />
           <Text style={styles.title}>{t('products')}</Text>
           <Text style={styles.subtitle}>{total} {t('totalProducts')} · {products.filter((x) => x.status === 1).length} {t('onSale')}</Text>
         </View>

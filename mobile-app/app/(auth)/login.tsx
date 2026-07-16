@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { Link } from 'expo-router'
 import { useAuth } from '../../src/shared/auth'
 import { useI18n, LOCALES } from '../../src/shared/i18n'
@@ -29,7 +29,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.content}>
-        <Text style={styles.title}>Rahatio</Text>
+        <Image source={require('../../assets/logo.jpeg')} style={styles.logo} resizeMode="contain" />
         <Text style={styles.subtitle}>{t('login')}</Text>
 
         <View style={styles.langRow}>
@@ -77,7 +77,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  title: { fontSize: 32, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
+  logo: { width: 200, height: 56, alignSelf: 'center', marginBottom: 8 },
   subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 20 },
   langRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 20 },
   langChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#f0f0f0' },

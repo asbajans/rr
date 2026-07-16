@@ -5,7 +5,6 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useI18n } from '../../../src/shared/i18n'
 import { api } from '../../../src/shared/api-client'
-import { Logo } from '../../../src/shared/components/Logo'
 import { formatPrice, formatDate } from '../../../src/shared/utils'
 import type { DropshippingOrder, OrderStatusHistory } from '../../../src/shared/types'
 
@@ -66,7 +65,6 @@ export default function OrderDetailScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>&lt; {t('back')}</Text>
         </TouchableOpacity>
-        <Logo width={90} height={24} />
         <Text style={styles.code}>#{order.external_id ?? order.id}</Text>
       </View>
 
