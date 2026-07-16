@@ -7,6 +7,7 @@ import * as WebBrowser from 'expo-web-browser'
 import { useAuth } from '../../src/shared/auth'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
+import { Logo } from '../../src/shared/components/Logo'
 import type { Plan, Subscription } from '../../src/shared/types'
 
 const CREDIT_PACKAGES = [
@@ -139,6 +140,7 @@ export default function BillingScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>&lt; {t('back')}</Text>
         </TouchableOpacity>
+        <Logo width={100} height={26} />
         <Text style={styles.title}>{t('billing')}</Text>
         <View style={styles.headerSpacer} />
       </View>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Ale
 import { useRouter } from 'expo-router'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
+import { Logo } from '../../src/shared/components/Logo'
 import { formatPrice } from '../../src/shared/utils'
 import type { DropshippingOrder } from '../../src/shared/types'
 
@@ -60,6 +61,12 @@ export default function OrdersScreen() {
         data={orders}
         keyExtractor={(item) => String(item.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Logo width={100} height={26} />
+            <Text style={styles.title}>{t('orders')}</Text>
+          </View>
+        }
         ListEmptyComponent={<Text style={styles.empty}>{t('noOrders')}</Text>}
         renderItem={({ item }) => {
           const sc = STATUS_COLORS[item.status ?? ''] ?? { bg: '#eee', color: '#333' }
@@ -89,6 +96,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  title: { fontSize: 22, fontWeight: '700', marginTop: 4 },
   count: { fontSize: 14, color: '#666' },
   empty: { textAlign: 'center', color: '#999', marginTop: 40 },
   list: { paddingHorizontal: 20, paddingBottom: 20 },

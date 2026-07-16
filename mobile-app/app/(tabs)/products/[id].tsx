@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../../src/shared/i18n'
 import { api } from '../../../src/shared/api-client'
+import { Logo } from '../../../src/shared/components/Logo'
 import type { ProductDetail, MarketplaceEntry } from '../../../src/shared/types'
 
 export default function ProductDetailScreen() {
@@ -215,6 +216,7 @@ export default function ProductDetailScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>&lt; {t('back')}</Text>
         </TouchableOpacity>
+        <Logo width={90} height={24} />
         <Text style={styles.code}>#{product.code}</Text>
       </View>
 

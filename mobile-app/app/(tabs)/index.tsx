@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Modal, Pressable } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Modal, Pressable, Image } from 'react-native'
 import { useAuth } from '../../src/shared/auth'
 import { useI18n, LOCALES } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
@@ -46,8 +46,8 @@ export default function DashboardScreen() {
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{t('welcome')}</Text>
-          <Text style={styles.name}>{user?.name}</Text>
+          <Image source={require('../../assets/logo.jpeg')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.greeting}>{t('welcome')}, {user?.name}</Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={() => setLangOpen(true)} style={styles.langBtn}>
@@ -116,6 +116,7 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   langBtn: { padding: 8, marginRight: 4 },
   logoutBtn: { padding: 8 },
+  logo: { width: 120, height: 32, marginBottom: 4 },
   greeting: { fontSize: 14, color: '#666' },
   name: { fontSize: 22, fontWeight: '700' },
   storeCard: {

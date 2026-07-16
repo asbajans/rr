@@ -3,6 +3,7 @@ import { api } from '../../src/shared/api-client'
 import { useI18n } from '../../src/shared/i18n'
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput } from 'react-native'
+import { Logo } from '../../src/shared/components/Logo'
 import type { Store } from '../../src/shared/types'
 
 export default function SettingsScreen() {
@@ -38,6 +39,10 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <Logo width={100} height={26} />
+        <Text style={styles.title}>{t('settings')}</Text>
+      </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('storeSettings')}</Text>
         <Text style={styles.label}>{t('storeName')}</Text>
@@ -75,6 +80,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   content: { padding: 20 },
+  header: { marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: '700', marginTop: 6 },
   section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 16 },
   label: { fontSize: 14, color: '#666', marginBottom: 6 },
