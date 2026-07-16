@@ -16,6 +16,7 @@ class ProductController extends Controller
         if ($store && $store->site_code) {
             putenv('AIMEOS_SITE_CODE=' . $store->site_code);
             $_ENV['AIMEOS_SITE_CODE'] = $store->site_code;
+            app()->forgetInstance('aimeos.context');
         }
         return app('aimeos.context')->get();
     }
@@ -28,6 +29,14 @@ class ProductController extends Controller
 
         $search = $manager->filter();
         $search->setSortations([$search->sort('-', 'product.id')]);
+        try {
+            $siteId = $context->locale()->getSiteId();
+            if ($siteId) {
+                $search->add($search->compare('==', 'product.siteid', $siteId));
+            }
+        } catch (\Throwable $e) {
+            // site filter not applicable
+        }
         $search->slice(0, 5000);
 
         $total = 0;
@@ -142,6 +151,15 @@ class ProductController extends Controller
             $item = $manager->get($id);
         } catch (\Aimeos\MShop\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);
+        }
+
+        try {
+            $siteId = $context->locale()->getSiteId();
+            if ($siteId && $item->getSiteId() && $item->getSiteId() !== $siteId) {
+                return response()->json(['error' => 'Product not found'], 404);
+            }
+        } catch (\Throwable $e) {
+            // site check skipped
         }
 
         $storeId = $request->user()->store_id ?? null;
