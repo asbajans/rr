@@ -12,7 +12,8 @@ class DashboardController extends Controller
 
         return response()->json([
             'user' => $user->only(['id', 'name', 'email', 'ai_credits', 'store_id']),
-            'store' => $user->store?->only(['id', 'name', 'site_code', 'domain', 'is_active']),
+            'store' => $user->store?->only(['id', 'name', 'site_code', 'domain', 'is_active', 'plan_id']),
+            'plan' => $user->store?->plan,
             'stats' => [
                 'total_products' => 0,
                 'total_orders' => 0,
