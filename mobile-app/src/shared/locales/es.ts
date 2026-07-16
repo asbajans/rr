@@ -134,4 +134,10 @@
   cancelPlan: 'Cancelar Plan',
   planIncludes: 'Incluye',
   productsLimit: 'Límite de Productos',
+  b2bEnabled: 'Activar venta B2B',
+  b2bDiscount: 'Descuento B2B (%)',
+  b2bPrice: 'Precio B2B (₺)',
+  b2bBulkOpen: 'Abrir a B2B',
+  b2bBulkClose: 'Cerrar de B2B',
+  b2bBulkDone: 'Ajuste B2B actualizado',
 }

@@ -134,4 +134,10 @@
   cancelPlan: 'Paketi İptal Et',
   planIncludes: 'İçerir',
   productsLimit: 'Ürün Limiti',
+  b2bEnabled: 'B2B Satışa Aç',
+  b2bDiscount: 'B2B İndirim (%)',
+  b2bPrice: 'B2B Fiyat (₺)',
+  b2bBulkOpen: 'B2B\'ye Aç',
+  b2bBulkClose: 'B2B\'den Kapat',
+  b2bBulkDone: 'B2B ayarı güncellendi',
 }

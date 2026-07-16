@@ -134,4 +134,10 @@
   cancelPlan: 'إلغاء الباقة',
   planIncludes: 'تشمل',
   productsLimit: 'حد المنتجات',
+  b2bEnabled: 'تفعيل البيع B2B',
+  b2bDiscount: 'خصم B2B (%)',
+  b2bPrice: 'سعر B2B (₺)',
+  b2bBulkOpen: 'فتح لـ B2B',
+  b2bBulkClose: 'إغلاق من B2B',
+  b2bBulkDone: 'تم تحديث إعداد B2B',
 }

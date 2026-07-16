@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry } from './types'
+import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry, ProductB2bSetting } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -418,6 +418,19 @@ class ApiClient {
 
   purchaseCredits(credits: number) {
     return this.post<{ url: string }>('/api/admin/subscription/purchase-credits', { credits })
+  }
+
+  // B2B product settings
+  getProductB2b(id: string) {
+    return this.get<ProductB2bSetting | null>(`/api/b2b/settings/${id}`)
+  }
+
+  updateProductB2b(data: { product_id: string; is_b2b_enabled: boolean; b2b_discount?: number | null; b2b_price?: number | null }) {
+    return this.put<ProductB2bSetting>('/api/b2b/settings', data)
+  }
+
+  bulkSetB2b(ids: string[], is_b2b_enabled: boolean) {
+    return this.post<{ updated: number }>('/api/b2b/bulk', { ids, is_b2b_enabled })
   }
 
   // Slave Download

@@ -58,6 +58,7 @@ export type Product = {
   description?: string | null
   category?: string | null
   brand?: string | null
+  b2b_enabled?: boolean
 }
 
 export type MarketplaceCategory = {
@@ -173,6 +174,13 @@ export type Subscription = {
   renews_at: string | null
   status: string
   plan?: Plan
+}
+
+export type ProductB2bSetting = {
+  product_id: string
+  is_b2b_enabled: boolean
+  b2b_discount: number | null
+  b2b_price: number | null
 }
 
 // per-marketplace sync data (keyed by marketplace slug)

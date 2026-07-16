@@ -134,4 +134,10 @@
   cancelPlan: 'Отменить План',
   planIncludes: 'Включает',
   productsLimit: 'Лимит Товаров',
+  b2bEnabled: 'Включить B2B продажу',
+  b2bDiscount: 'B2B Скидка (%)',
+  b2bPrice: 'B2B Цена (₺)',
+  b2bBulkOpen: 'Открыть для B2B',
+  b2bBulkClose: 'Закрыть из B2B',
+  b2bBulkDone: 'Настройка B2B обновлена',
 }

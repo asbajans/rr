@@ -55,6 +55,7 @@ export default function ProductsScreen() {
     images: string[]
     marketplaces: string[]
     marketplace_data: Record<string, MarketplaceEntry>
+    b2b_enabled?: boolean
   } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -140,7 +141,7 @@ export default function ProductsScreen() {
   function openCreate() {
     setP({
       id: '', code: '', label: '', price: '', stock: '10', status: true,
-      description: '', images: [], marketplaces: [], marketplace_data: {},
+      description: '',       images: [], marketplaces: [], marketplace_data: {}, b2b_enabled: false,
     })
     setCreating(true)
     setModalOpen(true)
@@ -158,9 +159,15 @@ export default function ProductsScreen() {
       images: item.images && item.images.length ? item.images : (item.media_url ? [item.media_url] : []),
       marketplaces: item.marketplaces ?? [],
       marketplace_data: item.marketplace_data ?? {},
+      b2b_enabled: item.b2b_enabled ?? false,
     })
     setCreating(false)
     setModalOpen(true)
+    if (item.id) {
+      api.getProductB2b(item.id).then((b) => {
+        setP((prev) => prev ? { ...prev, b2b_enabled: !!b?.is_b2b_enabled } : prev)
+      }).catch(() => {})
+    }
   }
 
   return (
@@ -251,14 +258,32 @@ export default function ProductsScreen() {
       {selected.length > 0 && (
         <View style={styles.bulkRow}>
           <Text style={styles.bulkCount}>{selected.length} {t('selectedCount')}</Text>
-          <TouchableOpacity style={styles.bulkDel} onPress={async () => {
-            try {
-              await api.deleteAdminProductsBulk(selected)
-              setSelected([]); load()
-            } catch (e: any) { Alert.alert(t('error'), e.message) }
-          }}>
-            <Text style={styles.bulkDelText}>{t('bulkDelete')}</Text>
-          </TouchableOpacity>
+          <View style={styles.bulkActions}>
+            <TouchableOpacity style={styles.bulkB2bOpen} onPress={async () => {
+              try {
+                await api.bulkSetB2b(selected, true)
+                Alert.alert(t('success'), t('b2bBulkDone')); load()
+              } catch (e: any) { Alert.alert(t('error'), e.message) }
+            }}>
+              <Text style={styles.bulkB2bOpenText}>{t('b2bBulkOpen')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bulkB2bClose} onPress={async () => {
+              try {
+                await api.bulkSetB2b(selected, false)
+                Alert.alert(t('success'), t('b2bBulkDone')); load()
+              } catch (e: any) { Alert.alert(t('error'), e.message) }
+            }}>
+              <Text style={styles.bulkB2bCloseText}>{t('b2bBulkClose')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bulkDel} onPress={async () => {
+              try {
+                await api.deleteAdminProductsBulk(selected)
+                setSelected([]); load()
+              } catch (e: any) { Alert.alert(t('error'), e.message) }
+            }}>
+              <Text style={styles.bulkDelText}>{t('bulkDelete')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -395,6 +420,7 @@ function ProductModal({
   product: {
     id: string; code: string; label: string; price: string; stock: string; status: boolean
     description: string; images: string[]; marketplaces: string[]; marketplace_data: Record<string, MarketplaceEntry>
+    b2b_enabled?: boolean
   }
   creating: boolean
   categoriesFlat: Category[]
@@ -503,10 +529,14 @@ function ProductModal({
 
       if (creating) {
         const code = p.code.trim() || `PRD-${Date.now()}`
-        await api.createAdminProduct({ ...payload, code })
+        const created = await api.createAdminProduct({ ...payload, code })
+        if (created?.id) {
+          await api.updateProductB2b({ product_id: created.id, is_b2b_enabled: !!p.b2b_enabled })
+        }
         Alert.alert(t('success'), t('productCreated'))
       } else {
         await api.updateAdminProduct(p.id, payload)
+        await api.updateProductB2b({ product_id: p.id, is_b2b_enabled: !!p.b2b_enabled })
         Alert.alert(t('success'), t('productUpdated'))
       }
       onSaved()
@@ -656,6 +686,11 @@ function ProductModal({
             <Text style={styles.label}>{t('saleOnOwnSite')}</Text>
             <Switch value={p.status} onValueChange={(v) => setP({ ...p, status: v })} />
           </View>
+
+          <View style={styles.switchRow}>
+            <Text style={styles.label}>{t('b2bEnabled')}</Text>
+            <Switch value={!!p.b2b_enabled} onValueChange={(v) => setP({ ...p, b2b_enabled: v })} />
+          </View>
         </View>
 
         <View style={styles.modalActions}>
@@ -705,6 +740,11 @@ const styles = StyleSheet.create({
   pageInfo: { fontSize: 13, color: '#666', marginHorizontal: 8 },
   bulkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
   bulkCount: { fontSize: 13, fontWeight: '600' },
+  bulkActions: { flexDirection: 'row', gap: 8 },
+  bulkB2bOpen: { backgroundColor: '#000', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  bulkB2bOpenText: { fontSize: 13, color: '#fff', fontWeight: '600' },
+  bulkB2bClose: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#000', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  bulkB2bCloseText: { fontSize: 13, color: '#000', fontWeight: '600' },
   bulkDel: { borderWidth: 1, borderColor: '#fca5a5', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   bulkDelText: { fontSize: 13, color: '#dc2626' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },

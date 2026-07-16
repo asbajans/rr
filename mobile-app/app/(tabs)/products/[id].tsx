@@ -28,6 +28,9 @@ export default function ProductDetailScreen() {
   const [images, setImages] = useState<string[]>([])
   const [marketplaces, setMarketplaces] = useState<string[]>([])
   const [marketplaceData, setMarketplaceData] = useState<Record<string, MarketplaceEntry>>({})
+  const [b2bEnabled, setB2bEnabled] = useState(false)
+  const [b2bDiscount, setB2bDiscount] = useState('')
+  const [b2bPrice, setB2bPrice] = useState('')
 
   async function load() {
     try {
@@ -41,6 +44,12 @@ export default function ProductDetailScreen() {
       setImages(res.images && res.images.length ? res.images : (res.image ? [res.image] : []))
       setMarketplaces(res.marketplaces ?? [])
       setMarketplaceData(res.marketplace_data ?? {})
+      try {
+        const b2b = await api.getProductB2b(id)
+        setB2bEnabled(!!b2b?.is_b2b_enabled)
+        setB2bDiscount(b2b?.b2b_discount != null ? String(b2b.b2b_discount) : '')
+        setB2bPrice(b2b?.b2b_price != null ? String(b2b.b2b_price) : '')
+      } catch {}
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
     } finally {
@@ -76,6 +85,14 @@ export default function ProductDetailScreen() {
         marketplace_data,
       })
       Alert.alert(t('success'), t('productUpdated'))
+      try {
+        await api.updateProductB2b({
+          product_id: id,
+          is_b2b_enabled: b2bEnabled,
+          b2b_discount: b2bDiscount ? parseFloat(b2bDiscount) : null,
+          b2b_price: b2bPrice ? parseFloat(b2bPrice) : null,
+        })
+      } catch {}
       load()
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
@@ -336,6 +353,25 @@ export default function ProductDetailScreen() {
       <TouchableOpacity style={[styles.btn, styles.delBtn, saving && styles.disabled]} onPress={handleDelete} disabled={saving}>
         <Text style={styles.delBtnText}>{t('delete')}</Text>
       </TouchableOpacity>
+
+      <View style={styles.card}>
+        <View style={styles.switchRow}>
+          <Text style={styles.label}>{t('b2bEnabled')}</Text>
+          <Switch value={b2bEnabled} onValueChange={setB2bEnabled} />
+        </View>
+        {b2bEnabled && (
+          <View style={styles.row}>
+            <View style={styles.half}>
+              <Text style={styles.label}>{t('b2bDiscount')}</Text>
+              <TextInput style={styles.input} value={b2bDiscount} onChangeText={setB2bDiscount} keyboardType="decimal-pad" placeholder="%" />
+            </View>
+            <View style={styles.half}>
+              <Text style={styles.label}>{t('b2bPrice')}</Text>
+              <TextInput style={styles.input} value={b2bPrice} onChangeText={setB2bPrice} keyboardType="decimal-pad" placeholder="₺" />
+            </View>
+          </View>
+        )}
+      </View>
     </ScrollView>
   )
 }
