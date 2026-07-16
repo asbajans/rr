@@ -259,7 +259,7 @@ class ProductController extends Controller
     private function productDetails(\Aimeos\MShop\ContextIface $context, \Aimeos\MShop\Common\Item\Iface $item): array
     {
         $id = $item->getId();
-        $data = ['price' => null, 'currency' => 'TRY', 'stock' => null, 'image' => null, 'images' => [], 'description' => null, 'category' => null, 'brand' => null];
+        $data = ['label' => $item->getLabel(), 'status' => $item->getStatus(), 'code' => $item->getCode(), 'price' => null, 'currency' => 'TRY', 'stock' => null, 'image' => null, 'images' => [], 'description' => null, 'category' => null, 'brand' => null];
 
         try {
             $priceManager = MShop::create($context, 'price');
