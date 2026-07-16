@@ -1,11 +1,13 @@
 import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
+import { useI18n } from '../../src/shared/i18n'
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput } from 'react-native'
 import type { Store } from '../../src/shared/types'
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth()
+  const { t } = useI18n()
   const [settings, setSettings] = useState<Store | null>(null)
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,9 +28,9 @@ export default function SettingsScreen() {
     try {
       const updated = await api.updateSettings({ name: name.trim() })
       setSettings(updated)
-      Alert.alert('Success', 'Settings updated')
+      Alert.alert(t('success'), t('settingsUpdated'))
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     } finally {
       setLoading(false)
     }
@@ -37,13 +39,13 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Store Settings</Text>
-        <Text style={styles.label}>Store Name</Text>
+        <Text style={styles.sectionTitle}>{t('storeSettings')}</Text>
+        <Text style={styles.label}>{t('storeName')}</Text>
         <TextInput
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="Store name"
+          placeholder={t('storeName')}
         />
         {settings?.site_code && (
           <Text style={styles.meta}>Site Code: {settings.site_code}</Text>
@@ -53,17 +55,17 @@ export default function SettingsScreen() {
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={loading}>
-          <Text style={styles.saveBtnText}>{loading ? 'Saving...' : 'Save Changes'}</Text>
+          <Text style={styles.saveBtnText}>{loading ? t('saving') : t('saveChanges')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.sectionTitle}>{t('accountSection')}</Text>
         <Text style={styles.meta}>Email: {user?.email}</Text>
         <Text style={styles.meta}>AI Credits: {user?.ai_credits}</Text>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutBtnText}>Sign Out</Text>
+          <Text style={styles.logoutBtnText}>{t('signOut')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

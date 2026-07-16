@@ -13,7 +13,7 @@ type StatCard = {
 }
 
 export default function DashboardScreen() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const { t, locale, setLocale } = useI18n()
   const [data, setData] = useState<DashboardData | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -50,9 +50,6 @@ export default function DashboardScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={() => setLangOpen(true)} style={styles.langBtn}>
             <Ionicons name="language-outline" size={22} color="#666" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-            <Ionicons name="log-out-outline" size={22} color="#666" />
           </TouchableOpacity>
         </View>
       </View>

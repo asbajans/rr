@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData } from './types'
+import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -215,15 +215,46 @@ class ApiClient {
   }
 
   // Admin Products
-  getAdminProducts() {
-    return this.get<{ data: Product[]; total: number }>('/api/admin/products')
+  getAdminProducts(filters?: {
+    marketplaces?: string[]
+    status?: '' | '1' | '0'
+    priceMin?: string | number
+    priceMax?: string | number
+    page?: number
+    perPage?: number | 'all'
+  }) {
+    const params = new URLSearchParams()
+    if (filters?.marketplaces?.length) params.set('marketplaces', filters.marketplaces.join(','))
+    if (filters?.status) params.set('status', filters.status)
+    if (filters?.priceMin !== undefined && filters.priceMin !== '') params.set('price_min', String(filters.priceMin))
+    if (filters?.priceMax !== undefined && filters.priceMax !== '') params.set('price_max', String(filters.priceMax))
+    if (filters?.page) params.set('page', String(filters.page))
+    if (filters?.perPage) params.set('per_page', String(filters.perPage))
+    const qs = params.toString()
+    return this.get<{
+      data: Product[]
+      total: number
+      page: number
+      per_page: number
+      last_page: number
+    }>(`/api/admin/products${qs ? '?' + qs : ''}`)
   }
 
   getAdminProduct(id: string) {
     return this.get<ProductDetail>(`/api/admin/products/${id}`)
   }
 
-  createAdminProduct(data: { code: string; label: string; price?: number; stock?: number; status?: number }) {
+  createAdminProduct(data: {
+    code: string
+    label: string
+    price?: number
+    stock?: number
+    status?: number
+    description?: string
+    media_urls?: string[]
+    marketplaces?: string[]
+    marketplace_data?: Record<string, MarketplaceEntry>
+  }) {
     return this.post<Product>('/api/admin/products', data)
   }
 
@@ -233,15 +264,69 @@ class ApiClient {
     stock?: number
     status?: number
     description?: string
+    media_urls?: string[]
     marketplaces?: string[]
-    marketplace_data?: Record<string, MarketplaceData>
-    images?: string[]
+    marketplace_data?: Record<string, MarketplaceEntry>
   }) {
     return this.put<Product>(`/api/admin/products/${id}`, data)
   }
 
   deleteAdminProduct(id: string) {
     return this.delete<void>(`/api/admin/products/${id}`)
+  }
+
+  deleteAdminProductsBulk(ids: string[]) {
+    return this.post<void>('/api/admin/products/bulk-delete', { ids })
+  }
+
+  verifyProduct(id: string, marketplace: string) {
+    return this.post<{
+      marketplace: string
+      exists: boolean
+      marketplace_product_id?: string | null
+      error?: string | null
+      sync?: MarketplaceSyncEntry | null
+    }>(`/api/admin/products/${id}/verify`, { marketplace })
+  }
+
+  getMarketplaceTrees() {
+    return this.get<{ trees: Record<string, MarketplaceCategory[]> }>('/api/admin/integrations/marketplace-trees')
+  }
+
+  getCategoriesFlat() {
+    return this.get<{ data: Category[] }>('/api/admin/categories/flat')
+  }
+
+  uploadImage(fileUri: string, fileName: string, mimeType: string) {
+    const formData = new FormData()
+    formData.append('file', { uri: fileUri, name: fileName, type: mimeType } as any)
+    return this.upload<{ path: string; url: string }>('/api/admin/upload', formData).then((r) => ({
+      path: r.path,
+      url: r.url && r.url.startsWith('http') ? r.url : `${API_BASE}${r.url}`,
+    }))
+  }
+
+  generateProductDescription(data: {
+    name: string
+    brand?: string
+    category?: string
+    price?: number
+    keywords?: string
+    field?: 'description' | 'title'
+  }) {
+    return this.post<{ description?: string; title?: string }>('/api/ai/generate-description', data)
+  }
+
+  editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
+    return this.post<{ sessionId: string; message?: string }>('/api/ai/edit-image', data)
+  }
+
+  getAiStatus(sessionId: string) {
+    return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
+  }
+
+  getAiOutputUrl(sessionId: string, file: string) {
+    return `${API_BASE}/api/ai/output/${encodeURIComponent(sessionId)}/${encodeURIComponent(file)}`
   }
 
   // Admin Orders (storefront / Aimeos)

@@ -39,6 +39,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: t('settings'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen name="products/[id]" options={{ href: null, title: 'Ürün Detayı' }} />
+      <Tabs.Screen name="orders/[id]" options={{ href: null, title: 'Sipariş Detayı' }} />
     </Tabs>
   )
 }

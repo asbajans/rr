@@ -50,6 +50,50 @@ export type Product = {
   status: number
   price?: number
   stock?: number
+  marketplaces?: string[]
+  marketplace_data?: Record<string, MarketplaceEntry>
+  marketplace_sync?: Record<string, MarketplaceSyncEntry>
+  images?: string[]
+  media_url?: string
+  description?: string | null
+  category?: string | null
+  brand?: string | null
+}
+
+export type MarketplaceCategory = {
+  id?: string
+  marketplace_category_id?: string
+  name: string
+  parent_id: string | null
+  level: number
+  path: string | null
+  children?: MarketplaceCategory[]
+}
+
+export type MarketplaceEntry = {
+  category?: string
+  category_id?: string
+  brand?: string
+  on_sale?: boolean
+  status?: number
+  error?: string
+}
+
+export type MarketplaceSyncStatus = 'none' | 'pending' | 'synced' | 'error'
+
+export type MarketplaceSyncEntry = {
+  status: MarketplaceSyncStatus
+  marketplace_product_id?: string | null
+  error_message?: string | null
+  checked_at?: string | null
+}
+
+export type Category = {
+  id: number | string
+  name: string
+  path?: string
+  slug?: string
+  parent_id?: number | string | null
 }
 
 export type DashboardData = {
@@ -155,8 +199,8 @@ export interface ProductDetail {
   category?: string
   brand?: string
   marketplaces?: string[]
-  marketplace_data?: Record<string, MarketplaceData>
-  marketplace_sync?: any[]
+  marketplace_data?: Record<string, MarketplaceEntry>
+  marketplace_sync?: Record<string, MarketplaceSyncEntry>
   created_at?: string
   updated_at?: string
 }
