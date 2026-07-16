@@ -31,10 +31,17 @@ class ProductController extends Controller
         $search->setSortations([$search->sort('-', 'product.id')]);
         $storeFilterId = $request->user()->store_id ?? null;
         if ($storeFilterId) {
-            $search->add($search->and([
-                $search->compare('==', 'product.property.type', 'store_id'),
-                $search->compare('==', 'product.property.value', (string) $storeFilterId),
-            ]));
+            $allowedIds = $this->getProductIdsByStore($context, (string) $storeFilterId);
+            if (empty($allowedIds)) {
+                return response()->json([
+                    'data' => [],
+                    'total' => 0,
+                    'page' => max(1, (int) ($request->query('page') ?? 1)),
+                    'per_page' => (int) ($request->query('per_page') ?: 25),
+                    'last_page' => 1,
+                ]);
+            }
+            $search->add($search->compare('==', 'product.id', $allowedIds));
         }
         $search->slice(0, 5000);
 
@@ -153,20 +160,8 @@ class ProductController extends Controller
         }
 
         $storeFilterId = $request->user()->store_id ?? null;
-        if ($storeFilterId) {
-            $propManager = MShop::create($context, 'product/property');
-            $ps = $propManager->filter();
-            $ps->setConditions($ps->and([
-                $ps->compare('==', 'product.property.parentid', $item->getId()),
-                $ps->compare('==', 'product.property.type', 'store_id'),
-            ]));
-            $ownStore = null;
-            foreach ($propManager->search($ps) as $op) {
-                $ownStore = $op->getValue();
-            }
-            if ($ownStore !== null && (string) $ownStore !== (string) $storeFilterId) {
-                return response()->json(['error' => 'Product not found'], 404);
-            }
+        if ($storeFilterId && !$this->isProductOwnedByStore($context, $item->getId(), (string) $storeFilterId)) {
+            return response()->json(['error' => 'Product not found'], 404);
         }
 
         $storeId = $request->user()->store_id ?? null;
@@ -530,20 +525,8 @@ class ProductController extends Controller
         }
 
         $storeFilterId = $request->user()->store_id ?? null;
-        if ($storeFilterId) {
-            $propManager = MShop::create($context, 'product/property');
-            $ps = $propManager->filter();
-            $ps->setConditions($ps->and([
-                $ps->compare('==', 'product.property.parentid', $item->getId()),
-                $ps->compare('==', 'product.property.type', 'store_id'),
-            ]));
-            $ownStore = null;
-            foreach ($propManager->search($ps) as $op) {
-                $ownStore = $op->getValue();
-            }
-            if ($ownStore !== null && (string) $ownStore !== (string) $storeFilterId) {
-                return response()->json(['error' => 'Product not found'], 404);
-            }
+        if ($storeFilterId && !$this->isProductOwnedByStore($context, $item->getId(), (string) $storeFilterId)) {
+            return response()->json(['error' => 'Product not found'], 404);
         }
 
         if (isset($validated['label'])) { $item->setLabel($validated['label']); }
@@ -957,5 +940,35 @@ class ProductController extends Controller
         $list->setDomain('media');
         $list->setType('default');
         $listManager->save($list);
+    }
+
+    private function getProductIdsByStore(\Aimeos\MShop\ContextIface $context, string $storeId): array
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $search = $propManager->filter();
+        $search->setConditions($search->and([
+            $search->compare('==', 'product.property.type', 'store_id'),
+            $search->compare('==', 'product.property.value', $storeId),
+        ]));
+        $search->slice(0, 100000);
+        $ids = [];
+        foreach ($propManager->search($search) as $prop) {
+            $ids[] = $prop->getParentId();
+        }
+        return $ids;
+    }
+
+    private function isProductOwnedByStore(\Aimeos\MShop\ContextIface $context, string $productId, string $storeId): bool
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $search = $propManager->filter();
+        $search->setConditions($search->and([
+            $search->compare('==', 'product.property.parentid', $productId),
+            $search->compare('==', 'product.property.type', 'store_id'),
+        ]));
+        foreach ($propManager->search($search) as $prop) {
+            return (string) $prop->getValue() === (string) $storeId;
+        }
+        return false;
     }
 }
