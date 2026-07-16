@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useI18n } from '../../../src/shared/i18n'
 import { api } from '../../../src/shared/api-client'
 import { formatPrice, formatDate } from '../../../src/shared/utils'
 import type { DropshippingOrder, OrderStatusHistory } from '../../../src/shared/types'
@@ -18,6 +19,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 export default function OrderDetailScreen() {
   const router = useRouter()
+  const { t } = useI18n()
   const { id } = useLocalSearchParams<{ id: string }>()
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<DropshippingOrder | null>(null)
@@ -27,7 +29,7 @@ export default function OrderDetailScreen() {
       const res = await api.getAdminDropshippingOrder(parseInt(id, 10))
       setOrder(res)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     } finally {
       setLoading(false)
     }
@@ -46,9 +48,9 @@ export default function OrderDetailScreen() {
   if (!order) {
     return (
       <View style={styles.center}>
-        <Text>Order not found</Text>
+        <Text>{t('productNotFound')}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Back</Text>
+          <Text style={styles.backBtnText}>{t('back')}</Text>
         </TouchableOpacity>
       </View>
     )
@@ -61,7 +63,7 @@ export default function OrderDetailScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>&lt; Back</Text>
+          <Text style={styles.back}>&lt; {t('back')}</Text>
         </TouchableOpacity>
         <Text style={styles.code}>#{order.external_id ?? order.id}</Text>
       </View>
@@ -74,11 +76,11 @@ export default function OrderDetailScreen() {
           </View>
         </View>
         <Text style={styles.total}>{formatPrice(order.grand_total ?? 0, order.currency)}</Text>
-        {order.ordered_at ? <Text style={styles.meta}>Ordered: {formatDate(order.ordered_at)}</Text> : null}
+        {order.ordered_at ? <Text style={styles.meta}>{t('ordered')}: {formatDate(order.ordered_at)}</Text> : null}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Customer</Text>
+        <Text style={styles.sectionTitle}>{t('customerSection')}</Text>
         <Text style={styles.line}>{order.customer_name ?? '—'}</Text>
         {order.customer_email ? <Text style={styles.meta}>{order.customer_email}</Text> : null}
         {order.customer_phone ? <Text style={styles.meta}>{order.customer_phone}</Text> : null}
@@ -94,13 +96,13 @@ export default function OrderDetailScreen() {
 
       {items.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Items</Text>
+          <Text style={styles.sectionTitle}>{t('items')}</Text>
           {items.map((it: any, i: number) => (
             <View key={i} style={styles.itemRow}>
               <View style={styles.itemLeft}>
                 <Text style={styles.itemName}>{it.name ?? it.title ?? `#${i + 1}`}</Text>
                 {it.sku || it.barcode ? <Text style={styles.meta}>{it.sku ?? it.barcode}</Text> : null}
-                {it.quantity ? <Text style={styles.meta}>Qty: {it.quantity}</Text> : null}
+                {it.quantity ? <Text style={styles.meta}>{t('qty')}: {it.quantity}</Text> : null}
               </View>
               <Text style={styles.itemPrice}>
                 {formatPrice(it.unit_price ?? it.price ?? it.line_total ?? 0, order.currency)}
@@ -111,20 +113,20 @@ export default function OrderDetailScreen() {
       )}
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Totals</Text>
-        <View style={styles.totalRow}><Text style={styles.meta}>Subtotal</Text><Text style={styles.meta}>{formatPrice(order.subtotal ?? 0, order.currency)}</Text></View>
-        <View style={styles.totalRow}><Text style={styles.meta}>Shipping</Text><Text style={styles.meta}>{formatPrice(order.shipping_cost ?? 0, order.currency)}</Text></View>
-        <View style={styles.totalRow}><Text style={styles.meta}>Discount</Text><Text style={styles.meta}>{formatPrice(order.discount ?? 0, order.currency)}</Text></View>
-        <View style={styles.totalRow}><Text style={styles.meta}>Tax</Text><Text style={styles.meta}>{formatPrice(order.tax ?? 0, order.currency)}</Text></View>
+        <Text style={styles.sectionTitle}>{t('totals')}</Text>
+        <View style={styles.totalRow}><Text style={styles.meta}>{t('subtotal')}</Text><Text style={styles.meta}>{formatPrice(order.subtotal ?? 0, order.currency)}</Text></View>
+        <View style={styles.totalRow}><Text style={styles.meta}>{t('shipping')}</Text><Text style={styles.meta}>{formatPrice(order.shipping_cost ?? 0, order.currency)}</Text></View>
+        <View style={styles.totalRow}><Text style={styles.meta}>{t('discount')}</Text><Text style={styles.meta}>{formatPrice(order.discount ?? 0, order.currency)}</Text></View>
+        <View style={styles.totalRow}><Text style={styles.meta}>{t('tax')}</Text><Text style={styles.meta}>{formatPrice(order.tax ?? 0, order.currency)}</Text></View>
         <View style={[styles.totalRow, styles.grandRow]}>
-          <Text style={styles.grandLabel}>Grand Total</Text>
+          <Text style={styles.grandLabel}>{t('grandTotal')}</Text>
           <Text style={styles.grandValue}>{formatPrice(order.grand_total ?? 0, order.currency)}</Text>
         </View>
       </View>
 
       {(order.tracking_number || order.tracking_company) && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Tracking</Text>
+          <Text style={styles.sectionTitle}>{t('tracking')}</Text>
           {order.tracking_company ? <Text style={styles.line}>{order.tracking_company}</Text> : null}
           {order.tracking_number ? <Text style={styles.tracking}>{order.tracking_number}</Text> : null}
         </View>
@@ -132,7 +134,7 @@ export default function OrderDetailScreen() {
 
       {order.status_history && order.status_history.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Status History</Text>
+          <Text style={styles.sectionTitle}>{t('statusHistory')}</Text>
           {order.status_history.map((h: OrderStatusHistory) => (
             <View key={h.id} style={styles.historyRow}>
               <View style={[styles.dot, { backgroundColor: STATUS_COLORS[h.to_status ?? '']?.color ?? '#999' }]} />

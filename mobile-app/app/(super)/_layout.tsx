@@ -1,9 +1,11 @@
 import { Tabs, Redirect } from 'expo-router'
 import { useAuth } from '../../src/shared/auth'
+import { useI18n } from '../../src/shared/i18n'
 import { Ionicons } from '@expo/vector-icons'
 
 export default function SuperLayout() {
   const { user } = useAuth()
+  const { t } = useI18n()
 
   if (!user) {
     return <Redirect href="/(auth)/login" />
@@ -25,21 +27,21 @@ export default function SuperLayout() {
       <Tabs.Screen
         name="stores"
         options={{
-          title: 'Stores',
+          title: t('stores'),
           tabBarIcon: ({ color, size }) => <Ionicons name="storefront-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="users"
         options={{
-          title: 'Users',
+          title: t('users'),
           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="plans"
         options={{
-          title: 'Plans',
+          title: t('plans'),
           tabBarIcon: ({ color, size }) => <Ionicons name="pricetags-outline" size={size} color={color} />,
         }}
       />

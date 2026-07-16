@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
+import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import { formatPrice } from '../../src/shared/utils'
 import type { DropshippingOrder } from '../../src/shared/types'
@@ -16,6 +17,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 export default function OrdersScreen() {
   const router = useRouter()
+  const { t } = useI18n()
   const [orders, setOrders] = useState<DropshippingOrder[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,7 @@ export default function OrdersScreen() {
       setOrders(res.data)
       setTotal(res.total)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     } finally {
       setLoading(false)
     }
@@ -52,13 +54,13 @@ export default function OrdersScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.count}>{total} Marketplace Orders</Text>
+        <Text style={styles.count}>{total} {t('marketplaceOrders')}</Text>
       </View>
       <FlatList
         data={orders}
         keyExtractor={(item) => String(item.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={<Text style={styles.empty}>No marketplace orders yet</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{t('noOrders')}</Text>}
         renderItem={({ item }) => {
           const sc = STATUS_COLORS[item.status ?? ''] ?? { bg: '#eee', color: '#333' }
           return (

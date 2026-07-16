@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Image,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useI18n } from '../../../src/shared/i18n'
 import { api } from '../../../src/shared/api-client'
-import { formatPrice } from '../../../src/shared/utils'
 import type { ProductDetail, MarketplaceData } from '../../../src/shared/types'
 
 export default function ProductDetailScreen() {
   const router = useRouter()
+  const { t } = useI18n()
   const { id } = useLocalSearchParams<{ id: string }>()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -30,7 +31,7 @@ export default function ProductDetailScreen() {
       setStatus(res.status === 1)
       setDescription(res.description ?? '')
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     } finally {
       setLoading(false)
     }
@@ -48,10 +49,10 @@ export default function ProductDetailScreen() {
         status: status ? 1 : 0,
         description: description || undefined,
       })
-      Alert.alert('Success', 'Product updated')
+      Alert.alert(t('success'), t('productUpdated'))
       load()
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     } finally {
       setSaving(false)
     }
@@ -68,9 +69,9 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <View style={styles.center}>
-        <Text>Product not found</Text>
+        <Text>{t('productNotFound')}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Back</Text>
+          <Text style={styles.backBtnText}>{t('back')}</Text>
         </TouchableOpacity>
       </View>
     )
@@ -84,52 +85,50 @@ export default function ProductDetailScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>&lt; Back</Text>
+          <Text style={styles.back}>&lt; {t('back')}</Text>
         </TouchableOpacity>
         <Text style={styles.code}>#{product.code}</Text>
       </View>
 
       {images.length > 0 && (
-        <View style={styles.gallery}>
-          {images.slice(0, 4).map((img: string, i: number) => (
-            <View key={i} style={styles.thumb}>
-              <Text style={styles.thumbText}>{`IMG ${i + 1}`}</Text>
-            </View>
+        <ScrollView horizontal style={styles.gallery} showsHorizontalScrollIndicator={false}>
+          {images.map((img: string, i: number) => (
+            <Image key={i} source={{ uri: img }} style={styles.thumb} resizeMode="cover" />
           ))}
-        </View>
+        </ScrollView>
       )}
 
       <View style={styles.card}>
-        <Text style={styles.label}>Title</Text>
+        <Text style={styles.label}>{t('productTitle')}</Text>
         <TextInput style={styles.input} value={label} onChangeText={setLabel} />
 
         <View style={styles.row}>
           <View style={styles.half}>
-            <Text style={styles.label}>Price</Text>
+            <Text style={styles.label}>{t('price')}</Text>
             <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
           </View>
           <View style={styles.half}>
-            <Text style={styles.label}>Stock</Text>
+            <Text style={styles.label}>{t('stock')}</Text>
             <TextInput style={styles.input} value={stock} onChangeText={setStock} keyboardType="number-pad" />
           </View>
         </View>
 
         <View style={styles.switchRow}>
-          <Text style={styles.label}>Active</Text>
+          <Text style={styles.label}>{t('active')}</Text>
           <Switch value={status} onValueChange={setStatus} />
         </View>
 
-        <Text style={styles.label}>Description</Text>
+        <Text style={styles.label}>{t('description')}</Text>
         <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} multiline numberOfLines={4} />
 
         <TouchableOpacity style={[styles.btn, styles.saveBtn, saving && styles.disabled]} onPress={save} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Save Changes</Text>}
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>{t('save')}</Text>}
         </TouchableOpacity>
       </View>
 
       {marketplaces.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Marketplaces</Text>
+          <Text style={styles.sectionTitle}>{t('marketplaces')}</Text>
           <View style={styles.chips}>
             {marketplaces.map((m: string) => (
               <View key={m} style={styles.chip}>
@@ -142,7 +141,7 @@ export default function ProductDetailScreen() {
 
       {marketplaces.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Marketplace Sync Status</Text>
+          <Text style={styles.sectionTitle}>{t('syncStatus')}</Text>
           {marketplaces.map((m: string) => {
             const md: MarketplaceData = marketplaceData[m] ?? {}
             return (
@@ -151,8 +150,8 @@ export default function ProductDetailScreen() {
                 <View style={[styles.badge, md.status === 'active' ? styles.badgeOk : md.status === 'rejected' ? styles.badgeErr : styles.badgeWarn]}>
                   <Text style={styles.badgeText}>{md.status ?? 'unknown'}</Text>
                 </View>
-                {md.category ? <Text style={styles.syncMeta}>Category: {md.category}</Text> : null}
-                {md.brand ? <Text style={styles.syncMeta}>Brand: {md.brand}</Text> : null}
+                {md.category ? <Text style={styles.syncMeta}>{t('category')}: {md.category}</Text> : null}
+                {md.brand ? <Text style={styles.syncMeta}>{t('brand')}: {md.brand}</Text> : null}
                 {md.error ? <Text style={styles.syncError}>{md.error}</Text> : null}
               </View>
             )
@@ -171,9 +170,8 @@ const styles = StyleSheet.create({
   backBtn: { marginTop: 12, paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#000', borderRadius: 8 },
   backBtnText: { color: '#fff', fontWeight: '600' },
   code: { fontSize: 13, color: '#999' },
-  gallery: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, gap: 8 },
-  thumb: { width: 70, height: 70, backgroundColor: '#e0e0e0', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  thumbText: { fontSize: 11, color: '#666' },
+  gallery: { paddingHorizontal: 20, marginVertical: 8 },
+  thumb: { width: 120, height: 120, borderRadius: 10, marginRight: 8, backgroundColor: '#e0e0e0' },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginHorizontal: 20, marginTop: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 4, marginTop: 10 },

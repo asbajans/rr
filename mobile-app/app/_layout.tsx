@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { AuthProvider, useAuth } from '../src/shared/auth'
+import { I18nProvider } from '../src/shared/i18n'
 import { ActivityIndicator, View } from 'react-native'
 
 function RootLayout() {
@@ -29,7 +30,9 @@ function RootLayout() {
 export default function App() {
   return (
     <AuthProvider>
-      <RootLayout />
+      <I18nProvider>
+        <RootLayout />
+      </I18nProvider>
     </AuthProvider>
   )
 }
