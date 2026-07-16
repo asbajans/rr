@@ -36,12 +36,6 @@
         "projectId": "6bb13aed-b1f2-482f-9327-86b5eb6c6315"
       }
     },
-    "owner": "ahmedsaidbuluts-team",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/6bb13aed-b1f2-482f-9327-86b5eb6c6315"
-    }
+    "owner": "ahmedsaidbuluts-team"
   }
 }
