@@ -89,6 +89,8 @@ export type Product = {
   is_b2b_clone?: boolean
   b2b_source_store_id?: string | null
   b2b_enabled?: boolean
+  b2b_discount?: number | null
+  b2b_price?: number | null
 }
 
 export type DashboardData = {

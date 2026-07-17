@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry, ProductB2bSetting } from './types'
+import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry,   ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -433,6 +433,41 @@ class ApiClient {
 
   bulkSetB2b(ids: string[], is_b2b_enabled: boolean) {
     return this.post<{ updated: number }>('/api/b2b/bulk', { ids, is_b2b_enabled })
+  }
+
+  // B2B discover / requests / clone
+  getB2bDiscover(params?: { page?: number; search?: string }) {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.search) q.set('search', params.search)
+    const qs = q.toString()
+    return this.get<{ data: B2bProductItem[]; total: number; current_page: number; last_page: number }>(
+      `/api/b2b/discover${qs ? `?${qs}` : ''}`
+    )
+  }
+
+  getB2bRequests(params?: { type?: 'incoming' | 'outgoing'; status?: string }) {
+    const q = new URLSearchParams()
+    if (params?.type) q.set('type', params.type)
+    if (params?.status) q.set('status', params.status)
+    const qs = q.toString()
+    return this.get<{ data: B2bRequest[] }>(`/api/b2b/requests${qs ? `?${qs}` : ''}`)
+  }
+
+  createB2bRequest(data: { product_id: string; to_store_id?: string; note?: string }) {
+    return this.post<B2bRequest>('/api/b2b/requests', data)
+  }
+
+  updateB2bRequest(id: string, status: 'approved' | 'rejected') {
+    return this.put<B2bRequest>(`/api/b2b/requests/${id}`, { status })
+  }
+
+  cloneB2bRequest(id: string) {
+    return this.post<B2bRequest>(`/api/b2b/requests/${id}/clone`, {})
+  }
+
+  getB2bListed() {
+    return this.get<{ data: B2bProductItem[] }>('/api/b2b/listed')
   }
 
   // Slave Download

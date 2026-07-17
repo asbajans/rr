@@ -28,6 +28,8 @@ interface ProductModalData {
   description: string
   is_b2b_clone?: boolean
   b2b_enabled?: boolean
+  b2b_discount?: number | null
+  b2b_price?: number | null
 }
 
 function firstMd(p?: Product): MarketplaceEntry | undefined {
@@ -205,9 +207,22 @@ export default function ProductsPage() {
       description: p.description ?? '',
       is_b2b_clone: p.is_b2b_clone ?? false,
       b2b_enabled: p.b2b_enabled ?? false,
+      b2b_discount: p.b2b_discount ?? null,
+      b2b_price: p.b2b_price ?? null,
     })
     setCreating(false)
     setModalOpen(true)
+    if (product?.id) {
+      api.getB2bSettings(product.id).then((b) => {
+        const setting = (b && 'is_b2b_enabled' in b ? b : null) as { is_b2b_enabled?: boolean; b2b_discount?: number | null; b2b_price?: number | null } | null
+        setProduct((prev) => prev ? {
+          ...prev,
+          b2b_enabled: !!setting?.is_b2b_enabled,
+          b2b_discount: setting?.b2b_discount ?? null,
+          b2b_price: setting?.b2b_price ?? null,
+        } : prev)
+      }).catch(() => {})
+    }
   }
 
   function openCreateModal() {
@@ -265,7 +280,12 @@ export default function ProductsPage() {
         await api.createAdminProduct({ ...(payload as any), code: finalCode })
       } else {
         await api.updateAdminProduct(product.id, payload)
-        await api.updateB2bSettings({ product_id: product.id, is_b2b_enabled: !!product.b2b_enabled })
+        await api.updateB2bSettings({
+          product_id: product.id,
+          is_b2b_enabled: !!product.b2b_enabled,
+          b2b_discount: product.b2b_discount ?? null,
+          b2b_price: product.b2b_price ?? null,
+        })
       }
       setModalOpen(false)
       setCreating(false)
@@ -783,6 +803,33 @@ export default function ProductsPage() {
                       }`}
                     />
                   </button>
+                </div>
+              )}
+              {!creating && !product.is_b2b_clone && product.b2b_enabled && (
+                <div className="grid grid-cols-2 gap-3 border rounded px-3 py-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">B2B İndirim (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={product.b2b_discount ?? ''}
+                      onChange={(e) => setProduct({ ...product, b2b_discount: e.target.value === '' ? null : Number(e.target.value) })}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">B2B Özel Fiyat (₺)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={product.b2b_price ?? ''}
+                      onChange={(e) => setProduct({ ...product, b2b_price: e.target.value === '' ? null : Number(e.target.value) })}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                      placeholder="Boş = kendi fiyatı"
+                    />
+                  </div>
                 </div>
               )}
               <div>

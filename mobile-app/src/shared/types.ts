@@ -185,6 +185,35 @@ export type ProductB2bSetting = {
   b2b_price: number | null
 }
 
+export type B2bProductItem = {
+  id: string
+  code: string
+  label: string
+  price: number | null
+  currency?: string | null
+  stock: number
+  images?: string[]
+  store_id?: string
+  store_name?: string | null
+  store_code?: string | null
+  b2b_discount?: number | null
+  b2b_price?: number | null
+  is_b2b_enabled?: boolean
+}
+
+export type B2bRequest = {
+  id: string
+  from_store_id?: string
+  to_store_id?: string
+  product_id?: string
+  status: string
+  note?: string | null
+  created_at?: string
+  product?: B2bProductItem | null
+  from_store_name?: string | null
+  to_store_name?: string | null
+}
+
 // per-marketplace sync data (keyed by marketplace slug)
 export interface MarketplaceData {
   status?: 'pending' | 'active' | 'rejected' | string
