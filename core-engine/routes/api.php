@@ -4,7 +4,6 @@ use App\Http\Controllers\Api\Admin\ApiKeyController;
 use App\Http\Controllers\Api\Admin\CategoryController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\FeedController;
-use App\Http\Controllers\Api\Admin\FixB2bDataController;
 use App\Http\Controllers\Api\Admin\MarketplaceIntegrationController;
 use App\Http\Controllers\Api\Admin\PaymentMethodController;
 use App\Http\Controllers\Api\Admin\StoreLocationController;
@@ -96,8 +95,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{id}', [AdminProductController::class, 'destroy']);
         Route::post('{id}/verify', [AdminProductController::class, 'verify']);
     });
-
-    Route::post('/admin/fix-b2b-data', [FixB2bDataController::class, 'run']);
 
     Route::prefix('admin/orders')->group(function () {
         Route::get('/', [AdminOrderController::class, 'index']);
