@@ -22,6 +22,14 @@ class AimeosProductImporter
         $categories = [];
         $knownMarketplaces = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'];
 
+        // Ensure Aimeos context uses the importing store's site so products land in the right tenant.
+        // In a queued job there is no HTTP request, so we set the site explicitly.
+        if (!empty($store->site_code)) {
+            putenv('AIMEOS_SITE_CODE=' . $store->site_code);
+            $_ENV['AIMEOS_SITE_CODE'] = $store->site_code;
+            app()->forgetInstance('aimeos.context');
+        }
+
         $context = app('aimeos.context')->get();
         $productManager = \Aimeos\MShop::create($context, 'product');
         $priceManager = \Aimeos\MShop::create($context, 'price');
