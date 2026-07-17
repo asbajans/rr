@@ -57,7 +57,13 @@ export default function B2bRequestsPage() {
       alert(`Ürün başarıyla klonlandı! Kod: ${res.code}`)
       loadRequests()
     } catch (err: any) {
-      alert(err.message || 'Klonlama başarısız')
+      const msg = err.message || 'Klonlama başarısız'
+      if (msg.includes('409') || msg.toLowerCase().includes('already')) {
+        alert('Bu ürün zaten mağazanıza eklenmiş.')
+      } else {
+        alert(msg)
+      }
+      loadRequests()
     } finally {
       setCloning(null)
     }

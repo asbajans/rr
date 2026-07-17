@@ -26,6 +26,7 @@ done
 php artisan rahatio:fix-orders 2>&1 || true
 php artisan migrate --force --ansi 2>&1 || echo "Migration skipped"
 php artisan db:seed --force --ansi 2>&1 || echo "Seed skipped"
+php artisan rahatio:fix-b2b-data --restore-owner=120 2>&1 || echo "B2B data fix skipped"
 php artisan config:cache 2>&1 || true
 
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
