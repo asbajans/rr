@@ -152,7 +152,7 @@ export default function ProductsPage() {
     setLoading(true)
     setError(null)
     api
-      .getAdminProducts({ ...filters, page, perPage, b2b: b2bTab })
+      .getAdminProducts({ ...filters, page, perPage, b2b: b2bTab || undefined })
       .then((res) => {
         if (cancelled) return
         setProducts(res.data)
