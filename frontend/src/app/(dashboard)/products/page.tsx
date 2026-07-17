@@ -27,6 +27,7 @@ interface ProductModalData {
   marketplace_sync: Record<string, import('@/lib/types').MarketplaceSyncEntry>
   description: string
   is_b2b_clone?: boolean
+  b2b_enabled?: boolean
 }
 
 function firstMd(p?: Product): MarketplaceEntry | undefined {
@@ -170,7 +171,7 @@ export default function ProductsPage() {
     return () => {
       cancelled = true
     }
-  }, [filters, page, perPage, reloadKey])
+  }, [filters, page, perPage, reloadKey, b2bTab])
 
   const activeCount = useMemo(
     () => products.filter((p) => p.status === 1).length,
@@ -203,6 +204,7 @@ export default function ProductsPage() {
       marketplace_sync: p.marketplace_sync ?? {},
       description: p.description ?? '',
       is_b2b_clone: p.is_b2b_clone ?? false,
+      b2b_enabled: p.b2b_enabled ?? false,
     })
     setCreating(false)
     setModalOpen(true)
@@ -263,6 +265,7 @@ export default function ProductsPage() {
         await api.createAdminProduct({ ...(payload as any), code: finalCode })
       } else {
         await api.updateAdminProduct(product.id, payload)
+        await api.updateB2bSettings({ product_id: product.id, is_b2b_enabled: !!product.b2b_enabled })
       }
       setModalOpen(false)
       setCreating(false)
@@ -759,6 +762,27 @@ export default function ProductsPage() {
                 <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
                   Bu ürün B2B ile klonlanmıştır. Kod, ad ve stok stok sahibi tarafından yönetilir ve değiştirilemez.
                   Fotoğrafı AI ile düzenleyip kendi fiyatınızı/pazaryerlerinizi ayarlayabilirsiniz.
+                </div>
+              )}
+              {!creating && !product.is_b2b_clone && (
+                <div className="flex items-center justify-between border rounded px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-800">B2B Satışa Aç</p>
+                    <p className="text-xs text-zinc-500">Bu ürünü diğer mağazalar B2B üzerinden klonlayabilir.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProduct({ ...product, b2b_enabled: !product.b2b_enabled })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      product.b2b_enabled ? 'bg-green-600' : 'bg-zinc-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        product.b2b_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
                 </div>
               )}
               <div>
