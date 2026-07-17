@@ -4,12 +4,13 @@ namespace App\Console\Commands;
 
 use App\Models\B2bListedProduct;
 use App\Models\Store;
+use App\Models\User;
 use Illuminate\Console\Command;
 
 class FixB2bData extends Command
 {
-    protected $signature = 'rahatio:fix-b2b-data {--restore-owner=100 : Move N of atabay non-clone products back to owner so owner has shareable inventory}';
-    protected $description = 'Rebuild b2b_cloned flags from b2b_listed_products (source of truth) and optionally restore owner inventory';
+    protected $signature = 'rahatio:fix-b2b-data {--restore-owner=120 : Move N of atabay non-clone products to the owner user store}';
+    protected $description = 'Rebuild b2b_cloned flags from b2b_listed_products (source of truth) and restore owner inventory';
 
     public function handle(): int
     {
@@ -25,7 +26,7 @@ class FixB2bData extends Command
         }
         $this->info('Legit B2B clones (in b2b_listed_products): ' . count($legitCloneIds));
 
-        // 2. Scan all products: remove bogus b2b_cloned, keep legit ones
+        // 2. Scan all products: remove bogus b2b_cloned flags, keep/add legit ones
         $search = $productManager->filter();
         $search->slice(0, 100000);
         $total = 0;
@@ -50,7 +51,6 @@ class FixB2bData extends Command
             $legit = $legitCloneIds[$pid] ?? null;
 
             if ($legit === null) {
-                // Remove bogus clone flags
                 foreach ($existing as $op) {
                     $propManager->delete($op->getId());
                     $removed++;
@@ -58,7 +58,6 @@ class FixB2bData extends Command
                 continue;
             }
 
-            // Legit clone: ensure the value matches the original store
             $ok = false;
             foreach ($existing as $op) {
                 if ((string) $op->getValue() === (string) $legit) {
@@ -82,17 +81,22 @@ class FixB2bData extends Command
 
         $this->info("Scanned {$total} products. Removed bogus clone flags: {$removed}, kept: {$kept}, added missing: {$added}");
 
-        // 3. Optionally restore owner inventory so owner has products to share via B2B
+        // 3. Restore owner inventory so owner has products to share via B2B
         $restore = (int) $this->option('restore-owner');
         if ($restore > 0) {
-            $owner = Store::where('site_code', 'default')->first();
-            $atabay = Store::where('site_code', 'atabay')->orWhere('email', 'like', '%atabay%')->first();
-            if (!$owner) {
-                $this->warn('Owner store (site_code=default) not found, skipping restore.');
-            } elseif (!$atabay) {
+            // Find atabay store by email (site_code is dynamic, email is stable)
+            $atabay = Store::where('email', 'like', '%atabay%')->first();
+            // Find the store the owner test user actually belongs to
+            $ownerUser = User::where('email', 'owner@test.com')->first();
+            $owner = $ownerUser?->store;
+
+            if (!$atabay) {
                 $this->warn('Atabay store not found, skipping restore.');
+            } elseif (!$owner) {
+                $this->warn('Owner user has no store, skipping restore.');
             } else {
-                // products currently owned by atabay (store_id property) and NOT clones
+                $this->info("Atabay store id={$atabay->id}, owner store id={$owner->id}");
+
                 $owned = [];
                 $ps2 = $propManager->filter();
                 $ps2->setConditions($ps2->and([
@@ -108,7 +112,7 @@ class FixB2bData extends Command
                 foreach ($owned as $pid) {
                     if ($moved >= $restore) break;
                     if (isset($legitCloneIds[$pid])) continue; // never move clones
-                    // update store_id property to owner
+
                     $ps3 = $propManager->filter();
                     $ps3->setConditions($ps3->and([
                         $ps3->compare('==', 'product.property.parentid', $pid),
@@ -120,13 +124,13 @@ class FixB2bData extends Command
                         $moved++;
                         break;
                     }
-                    // enable B2B sharing so other stores can discover owner's products
+
                     \App\Models\ProductB2bSetting::updateOrCreate(
                         ['store_id' => $owner->id, 'product_id' => $pid],
                         ['is_b2b_enabled' => true, 'b2b_discount' => null, 'b2b_price' => null]
                     );
                 }
-                $this->info("Moved {$moved} atabay products to owner (store_id={$owner->id}) and enabled B2B sharing.");
+                $this->info("Moved {$moved} atabay products to owner store (id={$owner->id}) and enabled B2B sharing.");
             }
         }
 
