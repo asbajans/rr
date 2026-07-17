@@ -53,6 +53,21 @@ class ProductController extends Controller
             }
             $search->add($search->compare('==', 'product.id', $allowedIds));
         }
+
+        $b2bParam = $request->query('b2b');
+        if ($b2bParam !== null) {
+            $b2bIds = $this->getB2bClonedIds($context, $b2bParam === '1');
+            if (empty($b2bIds)) {
+                return response()->json([
+                    'data' => [],
+                    'total' => 0,
+                    'page' => max(1, (int) ($request->query('page') ?? 1)),
+                    'per_page' => (int) ($request->query('per_page') ?: 25),
+                    'last_page' => 1,
+                ]);
+            }
+            $search->add($search->compare('==', 'product.id', $b2bIds));
+        }
         $search->slice(0, 5000);
 
         $total = 0;
@@ -995,5 +1010,24 @@ class ProductController extends Controller
             return (string) $prop->getValue() === (string) $storeId;
         }
         return false;
+    }
+
+    private function getB2bClonedIds(\Aimeos\MShop\ContextIface $context, bool $onlyCloned): array
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $search = $propManager->filter();
+        $search->setConditions($search->compare('==', 'product.property.type', 'b2b_cloned'));
+        $search->slice(0, 100000);
+        $ids = [];
+        foreach ($propManager->search($search) as $prop) {
+            $ids[] = $prop->getParentId();
+        }
+        if ($onlyCloned) {
+            return $ids;
+        }
+        // when b2b=0, return all products that are NOT b2b clones
+        $storeFilterId = request()->user()->store_id ?? null;
+        $allIds = $this->getProductIdsByStore($context, (string) $storeFilterId);
+        return array_values(array_diff($allIds, $ids));
     }
 }

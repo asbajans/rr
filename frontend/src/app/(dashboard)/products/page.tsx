@@ -117,6 +117,7 @@ export default function ProductsPage() {
   const [bulkAiDone, setBulkAiDone] = useState(0)
   const [bulkAiTotal, setBulkAiTotal] = useState(0)
   const [bulkAiError, setBulkAiError] = useState('')
+  const [b2bTab, setB2bTab] = useState<'0' | '1' | ''>('')
 
   const marketplaceOptions = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'Pazaryeri Yok']
   const statusOptions: { value: '' | '1' | '0'; label: string }[] = [
@@ -151,7 +152,7 @@ export default function ProductsPage() {
     setLoading(true)
     setError(null)
     api
-      .getAdminProducts({ ...filters, page, perPage })
+      .getAdminProducts({ ...filters, page, perPage, b2b: b2bTab })
       .then((res) => {
         if (cancelled) return
         setProducts(res.data)
@@ -557,6 +558,29 @@ export default function ProductsPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex gap-2 mb-3 border-b border-gray-200">
+        {[
+          { v: '', label: 'Tüm Ürünler' },
+          { v: '1', label: 'B2B Ürünleri' },
+          { v: '0', label: 'Kendi Ürünlerim' },
+        ].map((t) => (
+          <button
+            key={t.v}
+            onClick={() => {
+              setB2bTab(t.v as '0' | '1' | '')
+              setPage(1)
+            }}
+            className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${
+              b2bTab === t.v
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-3">

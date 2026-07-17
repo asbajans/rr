@@ -395,6 +395,23 @@ class B2bController extends Controller
         $manager->save($item);
 
         try {
+            $propManager = MShop::create($context, 'product/property');
+            $sp = $propManager->create();
+            $sp->setParentId($item->getId());
+            $sp->setType('store_id');
+            $sp->setValue((string) $store->id);
+            $sp->setLanguageId(null);
+            $propManager->save($sp);
+
+            $bp = $propManager->create();
+            $bp->setParentId($item->getId());
+            $bp->setType('b2b_cloned');
+            $bp->setValue((string) $b2bRequest->to_store_id);
+            $bp->setLanguageId(null);
+            $propManager->save($bp);
+        } catch (\Throwable $e) {}
+
+        try {
             $priceManager = MShop::create($context, 'price');
             $listManager = MShop::create($context, 'product/lists');
             $ls = $listManager->filter();
