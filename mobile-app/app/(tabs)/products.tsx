@@ -37,6 +37,7 @@ export default function ProductsScreen() {
   const [loading, setLoading] = useState(true)
 
   const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', priceMin: '', priceMax: '' })
+  const [b2bTab, setB2bTab] = useState<'' | '1' | '0'>('')
 
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
   const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
@@ -56,6 +57,7 @@ export default function ProductsScreen() {
     marketplaces: string[]
     marketplace_data: Record<string, MarketplaceEntry>
     b2b_enabled?: boolean
+    is_b2b_clone?: boolean
   } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -92,7 +94,7 @@ export default function ProductsScreen() {
 
   async function load() {
     try {
-      const res = await api.getAdminProducts({ ...filters, page, perPage })
+      const res = await api.getAdminProducts({ ...filters, page, perPage, b2b: b2bTab || undefined })
       setProducts(res.data)
       setTotal(res.total)
       setLastPage(res.last_page)
@@ -105,7 +107,7 @@ export default function ProductsScreen() {
     }
   }
 
-  useEffect(() => { load() }, [filters, page, perPage])
+  useEffect(() => { load() }, [filters, page, perPage, b2bTab])
 
   useEffect(() => {
     const token = api.getToken()
@@ -141,7 +143,7 @@ export default function ProductsScreen() {
   function openCreate() {
     setP({
       id: '', code: '', label: '', price: '', stock: '10', status: true,
-      description: '',       images: [], marketplaces: [], marketplace_data: {}, b2b_enabled: false,
+      description: '',       images: [], marketplaces: [], marketplace_data: {}, b2b_enabled: false, is_b2b_clone: false,
     })
     setCreating(true)
     setModalOpen(true)
@@ -160,6 +162,7 @@ export default function ProductsScreen() {
       marketplaces: item.marketplaces ?? [],
       marketplace_data: item.marketplace_data ?? {},
       b2b_enabled: item.b2b_enabled ?? false,
+      is_b2b_clone: item.is_b2b_clone ?? false,
     })
     setCreating(false)
     setModalOpen(true)
@@ -179,6 +182,18 @@ export default function ProductsScreen() {
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openCreate}>
           <Text style={styles.addBtnText}>+ {t('addProduct')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.b2bTabs}>
+        <TouchableOpacity style={[styles.b2bTab, b2bTab === '' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('') }}>
+          <Text style={[styles.b2bTabText, b2bTab === '' && styles.b2bTabTextActive]}>{t('allProducts')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.b2bTab, b2bTab === '1' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('1') }}>
+          <Text style={[styles.b2bTabText, b2bTab === '1' && styles.b2bTabTextActive]}>{t('b2bProducts')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.b2bTab, b2bTab === '0' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('0') }}>
+          <Text style={[styles.b2bTabText, b2bTab === '0' && styles.b2bTabTextActive]}>{t('ownProducts')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -421,6 +436,7 @@ function ProductModal({
     id: string; code: string; label: string; price: string; stock: string; status: boolean
     description: string; images: string[]; marketplaces: string[]; marketplace_data: Record<string, MarketplaceEntry>
     b2b_enabled?: boolean
+    is_b2b_clone?: boolean
   }
   creating: boolean
   categoriesFlat: Category[]
@@ -564,11 +580,16 @@ function ProductModal({
         </View>
 
         <View style={styles.form}>
+          {p.is_b2b_clone && !creating && (
+            <View style={styles.cloneNote}>
+              <Text style={styles.cloneNoteText}>{t('b2bCloneNote')}</Text>
+            </View>
+          )}
           <Text style={styles.label}>{t('productCode')}</Text>
-          <TextInput style={styles.input} value={p.code} onChangeText={(v) => setP({ ...p, code: v })} />
+          <TextInput style={[styles.input, p.is_b2b_clone && !creating && styles.disabledInput]} value={p.code} editable={!(p.is_b2b_clone && !creating)} onChangeText={(v) => setP({ ...p, code: v })} />
 
           <Text style={styles.label}>{t('title')}</Text>
-          <TextInput style={styles.input} value={p.label} onChangeText={(v) => setP({ ...p, label: v })} />
+          <TextInput style={[styles.input, p.is_b2b_clone && !creating && styles.disabledInput]} value={p.label} editable={!(p.is_b2b_clone && !creating)} onChangeText={(v) => setP({ ...p, label: v })} />
 
           <View style={styles.row}>
             <View style={styles.half}>
@@ -577,7 +598,7 @@ function ProductModal({
             </View>
             <View style={styles.half}>
               <Text style={styles.label}>{t('stock')}</Text>
-              <TextInput style={styles.input} value={p.stock} onChangeText={(v) => setP({ ...p, stock: v })} keyboardType="number-pad" />
+              <TextInput style={[styles.input, p.is_b2b_clone && !creating && styles.disabledInput]} value={p.stock} editable={!(p.is_b2b_clone && !creating)} onChangeText={(v) => setP({ ...p, stock: v })} keyboardType="number-pad" />
             </View>
           </View>
 
@@ -809,6 +830,14 @@ const styles = StyleSheet.create({
   delAction: { paddingVertical: 12 },
   delActionText: { fontSize: 15, color: '#dc2626', fontWeight: '600' },
   disabled: { opacity: 0.5 },
+  b2bTabs: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  b2bTab: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
+  b2bTabActive: { backgroundColor: '#000', borderColor: '#000' },
+  b2bTabText: { fontSize: 13, color: '#333', fontWeight: '600' },
+  b2bTabTextActive: { color: '#fff' },
+  cloneNote: { backgroundColor: '#fff8e1', borderWidth: 1, borderColor: '#ffe082', borderRadius: 8, padding: 10, marginBottom: 8 },
+  cloneNoteText: { fontSize: 12, color: '#8d6e00' },
+  disabledInput: { backgroundColor: '#eee', color: '#999' },
   bulkModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   bulkModal: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
   bulkSub: { fontSize: 13, color: '#666', marginBottom: 12 },

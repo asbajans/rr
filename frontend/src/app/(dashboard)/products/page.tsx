@@ -26,6 +26,7 @@ interface ProductModalData {
   marketplace_data: Record<string, MarketplaceEntry>
   marketplace_sync: Record<string, import('@/lib/types').MarketplaceSyncEntry>
   description: string
+  is_b2b_clone?: boolean
 }
 
 function firstMd(p?: Product): MarketplaceEntry | undefined {
@@ -201,6 +202,7 @@ export default function ProductsPage() {
       marketplace_data: p.marketplace_data ?? {},
       marketplace_sync: p.marketplace_sync ?? {},
       description: p.description ?? '',
+      is_b2b_clone: p.is_b2b_clone ?? false,
     })
     setCreating(false)
     setModalOpen(true)
@@ -753,12 +755,19 @@ export default function ProductsPage() {
             </div>
 
             <div className="space-y-3">
+              {product.is_b2b_clone && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                  Bu ürün B2B ile klonlanmıştır. Kod, ad ve stok stok sahibi tarafından yönetilir ve değiştirilemez.
+                  Fotoğrafı AI ile düzenleyip kendi fiyatınızı/pazaryerlerinizi ayarlayabilirsiniz.
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Kod</label>
                 <input
                   value={product.code}
+                  disabled={product.is_b2b_clone}
                   onChange={(e) => setProduct({ ...product, code: e.target.value })}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  className="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
                 />
               </div>
 
@@ -766,8 +775,9 @@ export default function ProductsPage() {
                 <label className="block text-xs text-gray-500 mb-1">Ürün Adı</label>
                 <input
                   value={product.label}
+                  disabled={product.is_b2b_clone}
                   onChange={(e) => setProduct({ ...product, label: e.target.value })}
-                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  className="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
                 />
               </div>
 
@@ -786,8 +796,9 @@ export default function ProductsPage() {
                   <input
                     type="number"
                     value={product.stock}
+                    disabled={product.is_b2b_clone}
                     onChange={(e) => setProduct({ ...product, stock: Number(e.target.value) })}
-                    className="w-full border rounded px-2 py-1.5 text-sm"
+                    className="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
                   />
                 </div>
               </div>

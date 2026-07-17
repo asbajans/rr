@@ -141,3 +141,8 @@
   b2bBulkClose: 'B2B\'den Kapat',
   b2bBulkDone: 'B2B ayarı güncellendi',
 }
+
+  allProducts: 'Tüm Ürünler',
+  b2bProducts: 'B2B Ürünleri',
+  ownProducts: 'Kendi Ürünlerim',
+  b2bCloneNote: 'Bu ürün B2B ile klonlanmıştır. Kod, ad ve stok değiştirilemez; fotoğrafı AI ile düzenleyip kendi fiyatınızı/pazaryerlerinizi ayarlayabilirsiniz.',

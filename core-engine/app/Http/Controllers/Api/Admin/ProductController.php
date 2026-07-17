@@ -201,6 +201,8 @@ class ProductController extends Controller
         $data['marketplaces'] = $this->getMarketplaces($context, $item->getId());
         $data['marketplace_data'] = $this->getMarketplaceData($context, $item->getId());
         $data['marketplace_sync'] = $this->syncMap($storeId, $item->getId());
+        $data['is_b2b_clone'] = $this->isB2bClone($context, $item->getId());
+        $data['b2b_source_store_id'] = $this->getB2bSourceStore($context, $item->getId());
 
         return response()->json($data);
     }
@@ -566,7 +568,9 @@ class ProductController extends Controller
             return response()->json(['error' => 'Product not found'], 404);
         }
 
-        if (isset($validated['label'])) { $item->setLabel($validated['label']); }
+        $isB2bClone = $this->isB2bClone($context, $item->getId());
+
+        if (isset($validated['label']) && !$isB2bClone) { $item->setLabel($validated['label']); }
         if (array_key_exists('status', $validated ?? [])) { $item->setStatus((int) $validated['status']); }
         $manager->save($item);
 
@@ -597,7 +601,7 @@ class ProductController extends Controller
             }
         }
 
-        if (array_key_exists('stock', $validated ?? [])) {
+        if (array_key_exists('stock', $validated ?? []) && !$isB2bClone) {
             $propManager = MShop::create($context, 'product/property');
             $ps = $propManager->filter();
             $ps->setConditions($ps->and([
@@ -656,7 +660,57 @@ class ProductController extends Controller
             }
         }
 
+        // Two-way B2B sync: if this product is a B2B source, propagate stock/status to its clones
+        try {
+            $this->syncB2bClones($context, $item, $validated);
+        } catch (\Throwable $e) {}
+
         return response()->json(['id' => $item->getId(), 'code' => $item->getCode(), 'label' => $item->getLabel(), 'status' => $item->getStatus()]);
+    }
+
+    private function syncB2bClones(\Aimeos\MShop\ContextIface $context, $sourceItem, array $validated): void
+    {
+        // only sync if stock or status changed on the source
+        if (!array_key_exists('stock', $validated) && !array_key_exists('status', $validated)) {
+            return;
+        }
+        $propManager = MShop::create($context, 'product/property');
+        $search = $propManager->filter();
+        $search->setConditions($search->and([
+            $search->compare('==', 'product.property.type', 'b2b_cloned'),
+            $search->compare('==', 'product.property.value', (string) $sourceItem->getId()),
+        ]));
+        $cloneIds = [];
+        foreach ($propManager->search($search) as $prop) {
+            $cloneIds[] = $prop->getParentId();
+        }
+        if (empty($cloneIds)) {
+            return;
+        }
+        $manager = MShop::create($context, 'product');
+        foreach ($cloneIds as $cloneId) {
+            try {
+                $clone = $manager->get($cloneId);
+                if (array_key_exists('status', $validated)) {
+                    $clone->setStatus((int) $validated['status']);
+                }
+                $manager->save($clone);
+                if (array_key_exists('stock', $validated)) {
+                    $ps = $propManager->filter();
+                    $ps->setConditions($ps->and([
+                        $ps->compare('==', 'product.property.parentid', $cloneId),
+                        $ps->compare('==', 'product.property.type', 'stock'),
+                    ]));
+                    foreach ($propManager->search($ps) as $op) { $propManager->delete($op->getId()); }
+                    $sp = $propManager->create();
+                    $sp->setParentId($cloneId);
+                    $sp->setType('stock');
+                    $sp->setValue((string) (int) $validated['stock']);
+                    $sp->setLanguageId(null);
+                    $propManager->save($sp);
+                }
+            } catch (\Throwable $e) {}
+        }
     }
 
     public function taxonomies(Request $request)
@@ -1029,5 +1083,33 @@ class ProductController extends Controller
         $storeFilterId = request()->user()->store_id ?? null;
         $allIds = $this->getProductIdsByStore($context, (string) $storeFilterId);
         return array_values(array_diff($allIds, $ids));
+    }
+
+    private function isB2bClone(\Aimeos\MShop\ContextIface $context, string $productId): bool
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $search = $propManager->filter();
+        $search->setConditions($search->and([
+            $search->compare('==', 'product.property.parentid', $productId),
+            $search->compare('==', 'product.property.type', 'b2b_cloned'),
+        ]));
+        foreach ($propManager->search($search) as $prop) {
+            return true;
+        }
+        return false;
+    }
+
+    private function getB2bSourceStore(\Aimeos\MShop\ContextIface $context, string $productId): ?string
+    {
+        $propManager = MShop::create($context, 'product/property');
+        $search = $propManager->filter();
+        $search->setConditions($search->and([
+            $search->compare('==', 'product.property.parentid', $productId),
+            $search->compare('==', 'product.property.type', 'b2b_cloned'),
+        ]));
+        foreach ($propManager->search($search) as $prop) {
+            return (string) $prop->getValue();
+        }
+        return null;
     }
 }

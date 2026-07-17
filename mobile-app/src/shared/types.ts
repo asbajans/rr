@@ -59,6 +59,8 @@ export type Product = {
   category?: string | null
   brand?: string | null
   b2b_enabled?: boolean
+  is_b2b_clone?: boolean
+  b2b_source_store_id?: string | null
 }
 
 export type MarketplaceCategory = {

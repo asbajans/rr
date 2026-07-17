@@ -86,6 +86,8 @@ export type Product = {
   description?: string | null
   category?: string | null
   brand?: string | null
+  is_b2b_clone?: boolean
+  b2b_source_store_id?: string | null
 }
 
 export type DashboardData = {

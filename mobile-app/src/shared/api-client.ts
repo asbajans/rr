@@ -222,10 +222,12 @@ class ApiClient {
     priceMax?: string | number
     page?: number
     perPage?: number | 'all'
+    b2b?: '' | '1' | '0'
   }) {
     const params = new URLSearchParams()
     if (filters?.marketplaces?.length) params.set('marketplaces', filters.marketplaces.join(','))
     if (filters?.status) params.set('status', filters.status)
+    if (filters?.b2b) params.set('b2b', filters.b2b)
     if (filters?.priceMin !== undefined && filters.priceMin !== '') params.set('price_min', String(filters.priceMin))
     if (filters?.priceMax !== undefined && filters.priceMax !== '') params.set('price_max', String(filters.priceMax))
     if (filters?.page) params.set('page', String(filters.page))
