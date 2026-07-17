@@ -11,6 +11,7 @@ class FixB2bDataController extends Controller
 {
     public function run(Request $request)
     {
+        try {
         $context = app('aimeos.context')->get();
         $productManager = \Aimeos\MShop::create($context, 'product');
         $propManager = \Aimeos\MShop::create($context, 'product/property');
@@ -116,5 +117,12 @@ class FixB2bDataController extends Controller
             'owner_store_id' => $owner?->id,
             'atabay_store_id' => $atabay?->id,
         ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
+        }
     }
 }
