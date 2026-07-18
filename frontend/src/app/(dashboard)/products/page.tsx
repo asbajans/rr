@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { Product, MarketplaceEntry, MarketplaceCategory, Category } from '@/lib/types'
+import { Sparkles, Camera } from 'lucide-react'
 
 interface Filters {
   marketplaces: string[]
@@ -38,6 +40,7 @@ function firstMd(p?: Product): MarketplaceEntry | undefined {
 }
 
 export default function ProductsPage() {
+  const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -527,12 +530,22 @@ export default function ProductsPage() {
             {total} ürün bulundu · {activeCount} satışta · Sayfa {page} / {lastPage}
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap"
-        >
-          + Ürün Ekle
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/ai-creator')}
+            className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap flex items-center gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            <Camera className="h-4 w-4" />
+            AI ile Ürün Ekle
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap"
+          >
+            + Ürün Ekle
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">

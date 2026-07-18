@@ -40,6 +40,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="ai"
+        options={{
+          title: t('aiTools'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="b2b/index"
         options={{
           title: t('b2bDiscover'),

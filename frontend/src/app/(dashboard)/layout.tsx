@@ -2,10 +2,11 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin, Truck, FileText, Coins } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin, Truck, FileText, Coins, Plus, Camera } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { AiProductCreator } from '@/components/ai/AiProductCreator'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -30,10 +31,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, loading, logout } = useAuth()
   const router = useRouter()
+  const [showAiCreator, setShowAiCreator] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.push('/login')
   }, [user, loading, router])
+
+  const handleAiProductCreate = (product: any) => {
+    router.refresh()
+    setShowAiCreator(false)
+  }
 
   if (loading || !user) return null
 
@@ -62,12 +69,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <Shield className="h-4 w-4" />Super Admin
           </Link>
         )}
+        <div className="mt-4 pt-4 border-t border-zinc-200">
+          <button
+            onClick={() => setShowAiCreator(true)}
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          >
+            <Sparkles className="h-4 w-4" />
+            <Camera className="h-4 w-4" />
+            AI ile Ürün Ekle
+          </button>
+        </div>
         <button onClick={logout}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
+          className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
           <LogOut className="h-4 w-4" />Çıkış Yap
         </button>
       </aside>
       <div className="flex-1 p-8">{children}</div>
+      {showAiCreator && (
+        <AiProductCreator onClose={() => setShowAiCreator(false)} onSuccess={handleAiProductCreate} />
+      )}
     </div>
   )
 }
