@@ -2,7 +2,7 @@ type FetchOptions = RequestInit & {
   params?: Record<string, string>
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
 
 class ApiClient {
   private token: string | null = null
@@ -445,6 +445,10 @@ class ApiClient {
 
   processImage(formData: FormData) {
     return this.upload<{ sessionId: string; message: string }>(`/api/ai/process-image`, formData)
+  }
+
+  getAiStatus(sessionId: string) {
+    return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
   }
 
   analyzeProduct(formData: FormData) {

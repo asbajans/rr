@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
-import { api } from '@/lib/api-client'
+import { api, API_BASE } from '@/lib/api-client'
 import { Sparkles, ImageUp, Loader2, Check } from 'lucide-react'
 
 interface AiAnalysis {
@@ -51,7 +51,20 @@ export default function AiPage() {
       fd.append('images', file)
       fd.append('action', 'remove-background')
       const res = await api.processImage(fd)
-      setResult(res.url ?? null)
+      
+      // Poll for result
+      let attempts = 0
+      let imageUrl: string | null = null
+      while (attempts < 30) {
+        await new Promise(r => setTimeout(r, 2000))
+        const status = await api.getAiStatus(res.sessionId)
+        if (status.ready && status.ready.length > 0) {
+          imageUrl = `${API_BASE}/api/ai/output/${encodeURIComponent(res.sessionId)}/${encodeURIComponent(status.ready[0])}`
+          break
+        }
+        attempts++
+      }
+      setResult(imageUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'İşlem başarısız')
     } finally {
