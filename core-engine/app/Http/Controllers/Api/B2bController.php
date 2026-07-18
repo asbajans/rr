@@ -187,9 +187,22 @@ class B2bController extends Controller
         $paginator = $query->paginate($perPage);
 
         $result = [];
+        $context = $this->context();
+
         foreach ($paginator->items() as $setting) {
+            // Verify product exists in Aimeos and belongs to the seller's store
             $product = $this->enrichProduct($setting->product_id);
             if (!$product) continue;
+
+            // Verify product belongs to the seller's store (multi-tenant isolation)
+            if (!$this->isProductOwnedByStore($context, $setting->product_id, (string) $setting->store_id)) {
+                continue;
+            }
+
+            // Skip products without basic data (label, image)
+            if (empty($product['label']) || empty($product['image'])) {
+                continue;
+            }
 
             $storeInfo = $setting->store;
             $existingRequest = B2bRequest::where('from_store_id', $store->id)
@@ -214,7 +227,7 @@ class B2bController extends Controller
 
         return response()->json([
             'data' => $result,
-            'total' => $paginator->total(),
+            'total' => count($result),
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
             'per_page' => $paginator->perPage(),
@@ -695,5 +708,21 @@ class B2bController extends Controller
         }
 
         return response()->json(['data' => $result]);
+    }
+
+    private function isProductOwnedByStore(\Aimeos\MShop\ContextIface $context, string $productId, string $storeId): bool
+    {
+        try {
+            $propManager = \Aimeos\MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'store_id'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                return (string) $prop->getValue() === (string) $storeId;
+            }
+        } catch (\Throwable $e) {}
+        return false;
     }
 }
