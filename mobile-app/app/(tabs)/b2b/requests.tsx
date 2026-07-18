@@ -109,12 +109,9 @@ export default function B2bRequestsScreen() {
                       <TouchableOpacity style={styles.rejectBtn} onPress={() => reject(item.id)}>
                         <Text style={styles.rejectText}>{t('cancel')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.cloneBtn} onPress={() => clone(item.id)}>
-                        <Text style={styles.cloneText}>{t('b2bClone')}</Text>
-                      </TouchableOpacity>
                     </>
                   ) : null}
-                  {tab === 'incoming' && item.status === 'approved' ? (
+                  {tab === 'outgoing' && item.status === 'approved' ? (
                     <TouchableOpacity style={styles.cloneBtn} onPress={() => clone(item.id)}>
                       <Text style={styles.cloneText}>{t('b2bClone')}</Text>
                     </TouchableOpacity>

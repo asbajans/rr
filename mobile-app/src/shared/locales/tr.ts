@@ -165,4 +165,6 @@
   b2bProducts: 'B2B Ürünleri',
   ownProducts: 'Kendi Ürünlerim',
   b2bCloneNote: 'Bu ürün B2B ile klonlanmıştır. Kod, ad ve stok değiştirilemez; fotoğrafı AI ile düzenleyip kendi fiyatınızı/pazaryerlerinizi ayarlayabilirsiniz.',
+  productDetail: 'Ürün Detayı',
+  orderDetail: 'Sipariş Detayı',
 }

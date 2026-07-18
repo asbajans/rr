@@ -160,4 +160,6 @@
   b2bNoRequests: 'Запросов пока нет',
   b2bNoProducts: 'Нет B2B товаров для просмотра',
   b2bSendRequest: 'Отправить запрос',
+  productDetail: 'Детали товара',
+  orderDetail: 'Детали заказа',
 }

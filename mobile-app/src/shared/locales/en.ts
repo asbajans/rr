@@ -160,5 +160,7 @@
   b2bNoRequests: 'No requests yet',
   b2bNoProducts: 'No B2B products to discover',
   b2bSendRequest: 'Send Request',
+  productDetail: 'Product Detail',
+  orderDetail: 'Order Detail',
 }
 

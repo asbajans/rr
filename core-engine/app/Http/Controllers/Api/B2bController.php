@@ -46,6 +46,11 @@ class B2bController extends Controller
             'currency' => $currency,
             'stock' => null,
             'image' => null,
+            'images' => [],
+            'marketplace_data' => [],
+            'marketplaces' => [],
+            'category' => null,
+            'brand' => null,
         ];
 
         try {
@@ -85,10 +90,64 @@ class B2bController extends Controller
                 $ls2->compare('==', 'product.lists.parentid', $productId),
                 $ls2->compare('==', 'product.lists.domain', 'media'),
             ]));
+            $ls2->setSortations([$ls2->sort('+', 'product.lists.position')]);
             foreach ($listManager2->search($ls2) as $ml) {
                 $mediaItem = $mediaManager->get($ml->getRefId());
-                $data['image'] = $mediaItem->getUrl();
+                $url = $mediaItem->getUrl();
+                $data['images'][] = $url;
+                if ($data['image'] === null) {
+                    $data['image'] = $url;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // marketplace_data
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'marketplace_data'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                $val = $prop->getValue();
+                if (!empty($val)) {
+                    $data['marketplace_data'] = json_decode($val, true) ?? [];
+                }
                 break;
+            }
+        } catch (\Throwable $e) {}
+
+        // marketplaces
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $productId),
+                $ps->compare('==', 'product.property.type', 'marketplaces'),
+            ]));
+            foreach ($propManager->search($ps) as $prop) {
+                $val = $prop->getValue();
+                if (!empty($val)) {
+                    $data['marketplaces'] = array_filter(array_map('trim', explode(',', $val)));
+                }
+                break;
+            }
+        } catch (\Throwable $e) {}
+
+        // category and brand
+        try {
+            $propManager = MShop::create($context, 'product/property');
+            foreach (['category', 'brand'] as $type) {
+                $ps = $propManager->filter();
+                $ps->setConditions($ps->and([
+                    $ps->compare('==', 'product.property.parentid', $productId),
+                    $ps->compare('==', 'product.property.type', $type),
+                ]));
+                foreach ($propManager->search($ps) as $prop) {
+                    $data[$type] = $prop->getValue();
+                    break;
+                }
             }
         } catch (\Throwable $e) {}
 
@@ -409,6 +468,13 @@ class B2bController extends Controller
             $bp->setValue((string) $b2bRequest->to_store_id);
             $bp->setLanguageId(null);
             $propManager->save($bp);
+
+            // Copy marketplace data from original
+            $this->copyMarketplaceData($context, $original->getId(), $item->getId());
+            // Copy marketplaces property
+            $this->copyMarketplaces($context, $original->getId(), $item->getId());
+            // Copy category and brand
+            $this->copyCategoryBrand($context, $original->getId(), $item->getId());
         } catch (\Throwable $e) {}
 
         try {
@@ -484,7 +550,6 @@ class B2bController extends Controller
                 $nl->setDomain('media');
                 $nl->setType('default');
                 $listManager2->save($nl);
-                break;
             }
         } catch (\Throwable $e) {}
 
@@ -511,7 +576,6 @@ class B2bController extends Controller
                 $nl->setDomain('text');
                 $nl->setType($tl->getType());
                 $listManager3->save($nl);
-                break;
             }
         } catch (\Throwable $e) {}
 
@@ -528,6 +592,80 @@ class B2bController extends Controller
             'product_id' => $item->getId(),
             'code' => $newCode,
         ]);
+    }
+
+    /**
+     * Copy marketplace_data property from original to clone
+     */
+    private function copyMarketplaceData(\Aimeos\MShop\ContextIface $context, string $fromProductId, string $toProductId): void
+    {
+        try {
+            $propManager = \Aimeos\MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $fromProductId),
+                $ps->compare('==', 'product.property.type', 'marketplace_data'),
+            ]));
+            foreach ($propManager->search($ps) as $op) {
+                $prop = $propManager->create();
+                $prop->setParentId($toProductId);
+                $prop->setType('marketplace_data');
+                $prop->setValue($op->getValue());
+                $prop->setLanguageId(null);
+                $propManager->save($prop);
+                break;
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    /**
+     * Copy marketplaces property from original to clone
+     */
+    private function copyMarketplaces(\Aimeos\MShop\ContextIface $context, string $fromProductId, string $toProductId): void
+    {
+        try {
+            $propManager = \Aimeos\MShop::create($context, 'product/property');
+            $ps = $propManager->filter();
+            $ps->setConditions($ps->and([
+                $ps->compare('==', 'product.property.parentid', $fromProductId),
+                $ps->compare('==', 'product.property.type', 'marketplaces'),
+            ]));
+            foreach ($propManager->search($ps) as $op) {
+                $prop = $propManager->create();
+                $prop->setParentId($toProductId);
+                $prop->setType('marketplaces');
+                $prop->setValue($op->getValue());
+                $prop->setLanguageId(null);
+                $propManager->save($prop);
+                break;
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    /**
+     * Copy category and brand properties from original to clone
+     */
+    private function copyCategoryBrand(\Aimeos\MShop\ContextIface $context, string $fromProductId, string $toProductId): void
+    {
+        try {
+            $propManager = \Aimeos\MShop::create($context, 'product/property');
+            foreach (['category', 'brand'] as $type) {
+                $ps = $propManager->filter();
+                $ps->setConditions($ps->and([
+                    $ps->compare('==', 'product.property.parentid', $fromProductId),
+                    $ps->compare('==', 'product.property.type', $type),
+                ]));
+                foreach ($propManager->search($ps) as $op) {
+                    $prop = $propManager->create();
+                    $prop->setParentId($toProductId);
+                    $prop->setType($type);
+                    $prop->setValue($op->getValue());
+                    $prop->setLanguageId(null);
+                    $propManager->save($prop);
+                    break;
+                }
+            }
+        } catch (\Throwable $e) {}
     }
 
     public function listedProducts(Request $request)

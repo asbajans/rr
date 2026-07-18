@@ -160,4 +160,6 @@
   b2bNoRequests: 'Aún no hay solicitudes',
   b2bNoProducts: 'No hay productos B2B para descubrir',
   b2bSendRequest: 'Enviar solicitud',
+  productDetail: 'Detalle del producto',
+  orderDetail: 'Detalle del pedido',
 }

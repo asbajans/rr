@@ -160,4 +160,6 @@
   b2bNoRequests: 'لا توجد طلبات بعد',
   b2bNoProducts: 'لا توجد منتجات B2B للاستكشاف',
   b2bSendRequest: 'إرسال طلب',
+  productDetail: 'تفاصيل المنتج',
+  orderDetail: 'تفاصيل الطلب',
 }

@@ -40,6 +40,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="b2b"
+        options={{
+          title: t('b2bDiscover'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="handshake-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="b2b/requests"
+        options={{
+          title: t('b2bRequests'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="billing"
         options={{
           title: t('billing'),
@@ -53,8 +67,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen name="products/[id]" options={{ href: null, title: 'Ürün Detayı' }} />
-      <Tabs.Screen name="orders/[id]" options={{ href: null, title: 'Sipariş Detayı' }} />
+      <Tabs.Screen name="products/[id]" options={{ href: null, title: t('productDetail') }} />
+      <Tabs.Screen name="orders/[id]" options={{ href: null, title: t('orderDetail') }} />
     </Tabs>
   )
 }
