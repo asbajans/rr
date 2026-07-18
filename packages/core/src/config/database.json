@@ -1,0 +1,22 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "rahatio",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "logging": true,
+    "pool": { "max": 10, "min": 2, "acquire": 30000, "idle": 10000 }
+  },
+  "production": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "rahatio",
+    "host": "postgres",
+    "port": 5432,
+    "dialect": "postgres",
+    "logging": false,
+    "pool": { "max": 20, "min": 5, "acquire": 30000, "idle": 10000 }
+  }
+}

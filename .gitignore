@@ -1,22 +1,61 @@
-# OS
-Thumbs.db
-.DS_Store
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 
-# Docker
-.env
-# storage managed by storage/.gitignore
-core-engine/vendor/
-core-engine/node_modules/
-ai-service/node_modules/
-ai-service/dist/
-integration-service/node_modules/
-integration-service/dist/
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Turbo
+.turbo/
+
+# Docker
+docker-compose.override.yml
+
+# Uploads
+uploads/
+output/
+workflows/
+
+# Mobile
+mobile-app/.expo/
+mobile-app/android/app/build/
+mobile-app/ios/build/
+
+# Slave
+slave/vercel/.vercel/
+slave/php/vendor/
+
+# Misc
+*.pem
+.vercel
+.netlify

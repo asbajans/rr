@@ -1,0 +1,40 @@
+{
+  "name": "rahatio-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Rahatio v2 - Multi-tenant Marketplace Platform",
+  "workspaces": [
+    "packages/*",
+    "frontend",
+    "mobile-app",
+    "slave"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "build:core": "turbo run build --filter=@rahatio/core",
+    "build:ai": "turbo run build --filter=@rahatio/ai-service",
+    "build:integration": "turbo run build --filter=@rahatio/integration-service",
+    "build:frontend": "turbo run build --filter=@rahatio/frontend",
+    "build:mobile": "turbo run build --filter=@rahatio/mobile-app",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "turbo run db:migrate --filter=@rahatio/core",
+    "db:seed": "turbo run db:seed --filter=@rahatio/core",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.12.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

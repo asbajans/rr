@@ -6,28 +6,27 @@ networks:
     driver: bridge
 
 volumes:
-  mysql_data:
+  postgres_data:
   redis_data:
   minio_data:
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: rahatio-mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: rahatio-postgres
     restart: unless-stopped
     networks:
       - rahatio
     ports:
-      - "3606:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-rahatio}
-      MYSQL_USER: ${MYSQL_USER:-rahatio}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
+      POSTGRES_USER: ${POSTGRES_USER:-rahatio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rahatio}
+      POSTGRES_DB: ${POSTGRES_DB:-rahatio}
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rahatio} -d ${POSTGRES_DB:-rahatio}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +38,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3679:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -55,7 +54,8 @@ services:
     networks:
       - rahatio
     ports:
-      - "3701:9001"
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio_data:/data
     environment:
@@ -68,99 +68,122 @@ services:
       timeout: 5s
       retries: 5
 
-  laravel-app:
-    image: asbajans/rahatio-core:latest
-    pull_policy: always
+  core-api:
+    build:
+      context: .
+      dockerfile: packages/core/Dockerfile
     container_name: rahatio-core
     restart: unless-stopped
     networks:
       - rahatio
     ports:
-      - "${NGINX_PORT:-3680}:80"
+      - "${CORE_PORT:-3000}:3000"
     environment:
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: rahatio
-      MINIO_PUBLIC_URL: /api/media
-      APP_ENV: ${APP_ENV:-production}
-      APP_DEBUG: ${APP_DEBUG:-false}
-      APP_URL: https://rahatio.com.tr
-      DB_HOST: mysql
-      DB_DATABASE: ${MYSQL_DATABASE:-rahatio}
-      DB_USERNAME: ${MYSQL_USER:-rahatio}
-      DB_PASSWORD: ${MYSQL_PASSWORD:-rahatio}
-      REDIS_HOST: redis
-      QUEUE_CONNECTION: redis
-      INTEGRATION_SERVICE_URL: http://rahatio-integration:3001
-      AI_SERVICE_URL: http://rahatio-ai:3000
-      CORE_API_KEY: ${CORE_API_KEY:-}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rahatio}:${POSTGRES_PASSWORD:-rahatio}@postgres:5432/${POSTGRES_DB:-rahatio}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
       RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
-      STRIPE_KEY: ${STRIPE_KEY:-}
-      STRIPE_SECRET: ${STRIPE_SECRET:-}
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-rahatio-media}
+      APP_URL: ${APP_URL:-https://api.rahatio.com.tr}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://rahatio.com.tr,https://admin.rahatio.com.tr}
+      AI_SERVICE_URL: http://ai-service:3001
+      INTEGRATION_SERVICE_URL: http://integration-service:3002
+      CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
 
   ai-service:
-    image: asbajans/rahatio-ai:latest
-    pull_policy: always
+    build:
+      context: .
+      dockerfile: packages/ai-service/Dockerfile
     container_name: rahatio-ai
     restart: unless-stopped
     networks:
       - rahatio
     ports:
-      - "3630:3000"
+      - "3001:3001"
     environment:
-      NODE_ENV: ${APP_ENV:-production}
-      OLLAMA_URL: http://host.docker.internal:11434
-      COMFY_URL: http://host.docker.internal:8188
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      COMFY_URL: ${COMFY_URL:-http://host.docker.internal:8188}
+      REDIS_URL: redis://redis:6379
+      CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
+      CORE_API_URL: http://core-api:3000
+    depends_on:
+      redis:
+        condition: service_healthy
 
   integration-service:
-    image: asbajans/rahatio-integration:latest
-    pull_policy: always
+    build:
+      context: .
+      dockerfile: packages/integration-service/Dockerfile
     container_name: rahatio-integration
     restart: unless-stopped
     networks:
       - rahatio
     ports:
-      - "3631:3001"
+      - "3002:3002"
     environment:
-      PORT: 3001
-      NODE_ENV: ${APP_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3002
       REDIS_URL: redis://redis:6379
-      CORE_ENGINE_ORDER_URL: http://rahatio-core/api/orders
-      CORE_URL: http://rahatio-core
-      CORE_API_KEY: ${CORE_API_KEY:-}
+      CORE_API_URL: http://core-api:3000
+      CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
       RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
-      # Store id (stores.id) that inbound marketplace orders are attached to.
-      # 2 = "Default Store" (the merchant store with the active Trendyol integration).
-      ORDER_SYNC_VENDOR_ID: "2"
-      HB_USERNAME: ${HB_USERNAME:-}
-      HB_PASSWORD: ${HB_PASSWORD:-}
-      HB_MERCHANT_ID: ${HB_MERCHANT_ID:-}
-      PAZARAMA_AUTO_FILL_ATTRIBUTES: ${PAZARAMA_AUTO_FILL_ATTRIBUTES:-}
       TRENDYOL_API_KEY: ${TRENDYOL_API_KEY:-}
       TRENDYOL_API_SECRET: ${TRENDYOL_API_SECRET:-}
       TRENDYOL_SUPPLIER_ID: ${TRENDYOL_SUPPLIER_ID:-}
+      HEPSIBURADA_USERNAME: ${HEPSIBURADA_USERNAME:-}
+      HEPSIBURADA_PASSWORD: ${HEPSIBURADA_PASSWORD:-}
+      HEPSIBURADA_MERCHANT_ID: ${HEPSIBURADA_MERCHANT_ID:-}
+      PAZARAMA_CLIENT_ID: ${PAZARAMA_CLIENT_ID:-}
+      PAZARAMA_CLIENT_SECRET: ${PAZARAMA_CLIENT_SECRET:-}
+      PAZARAMA_API_KEY: ${PAZARAMA_API_KEY:-}
+      N11_APPKEY: ${N11_APPKEY:-}
+      N11_APPSECRET: ${N11_APPSECRET:-}
+      AMAZON_REFRESH_TOKEN: ${AMAZON_REFRESH_TOKEN:-}
+      AMAZON_LWA_CLIENT_ID: ${AMAZON_LWA_CLIENT_ID:-}
+      AMAZON_LWA_CLIENT_SECRET: ${AMAZON_LWA_CLIENT_SECRET:-}
+      AMAZON_AWS_ACCESS_KEY: ${AMAZON_AWS_ACCESS_KEY:-}
+      AMAZON_AWS_SECRET_KEY: ${AMAZON_AWS_SECRET_KEY:-}
+      AMAZON_SELLER_ID: ${AMAZON_SELLER_ID:-}
+      ETSY_CLIENT_ID: ${ETSY_CLIENT_ID:-}
+      ETSY_CLIENT_SECRET: ${ETSY_CLIENT_SECRET:-}
+      ETSY_REDIRECT_URI: ${ETSY_REDIRECT_URI:-}
     depends_on:
       redis:
         condition: service_healthy
+      core-api:
+        condition: service_started
 
   frontend:
-    image: asbajans/rahatio-frontend:latest
-    pull_policy: always
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:
       - rahatio
     ports:
-      - "${FRONTEND_PORT:-3690}:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      NODE_ENV: ${APP_ENV:-production}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://rahatio-core:80}
-
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.rahatio.com.tr}
+      API_PROXY_TARGET: http://core-api:3000
+    depends_on:
+      core-api:
+        condition: service_started
