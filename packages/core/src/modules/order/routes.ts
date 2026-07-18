@@ -3,7 +3,6 @@ import { Op } from 'sequelize';
 import { body, param, query, validationResult } from 'express-validator';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
-import { Store } from '../../models/Store.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
@@ -28,12 +27,6 @@ orderRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
     const where: any = { storeId: store.id };
     if (req.query.status) where.status = req.query.status;
     if (req.query.marketplace) where.marketplace = req.query.markplace;
-    if (req.query.search) where[Op.or] = [
-      { orderNumber: { [Op.iLike]: `%${req.query.search}%` } },
-      { marketplaceOrderId: { [Op.iLike]: `%${req.query.search}%` } },
-    ];
-    if (req.query.dateFrom) where.createdAt = { ...where.createdAt, [Op.gte]: req.query.dateFrom };
-    if (req.query.dateTo) where.createdAt = { ...where.createdAt, [Op.lte]: req.query.dateTo };
 
     const { count, rows } = await DropshippingOrder.findAndCountAll({
       where,
@@ -52,6 +45,40 @@ orderRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
   }
 });
 
+orderRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('marketplace').isIn(['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'storefront']),
+  body('marketplaceOrderId').isString(),
+  body('marketplaceOrderNumber').optional().isString(),
+  body('totalAmount').isFloat({ min: 0 }),
+  body('currency').optional().isString().isLength({ min: 3, max: 3 }),
+  body('shippingAddress').isObject(),
+  body('items').isArray({ min: 1 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const orderNumber = `ORD-${Date.now()}`;
+
+    const order = await DropshippingOrder.create({
+      storeId: store.id,
+      orderNumber,
+      ...req.body,
+    });
+
+    await OrderStatusHistory.create({
+      dropshippingOrderId: order.id,
+      fromStatus: null,
+      toStatus: 'pending',
+      note: 'Order created manually',
+    });
+
+    logger.info(`Order created: ${order.id} by store ${store.id}`);
+    res.status(201).json({ order });
+  } catch (error) {
+    logger.error('Create order error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 orderRoutes.get('/:id', authMiddleware, requireStore, [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {
@@ -62,7 +89,9 @@ orderRoutes.get('/:id', authMiddleware, requireStore, [
       include: [{ model: OrderStatusHistory, as: 'statusHistory', order: [['createdAt', 'ASC']] }],
     });
 
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
 
     res.json({ order });
   } catch (error) {
@@ -75,25 +104,37 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
   param('id').isInt(),
   body('status').isIn(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned']),
   body('note').optional().isString(),
+  body('trackingNumber').optional().isString(),
+  body('carrier').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { status, note } = req.body;
+    const { status, note, trackingNumber, carrier } = req.body;
 
-    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    const order = await DropshippingOrder.findOne({
+      where: { id: req.params.id, storeId: store.id },
+    });
 
-    const fromStatus = order.status;
-    await order.update({ status });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const oldStatus = order.status;
+    const updateData: any = { status };
+
+    if (trackingNumber) updateData.trackingNumber = trackingNumber;
+    if (carrier) updateData.carrier = carrier;
+
+    await order.update(updateData);
 
     await OrderStatusHistory.create({
       dropshippingOrderId: order.id,
-      fromStatus,
+      fromStatus: oldStatus,
       toStatus: status,
-      note: note || `Status changed from ${fromStatus} to ${status}`,
+      note: note || `Status changed from ${oldStatus} to ${status}`,
     });
 
-    logger.info(`Order ${order.id} status: ${fromStatus} -> ${status}`);
+    logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
     res.json({ order });
   } catch (error) {
     logger.error('Update order status error:', error);
@@ -103,29 +144,53 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
 
 orderRoutes.put('/:id/tracking', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('id').isInt(),
-  body('trackingNumber').isString().isLength({ min: 5, max: 100 }),
-  body('carrier').optional().isString(),
+  body('trackingNumber').isString().isLength({ min: 5 }),
+  body('carrier').isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const { trackingNumber, carrier } = req.body;
 
-    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    const order = await DropshippingOrder.findOne({
+      where: { id: req.params.id, storeId: store.id },
+    });
 
-    await order.update({ trackingNumber, carrier, status: 'shipped' });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    await order.update({ trackingNumber, carrier });
 
     await OrderStatusHistory.create({
       dropshippingOrderId: order.id,
       fromStatus: order.status,
       toStatus: 'shipped',
-      note: `Tracking added: ${trackingNumber} (${carrier || 'unknown carrier'})`,
+      note: `Tracking added: ${carrier} - ${trackingNumber}`,
     });
 
-    logger.info(`Order ${order.id} tracking: ${trackingNumber}`);
     res.json({ order });
   } catch (error) {
     logger.error('Update tracking error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+orderRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    await order.destroy();
+    logger.info(`Order deleted: ${req.params.id} by store ${store.id}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Delete order error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -136,7 +201,10 @@ orderRoutes.get('/:id/history', authMiddleware, requireStore, [
   try {
     const store = (req as any).store;
     const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
 
     const history = await OrderStatusHistory.findAll({
       where: { dropshippingOrderId: order.id },
@@ -145,39 +213,7 @@ orderRoutes.get('/:id/history', authMiddleware, requireStore, [
 
     res.json({ history });
   } catch (error) {
-    logger.error('Get order history error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-orderRoutes.post('/bulk-status', authMiddleware, requireRole('owner', 'admin'), requireStore, [
-  body('ids').isArray({ min: 1 }),
-  body('status').isIn(['confirmed', 'processing', 'shipped', 'cancelled']),
-  body('note').optional().isString(),
-], validate, async (req: Request, res: Response) => {
-  try {
-    const store = (req as any).store;
-    const { ids, status, note } = req.body;
-
-    const orders = await DropshippingOrder.findAll({
-      where: { id: ids, storeId: store.id },
-    });
-
-    for (const order of orders) {
-      const fromStatus = order.status;
-      await order.update({ status });
-      await OrderStatusHistory.create({
-        dropshippingOrderId: order.id,
-        fromStatus,
-        toStatus: status,
-        note: note || `Bulk update: ${fromStatus} -> ${status}`,
-      });
-    }
-
-    logger.info(`Bulk status update: ${orders.length} orders to ${status}`);
-    res.json({ updated: orders.length });
-  } catch (error) {
-    logger.error('Bulk status update error:', error);
+    logger.error('Order history error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
