@@ -141,6 +141,7 @@
   b2bBulkClose: 'B2B\'den Kapat',
   b2bBulkDone: 'B2B ayarı güncellendi',
   b2bDiscover: 'B2B Keşfet',
+  b2bDiscoverTab: 'Keşfet',
   b2bRequests: 'B2B Talepler',
   b2bClone: 'Klonla',
   b2bCloned: 'Klonlandı',

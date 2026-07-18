@@ -141,6 +141,7 @@
   b2bBulkClose: 'Close from B2B',
   b2bBulkDone: 'B2B setting updated',
   b2bDiscover: 'B2B Discover',
+  b2bDiscoverTab: 'Discover',
   b2bRequests: 'B2B Requests',
   b2bClone: 'Clone',
   b2bCloned: 'Cloned',

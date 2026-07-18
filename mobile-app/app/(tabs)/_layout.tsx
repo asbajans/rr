@@ -42,7 +42,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="b2b"
         options={{
-          title: t('b2bDiscover'),
+          title: t('b2bDiscoverTab'),
           tabBarIcon: ({ color, size }) => <Ionicons name="handshake-outline" size={size} color={color} />,
         }}
       />

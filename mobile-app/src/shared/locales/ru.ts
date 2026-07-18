@@ -141,6 +141,7 @@
   b2bBulkClose: 'Закрыть из B2B',
   b2bBulkDone: 'Настройка B2B обновлена',
   b2bDiscover: 'B2B Каталог',
+  b2bDiscoverTab: 'Каталог',
   b2bRequests: 'B2B Запросы',
   b2bClone: 'Клонировать',
   b2bCloned: 'Клонировано',

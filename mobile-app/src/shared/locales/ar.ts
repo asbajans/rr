@@ -141,6 +141,7 @@
   b2bBulkClose: 'إغلاق من B2B',
   b2bBulkDone: 'تم تحديث إعداد B2B',
   b2bDiscover: 'استكشاف B2B',
+  b2bDiscoverTab: 'استكشاف',
   b2bRequests: 'طلبات B2B',
   b2bClone: 'استنساخ',
   b2bCloned: 'تم الاستنساخ',
