@@ -198,3 +198,4 @@
   aiCreditsRemaining: 'Kalan AI kredisi: {count}',
   noAiCredits: 'AI krediniz yok. Paket satın alın.',
   uploadImage: 'Görsel Yükle',
+}

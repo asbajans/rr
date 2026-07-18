@@ -5,9 +5,9 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
-import { useI18n } from '../../../src/shared/i18n'
-import { api } from '../../../src/shared/api-client'
-import type { Product } from '../../../src/shared/types'
+import { useI18n } from '../../src/shared/i18n'
+import { api } from '../../src/shared/api-client'
+import type { Product } from '../../src/shared/types'
 import { Ionicons } from '@expo/vector-icons'
 
 interface AiAnalysis {
