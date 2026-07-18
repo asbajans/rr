@@ -119,11 +119,10 @@ export default function AiCreatorPage() {
     setSuccess('')
     try {
       const res = await api.createProduct({
-        code: productForm.code,
-        label: productForm.label,
-        price: parseFloat(productForm.price) || undefined,
-        stock: parseInt(productForm.stock) || undefined,
-        status: 1,
+        sku: productForm.code,
+        title: productForm.label,
+        priceTRY: parseFloat(productForm.price) || undefined,
+        quantity: parseInt(productForm.stock) || undefined,
         description: productForm.description,
       })
       setSuccess('Ürün başarıyla oluşturuldu!')
