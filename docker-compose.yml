@@ -54,7 +54,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "9000:9000"
+      - "3700:9000"
       - "3701:9001"
     volumes:
       - minio_data:/data
@@ -75,7 +75,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "${CORE_PORT:-3680}:3000"
+      - "3680:3000"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
@@ -171,7 +171,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "${FRONTEND_PORT:-3690}:3000"
+      - "3690:3000"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.rahatio.com.tr}
