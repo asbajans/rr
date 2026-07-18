@@ -111,12 +111,12 @@ export default function AiPage() {
     setError('')
     setSuccess('')
     try {
-      const res = await api.createAdminProduct({
-        code: productForm.code,
-        label: productForm.label,
-        price: parseFloat(productForm.price) || undefined,
-        stock: parseInt(productForm.stock) || undefined,
-        status: 1,
+      const res = await api.createProduct({
+        sku: productForm.code,
+        title: productForm.label,
+        priceTRY: parseFloat(productForm.price) || undefined,
+        quantity: parseInt(productForm.stock) || undefined,
+        description: productForm.description,
       })
       setSuccess(`Ürün oluşturuldu! ID: ${res.id}`)
       setProductForm({ code: '', label: '', price: '', stock: '10', description: '' })
