@@ -77,9 +77,8 @@ export default function B2bPage() {
     setShowNoteModal(false)
     try {
       await api.createB2bRequest({
-        product_id: requestProductId,
-        to_store_id: requestStoreId,
-        note: noteText || undefined,
+        productId: requestProductId,
+        requestNote: noteText || undefined,
       })
       loadProducts(page)
     } catch (err: any) {
