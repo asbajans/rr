@@ -32,7 +32,7 @@ export default function B2bPage() {
 
   const loadProducts = useCallback((p: number, q?: string) => {
     setLoading(true)
-    api.getB2bDiscover(p, q)
+    api.getB2bDiscover({ page: p, search: q })
       .then((res) => {
         setProducts(res.data)
         setTotal(res.total)
