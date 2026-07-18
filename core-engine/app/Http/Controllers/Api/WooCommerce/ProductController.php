@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api\WooCommerce;
 
 use Aimeos\MShop;
 use App\Events\ProductUpdated;
+use App\Traits\StoreProductFilter;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 class ProductController extends Controller
 {
+    use StoreProductFilter;
+
     private function context(): \Aimeos\MShop\ContextIface
     {
         return app('aimeos.context')->get();
@@ -19,7 +22,21 @@ class ProductController extends Controller
         $context = $this->context();
         $manager = \Aimeos\MShop::create($context, 'product');
 
+        // Get store from API key middleware (set as request attribute)
+        $store = $request->attributes->get('store');
+        $storeId = $store?->id ?? null;
+        
         $search = $manager->filter();
+        
+        // Filter products by store_id for multi-tenant isolation
+        if ($storeId) {
+            $allowedIds = $this->getProductIdsByStore($context, (string) $storeId);
+            if (empty($allowedIds)) {
+                return response()->json([]);
+            }
+            $search->add($search->compare('==', 'product.id', $allowedIds));
+        }
+
         $items = $manager->search($search);
 
         return response()->json($items->toArray());
@@ -32,6 +49,13 @@ class ProductController extends Controller
             $manager = \Aimeos\MShop::create($context, 'product');
             $item = $manager->get($id);
         } catch (\Aimeos\MShop\Exception $e) {
+            return response()->json(['error' => 'Product not found'], 404);
+        }
+
+        // Verify product belongs to the store (multi-tenant isolation)
+        $store = $request->attributes->get('store');
+        $storeId = $store?->id ?? null;
+        if ($storeId && !$this->isProductOwnedByStore($context, $item->getId(), (string) $storeId)) {
             return response()->json(['error' => 'Product not found'], 404);
         }
 
@@ -52,6 +76,10 @@ class ProductController extends Controller
         $context = $this->context();
         $manager = \Aimeos\MShop::create($context, 'product');
         $results = [];
+
+        // Get store from API key middleware
+        $store = $request->attributes->get('store');
+        $storeId = $store?->id ?? null;
 
         foreach ($validated['products'] as $data) {
             try {
@@ -76,6 +104,25 @@ class ProductController extends Controller
 
             if (isset($data['vendor_id'])) {
                 $item->setPropertyValue('vendor_id', (int) $data['vendor_id'], 'vendor');
+            }
+
+            // Set store_id property for multi-tenant isolation
+            if ($storeId) {
+                $propManager = \Aimeos\MShop::create($context, 'product/property');
+                $ps = $propManager->filter();
+                $ps->setConditions($ps->and([
+                    $ps->compare('==', 'product.property.parentid', $item->getId()),
+                    $ps->compare('==', 'product.property.type', 'store_id'),
+                ]));
+                foreach ($propManager->search($ps) as $op) {
+                    $propManager->delete($op->getId());
+                }
+                $prop = $propManager->create();
+                $prop->setParentId($item->getId());
+                $prop->setType('store_id');
+                $prop->setValue((string) $storeId);
+                $prop->setLanguageId(null);
+                $propManager->save($prop);
             }
 
             $manager->save($item);

@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use Aimeos\MShop;
 use App\Models\Store;
+use App\Traits\StoreProductFilter;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 class StoreFrontController extends Controller
 {
+    use StoreProductFilter;
+
     public function show(string $siteCode)
     {
         $store = Store::where('site_code', $siteCode)->where('is_active', true)->first();
@@ -23,6 +26,23 @@ class StoreFrontController extends Controller
         $search = $manager->filter();
         $search->setConditions($search->compare('==', 'product.status', 1));
         $search->setSortations([$search->sort('-', 'product.id')]);
+
+        // Filter products by store_id to ensure multi-tenant isolation
+        $allowedIds = $this->getProductIdsByStore($context, (string) $store->id);
+        if (empty($allowedIds)) {
+            return response()->json([
+                'store' => [
+                    'id' => $store->id,
+                    'name' => $store->name,
+                    'site_code' => $store->site_code,
+                    'domain' => $store->domain,
+                    'email' => $store->email,
+                ],
+                'products' => [],
+                'total' => 0,
+            ]);
+        }
+        $search->add($search->compare('==', 'product.id', $allowedIds));
 
         $total = 0;
         $items = $manager->search($search, ['price', 'media', 'text'], $total);
@@ -117,6 +137,11 @@ class StoreFrontController extends Controller
         try {
             $item = $manager->get($id, ['price', 'media', 'text']);
         } catch (\Aimeos\MShop\Exception $e) {
+            return response()->json(['error' => 'Product not found'], 404);
+        }
+
+        // Verify product belongs to this store (multi-tenant isolation)
+        if (!$this->isProductOwnedByStore($context, $item->getId(), (string) $store->id)) {
             return response()->json(['error' => 'Product not found'], 404);
         }
 
