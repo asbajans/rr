@@ -18,7 +18,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "5432:5432"
+      - "3606:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -38,7 +38,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "6379:6379"
+      - "3679:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -55,7 +55,7 @@ services:
       - rahatio
     ports:
       - "9000:9000"
-      - "9001:9001"
+      - "3701:9001"
     volumes:
       - minio_data:/data
     environment:
@@ -75,7 +75,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "${CORE_PORT:-3000}:3000"
+      - "${CORE_PORT:-3680}:3000"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
@@ -110,7 +110,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3001:3001"
+      - "3630:3001"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
@@ -130,7 +130,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "3002:3002"
+      - "3631:3002"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3002
@@ -171,7 +171,7 @@ services:
     networks:
       - rahatio
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-3690}:3000"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.rahatio.com.tr}
