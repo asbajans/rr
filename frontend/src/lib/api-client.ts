@@ -447,8 +447,8 @@ class ApiClient {
     return this.upload<{ sessionId: string; message: string }>(`/api/ai/process-image`, formData)
   }
 
-  analyzeProduct(imageUrl: string, category?: string) {
-    return this.post<{
+  analyzeProduct(formData: FormData) {
+    return this.upload<{
       specs: { material: string; color: string; type: string; style: string; category: string }
       title: string
       description: string
@@ -457,7 +457,7 @@ class ApiClient {
       meta_description: string
       keywords: string[]
       slug: string
-    }>(`/api/ai/analyze-product`, { imageUrl, category })
+    }>(`/api/ai/analyze-product`, formData)
   }
 
   generateDescription(data: { title: string; category: string; attributes?: Record<string, any>; keywords?: string[] }) {
