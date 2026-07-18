@@ -118,7 +118,7 @@ export default function AiCreatorPage() {
     setError('')
     setSuccess('')
     try {
-      const res = await api.createAdminProduct({
+      const res = await api.createProduct({
         code: productForm.code,
         label: productForm.label,
         price: parseFloat(productForm.price) || undefined,
