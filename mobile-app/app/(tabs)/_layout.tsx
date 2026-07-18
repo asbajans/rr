@@ -40,16 +40,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="b2b"
+        name="b2b/index"
         options={{
-          title: t('b2bDiscoverTab'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="handshake-outline" size={size} color={color} />,
+          title: t('b2bDiscover'),
+          tabBarLabel: t('b2bDiscoverTab'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="b2b/requests"
         options={{
           title: t('b2bRequests'),
+          tabBarLabel: t('b2bRequests'),
           tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
         }}
       />
