@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry,   ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
+import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -247,28 +247,57 @@ class ApiClient {
   }
 
   createAdminProduct(data: {
-    code: string
-    label: string
-    price?: number
-    stock?: number
-    status?: number
+    title: string
+    sku: string
+    categoryId?: number
     description?: string
-    media_urls?: string[]
+    gramWeight?: number
+    milyem?: number
+    effectiveMilyem?: number
+    profitMargin?: number
+    priceMultiplier?: number
+    priceTRY?: number
+    priceUSD?: number
+    isB2BEnabled?: boolean
+    b2bDiscount?: number
+    b2bPrice?: number
+    discountRate?: number
+    quantity?: number
+    images?: string[]
+    videoUrl?: string
     marketplaces?: string[]
-    marketplace_data?: Record<string, MarketplaceEntry>
+    marketplaceConfig?: Record<string, any>
+    hasVariants?: boolean
+    variantAttributes?: Record<string, any>
+    tags?: string[]
   }) {
     return this.post<Product>('/api/admin/products', data)
   }
 
   updateAdminProduct(id: string, data: {
-    label?: string
-    price?: number
-    stock?: number
-    status?: number
+    title?: string
+    sku?: string
+    categoryId?: number
     description?: string
-    media_urls?: string[]
+    gramWeight?: number
+    milyem?: number
+    effectiveMilyem?: number
+    profitMargin?: number
+    priceMultiplier?: number
+    priceTRY?: number
+    priceUSD?: number
+    isB2BEnabled?: boolean
+    b2bDiscount?: number
+    b2bPrice?: number
+    discountRate?: number
+    quantity?: number
+    images?: string[]
+    videoUrl?: string
     marketplaces?: string[]
-    marketplace_data?: Record<string, MarketplaceEntry>
+    marketplaceConfig?: Record<string, any>
+    hasVariants?: boolean
+    variantAttributes?: Record<string, any>
+    tags?: string[]
   }) {
     return this.put<Product>(`/api/admin/products/${id}`, data)
   }
