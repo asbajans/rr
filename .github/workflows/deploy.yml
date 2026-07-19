@@ -8,20 +8,11 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  webhook:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PORTAINER_HOST }}
-          username: ${{ secrets.PORTAINER_SSH_USER }}
-          key: ${{ secrets.PORTAINER_SSH_KEY }}
-          script: |
-            cd /opt/rahatio
-            git pull origin main
-            docker compose build
-            docker compose up -d --remove-orphans
-            docker image prune -f
-            echo "Deploy complete: $(date)"
+      - name: Trigger Portainer webhook
+        run: |
+          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
+          echo ""
+          echo "Webhook triggered at $(date)"
