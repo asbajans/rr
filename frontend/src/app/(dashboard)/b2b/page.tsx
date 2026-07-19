@@ -19,7 +19,7 @@ export default function B2bPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  const [requestingId, setRequestingId] = useState<string | null>(null)
+  const [requestingId, setRequestingId] = useState<number | null>(null)
   const [showNoteModal, setShowNoteModal] = useState(false)
   const [requestProductId, setRequestProductId] = useState<number | null>(null)
   const [requestStoreId, setRequestStoreId] = useState<number | null>(null)
