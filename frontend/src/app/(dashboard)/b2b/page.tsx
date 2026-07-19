@@ -21,7 +21,7 @@ export default function B2bPage() {
 
   const [requestingId, setRequestingId] = useState<string | null>(null)
   const [showNoteModal, setShowNoteModal] = useState(false)
-  const [requestProductId, setRequestProductId] = useState<string | null>(null)
+  const [requestProductId, setRequestProductId] = useState<number | null>(null)
   const [requestStoreId, setRequestStoreId] = useState<number | null>(null)
   const [noteText, setNoteText] = useState('')
 
@@ -65,7 +65,7 @@ export default function B2bPage() {
   }
 
   function handleRequestClick(productId: string, storeId: number) {
-    setRequestProductId(productId)
+    setRequestProductId(Number(productId))
     setRequestStoreId(storeId)
     setNoteText('')
     setShowNoteModal(true)
