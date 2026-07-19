@@ -61,7 +61,7 @@ export default function FeedDetailPage() {
 
   const loadLogs = useCallback(() => {
     if (!id || isNew) return
-    api.getFeedLogs(parseInt(id)).then((res) => setSyncLogs(res.data)).catch(() => {})
+    api.getFeedLogs(parseInt(id)).then((res) => setSyncLogs(res)).catch(() => {})
   }, [id, isNew])
 
   useEffect(() => { if (!isNew) loadLogs() }, [loadLogs, isNew])

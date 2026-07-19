@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = api.getToken()
     if (token) {
       api.me()
-        .then((user) => setUser(user))
+        .then((res) => setUser(res.user ?? res as any))
         .catch(() => api.setToken(null))
         .finally(() => setLoading(false))
     } else {

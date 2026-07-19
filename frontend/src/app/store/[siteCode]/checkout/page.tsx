@@ -64,7 +64,7 @@ export default function CheckoutPage() {
         note: note || undefined,
       })
 
-      setOrderId(res.order_id)
+      setOrderId(String(res.orderId))
       setStep('done')
       clearCart()
     } catch (err: any) {

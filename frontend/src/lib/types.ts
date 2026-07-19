@@ -1,3 +1,12 @@
+export type AuthMeResponse = {
+  user: User
+  store: Store & { plan?: { id: number; name: string; price: number } | null; subscription?: { status: string; trialEndsAt?: string; currentPeriodEnd?: string } | null }
+}
+
+export type StoreMeResponse = {
+  store: Store
+}
+
 export type User = {
   id: number
   name: string
@@ -136,6 +145,18 @@ export type StoreProduct = {
   description: string | null
 }
 
+export type CreditLog = {
+  id: number
+  userId: number
+  storeId: number
+  action: string
+  module: string
+  amount: number
+  balanceBefore: number
+  balanceAfter: number
+  created_at: string
+}
+
 export type StoreFrontData = {
   store: {
     id: number
@@ -180,6 +201,8 @@ export type MarketplaceMapping = {
   marketplace_category_name: string
   marketplace_parent_id: string | null
 }
+
+export type MarketplaceCategoryMapping = MarketplaceMapping
 
 export type Category = {
   id: number
@@ -402,6 +425,8 @@ export type B2bProductItem = {
   my_request_id: number | null
 }
 
+export type B2bProduct = B2bProductItem
+
 export type B2bRequestItem = {
   id: number
   product_id: string
@@ -436,6 +461,30 @@ export type B2bSetting = {
     stock: number | null
     image: string | null
   }
+}
+
+export type ProductB2bSetting = B2bSetting
+
+export type B2BRequest = B2bRequestItem
+
+export type B2BListedProduct = {
+  id: number
+  storeId: number
+  originalStoreId: number
+  productId: number
+  originalProductId: number
+  b2bRequestId?: number
+  profitMargin?: number
+  created_at: string
+}
+
+export type OrderStatusHistory = {
+  id: number
+  dropshippingOrderId: number
+  fromStatus: string | null
+  toStatus: string
+  note: string | null
+  created_at: string
 }
 
 export type Page = {

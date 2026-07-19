@@ -17,11 +17,11 @@ export default function BillingPage() {
   useEffect(() => {
     Promise.all([
       api.getSubscription(),
-      api.getAdminPlans(),
+      api.getPlans(),
     ])
       .then(([sub, pl]) => {
-        setSubscription(sub.subscription)
-        setCurrentPlan(sub.plan)
+        setSubscription(sub)
+        setCurrentPlan(sub.plan || null)
         setPlans(pl)
       })
       .catch(() => setMessage('Failed to load billing info'))
@@ -33,7 +33,7 @@ export default function BillingPage() {
     setActionLoading(true)
     setMessage('')
     try {
-      const res = await api.createCheckoutSession(plan.id)
+      const res = await api.createCheckoutSession(plan.id, window.location.href, window.location.href)
       if (res.url) {
         window.location.href = res.url
       }
@@ -47,7 +47,7 @@ export default function BillingPage() {
   async function handlePortal() {
     setActionLoading(true)
     try {
-      const res = await api.createPortalSession()
+      const res = await api.createPortalSession(window.location.href)
       if (res.url) {
         window.location.href = res.url
       }

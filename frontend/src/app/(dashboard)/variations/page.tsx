@@ -19,7 +19,7 @@ export default function VariationsPage() {
   const load = useCallback(() => {
     setLoading(true)
     api.getVariations()
-      .then((res) => setVariations(res.data))
+      .then((res) => setVariations(res))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])

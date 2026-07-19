@@ -320,10 +320,10 @@ export default function ProductsPage() {
     setVerifyingMp(mp)
     try {
       const res = await api.verifyProduct(product.id, mp)
-      const entry: import('@/lib/types').MarketplaceSyncEntry = res.sync ?? {
-        status: res.exists ? 'synced' : 'error',
-        marketplace_product_id: res.marketplace_product_id ?? null,
-        error_message: res.error ?? null,
+      const entry: import('@/lib/types').MarketplaceSyncEntry = {
+        status: res.verified ? 'synced' : 'error',
+        marketplace_product_id: res.externalId ?? null,
+        error_message: res.verified ? null : (res as any).message || 'Pazaryerinde bulunamadı',
         checked_at: new Date().toISOString(),
       }
       setProduct((prev) =>
@@ -331,7 +331,7 @@ export default function ProductsPage() {
           ? { ...prev, marketplace_sync: { ...(prev.marketplace_sync ?? {}), [mp]: entry } }
           : prev
       )
-      if (!res.exists) setError(res.error || 'Pazaryerinde bulunamadı')
+      if (!res.verified) setError((res as any).message || 'Pazaryerinde bulunamadı')
     } catch (e: any) {
       setError(e.message)
     } finally {

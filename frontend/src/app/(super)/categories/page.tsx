@@ -20,7 +20,7 @@ export default function SuperCategoriesPage() {
   const load = useCallback(() => {
     setLoading(true)
     api.getCategories()
-      .then((res) => setCategories(res.data))
+      .then((res) => setCategories(Array.isArray(res) ? res : (res as any).categories ?? []))
       .catch(() => setError('Failed to load categories'))
       .finally(() => setLoading(false))
   }, [])

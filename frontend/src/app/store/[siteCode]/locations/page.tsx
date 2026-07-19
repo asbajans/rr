@@ -21,7 +21,7 @@ export default function StoreLocationsPage() {
   useEffect(() => {
     if (!siteCode) return
     api.getStoreLocations(siteCode)
-      .then(r => setLocations(r.data))
+      .then(r => setLocations(r))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [siteCode])

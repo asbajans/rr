@@ -30,7 +30,7 @@ export default function IntegrationsPage() {
   useEffect(() => {
     setLoading(true)
     api.getIntegrations()
-      .then((res) => setIntegrations(res.data))
+      .then((res) => setIntegrations(res))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -39,9 +39,9 @@ export default function IntegrationsPage() {
     setSaving(marketplace)
     setMessage('')
     try {
-      await api.updateIntegration(marketplace, { is_active: !currentActive })
+      await api.updateIntegration(marketplace, { isActive: !currentActive })
       setIntegrations((prev) =>
-        prev.map((i) => i.marketplace === marketplace ? { ...i, is_active: !currentActive } : i)
+        prev.map((i) => i.marketplace === marketplace ? { ...i, isActive: !currentActive } : i)
       )
       setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace} ${!currentActive ? 'aktifleştirildi' : 'devre dışı bırakıldı'}`)
     } catch (err: any) {
@@ -55,9 +55,9 @@ export default function IntegrationsPage() {
     setSaving(marketplace)
     setMessage('')
     try {
-      await api.updateIntegration(marketplace, { is_active: true, config })
+      await api.updateIntegration(marketplace, { isActive: true, config })
       setIntegrations((prev) =>
-        prev.map((i) => i.marketplace === marketplace ? { ...i, config, is_active: true } : i)
+        prev.map((i) => i.marketplace === marketplace ? { ...i, config, isActive: true } : i)
       )
       setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace} ayarları kaydedildi`)
     } catch (err: any) {
@@ -71,35 +71,14 @@ export default function IntegrationsPage() {
     setImporting(marketplace)
     setMessage('')
     try {
-      const res = await api.importMarketplaceCategories(marketplace)
-      if (!res || res.status !== 'processing') {
-        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma başlatılamadı`)
+      const res = await api.getMarketplaceCategories(marketplace)
+      if (!res || !res.categories || res.categories.length === 0) {
+        setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: kategoriler bulunamadı`)
         return
       }
-      setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: kategori ağacı yükleniyor...`)
-      const started = Date.now()
-      while (Date.now() - started < 3 * 60 * 1000) {
-        await new Promise((r) => setTimeout(r, 2500))
-        let status
-        try {
-          status = await api.getMarketplaceCategoryImportStatus(marketplace)
-        } catch {
-          continue
-        }
-        if (status.status === 'done') {
-          setMessage(
-            `${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${status.imported ?? 0} kategori ağacı aktarıldı`
-          )
-          break
-        } else if (status.status === 'failed') {
-          setMessage(
-            `${MARKETPLACE_LOGOS[marketplace] || marketplace}: hata - ${status.error || 'bilinmeyen hata'}`
-          )
-          break
-        }
-      }
+      setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${res.categories.length} kategori aktarıldı`)
     } catch (err: any) {
-      setMessage(err.message || 'Kategori ağacı aktarılamadı')
+      setMessage(err.message || 'İşlem başarısız')
     } finally {
       setImporting(null)
     }
@@ -110,7 +89,7 @@ export default function IntegrationsPage() {
     setMessage('')
     try {
       const res = await api.importIntegrationProducts(marketplace)
-      if (!res.id) {
+      if (!res.jobId) {
         setMessage('İçe aktarma başlatılamadı')
         return
       }
@@ -118,9 +97,9 @@ export default function IntegrationsPage() {
       const started = Date.now()
       while (Date.now() - started < 20 * 60 * 1000) {
         await new Promise((r) => setTimeout(r, 3000))
-        const status = await api.getMarketplaceImportStatus(marketplace, res.id)
-        if (status.status === 'done') {
-          const s = status.summary
+        const status = await api.getImportJobStatus(res.jobId)
+        if (status.state === 'completed' || status.state === 'done') {
+          const s = status.result
           if (s) {
             if (s.message) {
               setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: ${s.message}`)
@@ -135,12 +114,12 @@ export default function IntegrationsPage() {
             setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma tamamlandı`)
           }
           break
-        } else if (status.status === 'failed') {
-          setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: hata - ${status.error || 'bilinmeyen hata'}`)
+        } else if (status.state === 'failed') {
+          setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: hata - ${status.failedReason || 'bilinmeyen hata'}`)
           break
         } else {
           setMessage(
-            `${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma devam ediyor (${status.status})...`
+            `${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma devam ediyor (${status.progress || 0}%)...`
           )
         }
       }

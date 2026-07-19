@@ -66,7 +66,7 @@ export default function LocationsPage() {
   })
 
   useEffect(() => {
-    api.getLocations().then(r => setLocations(r.data)).catch(() => {}).finally(() => setLoading(false))
+    api.getLocations().then(r => setLocations(r)).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   function openNew() {
@@ -93,7 +93,7 @@ export default function LocationsPage() {
         setMessage('Konum eklendi')
       }
       setShowForm(false)
-      api.getLocations().then(r => setLocations(r.data))
+      api.getLocations().then(r => setLocations(r))
     } catch (err: any) {
       setMessage(err.message || 'Hata')
     } finally {

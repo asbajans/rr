@@ -23,14 +23,13 @@ export default function B2bRequestsPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState<number | null>(null)
-  const [cloning, setCloning] = useState<number | null>(null)
 
   const loadRequests = useCallback(() => {
     setLoading(true)
     api.getB2bRequests(tab, statusFilter === 'all' ? undefined : statusFilter)
       .then((res) => {
-        setRequests(res.data)
-        setTotal(res.total)
+        setRequests(res)
+        setTotal(res.length)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -41,31 +40,12 @@ export default function B2bRequestsPage() {
   async function handleAction(id: number, status: 'approved' | 'rejected') {
     setProcessing(id)
     try {
-      await api.updateB2bRequest(id, status)
+      await api.updateB2bRequest(id, { status })
       loadRequests()
     } catch (err: any) {
       alert(err.message || 'İşlem başarısız')
     } finally {
       setProcessing(null)
-    }
-  }
-
-  async function handleClone(requestId: number) {
-    setCloning(requestId)
-    try {
-      const res = await api.cloneB2bProduct(requestId)
-      alert(`Ürün başarıyla klonlandı! Kod: ${res.code}`)
-      loadRequests()
-    } catch (err: any) {
-      const msg = err.message || 'Klonlama başarısız'
-      if (msg.includes('409') || msg.toLowerCase().includes('already')) {
-        alert('Bu ürün zaten mağazanıza eklenmiş.')
-      } else {
-        alert(msg)
-      }
-      loadRequests()
-    } finally {
-      setCloning(null)
     }
   }
 
@@ -180,11 +160,11 @@ export default function B2bRequestsPage() {
                 )}
                 {tab === 'outgoing' && req.status === 'approved' && (
                   <button
-                    onClick={() => handleClone(req.id)}
-                    disabled={cloning === req.id}
+                    onClick={() => handleAction(req.id, 'approved')}
+                    disabled={processing === req.id}
                     className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                   >
-                    {cloning === req.id ? 'Klonlanıyor...' : 'Mağazama Ekle'}
+                    {processing === req.id ? 'İşleniyor...' : 'Mağazama Ekle'}
                   </button>
                 )}
               </div>

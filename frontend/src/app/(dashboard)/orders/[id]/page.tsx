@@ -42,8 +42,8 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!id || !user) return
-    api.getDropshippingOrder(parseInt(id))
-      .then(setOrder)
+    api.getOrder(parseInt(id))
+      .then(r => setOrder(r.order))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [id, user])
@@ -53,7 +53,7 @@ export default function OrderDetailPage() {
     setMessage('')
     try {
       const updated = await api.updateOrderStatus(parseInt(id), status, statusNote || undefined)
-      setOrder(updated)
+      setOrder(updated.order)
       setStatusNote('')
       setMessage(`Durum "${STATUS_CONFIG[status]?.label}" olarak güncellendi`)
     } catch (err: any) {
@@ -68,7 +68,7 @@ export default function OrderDetailPage() {
     setMessage('')
     try {
       const updated = await api.updateOrderTracking(parseInt(id), trackingNum, trackingCompany || undefined)
-      setOrder(updated)
+      setOrder(updated.order)
       setShowTracking(false)
       setMessage('Kargo bilgisi kaydedildi')
     } catch (err: any) {

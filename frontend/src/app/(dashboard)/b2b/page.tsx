@@ -204,14 +204,14 @@ export default function B2bPage() {
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleRequestClick(item.id, item.store.id) }}
-                      disabled={!!item.my_request_status || requestingId === item.id}
+                      disabled={!!item.my_request_status || String(requestingId) === item.id}
                       className={`mt-3 flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors ${
                         item.my_request_status
                           ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
                           : 'bg-amber-600 text-white hover:bg-amber-700'
                       }`}
                     >
-                      {requestingId === item.id ? (
+                      {String(requestingId) === item.id ? (
                         'Gönderiliyor...'
                       ) : item.my_request_status ? (
                         'Talep Gönderildi'

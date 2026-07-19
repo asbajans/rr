@@ -21,7 +21,7 @@ export default function StoreProductDetailPage() {
   useEffect(() => {
     if (!siteCode || !id) return
     api.getStoreProduct(siteCode, id)
-      .then(setProduct)
+      .then((p) => setProduct(p as any))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [siteCode, id])

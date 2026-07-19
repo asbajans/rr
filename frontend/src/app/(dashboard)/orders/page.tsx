@@ -44,10 +44,20 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!user) return
-    Promise.all([
-      api.getDropshippingOrders({ status: activeFilter || undefined }).then(r => setOrders(r.data)).catch(() => {}),
-      api.getOrderStats().then(r => setStats(r.data)).catch(() => {}),
-    ]).finally(() => setLoading(false))
+    api.getOrders({ status: activeFilter || undefined })
+      .then(r => {
+        setOrders(r.orders)
+        const counts: Record<string, number> = {}
+        r.orders.forEach(o => { counts[o.status] = (counts[o.status] || 0) + 1 })
+        setStats(Object.entries(counts).map(([status, count]) => ({
+          status,
+          label: STATUS_LABELS[status] || status,
+          color: STATUS_COLORS[status] || 'bg-zinc-100 text-zinc-700',
+          count,
+        })))
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [user, activeFilter])
 
   if (!user) return null

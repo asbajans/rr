@@ -21,7 +21,7 @@ export default function SuperUsersPage() {
   useEffect(() => {
     Promise.all([api.getAdminUsers(), api.getAdminPlans()])
       .then(([usersRes, plansRes]) => {
-        setUsers(usersRes.data)
+        setUsers(usersRes)
         setPlans(plansRes)
       })
       .catch((err) => setError(err.message))

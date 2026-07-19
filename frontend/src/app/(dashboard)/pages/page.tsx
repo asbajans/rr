@@ -17,7 +17,7 @@ export default function PagesPage() {
   const [form, setForm] = useState(defaultForm)
 
   useEffect(() => {
-    api.getAdminPages().then(setPages).catch(() => {}).finally(() => setLoading(false))
+    api.getPages().then(setPages).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   function openNew() {
@@ -38,13 +38,13 @@ export default function PagesPage() {
     try {
       const data = { ...form }
       if (editingId) {
-        await api.updateAdminPage(editingId, data)
+        await api.updatePage(editingId, data)
       } else {
-        await api.createAdminPage(data)
+        await api.createPage(data)
       }
       setMessage(editingId ? 'Sayfa güncellendi' : 'Sayfa oluşturuldu')
       setShowForm(false)
-      api.getAdminPages().then(p => { setPages(p); setMessage('') })
+      api.getPages().then(p => { setPages(p); setMessage('') })
     } catch (err: any) {
       setMessage(err.message || 'Hata')
     } finally {
@@ -55,7 +55,7 @@ export default function PagesPage() {
   async function remove(id: number) {
     if (!confirm('Silmek istediğine emin misin?')) return
     try {
-      await api.deleteAdminPage(id)
+      await api.deletePage(id)
       setPages(prev => prev.filter(p => p.id !== id))
     } catch (err: any) {
       setMessage(err.message || 'Hata')

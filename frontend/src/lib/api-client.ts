@@ -1,5 +1,5 @@
 type FetchOptions = RequestInit & {
-  params?: Record<string, string>
+  params?: Record<string, string | number | undefined>
 }
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
@@ -30,7 +30,7 @@ class ApiClient {
     const { params, isFormData, ...fetchOptions } = options
     const url = new URL(`${API_BASE}${path}`)
     if (params) {
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
+      Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') url.searchParams.set(k, String(v)) })
     }
 
     const headers: Record<string, string> = {
@@ -121,7 +121,11 @@ class ApiClient {
   }
 
   getPlans() {
-    return this.get<import('./types').Plan[]>('/api/admin/plans')
+    return this.get<{ plans: import('./types').Plan[] }>('/api/admin/plans').then(r => r.plans)
+  }
+
+  getAdminPlans() {
+    return this.getPlans()
   }
 
   getSubscription() {
@@ -140,9 +144,21 @@ class ApiClient {
     return this.post<{ url: string }>('/api/admin/store/subscription/portal', { returnUrl })
   }
 
+  cancelSubscription() {
+    return this.post<{ message: string }>('/api/admin/store/subscription/cancel')
+  }
+
+  buyCredits(credits: number) {
+    return this.post<{ url: string }>('/api/admin/store/subscription/purchase-credits', { credits })
+  }
+
   // Users
   getUsers() {
-    return this.get<import('./types').User[]>('/api/admin/store/users')
+    return this.get<{ users: import('./types').User[] }>('/api/admin/store/users')
+  }
+
+  getAdminUsers() {
+    return this.getUsers().then(r => r.users)
   }
 
   createUser(data: { email: string; name: string; password: string; role: 'admin' | 'staff' }) {
@@ -177,7 +193,11 @@ class ApiClient {
     priceMax?: number
     search?: string
   }) {
-    return this.get<import('./types').PaginatedResponse<import('./types').Product>>('/api/admin/products', { params: filters })
+    const params: Record<string, string> = {}
+    if (filters) {
+      Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = String(v) })
+    }
+    return this.get<import('./types').PaginatedResponse<import('./types').Product>>('/api/admin/products', { params })
   }
 
   getProduct(id: number) {
@@ -225,12 +245,8 @@ class ApiClient {
     return this.post<void>('/api/admin/products/bulk-delete', { ids })
   }
 
-  verifyProduct(id: number, marketplace: string) {
-    return this.post<{ verified: boolean; externalId?: string; status: string }>(`/api/admin/products/${id}/verify`, { marketplace })
-  }
-
-  syncProduct(id: number, marketplaces?: string[]) {
-    return this.post<{ jobId: string; message: string }>(`/api/admin/products/${id}/sync`, { marketplaces })
+  verifyProduct(id: number | string, marketplace: string) {
+    return this.post<{ verified: boolean; externalId?: string; status: string; sync?: any; exists?: boolean; marketplace_product_id?: string; error?: string }>(`/api/admin/products/${id}/verify`, { marketplace })
   }
 
   // Product Variants
@@ -261,7 +277,11 @@ class ApiClient {
 
   // Categories
   getCategories(filters?: { flat?: boolean; isActive?: boolean }) {
-    return this.get<import('./types').Category[]>(`/api/admin/categories`, { params: filters })
+    const params: Record<string, string> = {}
+    if (filters) {
+      Object.entries(filters).forEach(([k, v]) => { if (v !== undefined) params[k] = String(v) })
+    }
+    return this.get<import('./types').Category[]>(`/api/admin/categories`, { params })
   }
 
   getCategoryTree() {
@@ -309,8 +329,8 @@ class ApiClient {
     return this.put<import('./types').MarketplaceCategoryMapping>(`/api/admin/categories/${categoryId}/mappings/${mappingId}`, data)
   }
 
-  deleteCategoryMapping(categoryId: number, mappingId: number) {
-    return this.delete<void>(`/api/admin/categories/${categoryId}/mappings/${mappingId}`)
+  deleteCategoryMapping(categoryId: number, mappingIdOrMarketplace: number | string) {
+    return this.delete<void>(`/api/admin/categories/${categoryId}/mappings/${mappingIdOrMarketplace}`)
   }
 
   // Variations
@@ -373,11 +393,16 @@ class ApiClient {
 
   // B2B
   getB2bDiscover(filters?: { page?: number; limit?: number; search?: string }) {
-    return this.get<import('./types').PaginatedResponse<import('./types').B2bProduct>>(`/api/admin/b2b/discover`, { params: filters })
+    const params: Record<string, string> = {}
+    if (filters) Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = String(v) })
+    return this.get<import('./types').PaginatedResponse<import('./types').B2bProduct>>(`/api/admin/b2b/discover`, { params })
   }
 
-  getB2bSettings(filters?: { productId?: number }) {
-    return this.get<import('./types').ProductB2bSetting[]>(`/api/admin/b2b/settings`, { params: filters })
+  getB2bSettings(filters?: { productId?: number } | string | number) {
+    const params: Record<string, string> = {}
+    if (filters && typeof filters === 'object' && 'productId' in filters) params.productId = String(filters.productId)
+    else if (typeof filters === 'number' || typeof filters === 'string') params.productId = String(filters)
+    return this.get<import('./types').ProductB2bSetting[]>(`/api/admin/b2b/settings`, { params })
   }
 
   updateB2bSetting(productId: number, data: { isB2BEnabled: boolean; b2bDiscount?: number; b2bPrice?: number }) {
@@ -385,7 +410,10 @@ class ApiClient {
   }
 
   getB2bRequests(type?: 'incoming' | 'outgoing' | 'all', status?: string) {
-    return this.get<import('./types').B2BRequest[]>(`/api/admin/b2b/requests`, { params: { type, status } })
+    const params: Record<string, string> = {}
+    if (type) params.type = type
+    if (status) params.status = status
+    return this.get<import('./types').B2BRequest[]>(`/api/admin/b2b/requests`, { params })
   }
 
   createB2bRequest(data: { productId: number; variantId?: number; requestNote?: string; profitMargin?: number; marketplaces?: string[] }) {
@@ -402,23 +430,23 @@ class ApiClient {
 
   // Orders
   getOrders(filters?: { page?: number; limit?: number; status?: string; marketplace?: string; search?: string; dateFrom?: string; dateTo?: string }) {
-    return this.get<import('./types').PaginatedResponse<import('./types').DropshippingOrder>>(`/api/admin/orders`, { params: filters })
+    return this.get<{ orders: import('./types').DropshippingOrder[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/orders`, { params: filters })
   }
 
   getOrder(id: number) {
-    return this.get<import('./types').DropshippingOrder>(`/api/admin/orders/${id}`)
+    return this.get<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}`)
   }
 
   updateOrderStatus(id: number, status: string, note?: string) {
-    return this.put<import('./types').DropshippingOrder>(`/api/admin/orders/${id}/status`, { status, note })
+    return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/status`, { status, note })
   }
 
   updateOrderTracking(id: number, trackingNumber: string, carrier?: string) {
-    return this.put<import('./types').DropshippingOrder>(`/api/admin/orders/${id}/tracking`, { trackingNumber, carrier })
+    return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/tracking`, { trackingNumber, carrier })
   }
 
   getOrderHistory(id: number) {
-    return this.get<import('./types').OrderStatusHistory[]>(`/api/admin/orders/${id}/history`)
+    return this.get<{ history: import('./types').OrderStatusHistory[] }>(`/api/admin/orders/${id}/history`)
   }
 
   bulkUpdateOrderStatus(ids: number[], status: string, note?: string) {
@@ -472,12 +500,24 @@ class ApiClient {
     return this.post<{ reply: string }>(`/api/ai/chat`, { message, history, storeInfo })
   }
 
+  aiChat(message: string, history?: { role: string; content: string }[], storeInfo?: Record<string, string>) {
+    return this.chat(message, history, storeInfo)
+  }
+
   search(query: string, products: any[]) {
     return this.post<{ query: string; results: any[]; count: number }>(`/api/ai/search`, { query, products })
   }
 
+  aiSearch(query: string, products: any[]) {
+    return this.search(query, products)
+  }
+
   recommend(product: any, allProducts: any[], type?: string) {
     return this.post<{ type: string; results: any[]; count: number }>(`/api/ai/recommend`, { product, allProducts, type })
+  }
+
+  aiRecommend(product: any, allProducts: any[], type?: string) {
+    return this.recommend(product, allProducts, type)
   }
 
   // Media Upload
@@ -523,6 +563,10 @@ class ApiClient {
   // External Feeds
   getFeeds() {
     return this.get<import('./types').ExternalFeed[]>(`/api/admin/feeds`)
+  }
+
+  getFeed(id: number) {
+    return this.get<import('./types').ExternalFeed>(`/api/admin/feeds/${id}`)
   }
 
   createFeed(data: Partial<import('./types').ExternalFeed>) {
@@ -585,15 +629,27 @@ class ApiClient {
   }
 
   // Storefront (Public)
+  getPublicBlog(type: string) {
+    return this.get<{ id: number; title: string; slug: string; meta_title: string | null; meta_description: string | null; created_at: string }[]>(`/api/store/platform/pages`, { params: { type } })
+  }
+
   getStoreFront(siteCode: string) {
     return this.get<import('./types').StoreFrontData>(`/api/store/${siteCode}`)
+  }
+
+  getAddresses(siteCode: string) {
+    return this.get<any[]>(`/api/store/${siteCode}/addresses`).then(r => ({ data: Array.isArray(r) ? r : (r as any).data ?? (r as any).addresses ?? [] }))
+  }
+
+  getCheckoutPaymentMethods(siteCode: string) {
+    return this.get<any[]>(`/api/store/${siteCode}/payment-methods`).then(r => ({ data: (Array.isArray(r) ? r : (r as any).data ?? r).map((m: any) => ({ method: m.method || m.name, label: m.label || m.name })) }))
   }
 
   getStoreProducts(siteCode: string, filters?: { page?: number; limit?: number; categoryId?: number; search?: string; priceMin?: number; priceMax?: number }) {
     return this.get<import('./types').PaginatedResponse<import('./types').Product>>(`/api/store/${siteCode}/products`, { params: filters })
   }
 
-  getStoreProduct(siteCode: string, id: number) {
+  getStoreProduct(siteCode: string, id: number | string) {
     return this.get<import('./types').Product>(`/api/store/${siteCode}/products/${id}`)
   }
 
@@ -613,8 +669,153 @@ class ApiClient {
     return this.post<any>(`/api/store/${siteCode}/addresses`, data)
   }
 
-  checkout(siteCode: string, data: { items: any[]; shippingAddress: any; paymentMethod: string }) {
+  checkout(siteCode: string, data: Record<string, any>) {
     return this.post<{ orderId: number; orderNumber: string; message: string }>(`/api/store/${siteCode}/checkout`, data)
+  }
+
+  // Product Admin (products/page.tsx legacy interface)
+  getAdminProducts(filters?: {
+    page?: number; perPage?: number | 'all'; status?: '' | '1' | '0';
+    marketplaces?: string[]; priceMin?: string; priceMax?: string; search?: string; b2b?: string;
+  }) {
+    const params: Record<string, string> = {}
+    if (filters?.page) params.page = String(filters.page)
+    if (filters?.perPage && filters.perPage !== 'all') params.limit = String(filters.perPage)
+    if (filters?.status === '1') params.status = 'active'
+    else if (filters?.status === '0') params.status = 'inactive'
+    if (filters?.marketplaces?.length) params.marketplace = filters.marketplaces[0]
+    if (filters?.priceMin) params.priceMin = filters.priceMin
+    if (filters?.priceMax) params.priceMax = filters.priceMax
+    if (filters?.search) params.search = filters.search
+    return this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
+      .then(r => ({ data: r.products, total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }))
+  }
+
+  createAdminProduct(data: Record<string, any>) {
+    const payload: Record<string, any> = {}
+    if (data.label || data.title) payload.title = data.label || data.title
+    if (data.code || data.sku) payload.sku = data.code || data.sku
+    if (data.price !== undefined) payload.priceTRY = data.price
+    if (data.stock !== undefined) payload.quantity = data.stock
+    if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
+    if (data.marketplaces) payload.marketplaces = data.marketplaces
+    if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
+    if (data.media_urls) payload.images = data.media_urls
+    if (data.description) payload.description = data.description
+    return this.post<{ product: import('./types').Product }>('/api/admin/products', payload).then(r => r.product)
+  }
+
+  updateAdminProduct(id: string | number, data: Record<string, any>) {
+    const payload: Record<string, any> = {}
+    if (data.label || data.title) payload.title = data.label || data.title
+    if (data.code || data.sku) payload.sku = data.code || data.sku
+    if (data.price !== undefined) payload.priceTRY = data.price
+    if (data.stock !== undefined) payload.quantity = data.stock
+    if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
+    if (data.marketplaces) payload.marketplaces = data.marketplaces
+    if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
+    if (data.media_urls) payload.images = data.media_urls
+    if (data.description !== undefined) payload.description = data.description
+    return this.put<{ product: import('./types').Product }>(`/api/admin/products/${id}`, payload).then(r => r.product)
+  }
+
+  deleteAdminProduct(id: string | number) {
+    return this.delete<void>(`/api/admin/products/${id}`)
+  }
+
+  deleteAdminProductsBulk(ids: string[]) {
+    return this.post<{ success: boolean; deleted: number }>('/api/admin/products/bulk-delete', { ids: ids.map(Number) })
+  }
+
+  getMarketplaceTrees() {
+    return this.get<{ trees: Record<string, any[]> }>('/api/admin/categories/trees')
+  }
+
+  getCategoriesFlat() {
+    return this.get<{ data: import('./types').Category[] }>('/api/admin/categories', { params: { flat: 'true' } })
+  }
+
+  generateProductDescription(data: { name?: string; brand?: string; category?: string; price?: number; field?: string; title?: string; attributes?: Record<string, any>; keywords?: string[] }) {
+    const payload: Record<string, any> = {}
+    if (data.title) payload.title = data.title
+    else if (data.name) payload.title = data.name
+    if (data.category) payload.category = data.category
+    if (data.brand) payload.attributes = { ...payload.attributes, brand: data.brand }
+    if (data.price) payload.attributes = { ...payload.attributes, price: data.price }
+    if (data.attributes) payload.attributes = { ...payload.attributes, ...data.attributes }
+    if (data.keywords) payload.keywords = data.keywords
+    return this.post<{ description: string; title: string; keywords: string[]; slug: string }>('/api/ai/generate-description', payload)
+  }
+
+  editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
+    const formData = new FormData()
+    formData.append('prompt', data.prompt)
+    if (data.image_urls[0]) formData.append('imageUrl', data.image_urls[0])
+    if (data.category) formData.append('category', data.category)
+    return this.upload<{ sessionId: string }>(`/api/ai/process-image`, formData)
+  }
+
+  getAiOutputUrl(sessionId: string, filename: string) {
+    return `${API_BASE}/api/ai/output/${sessionId}/${filename}`
+  }
+
+  updateB2bSettings(data: { product_id: string | number; is_b2b_enabled: boolean; b2b_discount: number | null; b2b_price: number | null }) {
+    return this.put<any>('/api/admin/b2b/settings', {
+      productId: Number(data.product_id),
+      isB2BEnabled: data.is_b2b_enabled,
+      b2bDiscount: data.b2b_discount,
+      b2bPrice: data.b2b_price,
+    })
+  }
+
+  // API Keys (admin interface)
+  getAdminApiKeys() {
+    return this.get<{ keys: import('./types').ApiKey[] }>('/api/admin/api-keys').then(r => r.keys)
+  }
+
+  createAdminApiKey(data: { name: string }) {
+    return this.post<{ key: string; keyPrefix: string; id: number }>('/api/admin/api-keys', data)
+      .then(r => ({ plain_text: r.key, api_key: { id: r.id, name: data.name, keyPrefix: r.keyPrefix } as any }))
+  }
+
+  deleteAdminApiKey(id: number) {
+    return this.delete<void>(`/api/admin/api-keys/${id}`)
+  }
+
+  // Shipping
+  getShippingSettings() {
+    return this.get<import('./types').Store>('/api/admin/store/settings')
+      .then(s => ({ id: s.id, method: (s as any).shippingSettings?.method || 'flat_rate', flat_rate: (s as any).shippingSettings?.flat_rate || 0, free_shipping_threshold: (s as any).shippingSettings?.free_shipping_threshold || null, zones: (s as any).shippingSettings?.zones || null, is_active: (s as any).shippingSettings?.is_active ?? true }))
+  }
+
+  updateShippingSettings(data: { method: string; flat_rate: number; is_active: boolean; free_shipping_threshold?: number }) {
+    return this.put<any>('/api/admin/store/settings', { shippingSettings: data })
+      .then(() => ({ id: 1, method: data.method, flat_rate: data.flat_rate, is_active: data.is_active, free_shipping_threshold: data.free_shipping_threshold ?? null, zones: null as any[] | null }))
+  }
+
+  // Super Admin
+  getAdminStores() {
+    return this.get<{ data: import('./types').Store[] }>('/api/admin/stores').then(r => ({ data: (r as any).stores ?? r.data ?? [] }))
+  }
+
+  updateAdminUser(id: number, data: Record<string, any>) {
+    return this.put<any>(`/api/admin/users/${id}`, data)
+  }
+
+  assignPlanToUser(userId: number, planId: number) {
+    return this.post<{ message: string }>(`/api/admin/users/${userId}/assign-plan`, { planId })
+  }
+
+  createAdminPlan(data: Record<string, any>) {
+    return this.post<any>('/api/admin/plans', data)
+  }
+
+  updateAdminPlan(id: number, data: Record<string, any>) {
+    return this.put<any>(`/api/admin/plans/${id}`, data)
+  }
+
+  deleteAdminPlan(id: number) {
+    return this.delete<void>(`/api/admin/plans/${id}`)
   }
 
   // Slave Download

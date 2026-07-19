@@ -24,7 +24,7 @@ export default function PaymentSettingsPage() {
   useEffect(() => {
     setLoading(true)
     api.getPaymentMethods()
-      .then((res) => setMethods(res.data))
+      .then((res) => setMethods(res))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -33,7 +33,7 @@ export default function PaymentSettingsPage() {
     setSaving(method)
     setMessage('')
     try {
-      const updated = await api.updatePaymentMethod(method, { is_active: !currentActive })
+      const updated = await api.updatePaymentMethod(method, { isActive: !currentActive })
       setMethods((prev) => prev.map((m) => m.method === method ? { ...m, is_active: !currentActive, id: updated.id } : m))
       setMessage(`${method} ${!currentActive ? 'aktifleştirildi' : 'devre dışı bırakıldı'}`)
     } catch (err: any) {
@@ -47,7 +47,7 @@ export default function PaymentSettingsPage() {
     setSaving(method)
     setMessage('')
     try {
-      await api.updatePaymentMethod(method, { is_active: true, config })
+      await api.updatePaymentMethod(method, { isActive: true, config })
       setMethods((prev) => prev.map((m) => m.method === method ? { ...m, config } : m))
       setMessage(`${method} ayarları kaydedildi`)
     } catch (err: any) {

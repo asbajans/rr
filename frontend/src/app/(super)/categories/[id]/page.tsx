@@ -29,8 +29,8 @@ export default function CategoryDetailPage() {
       api.getCategoryMappings(parseInt(id)),
     ])
       .then(([cat, mapRes]) => {
-        setCategory(cat)
-        setMappings(mapRes.data)
+        setCategory((cat as any).category ?? cat)
+        setMappings(mapRes as any)
       })
       .catch(() => router.push('/categories'))
       .finally(() => setLoading(false))
@@ -40,11 +40,11 @@ export default function CategoryDetailPage() {
     if (!mappingForm.marketplace || !mappingForm.marketplace_category_id) return
     setSaving(true)
     try {
-      const res = await api.updateCategoryMapping(parseInt(id), {
+      const res = await api.createCategoryMapping(parseInt(id), {
         marketplace: mappingForm.marketplace,
-        marketplace_category_id: mappingForm.marketplace_category_id,
-        marketplace_category_name: mappingForm.marketplace_category_name,
-        marketplace_parent_id: mappingForm.marketplace_parent_id || undefined,
+        marketplaceCategoryId: mappingForm.marketplace_category_id,
+        name: mappingForm.marketplace_category_name,
+        parentId: mappingForm.marketplace_parent_id || undefined,
       })
       setMappings((prev) => {
         const idx = prev.findIndex((m) => m.marketplace === res.marketplace)
