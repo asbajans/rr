@@ -7,145 +7,21 @@ on:
 permissions:
   contents: read
 
-env:
-  REGISTRY: cont.asb.web.tr
-
 jobs:
-  build-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Login to Portainer Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.PORTAINER_REGISTRY_USER }}
-          password: ${{ secrets.PORTAINER_REGISTRY_PASSWORD }}
-      - name: Build & Push frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/rahatio/frontend:latest
-            ${{ env.REGISTRY }}/rahatio/frontend:${{ github.sha }}
-
-  build-core:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Login to Portainer Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.PORTAINER_REGISTRY_USER }}
-          password: ${{ secrets.PORTAINER_REGISTRY_PASSWORD }}
-      - name: Build & Push core
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: packages/core/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/rahatio/core:latest
-            ${{ env.REGISTRY }}/rahatio/core:${{ github.sha }}
-
-  build-ai-service:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Login to Portainer Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.PORTAINER_REGISTRY_USER }}
-          password: ${{ secrets.PORTAINER_REGISTRY_PASSWORD }}
-      - name: Build & Push ai-service
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: packages/ai-service/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/rahatio/ai-service:latest
-            ${{ env.REGISTRY }}/rahatio/ai-service:${{ github.sha }}
-
-  build-integration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Login to Portainer Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.PORTAINER_REGISTRY_USER }}
-          password: ${{ secrets.PORTAINER_REGISTRY_PASSWORD }}
-      - name: Build & Push integration-service
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: packages/integration-service/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/rahatio/integration-service:latest
-            ${{ env.REGISTRY }}/rahatio/integration-service:${{ github.sha }}
-
   deploy:
-    needs: [build-frontend, build-core, build-ai-service, build-integration]
     runs-on: ubuntu-latest
     steps:
-      - name: Redeploy Portainer stack (update file + pull new images)
-        env:
-          PORTAINER_API_KEY: ${{ secrets.PORTAINER_API_KEY }}
-        run: |
-          python3 - <<'PY'
-          import json, os, urllib.request, time
-
-          raw = os.environ.get("PORTAINER_API_KEY") or ""
-          token = raw.strip().strip('"').strip("'")
-          if not token:
-              print("No PORTAINER_API_KEY set; skipping redeploy")
-              raise SystemExit(0)
-          print(f"token length={len(token)} prefix={token[:4]!r}")
-
-          with open("docker-compose.yml", encoding="utf-8") as f:
-              content = f.read()
-
-          body = json.dumps({
-              "StackFileContent": content,
-              "Env": [],
-              "Prune": True,
-          }).encode("utf-8")
-
-          url = "https://cont.asb.web.tr/api/stacks/66?endpointId=2"
-
-          last_err = None
-          for attempt in range(3):
-              try:
-                  req = urllib.request.Request(
-                      url,
-                      data=body,
-                      method="PUT",
-                      headers={
-                          "X-API-Key": token,
-                          "Content-Type": "application/json",
-                          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-                      },
-                  )
-                  with urllib.request.urlopen(req, timeout=120) as r:
-                      print("redeploy status:", r.status)
-                      raise SystemExit(0)
-              except urllib.error.HTTPError as e:
-                  last_err = e
-                  detail = ""
-                  try:
-                      detail = e.read().decode("utf-8", "replace")
-                  except Exception:
-                      pass
-                  print(f"attempt {attempt+1} failed: HTTP {e.code}")
-                  print("body:", detail[:500])
-                  if e.code == 403 and "cloudflare" in detail.lower():
-                      print("NOTE: blocked by Cloudflare (not auth). Check Cloudflare Bot Fight Mode / WAF for CI runner IPs.")
-                  time.sleep(3)
-          raise last_err
-          PY
+      - uses: actions/checkout@v4
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PORTAINER_HOST }}
+          username: ${{ secrets.PORTAINER_SSH_USER }}
+          key: ${{ secrets.PORTAINER_SSH_KEY }}
+          script: |
+            cd /opt/rahatio
+            git pull origin main
+            docker compose build
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            echo "Deploy complete: $(date)"
