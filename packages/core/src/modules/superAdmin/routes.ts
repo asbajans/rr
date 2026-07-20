@@ -30,7 +30,7 @@ router.get('/stores', async (req: Request, res: Response) => {
     const stores = await Store.findAll({
       include: [
         { model: Plan, as: 'plan' },
-        { model: User, as: 'owner', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'users', attributes: ['id', 'name', 'email', 'role'], where: { role: 'owner' }, required: false },
       ],
       order: [['createdAt', 'DESC']],
     });
