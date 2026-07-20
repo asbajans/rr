@@ -76,6 +76,7 @@ const authMiddleware = async (req: Request, res: Response, next: Function) => {
 const requireRole = (...roles: string[]) => {
   return (req: Request, res: Response, next: Function) => {
     const user = (req as any).user;
+    if (user.role === 'superadmin') return next();
     if (!roles.includes(user.role)) {
       return res.status(403).json({ error: 'Forbidden', message: 'Insufficient permissions' });
     }
@@ -144,7 +145,7 @@ router.post('/register', [
         id: user.id,
         name: user.name,
         email: user.email,
-        is_admin: user.role === 'owner' || user.role === 'admin',
+        is_admin: user.role === 'superadmin',
         store_id: user.storeId,
         ai_credits: user.aiCredits,
       },
@@ -193,7 +194,7 @@ router.post('/login', [
         id: user.id,
         name: user.name,
         email: user.email,
-        is_admin: user.role === 'owner' || user.role === 'admin',
+        is_admin: user.role === 'superadmin',
         store_id: user.storeId,
         ai_credits: user.aiCredits,
       },
@@ -254,7 +255,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      is_admin: user.role === 'owner' || user.role === 'admin',
+      is_admin: user.role === 'superadmin',
       store_id: user.storeId,
       ai_credits: user.aiCredits,
     },

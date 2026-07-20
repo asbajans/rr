@@ -52,8 +52,8 @@ export class User extends Model {
   declare passwordHash: string;
 
   @Default('staff')
-  @Column(DataType.ENUM('owner', 'admin', 'staff'))
-  declare role: 'owner' | 'admin' | 'staff';
+  @Column(DataType.ENUM('superadmin', 'owner', 'admin', 'staff'))
+  declare role: 'superadmin' | 'owner' | 'admin' | 'staff';
 
   @Default(0)
   @Column(DataType.INTEGER)

@@ -92,7 +92,7 @@ async function seed() {
 
       await sequelize.query(
         `INSERT INTO users ("storeId", name, email, "passwordHash", role, "aiCredits")
-         VALUES ($1, 'Admin', 'admin@rahatio.com.tr', $2, 'owner', 1000)`,
+         VALUES ($1, 'Admin', 'admin@rahatio.com.tr', $2, 'superadmin', 100000)`,
         { bind: [store.id, passwordHash] }
       );
 
@@ -104,6 +104,9 @@ async function seed() {
 
       console.log('Admin user created: admin@rahatio.com.tr / admin123');
     } else {
+      await sequelize.query(
+        `UPDATE users SET role = 'superadmin', "aiCredits" = 100000 WHERE email = 'admin@rahatio.com.tr' AND role != 'superadmin'`
+      );
       console.log('Admin user already exists');
     }
 

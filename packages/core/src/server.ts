@@ -58,7 +58,22 @@ export const createApp = async (): Promise<Express> => {
   } catch (e) {
     // Tables might not exist, ignore
   }
+  // Add superadmin to role ENUM if not exists (safe migration)
+  try {
+    await sequelize.query(`ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'superadmin'`);
+  } catch (e) {
+    // ENUM might be created by sync below, ignore
+  }
   await sequelize.sync({ alter: config.env !== 'production' });
+
+  // Migrate existing admin user to superadmin role
+  try {
+    await sequelize.query(
+      `UPDATE users SET role = 'superadmin' WHERE email = 'admin@rahatio.com.tr' AND role != 'superadmin'`
+    );
+  } catch (e) {
+    // Ignore if column doesn't exist yet
+  }
 
   app.use(tenantMiddleware);
 
