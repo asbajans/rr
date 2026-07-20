@@ -1,5 +1,5 @@
 import { Server as HttpServer } from 'http';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { SessionUpdate, ProcessStatus, FinalProductResult } from '../types';
 
 let io: Server;
@@ -9,7 +9,7 @@ export function initWebSocket(server: HttpServer): Server {
     cors: { origin: '*', methods: ['GET', 'POST'] },
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', (socket: Socket) => {
     console.log(`WS client connected: ${socket.id}`);
 
     socket.on('join', (sessionId: string) => {

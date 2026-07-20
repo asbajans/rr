@@ -74,8 +74,8 @@ router.post(
     }
 
     try {
-      const { analyzeProductImage } = await import('../services/visionAnalyzer');
-      const { generateListings } = await import('../services/llmChain');
+      const { analyzeProductImage } = await import('../services/visionAnalyzer.js');
+      const { generateListings } = await import('../services/llmChain.js');
 
       const specs = await analyzeProductImage(file.path, (req.body.category || 'diger') as any);
 
