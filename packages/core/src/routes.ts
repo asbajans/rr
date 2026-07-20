@@ -10,13 +10,15 @@ import { orderRoutes } from './modules/order/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { slaveRoutes } from './modules/slave/routes.js';
 import { integrationRoutes } from './modules/integration/routes.js';
+import { superAdminRoutes } from './modules/superAdmin/routes.js';
 import { publicStoreRoutes } from './modules/store/publicRoutes.js';
 import { publicProductRoutes } from './modules/product/publicRoutes.js';
 import { publicOrderRoutes } from './modules/order/publicRoutes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
-  app.use('/api/admin', storeRoutes);
+  app.use('/api/admin', superAdminRoutes); // Super admin routes first (cross-store)
+  app.use('/api/admin', storeRoutes); // Store-scoped routes
   app.use('/api/admin/products', productRoutes);
   app.use('/api/admin', variantRoutes);
   app.use('/api/admin/categories', categoryRoutes);
