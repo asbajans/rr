@@ -23,7 +23,7 @@ export async function callOllama(prompt: string, system?: string, options?: Reco
       system: system || 'Sen yardımcı bir AI asistanısın.',
       stream: false,
       ...(options ? { options } : {}),
-    }, { timeout: 120000 });
+    }, { timeout: 20000 });
     return res.data.response as string;
   } catch (err: any) {
     if (err?.code === 'ECONNREFUSED' || err?.code === 'ENOTFOUND' || err?.code === 'ETIMEDOUT' || err?.response === undefined) {

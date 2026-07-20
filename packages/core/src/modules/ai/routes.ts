@@ -5,6 +5,8 @@ import { logger } from '../../utils/logger.js';
 
 export const aiRoutes: Router = Router();
 
+const AI_TIMEOUT_MS = 25000;
+
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -56,7 +58,7 @@ aiRoutes.post('/process-image', authMiddleware, requireStore, [
     const response = await axios.post(`${aiServiceUrl}/ai/process-image`, {
       imageUrl,
       category: category || 'diger',
-    });
+    }, { timeout: AI_TIMEOUT_MS });
 
     await deductCredits(user.id, store.id, 5, 'process_image', 'ai');
 
@@ -83,7 +85,7 @@ aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
     const response = await axios.post(`${aiServiceUrl}/ai/analyze-product`, {
       imageUrl,
       category: category || 'diger',
-    });
+    }, { timeout: AI_TIMEOUT_MS });
 
     await deductCredits(user.id, store.id, 10, 'analyze_product', 'ai');
 
@@ -108,7 +110,7 @@ aiRoutes.post('/generate-description', authMiddleware, requireStore, [
 
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/generate-description`, req.body);
+    const response = await axios.post(`${aiServiceUrl}/ai/generate-description`, req.body, { timeout: AI_TIMEOUT_MS });
 
     await deductCredits(user.id, store.id, 3, 'generate_description', 'ai');
 
@@ -137,7 +139,7 @@ aiRoutes.post('/chat', authMiddleware, requireStore, [
       message,
       history,
       storeInfo: { ...storeInfo, name: store.name, site_code: store.siteCode },
-    });
+    }, { timeout: AI_TIMEOUT_MS });
 
     await deductCredits(user.id, store.id, 1, 'chat', 'ai');
 
@@ -161,7 +163,7 @@ aiRoutes.post('/search', authMiddleware, requireStore, [
 
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/search`, { query, products });
+    const response = await axios.post(`${aiServiceUrl}/ai/search`, { query, products }, { timeout: AI_TIMEOUT_MS });
 
     await deductCredits(user.id, store.id, 2, 'search', 'ai');
 
@@ -186,7 +188,7 @@ aiRoutes.post('/recommend', authMiddleware, requireStore, [
 
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/recommend`, { product, allProducts, type });
+    const response = await axios.post(`${aiServiceUrl}/ai/recommend`, { product, allProducts, type }, { timeout: AI_TIMEOUT_MS });
 
     await deductCredits(user.id, store.id, 2, 'recommend', 'ai');
 
