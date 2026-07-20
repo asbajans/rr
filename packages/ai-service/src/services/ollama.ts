@@ -1,4 +1,6 @@
 import axios from 'axios';
+import net from 'net';
+import { URL } from 'url';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const LLM_MODEL = process.env.OLLAMA_LLM_MODEL || 'llama3';
@@ -15,7 +17,43 @@ export class OllamaUnavailableError extends Error {
   }
 }
 
+function canReachOllama(): Promise<boolean> {
+  return new Promise((resolve) => {
+    let url: URL;
+    try {
+      url = new URL(OLLAMA_URL);
+    } catch {
+      resolve(false);
+      return;
+    }
+    const host = url.hostname;
+    const port = parseInt(url.port || '11434', 10);
+    const socket = new net.Socket();
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      try { socket.destroy(); } catch { /* noop */ }
+      resolve(ok);
+    };
+    socket.setTimeout(3000);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+    try {
+      socket.connect(port, host);
+    } catch {
+      done(false);
+    }
+  });
+}
+
 export async function callOllama(prompt: string, system?: string, options?: Record<string, any>): Promise<string> {
+  const reachable = await canReachOllama();
+  if (!reachable) {
+    throw new OllamaUnavailableError('ollama unreachable');
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
 
