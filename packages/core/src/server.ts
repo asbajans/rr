@@ -31,6 +31,33 @@ export const createApp = async (): Promise<Express> => {
 
   await sequelize.authenticate();
   // Associations auto-configured via sequelize-typescript decorators
+  try {
+    // Drop tables that were created with wrong column naming (underscored: true)
+    // so they get recreated fresh with corrected schema
+    await sequelize.query(`DROP TABLE IF EXISTS categories CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS marketplace_category_mappings CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS product_b2b_settings CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS b2b_requests CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS b2b_listed_products CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS integration_logs CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS dropshipping_orders CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS order_status_histories CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS credit_logs CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS pages CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS store_locations CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS store_payment_methods CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS external_feeds CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS feed_sync_logs CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS api_keys CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS marketplace_integrations CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS product_variants CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS product_marketplace_listings CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS variations CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS variation_options CASCADE`);
+    await sequelize.query(`DROP TABLE IF EXISTS products CASCADE`);
+  } catch (e) {
+    // Tables might not exist, ignore
+  }
   await sequelize.sync({ alter: config.env !== 'production' });
 
   app.use(tenantMiddleware);
