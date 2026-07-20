@@ -36,13 +36,13 @@ function canReachOllama(): Promise<boolean> {
       try { socket.destroy(); } catch { /* noop */ }
       resolve(ok);
     };
-    socket.setTimeout(3000);
-    socket.once('connect', () => done(true));
-    socket.once('timeout', () => done(false));
-    socket.once('error', () => done(false));
+    const guard = setTimeout(() => done(false), 3000);
+    socket.once('connect', () => { clearTimeout(guard); done(true); });
+    socket.once('error', () => { clearTimeout(guard); done(false); });
     try {
       socket.connect(port, host);
     } catch {
+      clearTimeout(guard);
       done(false);
     }
   });
