@@ -172,9 +172,7 @@ services:
         condition: service_started
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: rahatio-stack-frontend:latest
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:
