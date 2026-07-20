@@ -14,7 +14,7 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
 
   try {
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, config.jwtSecret) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
     req.user = { id: decoded.id, storeId: decoded.storeId, role: decoded.role, email: decoded.email };
     next();
   } catch {
@@ -30,7 +30,7 @@ export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: Nex
 
   try {
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, config.jwtSecret) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as any;
     req.user = { id: decoded.id, storeId: decoded.storeId, role: decoded.role, email: decoded.email };
   } catch {
     // ignore invalid token for optional auth

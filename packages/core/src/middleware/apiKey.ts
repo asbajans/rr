@@ -16,8 +16,8 @@ export const apiKeyMiddleware = (req: Request, res: Response, next: NextFunction
     return res.status(401).json({ error: 'Missing timestamp or signature' });
   }
 
-  const expectedSig = crypto
-    .createHmac('sha256', config.rahAT_INTERNAL_KEY || 'change-me')
+const expectedSig = crypto
+    .createHmac('sha256', config.apiKey.internalKey)
     .update(`${timestamp}.${JSON.stringify(req.body)}`)
     .digest('hex');
 
