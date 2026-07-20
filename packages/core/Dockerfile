@@ -25,6 +25,7 @@ RUN pnpm install --frozen-lockfile --prod --filter @rahatio/core
 
 COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/core/src/config ./packages/core/src/config
+COPY packages/core/src/scripts ./packages/core/src/scripts
 COPY packages/core/docker-entrypoint.sh ./packages/core/
 RUN chmod +x ./packages/core/docker-entrypoint.sh
 
