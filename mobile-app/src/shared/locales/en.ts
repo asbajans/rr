@@ -1,4 +1,4 @@
-﻿export const en: Record<string, string> = {
+export const en: Record<string, string> = {
   dashboard: 'Dashboard',
   welcome: 'Welcome,',
   store: 'Store',
@@ -136,7 +136,7 @@
   productsLimit: 'Product Limit',
   b2bEnabled: 'Enable B2B Sale',
   b2bDiscount: 'B2B Discount (%)',
-  b2bPrice: 'B2B Price (₺)',
+  b2bPrice: 'B2B Price (?)',
   b2bBulkOpen: 'Open to B2B',
   b2bBulkClose: 'Close from B2B',
   b2bBulkDone: 'B2B setting updated',
@@ -177,12 +177,7 @@
   retry: 'Retry',
   continueToForm: 'Continue to Form',
   editImage: 'Change Image',
-  price: 'Price',
-  stock: 'Stock',
-  description: 'Description',
-  createProduct: 'Create Product',
   creatingProduct: 'Creating product...',
-  productCreated: 'Product created successfully!',
   codePlaceholder: 'Auto (from slug)',
   titlePlaceholder: 'AI suggestion',
   descPlaceholder: 'AI suggestion',
