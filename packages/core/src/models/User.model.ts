@@ -15,9 +15,7 @@ import {
   HasMany,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
-import { ApiKey } from './ApiKey.model.js';
 import { CreditLog } from './CreditLog.model.js';
-import { B2BRequest } from './B2BModels.js';
 import { IntegrationLog } from './LogModels.js';
 
 @Table({
@@ -80,14 +78,8 @@ export class User extends Model {
   @BelongsTo(() => Store)
   declare store: Store;
 
-  @HasMany(() => ApiKey)
-  declare apiKeys: ApiKey[];
-
   @HasMany(() => CreditLog)
   declare creditLogs: CreditLog[];
-
-  @HasMany(() => B2BRequest)
-  declare b2bRequests: B2BRequest[];
 
   @HasMany(() => IntegrationLog)
   declare integrationLogs: IntegrationLog[];
