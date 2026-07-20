@@ -51,8 +51,6 @@ aiRoutes.post('/process-image', authMiddleware, requireStore, [
     const store = (req as any).store;
     const { imageUrl, category } = req.body;
 
-    await deductCredits(user.id, store.id, 5, 'process_image', 'ai');
-
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
     const response = await axios.post(`${aiServiceUrl}/ai/process-image`, {
@@ -60,10 +58,14 @@ aiRoutes.post('/process-image', authMiddleware, requireStore, [
       category: category || 'diger',
     });
 
+    await deductCredits(user.id, store.id, 5, 'process_image', 'ai');
+
     res.json(response.data);
   } catch (error: any) {
     logger.error('AI process image error:', error);
-    res.status(500).json({ error: 'AI processing failed', message: error.message });
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
   }
 });
 
@@ -76,8 +78,6 @@ aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
     const store = (req as any).store;
     const { imageUrl, category } = req.body;
 
-    await deductCredits(user.id, store.id, 10, 'analyze_product', 'ai');
-
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
     const response = await axios.post(`${aiServiceUrl}/ai/analyze-product`, {
@@ -85,10 +85,14 @@ aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
       category: category || 'diger',
     });
 
+    await deductCredits(user.id, store.id, 10, 'analyze_product', 'ai');
+
     res.json(response.data);
   } catch (error: any) {
     logger.error('AI analyze product error:', error);
-    res.status(500).json({ error: 'AI processing failed', message: error.message });
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
   }
 });
 
@@ -102,16 +106,18 @@ aiRoutes.post('/generate-description', authMiddleware, requireStore, [
     const user = (req as any).user;
     const store = (req as any).store;
 
-    await deductCredits(user.id, store.id, 3, 'generate_description', 'ai');
-
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
     const response = await axios.post(`${aiServiceUrl}/ai/generate-description`, req.body);
 
+    await deductCredits(user.id, store.id, 3, 'generate_description', 'ai');
+
     res.json(response.data);
   } catch (error: any) {
     logger.error('AI generate description error:', error);
-    res.status(500).json({ error: 'AI processing failed', message: error.message });
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
   }
 });
 
@@ -125,8 +131,6 @@ aiRoutes.post('/chat', authMiddleware, requireStore, [
     const store = (req as any).store;
     const { message, history, storeInfo } = req.body;
 
-    await deductCredits(user.id, store.id, 1, 'chat', 'ai');
-
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
     const response = await axios.post(`${aiServiceUrl}/ai/chat`, {
@@ -135,10 +139,14 @@ aiRoutes.post('/chat', authMiddleware, requireStore, [
       storeInfo: { ...storeInfo, name: store.name, site_code: store.siteCode },
     });
 
+    await deductCredits(user.id, store.id, 1, 'chat', 'ai');
+
     res.json(response.data);
   } catch (error: any) {
     logger.error('AI chat error:', error);
-    res.status(500).json({ error: 'AI processing failed', message: error.message });
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
   }
 });
 
@@ -151,16 +159,18 @@ aiRoutes.post('/search', authMiddleware, requireStore, [
     const store = (req as any).store;
     const { query, products } = req.body;
 
-    await deductCredits(user.id, store.id, 2, 'search', 'ai');
-
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
     const response = await axios.post(`${aiServiceUrl}/ai/search`, { query, products });
 
+    await deductCredits(user.id, store.id, 2, 'search', 'ai');
+
     res.json(response.data);
   } catch (error: any) {
     logger.error('AI search error:', error);
-    res.status(500).json({ error: 'AI processing failed', message: error.message });
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
   }
 });
 
@@ -174,15 +184,17 @@ aiRoutes.post('/recommend', authMiddleware, requireStore, [
     const store = (req as any).store;
     const { product, allProducts, type } = req.body;
 
-    await deductCredits(user.id, store.id, 2, 'recommend', 'ai');
-
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
     const response = await axios.post(`${aiServiceUrl}/ai/recommend`, { product, allProducts, type });
 
+    await deductCredits(user.id, store.id, 2, 'recommend', 'ai');
+
     res.json(response.data);
   } catch (error: any) {
     logger.error('AI recommend error:', error);
-    res.status(500).json({ error: 'AI processing failed', message: error.message });
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
   }
 });

@@ -1,8 +1,5 @@
-import axios from 'axios';
 import { ProductSpecs, SellerNotes, SeoContent, TrendyolListing, AmazonListing } from '../types';
-
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const LLM_MODEL = process.env.LLM_MODEL || 'llama3';
+import { callOllama } from './ollama.js';
 
 function buildSystemPrompt(): string {
   return `You are an expert e-commerce copywriter and SEO specialist for the Turkish market.
@@ -76,16 +73,8 @@ Generate the following JSON structure exactly:
 }`;
 }
 
-async function callOllama(prompt: string): Promise<string> {
-  const res = await axios.post(`${OLLAMA_URL}/api/generate`, {
-    model: LLM_MODEL,
-    system: buildSystemPrompt(),
-    prompt,
-    stream: false,
-    options: { temperature: 0.3, top_p: 0.95 },
-  });
-
-  return res.data.response as string;
+async function callOllamaLocal(prompt: string): Promise<string> {
+  return callOllama(prompt, buildSystemPrompt(), { temperature: 0.3, top_p: 0.95 });
 }
 
 function parseJsonResponse(raw: string) {
@@ -115,7 +104,7 @@ export async function generateListings(
   onProgress('Yapay zeka metinleri oluşturuluyor...');
 
   const prompt = buildPrompt(specs, notes, imageUrls);
-  const raw = await callOllama(prompt);
+  const raw = await callOllamaLocal(prompt);
   const data = parseJsonResponse(raw);
 
   return {

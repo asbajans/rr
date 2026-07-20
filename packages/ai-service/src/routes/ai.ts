@@ -6,21 +6,11 @@ import { ProductCategory, SellerNotes } from '../types';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs';
-import axios from 'axios';
+import { callOllama, OllamaUnavailableError } from '../services/ollama.js';
 
 const router: Router = Router();
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const LLM_MODEL = process.env.OLLAMA_LLM_MODEL || 'llama3';
 
-async function callOllama(prompt: string, system?: string): Promise<string> {
-  const res = await axios.post(`${OLLAMA_URL}/api/generate`, {
-    model: LLM_MODEL,
-    prompt,
-    system: system || 'Sen yardımcı bir AI asistanısın.',
-    stream: false,
-  });
-  return res.data.response;
-}
+const FRIENDLY_ERROR = 'AI servisi şu an kullanılamıyor (Ollama bağlantısı yok). Lütfen daha sonra tekrar deneyin.';
 
 // Existing: process-image
 router.post(
@@ -102,6 +92,10 @@ router.post(
         slug: result.seo.slug,
       });
     } catch (err: any) {
+      if (err instanceof OllamaUnavailableError) {
+        res.status(503).json({ error: FRIENDLY_ERROR });
+        return;
+      }
       res.status(500).json({ error: err.message });
     }
   }
@@ -148,6 +142,10 @@ Sadece en alakalı 5 ürünün index numaralarını virgülle ayırarak yaz, ba�
     const results = indices.map((i: number) => products[i]);
     res.json({ query, results, count: results.length });
   } catch (err: any) {
+    if (err instanceof OllamaUnavailableError) {
+      res.status(503).json({ error: FRIENDLY_ERROR });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -180,6 +178,10 @@ router.post('/recommend', async (req: Request, res: Response) => {
     const results = indices.map((i: number) => allProducts[i]);
     res.json({ type: type || 'similar', results, count: results.length });
   } catch (err: any) {
+    if (err instanceof OllamaUnavailableError) {
+      res.status(503).json({ error: FRIENDLY_ERROR });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -215,6 +217,10 @@ Emin olmadığın konularda "Müşteri hizmetlerimize yönlendireceğim" de.`);
 
     res.json({ reply: response });
   } catch (err: any) {
+    if (err instanceof OllamaUnavailableError) {
+      res.status(503).json({ error: FRIENDLY_ERROR });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });
