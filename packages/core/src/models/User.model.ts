@@ -15,7 +15,6 @@ import {
   HasMany,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
-import { Product } from './Product.model.js';
 import { ApiKey } from './ApiKey.model.js';
 import { CreditLog } from './CreditLog.model.js';
 import { B2BRequest } from './B2BModels.js';
@@ -80,9 +79,6 @@ export class User extends Model {
 
   @BelongsTo(() => Store)
   declare store: Store;
-
-  @HasMany(() => Product)
-  declare products: Product[];
 
   @HasMany(() => ApiKey)
   declare apiKeys: ApiKey[];
