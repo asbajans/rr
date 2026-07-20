@@ -135,26 +135,28 @@ router.post('/register', [
       currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
-    const accessToken = generateAccessToken(user, store);
+    const token = generateAccessToken(user, store);
     const refreshToken = generateRefreshToken(user, store);
 
     logger.info(`New store registered: ${store.siteCode} (${store.id})`);
 
     res.status(201).json({
-      accessToken,
+      token,
       refreshToken,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
-        aiCredits: user.aiCredits,
+        is_admin: user.role === 'owner' || user.role === 'admin',
+        store_id: user.storeId,
+        ai_credits: user.aiCredits,
       },
       store: {
         id: store.id,
         name: store.name,
-        siteCode: store.siteCode,
-        plan: { id: freePlan.id, name: freePlan.name },
+        site_code: store.siteCode,
+        domain: store.domain,
+        email: store.email,
       },
     });
   } catch (error) {
@@ -184,25 +186,26 @@ router.post('/login', [
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const accessToken = generateAccessToken(user, user.store);
+    const token = generateAccessToken(user, user.store);
     const refreshToken = generateRefreshToken(user, user.store);
 
     res.json({
-      accessToken,
+      token,
       refreshToken,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
-        aiCredits: user.aiCredits,
+        is_admin: user.role === 'owner' || user.role === 'admin',
+        store_id: user.storeId,
+        ai_credits: user.aiCredits,
       },
       store: {
         id: user.store.id,
         name: user.store.name,
-        siteCode: user.store.siteCode,
+        site_code: user.store.siteCode,
         domain: user.store.domain,
-        plan: user.store.plan ? { id: user.store.plan.id, name: user.store.plan.name } : null,
+        email: user.store.email,
       },
     });
   } catch (error) {
@@ -254,18 +257,18 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
-      aiCredits: user.aiCredits,
-      fcmToken: user.fcmToken,
+      is_admin: user.role === 'owner' || user.role === 'admin',
+      store_id: user.storeId,
+      ai_credits: user.aiCredits,
     },
     store: {
       id: store.id,
       name: store.name,
-      siteCode: store.siteCode,
+      site_code: store.siteCode,
       domain: store.domain,
       email: store.email,
       currency: store.currency,
-      isActive: store.isActive,
+      is_active: store.isActive,
       theme: store.theme,
       plan: store.plan ? { id: store.plan.id, name: store.plan.name, price: store.plan.price } : null,
       subscription: subscription ? {
