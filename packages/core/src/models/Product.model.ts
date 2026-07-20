@@ -28,7 +28,7 @@ import { B2BRequest } from './B2BModels.js';
   timestamps: true,
   indexes: [
     { unique: true, fields: ['storeId', 'sku'] },
-    { fields: ['storeId', 'status'] },
+    { fields: ['storeId', 'isActive'] },
     { fields: ['storeId', 'categoryId'] },
     { fields: ['originalProductId', 'originalStoreId'] },
   ],
