@@ -172,7 +172,7 @@ services:
         condition: service_started
 
   frontend:
-    image: rahatio-stack-frontend:latest
+    image: ghcr.io/asbajans/rahatio/frontend:latest
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:
