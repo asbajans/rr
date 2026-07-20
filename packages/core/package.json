@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "sequelize-cli db:migrate",
-    "db:seed": "sequelize-cli db:seed:all",
+    "db:seed": "tsx src/scripts/seed.ts",
+    "db:seed:cli": "sequelize-cli db:seed:all",
     "db:create": "sequelize-cli db:create",
     "clean": "rm -rf dist"
   },
