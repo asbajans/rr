@@ -61,7 +61,9 @@ export const startServer = async (): Promise<void> => {
 
 if (require.main === module) {
   startServer().catch((err) => {
-    logger.error('Failed to start server:', err);
+    console.error('=== SERVER CRASH ===');
+    console.error(err);
+    logger.error({ err }, 'Failed to start server');
     process.exit(1);
   });
 }
