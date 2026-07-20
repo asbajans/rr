@@ -10,7 +10,7 @@ import { tenantMiddleware } from './middleware/tenant.js';
 import { authMiddleware, optionalAuth } from './middleware/auth.js';
 import { apiKeyMiddleware } from './middleware/apiKey.js';
 import { sequelize } from './config/database.js';
-import { setupAssociations } from './models/associations.js';
+// Associations auto-configured via sequelize-typescript decorators
 import { registerRoutes } from './routes.js';
 import { logger } from './utils/logger.js';
 
@@ -30,7 +30,7 @@ export const createApp = async (): Promise<Express> => {
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   await sequelize.authenticate();
-  setupAssociations();
+  // Associations auto-configured via sequelize-typescript decorators
   await sequelize.sync({ alter: config.env !== 'production' });
 
   app.use(tenantMiddleware);
