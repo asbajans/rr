@@ -172,7 +172,9 @@ services:
         condition: service_started
 
   frontend:
-    image: ghcr.io/asbajans/rahatio/frontend:latest
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:
