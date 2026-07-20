@@ -25,7 +25,7 @@ export const sequelize = new Sequelize(config.database.url, {
   models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption],
   define: {
     timestamps: true,
-    underscored: true,
+    underscored: false,
     freezeTableName: true,
   },
 });
