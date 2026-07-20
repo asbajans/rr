@@ -1,75 +1,49 @@
-import { Sequelize } from 'sequelize-typescript';
-import { Plan } from '../models/Plan.model.js';
-import { Store } from '../models/Store.model.js';
-import { User } from '../models/User.model.js';
-import { Subscription } from '../models/Subscription.model.js';
-import { config } from '../config/env.js';
+import { Sequelize } from 'sequelize';
 import bcrypt from 'bcryptjs';
 
 async function seed() {
-  const sequelize = new Sequelize(config.database.url, {
-    dialect: 'postgres',
-    logging: false,
-    models: [Plan, Store, User, Subscription],
-  });
+  const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/rahatio';
+  const sequelize = new Sequelize(dbUrl, { dialect: 'postgres', logging: false });
 
   try {
     await sequelize.authenticate();
     console.log('Database connected');
 
-    const freePlan = await Plan.findOne({ where: { name: 'Free' } });
+    const [[freePlan]] = await sequelize.query(`SELECT id FROM plans WHERE name = 'Free' LIMIT 1`);
     if (!freePlan) {
-      const plan = await Plan.create({
-        name: 'Free',
-        price: 0,
-        productLimit: 100,
-        aiCredits: 1000,
-        features: { marketplaceSync: true, b2bAccess: true, apiAccess: true },
-      });
-      console.log(`Plan created: ${plan.name} (${plan.id})`);
+      await sequelize.query(`INSERT INTO plans (name, price, "productLimit", "aiCredits", features, "createdAt", "updatedAt")
+        VALUES ('Free', 0, 100, 1000, '{"marketplaceSync":true,"b2bAccess":true,"apiAccess":true}', NOW(), NOW())`);
+      console.log('Plan created: Free');
     } else {
-      console.log(`Plan already exists: ${freePlan.name}`);
+      console.log('Plan already exists: Free');
     }
 
-    const existingAdmin = await User.findOne({ where: { email: 'admin@rahatio.com.tr' } });
+    const [[existingAdmin]] = await sequelize.query(`SELECT id FROM users WHERE email = 'admin@rahatio.com.tr' LIMIT 1`);
     if (!existingAdmin) {
-      const freePlanRecord = await Plan.findOne({ where: { name: 'Free' } });
-      if (!freePlanRecord) throw new Error('Free plan not found');
-
-      const store = await Store.create({
-        name: 'Admin Store',
-        siteCode: 'admin',
-        email: 'admin@rahatio.com.tr',
-        isActive: true,
-        currency: 'TRY',
-      });
+      const [[plan]] = await sequelize.query(`SELECT id FROM plans WHERE name = 'Free' LIMIT 1`);
+      if (!plan) throw new Error('Free plan not found');
 
       const passwordHash = await bcrypt.hash('admin123', 12);
-      const user = await User.create({
-        storeId: store.id,
-        name: 'Admin',
-        email: 'admin@rahatio.com.tr',
-        passwordHash,
-        role: 'owner',
-        isActive: true,
-        aiCredits: 1000,
-      });
 
-      await Subscription.create({
-        storeId: store.id,
-        planId: freePlanRecord.id,
-        status: 'active',
-        currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      });
+      await sequelize.query(`INSERT INTO stores (name, "siteCode", email, "isActive", currency, "createdAt", "updatedAt")
+        VALUES ('Admin Store', 'admin', 'admin@rahatio.com.tr', true, 'TRY', NOW(), NOW())`);
 
-      console.log(`Admin user created: ${user.email}`);
-      console.log(`Store created: ${store.name} (${store.siteCode})`);
-      console.log('Default login: admin@rahatio.com.tr / admin123');
+      const [[store]] = await sequelize.query(`SELECT id FROM stores WHERE "siteCode" = 'admin' LIMIT 1`);
+
+      await sequelize.query(`INSERT INTO users ("storeId", name, email, "passwordHash", role, "isActive", "aiCredits", "createdAt", "updatedAt")
+        VALUES ($1, 'Admin', 'admin@rahatio.com.tr', $2, 'owner', true, 1000, NOW(), NOW())`,
+        { bind: [(store as any).id, passwordHash] });
+
+      await sequelize.query(`INSERT INTO subscriptions ("storeId", "planId", status, "currentPeriodEnd", "createdAt", "updatedAt")
+        VALUES ($1, $2, 'active', NOW() + INTERVAL '1 year', NOW(), NOW())`,
+        { bind: [(store as any).id, (plan as any).id] });
+
+      console.log('Admin user created: admin@rahatio.com.tr / admin123');
     } else {
-      console.log(`Admin user already exists: ${existingAdmin.email}`);
+      console.log('Admin user already exists');
     }
 
-    console.log('Seed completed successfully');
+    console.log('Seed completed');
   } catch (error) {
     console.error('Seed failed:', error);
     process.exit(1);
