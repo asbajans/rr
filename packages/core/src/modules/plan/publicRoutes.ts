@@ -4,7 +4,7 @@ import { serializePlans } from '../planSerializer.js';
 
 export const publicPlanRoutes: Router = Router();
 
-publicPlanRoutes.get('/plans', async (_req: Request, res: Response) => {
+publicPlanRoutes.get('/', async (_req: Request, res: Response) => {
   try {
     const plans = await Plan.findAll({ where: { isActive: true }, order: [['price', 'ASC']] });
     res.json({ plans: serializePlans(plans) });
