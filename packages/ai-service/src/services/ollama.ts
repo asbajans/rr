@@ -16,6 +16,9 @@ export class OllamaUnavailableError extends Error {
 }
 
 export async function callOllama(prompt: string, system?: string, options?: Record<string, any>): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
   try {
     const res = await axios.post(`${OLLAMA_URL}/api/generate`, {
       model: LLM_MODEL,
@@ -23,12 +26,21 @@ export async function callOllama(prompt: string, system?: string, options?: Reco
       system: system || 'Sen yardımcı bir AI asistanısın.',
       stream: false,
       ...(options ? { options } : {}),
-    }, { timeout: 20000 });
+    }, { timeout: 15000, signal: controller.signal });
     return res.data.response as string;
   } catch (err: any) {
-    if (err?.code === 'ECONNREFUSED' || err?.code === 'ENOTFOUND' || err?.code === 'ETIMEDOUT' || err?.response === undefined) {
+    if (
+      err?.code === 'ECONNREFUSED' ||
+      err?.code === 'ENOTFOUND' ||
+      err?.code === 'ETIMEDOUT' ||
+      err?.code === 'ECONNABORTED' ||
+      err?.name === 'AbortError' ||
+      err?.response === undefined
+    ) {
       throw new OllamaUnavailableError(err);
     }
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 }
