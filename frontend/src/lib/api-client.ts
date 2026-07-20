@@ -154,11 +154,11 @@ class ApiClient {
 
   // Users
   getUsers() {
-    return this.get<{ users: import('./types').User[] }>('/api/admin/users')
+    return this.get<{ data: import('./types').User[]; pagination?: any }>('/api/admin/users')
   }
 
   getAdminUsers() {
-    return this.getUsers().then(r => r.users)
+    return this.getUsers().then(r => r.data ?? [])
   }
 
   createUser(data: { email: string; name: string; password: string; role: 'admin' | 'staff' }) {
