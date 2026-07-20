@@ -73,6 +73,10 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "storeLimit" INTEGER DEFAULT 1`);
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS modules JSONB`);
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true`);
+    // Backfill empty slugs from name
+    await sequelize.query(
+      `UPDATE plans SET slug = LOWER(REPLACE(REPLACE(name, ' ', '-'), 'ı', 'i')) WHERE slug IS NULL OR slug = ''`
+    );
   } catch (e) {
     // Ignore
   }
