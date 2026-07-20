@@ -85,7 +85,7 @@ jobs:
           file: packages/core/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/rahatio/core:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/core:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push AI Service
@@ -95,7 +95,7 @@ jobs:
           file: packages/ai-service/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/rahatio/ai-service:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/ai-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push Integration Service
@@ -105,7 +105,7 @@ jobs:
           file: packages/integration-service/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/rahatio/integration-service:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/integration-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push Frontend
@@ -115,7 +115,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/rahatio/frontend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
