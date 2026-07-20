@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { User } from '@/lib/types'
 import type { Plan } from '@/lib/types'
-import { Pencil, Coins, Tag } from 'lucide-react'
+import { Pencil, Coins, Tag, Shield } from 'lucide-react'
 
 export default function SuperUsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -15,6 +15,8 @@ export default function SuperUsersPage() {
   const [creditAmount, setCreditAmount] = useState('')
   const [planUserId, setPlanUserId] = useState<number | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<string>('')
+  const [roleUserId, setRoleUserId] = useState<number | null>(null)
+  const [selectedRole, setSelectedRole] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -63,6 +65,37 @@ export default function SuperUsersPage() {
     }
   }
 
+  async function changeRole(user: User) {
+    if (!selectedRole) return
+    setSaving(true)
+    setMessage('')
+    try {
+      await api.updateAdminUser(user.id, { role: selectedRole })
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: selectedRole } : u))
+      setMessage(`${user.name} kullanıcısının yetkisi "${selectedRole}" olarak güncellendi`)
+      setRoleUserId(null)
+      setSelectedRole('')
+    } catch (err: any) {
+      setMessage(err.message || 'Yetki güncellenemedi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function toggleActive(user: User) {
+    setSaving(true)
+    setMessage('')
+    try {
+      await api.updateAdminUser(user.id, { is_active: !user.is_active })
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: !user.is_active } : u))
+      setMessage(`${user.name} kullanıcısı ${!user.is_active ? 'aktif' : 'pasif'} hale getirildi`)
+    } catch (err: any) {
+      setMessage(err.message || 'Durum güncellenemedi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -97,8 +130,8 @@ export default function SuperUsersPage() {
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{user.email}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{user.ai_credits}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${user.is_admin ? 'bg-amber-900/50 text-amber-400' : 'bg-zinc-800 text-zinc-400'}`}>
-                      {user.is_admin ? 'Admin' : 'Kullanıcı'}
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${user.role === 'superadmin' ? 'bg-purple-900/50 text-purple-300' : user.is_admin || user.role === 'admin' || user.role === 'owner' ? 'bg-amber-900/50 text-amber-400' : 'bg-zinc-800 text-zinc-400'}`}>
+                      {user.role === 'superadmin' ? 'Süper Admin' : user.is_admin || user.role === 'admin' || user.role === 'owner' ? 'Yönetici' : 'Kullanıcı'}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
@@ -130,6 +163,22 @@ export default function SuperUsersPage() {
                           <button onClick={() => { setPlanUserId(null); setSelectedPlan('') }}
                             className="text-xs text-zinc-500 hover:text-white">İptal</button>
                         </div>
+                      ) : roleUserId === user.id ? (
+                        <div className="flex items-center gap-2">
+                          <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)}
+                            className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white">
+                            <option value="superadmin">Süper Admin</option>
+                            <option value="owner">Sahip</option>
+                            <option value="admin">Yönetici</option>
+                            <option value="staff">Personel</option>
+                          </select>
+                          <button onClick={() => changeRole(user)} disabled={saving || !selectedRole}
+                            className="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-50">
+                            {saving ? '...' : 'Kaydet'}
+                          </button>
+                          <button onClick={() => { setRoleUserId(null); setSelectedRole('') }}
+                            className="text-xs text-zinc-500 hover:text-white">İptal</button>
+                        </div>
                       ) : (
                         <>
                           <button onClick={() => { setEditingId(user.id); setCreditAmount('') }}
@@ -139,6 +188,14 @@ export default function SuperUsersPage() {
                           <button onClick={() => { setPlanUserId(user.id); setSelectedPlan('') }}
                             className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300">
                             <Tag className="h-3 w-3" /> Paket Ata
+                          </button>
+                          <button onClick={() => { setRoleUserId(user.id); setSelectedRole(user.role || 'staff') }}
+                            className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300">
+                            <Shield className="h-3 w-3" /> Yetki
+                          </button>
+                          <button onClick={() => toggleActive(user)} disabled={saving}
+                            className={`flex items-center gap-1 text-xs ${user.is_active ? 'text-rose-400 hover:text-rose-300' : 'text-emerald-400 hover:text-emerald-300'} disabled:opacity-50`}>
+                            {user.is_active ? 'Pasifleştir' : 'Aktifleştir'}
                           </button>
                         </>
                       )}

@@ -13,6 +13,8 @@ export type User = {
   email: string
   ai_credits: number
   store_id: number | null
+  role: string
+  is_active: boolean
   is_admin: boolean
 }
 
