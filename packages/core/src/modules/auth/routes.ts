@@ -87,20 +87,17 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 8 }),
   body('name').isString().isLength({ min: 2, max: 100 }),
-  body('storeName').isString().isLength({ min: 2, max: 255 }),
-  body('siteCode').isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
+  body('storeName').optional({ values: 'falsy' }).isString().isLength({ min: 2, max: 255 }),
+  body('siteCode').optional({ values: 'falsy' }).isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
 ], validate, async (req: Request, res: Response) => {
   try {
-    const { email, password, name, storeName, siteCode } = req.body;
+    const { email, password, name } = req.body;
+    const storeName = req.body.storeName || `${name}'s Store`;
+    const siteCode = req.body.siteCode || name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
 
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(409).json({ error: 'Conflict', message: 'Email already registered' });
-    }
-
-    const existingStore = await Store.findOne({ where: { siteCode } });
-    if (existingStore) {
-      return res.status(409).json({ error: 'Conflict', message: 'Site code already taken' });
     }
 
     const freePlan = await Plan.findOne({ where: { name: 'Free' } });
