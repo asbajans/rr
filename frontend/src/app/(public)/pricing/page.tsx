@@ -10,9 +10,14 @@ export default function PricingPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('https://api.rahatio.com.tr/api/plans')
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
+    fetch(`${apiBase}/api/plans`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
-      .then(data => { setPlans(Array.isArray(data) ? data : []); setError('') })
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data?.plans ?? [])
+        setPlans(Array.isArray(list) ? list : [])
+        setError('')
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
@@ -28,11 +33,11 @@ export default function PricingPage() {
             <div key={plan.id} className={`relative rounded-2xl border p-8 text-left ${i === 1 ? 'border-indigo-600 ring-2 ring-indigo-600' : 'border-zinc-200'}`}>
               {i === 1 && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">Popüler</span>}
               <h3 className="text-lg font-semibold text-zinc-900">{plan.name}</h3>
-              <p className="mt-4 text-3xl font-bold text-zinc-900">{plan.price > 0 ? `₺${plan.price.toLocaleString('tr-TR')}/ay` : 'Ücretsiz'}</p>
+              <p className="mt-4 text-3xl font-bold text-zinc-900">{plan.price > 0 ? `₺${(plan.price ?? 0).toLocaleString('tr-TR')}/ay` : 'Ücretsiz'}</p>
               <ul className="mt-6 space-y-3">
-                <li className="text-sm text-zinc-600">✓ {plan.product_limit === -1 ? 'Sınırsız' : plan.product_limit.toLocaleString('tr-TR')} ürün</li>
-                <li className="text-sm text-zinc-600">✓ {plan.ai_credits === -1 ? 'Sınırsız' : plan.ai_credits.toLocaleString('tr-TR')} AI kredisi</li>
-                <li className="text-sm text-zinc-600">✓ {plan.store_limit} mağaza</li>
+                <li className="text-sm text-zinc-600">✓ {plan.product_limit === -1 ? 'Sınırsız' : (plan.product_limit ?? 0).toLocaleString('tr-TR')} ürün</li>
+                <li className="text-sm text-zinc-600">✓ {plan.ai_credits === -1 ? 'Sınırsız' : (plan.ai_credits ?? 0).toLocaleString('tr-TR')} AI kredisi</li>
+                <li className="text-sm text-zinc-600">✓ {plan.store_limit ?? 1} mağaza</li>
                 {plan.description && <li className="text-sm text-zinc-500">{plan.description}</li>}
               </ul>
               <Link href="/register"

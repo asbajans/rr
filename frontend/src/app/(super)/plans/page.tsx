@@ -169,10 +169,10 @@ export default function SuperPlansPage() {
                 </div>
               </div>
               <p className="mt-2 text-sm text-zinc-300">{plan.description}</p>
-              <p className="mt-3 text-2xl font-bold text-white">{plan.price.toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">₺/ay</span></p>
+              <p className="mt-3 text-2xl font-bold text-white">{(plan.price ?? 0).toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">₺/ay</span></p>
               <div className="mt-3 space-y-1 text-xs text-zinc-400">
-                <p>AI Kredisi: {plan.ai_credits === -1 ? 'Sınırsız' : plan.ai_credits.toLocaleString('tr-TR')}</p>
-                <p>Ürün Limiti: {plan.product_limit === -1 ? 'Sınırsız' : plan.product_limit.toLocaleString('tr-TR')}</p>
+                <p>AI Kredisi: {plan.ai_credits === -1 ? 'Sınırsız' : (plan.ai_credits ?? 0).toLocaleString('tr-TR')}</p>
+                <p>Ürün Limiti: {plan.product_limit === -1 ? 'Sınırsız' : (plan.product_limit ?? 0).toLocaleString('tr-TR')}</p>
                 {plan.modules && Object.entries(plan.modules).filter(([, v]) => v.enabled).map(([k]) => (
                   <p key={k} className="text-green-400">✓ {MODULE_LABELS[k] || k}{'credit_cost' in (plan.modules?.[k] || {}) ? ` (${(plan.modules?.[k] as any)?.credit_cost} kredi)` : ''}</p>
                 ))}

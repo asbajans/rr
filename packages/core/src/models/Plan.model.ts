@@ -47,6 +47,34 @@ export class Plan extends Model {
   declare features: object;
 
   @AllowNull(true)
+  @Unique
+  @Column(DataType.STRING(50))
+  declare slug: string;
+
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare description: string;
+
+  @AllowNull(true)
+  @Default('TRY')
+  @Column(DataType.STRING(3))
+  declare currency: string;
+
+  @AllowNull(true)
+  @Default(1)
+  @Column(DataType.INTEGER)
+  declare storeLimit: number;
+
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null;
+
+  @AllowNull(true)
+  @Default(true)
+  @Column(DataType.BOOLEAN)
+  declare isActive: boolean;
+
+  @AllowNull(true)
   @Column(DataType.STRING(100))
   declare stripePriceId: string;
 

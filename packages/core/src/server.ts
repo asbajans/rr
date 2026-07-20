@@ -64,6 +64,19 @@ export const createApp = async (): Promise<Express> => {
   } catch (e) {
     // ENUM might be created by sync below, ignore
   }
+
+  // Add new plan columns if missing (safe migration, runs every boot)
+  try {
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS slug VARCHAR(50) UNIQUE`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS description TEXT`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'TRY'`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "storeLimit" INTEGER DEFAULT 1`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS modules JSONB`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true`);
+  } catch (e) {
+    // Ignore
+  }
+
   await sequelize.sync({ alter: config.env !== 'production' });
 
   // Migrate existing admin user to superadmin role

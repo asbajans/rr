@@ -6,6 +6,7 @@ import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
 import { authMiddleware, requireRole } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
+import { serializePlans, serializePlan } from '../planSerializer.js';
 
 const router: Router = Router();
 
@@ -183,7 +184,7 @@ router.get('/plans', async (req: Request, res: Response) => {
     const plans = await Plan.findAll({
       order: [['price', 'ASC']],
     });
-    res.json({ plans });
+    res.json({ plans: serializePlans(plans) });
   } catch (error) {
     logger.error({ err: error }, 'Get all plans error');
     res.status(500).json({ error: 'Internal server error' });
@@ -196,19 +197,20 @@ router.get('/plans', async (req: Request, res: Response) => {
  */
 router.post('/plans', [
   body('name').isString().isLength({ min: 2, max: 100 }),
-  body('slug').isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
+  body('slug').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
   body('price').isFloat({ min: 0 }),
   body('currency').optional().isString().isLength({ min: 3, max: 3 }),
+  body('description').optional().isString(),
   body('productLimit').optional().isInt({ min: -1 }),
   body('storeLimit').optional().isInt({ min: 1 }),
   body('aiCredits').optional().isInt({ min: -1 }),
-  body('features').optional().isObject(),
+  body('modules').optional().isObject(),
   body('isActive').optional().isBoolean(),
   body('stripePriceId').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const plan = await Plan.create(req.body);
-    res.status(201).json({ plan });
+    res.status(201).json({ plan: serializePlan(plan) });
   } catch (error: any) {
     if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ error: 'Plan name or slug already exists' });
@@ -241,7 +243,7 @@ router.put('/plans/:id', [
       return res.status(404).json({ error: 'Plan not found' });
     }
     await plan.update(req.body);
-    res.json({ plan });
+    res.json({ plan: serializePlan(plan) });
   } catch (error: any) {
     if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ error: 'Plan name or slug already exists' });

@@ -24,8 +24,9 @@ const validate = (req: Request, res: Response, next: Function) => {
 };
 
 storeRoutes.get('/plans', async (_req: Request, res: Response) => {
-  const plans = await Plan.findAll({ order: [['price', 'ASC']] });
-  res.json({ plans });
+  const plans = await Plan.findAll({ where: { isActive: true }, order: [['price', 'ASC']] });
+  const { serializePlans } = await import('../planSerializer.js');
+  res.json({ plans: serializePlans(plans) });
 });
 
 storeRoutes.post('/plans', authMiddleware, requireRole('owner'), [
