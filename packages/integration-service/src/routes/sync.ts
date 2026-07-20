@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { importQueue, syncQueue } from '../queues/index.js';
 
-export const syncRoutes = Router();
+export const syncRoutes: Router = Router();
 
 syncRoutes.post('/import/:marketplace', async (req: Request, res: Response) => {
   try {
@@ -30,7 +30,7 @@ syncRoutes.get('/import/:jobId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Job not found' });
     }
     
-    const progress = await job.progress();
+    const progress = job.progress;
     const state = await job.getState();
     
     res.json({ 
@@ -74,7 +74,7 @@ syncRoutes.get('/product/:jobId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Job not found' });
     }
     
-    const progress = await job.progress();
+    const progress = job.progress;
     const state = await job.getState();
     
     res.json({ 

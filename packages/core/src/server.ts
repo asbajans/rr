@@ -59,7 +59,7 @@ export const startServer = async (): Promise<void> => {
   });
 };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   startServer().catch((err) => {
     logger.error('Failed to start server:', err);
     process.exit(1);

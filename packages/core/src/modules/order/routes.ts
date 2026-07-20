@@ -39,8 +39,8 @@ orderRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
       orders: rows,
       pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     });
-  } catch (error) {
-    logger.error('List orders error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List orders error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -73,8 +73,8 @@ orderRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStor
 
     logger.info(`Order created: ${order.id} by store ${store.id}`);
     res.status(201).json({ order });
-  } catch (error) {
-    logger.error('Create order error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create order error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -94,8 +94,8 @@ orderRoutes.get('/:id', authMiddleware, requireStore, [
     }
 
     res.json({ order });
-  } catch (error) {
-    logger.error('Get order error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get order error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -136,8 +136,8 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
 
     logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
     res.json({ order });
-  } catch (error) {
-    logger.error('Update order status error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update order status error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -169,8 +169,8 @@ orderRoutes.put('/:id/tracking', authMiddleware, requireRole('owner', 'admin'), 
     });
 
     res.json({ order });
-  } catch (error) {
-    logger.error('Update tracking error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update tracking error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -189,12 +189,11 @@ orderRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requir
     await order.destroy();
     logger.info(`Order deleted: ${req.params.id} by store ${store.id}`);
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete order error:', error);
+} catch (error: unknown) {
+    logger.error({ err: error }, 'Delete order error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 orderRoutes.get('/:id/history', authMiddleware, requireStore, [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {
@@ -212,8 +211,8 @@ orderRoutes.get('/:id/history', authMiddleware, requireStore, [
     });
 
     res.json({ history });
-  } catch (error) {
-    logger.error('Order history error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Order history error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

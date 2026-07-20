@@ -50,8 +50,8 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
       products: rows,
       pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     });
-  } catch (error) {
-    logger.error('List products error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List products error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -103,8 +103,8 @@ productRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireSt
 
     logger.info(`Product created: ${product.id} (${product.sku}) by store ${store.id}`);
     res.status(201).json({ product });
-  } catch (error) {
-    logger.error('Create product error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create product error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -127,8 +127,8 @@ productRoutes.get('/:id', authMiddleware, requireStore, [
     }
 
     res.json({ product });
-  } catch (error) {
-    logger.error('Get product error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get product error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -177,8 +177,8 @@ productRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
     await product.update(req.body);
     logger.info(`Product updated: ${product.id} (${product.sku})`);
     res.json({ product });
-  } catch (error) {
-    logger.error('Update product error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update product error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -197,8 +197,8 @@ productRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requ
     await product.destroy();
     logger.info(`Product deleted: ${req.params.id} (store: ${store.id})`);
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete product error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete product error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -213,8 +213,8 @@ productRoutes.post('/bulk-delete', authMiddleware, requireRole('owner', 'admin')
     await Product.destroy({ where: { id: ids, storeId: store.id } });
     logger.info(`Bulk deleted ${ids.length} products for store ${store.id}`);
     res.json({ success: true, deleted: ids.length });
-  } catch (error) {
-    logger.error('Bulk delete error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Bulk delete error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -249,8 +249,8 @@ productRoutes.post('/:id/verify', authMiddleware, requireRole('owner', 'admin'),
     }
 
     res.json({ verified: false, message: 'Product not yet listed on this marketplace' });
-  } catch (error) {
-    logger.error('Verify product error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Verify product error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -272,8 +272,8 @@ productRoutes.post('/:id/sync', authMiddleware, requireRole('owner', 'admin'), r
     const job = await syncQueue.add('product-sync', { productId: product.id, marketplaces });
 
     res.status(202).json({ jobId: job.id, message: 'Sync job queued' });
-  } catch (error) {
-    logger.error('Product sync error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Product sync error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

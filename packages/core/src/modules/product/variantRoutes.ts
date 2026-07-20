@@ -29,8 +29,8 @@ variantRoutes.get('/product/:productId', authMiddleware, requireStore, [
       order: [['createdAt', 'ASC']],
     });
     res.json({ variants });
-  } catch (error) {
-    logger.error('List variants error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List variants error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -40,7 +40,7 @@ variantRoutes.post('/product/:productId', authMiddleware, requireRole('owner', '
   body('sku').isString().isLength({ min: 2, max: 100 }),
   body('attributes').isObject().notEmpty(),
   body('gramWeight').optional().isFloat({ min: 0 }),
-  body('quantity').optional().isInt({ min: 0, default: 0 }),
+  body('quantity').optional().isInt({ min: 0 }),
   body('priceTRY').optional().isFloat({ min: 0 }),
   body('priceUSD').optional().isFloat({ min: 0 }),
   body('b2bPrice').optional().isFloat({ min: 0 }),
@@ -64,8 +64,8 @@ variantRoutes.post('/product/:productId', authMiddleware, requireRole('owner', '
 
     logger.info(`Variant created: ${variant.id} (${variant.sku}) for product ${product.id}`);
     res.status(201).json({ variant });
-  } catch (error) {
-    logger.error('Create variant error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create variant error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -94,8 +94,8 @@ variantRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
     await variant.update(req.body);
     logger.info(`Variant updated: ${variant.id}`);
     res.json({ variant });
-  } catch (error) {
-    logger.error('Update variant error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update variant error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -115,8 +115,8 @@ variantRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requ
     }
     logger.info(`Variant deleted: ${req.params.id}`);
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete variant error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete variant error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

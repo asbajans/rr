@@ -21,5 +21,7 @@ export { StoreLocation } from './ContentModels.ts';
 export { StorePaymentMethod } from './ContentModels.ts';
 export { ExternalFeed } from './ContentModels.ts';
 export { FeedSyncLog } from './ContentModels.ts';
+export { DropshippingOrder } from './DropshippingOrder.model.js';
+export { OrderStatusHistory } from './OrderStatusHistory.model.js';
 export { Variation } from './ContentModels.ts';
 export { VariationOption } from './ContentModels.ts';

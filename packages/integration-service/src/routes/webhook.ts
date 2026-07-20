@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 import { verifyTrendyolSignature, verifyHepsiburadaSignature, verifyPazaramaSignature, verifyN11Signature, verifyAmazonSignature, verifyEtsySignature } from '../utils/webhookVerify.js';
 import { orderQueue, stockQueue, priceQueue } from '../queues/index.js';
 
-export const webhookRoutes = Router();
+export const webhookRoutes: Router = Router();
 
 webhookRoutes.post('/trendyol', async (req: Request, res: Response) => {
   try {
@@ -24,8 +24,8 @@ webhookRoutes.post('/trendyol', async (req: Request, res: Response) => {
     }
     
     res.json({ received: true });
-  } catch (err) {
-    logger.error('Trendyol webhook error:', err);
+  } catch (err: unknown) {
+    logger.error({ err }, 'Trendyol webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -46,8 +46,8 @@ webhookRoutes.post('/hepsiburada', async (req: Request, res: Response) => {
     }
     
     res.json({ received: true });
-  } catch (err) {
-    logger.error('Hepsiburada webhook error:', err);
+  } catch (err: unknown) {
+    logger.error({ err }, 'Hepsiburada webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -66,8 +66,8 @@ webhookRoutes.post('/pazarama', async (req: Request, res: Response) => {
     }
     
     res.json({ received: true });
-  } catch (err) {
-    logger.error('Pazarama webhook error:', err);
+  } catch (err: unknown) {
+    logger.error({ err }, 'Pazarama webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -86,8 +86,8 @@ webhookRoutes.post('/n11', async (req: Request, res: Response) => {
     }
     
     res.json({ received: true });
-  } catch (err) {
-    logger.error('N11 webhook error:', err);
+  } catch (err: unknown) {
+    logger.error({ err }, 'N11 webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -108,8 +108,8 @@ webhookRoutes.post('/amazon', async (req: Request, res: Response) => {
     }
     
     res.json({ received: true });
-  } catch (err) {
-    logger.error('Amazon webhook error:', err);
+  } catch (err: unknown) {
+    logger.error({ err }, 'Amazon webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -130,8 +130,8 @@ webhookRoutes.post('/etsy', async (req: Request, res: Response) => {
     }
     
     res.json({ received: true });
-  } catch (err) {
-    logger.error('Etsy webhook error:', err);
+  } catch (err: unknown) {
+    logger.error({ err }, 'Etsy webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });

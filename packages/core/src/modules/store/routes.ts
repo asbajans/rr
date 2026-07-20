@@ -39,8 +39,8 @@ storeRoutes.post('/plans', authMiddleware, requireRole('owner'), [
   try {
     const plan = await Plan.create(req.body);
     res.status(201).json({ plan });
-  } catch (error) {
-    logger.error('Create plan error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create plan error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -89,8 +89,8 @@ storeRoutes.put('/me', authMiddleware, requireRole('owner', 'admin'), requireSto
     await store.update({ name, domain, email, currency, theme, taxSettings, shippingSettings });
     logger.info(`Store updated: ${store.id}`);
     res.json({ message: 'Settings updated', store: { id: store.id, name: store.name, siteCode: store.siteCode } });
-  } catch (error) {
-    logger.error('Update store error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update store error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -123,8 +123,8 @@ storeRoutes.post('/users', authMiddleware, requireRole('owner'), requireStore, [
 
     const user = await User.create({ storeId: store.id, email, name, passwordHash, role, isActive: true });
     res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
-  } catch (error) {
-    logger.error('Create user error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create user error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -137,8 +137,8 @@ storeRoutes.delete('/users/:id', authMiddleware, requireRole('owner'), requireSt
     if (user.role === 'owner') return res.status(403).json({ error: 'Cannot delete owner' });
     await user.destroy();
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete user error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete user error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -167,8 +167,8 @@ if (stripe) {
         metadata: { storeId: store.id, planId: plan.id },
       });
       res.json({ url: session.url });
-    } catch (error) {
-      logger.error('Stripe checkout error:', error);
+    } catch (error: unknown) {
+      logger.error({ err: error }, 'Stripe checkout error');
       res.status(500).json({ error: 'Failed to create checkout session' });
     }
   });
@@ -183,11 +183,11 @@ if (stripe) {
         customer: store.stripeAccountId, return_url: req.body.returnUrl,
       });
       res.json({ url: session.url });
-    } catch (error) {
-      logger.error('Stripe portal error:', error);
-      res.status(500).json({ error: 'Failed to create portal session' });
-    }
-  });
+} catch (error: unknown) {
+    logger.error({ err: error }, 'Stripe portal error');
+    res.status(500).json({ error: 'Failed to create portal session' });
+  }
+});
 
   storeRoutes.post('/webhook/stripe', async (req: Request, res: Response) => {
     const sig = req.headers['stripe-signature'] as string;
@@ -232,11 +232,11 @@ if (stripe) {
         }
       }
       res.json({ received: true });
-    } catch (error) {
-      logger.error('Stripe webhook processing error:', error);
-      res.status(500).json({ error: 'Webhook processing failed' });
-    }
-  });
+} catch (error: unknown) {
+    logger.error({ err: error }, 'Stripe webhook processing error');
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
 }
 
 storeRoutes.get('/api-keys', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
@@ -256,8 +256,8 @@ storeRoutes.post('/api-keys', authMiddleware, requireRole('owner'), requireStore
     const { key, keyHash, keyPrefix } = generateApiKey();
     const apiKey = await ApiKey.create({ storeId: store.id, keyHash, keyPrefix, name, allowedIps, expiresAt });
     res.status(201).json({ key, keyPrefix: apiKey.keyPrefix, id: apiKey.id });
-  } catch (error) {
-    logger.error('Create API key error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create API key error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -269,8 +269,8 @@ storeRoutes.delete('/api-keys/:id', authMiddleware, requireRole('owner'), requir
     if (!apiKey) return res.status(404).json({ error: 'Not found' });
     await apiKey.destroy();
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete API key error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete API key error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

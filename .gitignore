@@ -44,7 +44,7 @@ docker-compose.override.yml
 # Uploads
 uploads/
 output/
-workflows/
+output/workflows/
 
 # Mobile
 mobile-app/.expo/

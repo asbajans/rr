@@ -26,8 +26,8 @@ marketplaceRoutes.get('/', authMiddleware, requireStore, async (req: Request, re
       order: [['marketplace', 'ASC']],
     });
     res.json({ integrations });
-  } catch (error) {
-    logger.error('List integrations error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List integrations error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -56,8 +56,8 @@ marketplaceRoutes.get('/:marketplace', authMiddleware, requireStore, [
     delete safeConfig.refreshToken;
 
     res.json({ integration: { ...integration.toJSON(), config: safeConfig }, marketplace });
-  } catch (error) {
-    logger.error('Get integration error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get integration error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -98,8 +98,8 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
 
     logger.info(`Integration updated: ${marketplace} for store ${store.id}`);
     res.json({ integration });
-  } catch (error) {
-    logger.error('Update integration error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update integration error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -129,8 +129,8 @@ marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owne
     });
 
     res.status(202).json({ jobId: job.id, message: 'Import started' });
-  } catch (error) {
-    logger.error('Import error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Import error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -151,8 +151,8 @@ marketplaceRoutes.get('/:marketplace/import/:jobId', authMiddleware, requireStor
     const progress = job.progress;
 
     res.json({ jobId: job.id, state, progress, data: job.data, result: job.returnvalue, failedReason: job.failedReason });
-  } catch (error) {
-    logger.error('Job status error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Job status error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -178,8 +178,8 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
     }
 
     res.json({ categories: [] });
-  } catch (error) {
-    logger.error('Get marketplace categories error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get marketplace categories error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -218,8 +218,8 @@ marketplaceRoutes.post('/:marketplace/categories', authMiddleware, requireRole('
 
     logger.info(`Category mapping created: ${mapping.id} for ${marketplace}`);
     res.status(201).json({ mapping });
-  } catch (error) {
-    logger.error('Create category mapping error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create category mapping error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

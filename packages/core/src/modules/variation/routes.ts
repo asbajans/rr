@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
-import { Variation } from '../../models/Variation.model.js';
-import { VariationOption } from '../../models/VariationOption.model.js';
+import { Variation, VariationOption } from '../../models/ContentModels.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
@@ -25,8 +24,8 @@ variationRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
       include: [{ model: VariationOption, as: 'options', order: [['sortOrder', 'ASC']] }],
     });
     res.json({ variations });
-  } catch (error) {
-    logger.error('List variations error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List variations error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -56,8 +55,8 @@ variationRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), require
 
     logger.info(`Variation created: ${variation.id} (${variation.name})`);
     res.status(201).json({ variation: fullVariation });
-  } catch (error) {
-    logger.error('Create variation error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create variation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -73,8 +72,8 @@ variationRoutes.get('/:id', authMiddleware, requireStore, [
     });
     if (!variation) return res.status(404).json({ error: 'Variation not found' });
     res.json({ variation });
-  } catch (error) {
-    logger.error('Get variation error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get variation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -95,8 +94,8 @@ variationRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requi
     });
     logger.info(`Variation updated: ${variation.id}`);
     res.json({ variation: fullVariation });
-  } catch (error) {
-    logger.error('Update variation error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update variation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -111,8 +110,8 @@ variationRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), re
     await variation.destroy();
     logger.info(`Variation deleted: ${req.params.id}`);
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete variation error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete variation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -135,8 +134,8 @@ variationRoutes.post('/:id/options', authMiddleware, requireRole('owner', 'admin
 
     logger.info(`Variation option created: ${option.id}`);
     res.status(201).json({ option });
-  } catch (error) {
-    logger.error('Create variation option error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create variation option error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -158,8 +157,8 @@ variationRoutes.put('/:id/options/:optionId', authMiddleware, requireRole('owner
     await option.update(req.body);
     logger.info(`Variation option updated: ${option.id}`);
     res.json({ option });
-  } catch (error) {
-    logger.error('Update variation option error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Update variation option error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -179,8 +178,8 @@ variationRoutes.delete('/:id/options/:optionId', authMiddleware, requireRole('ow
     await option.destroy();
     logger.info(`Variation option deleted: ${req.params.optionId}`);
     res.json({ success: true });
-  } catch (error) {
-    logger.error('Delete variation option error:', error);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete variation option error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

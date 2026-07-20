@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
 
-const router = Router();
+const router: Router = Router();
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const LLM_MODEL = process.env.OLLAMA_LLM_MODEL || 'llama3';
 

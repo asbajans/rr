@@ -2,9 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Store } from '../../models/Store.model.js';
 import { Product } from '../../models/Product.model.js';
 import { Category } from '../../models/Category.model.js';
-import { Page } from '../../models/Page.model.js';
-import { StoreLocation } from '../../models/StoreLocation.model.js';
-import { StorePaymentMethod } from '../../models/StorePaymentMethod.model.js';
+import { Page, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
 
 export const publicStoreRoutes = Router();
