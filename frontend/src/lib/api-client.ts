@@ -154,7 +154,7 @@ class ApiClient {
 
   // Users
   getUsers() {
-    return this.get<{ users: import('./types').User[] }>('/api/admin/store/users')
+    return this.get<{ users: import('./types').User[] }>('/api/admin/users')
   }
 
   getAdminUsers() {
@@ -162,11 +162,11 @@ class ApiClient {
   }
 
   createUser(data: { email: string; name: string; password: string; role: 'admin' | 'staff' }) {
-    return this.post<import('./types').User>('/api/admin/store/users', data)
+    return this.post<import('./types').User>('/api/admin/users', data)
   }
 
   deleteUser(id: number) {
-    return this.delete<void>(`/api/admin/store/users/${id}`)
+    return this.delete<void>(`/api/admin/users/${id}`)
   }
 
   // API Keys
