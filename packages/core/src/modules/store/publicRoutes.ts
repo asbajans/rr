@@ -5,7 +5,7 @@ import { Category } from '../../models/Category.model.js';
 import { Page, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
 
-export const publicStoreRoutes = Router();
+export const publicStoreRoutes: Router = Router();
 
 publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
   try {

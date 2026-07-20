@@ -5,7 +5,7 @@ import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.mode
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
-export const marketplaceRoutes = Router();
+export const marketplaceRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -47,8 +47,8 @@ marketplaceRoutes.get('/:marketplace', authMiddleware, requireStore, [
       return res.json({ integration: null, marketplace });
     }
 
-    const config = integration.config || {};
-    const safeConfig = { ...config };
+    const config: any = integration.config || {};
+    const safeConfig: any = { ...config };
     delete safeConfig.apiSecret;
     delete safeConfig.password;
     delete safeConfig.clientSecret;
@@ -168,12 +168,14 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
         where: { storeId: store.id, marketplace: 'etsy', isActive: true },
       });
 
-      if (!integration || !integration.config?.accessToken) {
+      if (!integration || !(integration.config as any)?.accessToken) {
         return res.status(400).json({ error: 'Etsy not connected via OAuth' });
       }
 
-      const etsyClient = (await import('../../marketplace/clients/etsy.js')).default;
-      const categories = await etsyClient.getCategories(integration.config.accessToken);
+      const { EtsyClient } = await import('../../marketplace/clients/etsy.js');
+      const etsyConfig = integration.config as any;
+      const etsy = new EtsyClient(etsyConfig);
+      const categories = await etsy.getCategories();
       return res.json({ categories });
     }
 

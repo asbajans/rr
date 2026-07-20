@@ -14,8 +14,8 @@ import {
   Index,
   Unique,
 } from 'sequelize-typescript';
-import { Product } from './Product';
-import { Store } from './Store';
+import { Product } from './Product.model.js';
+import { Store } from './Store.model.js';
 
 @Table({
   tableName: 'product_marketplace_listings',

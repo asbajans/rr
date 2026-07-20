@@ -14,23 +14,23 @@ import {
   HasMany,
   ForeignKey,
 } from 'sequelize-typescript';
-import { Plan } from './Plan';
-import { User } from './User';
-import { Subscription } from './Subscription';
-import { Product } from './Product';
-import { Category } from './Category';
-import { MarketplaceIntegration } from './MarketplaceIntegration';
-import { ApiKey } from './ApiKey';
-import { B2BSetting } from './B2BSetting';
-import { B2BRequest } from './B2BRequest';
-import { B2BListedProduct } from './B2BListedProduct';
-import { DropshippingOrder } from './DropshippingOrder';
-import { Page } from './Page';
-import { StoreLocation } from './StoreLocation';
-import { StorePaymentMethod } from './StorePaymentMethod';
-import { ExternalFeed } from './ExternalFeed';
-import { CreditLog } from './CreditLog';
-import { IntegrationLog } from './IntegrationLog';
+import { Plan } from './Plan.model.js';
+import { User } from './User.model.js';
+import { Subscription } from './Subscription.model.js';
+import { Product } from './Product.model.js';
+import { Category } from './Category.model.js';
+import { MarketplaceIntegration } from './MarketplaceIntegration.model.js';
+import { ApiKey } from './ApiKey.model.js';
+import { ProductB2bSetting as B2BSetting } from './ProductB2bSetting.model.js';
+import { B2BRequest } from './B2BModels.js';
+import { B2BListedProduct } from './B2BModels.js';
+import { DropshippingOrder } from './DropshippingOrder.model.js';
+import { Page } from './ContentModels.js';
+import { StoreLocation } from './ContentModels.js';
+import { StorePaymentMethod } from './ContentModels.js';
+import { ExternalFeed } from './ContentModels.js';
+import { CreditLog } from './CreditLog.model.js';
+import { IntegrationLog } from './LogModels.js';
 
 @Table({
   tableName: 'stores',

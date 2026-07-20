@@ -5,7 +5,7 @@ import { ProductVariant } from '../../models/ProductVariant.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
-export const variantRoutes = Router();
+export const variantRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);

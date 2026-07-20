@@ -9,20 +9,13 @@ import { ProductVariant } from './ProductVariant.model.js';
 import { ProductMarketplaceListing } from './ProductMarketplaceListing.model.js';
 import { MarketplaceIntegration } from './MarketplaceIntegration.model.js';
 import { ProductB2bSetting } from './ProductB2bSetting.model.js';
-import { B2BRequest } from './B2BRequest.model.js';
-import { B2BListedProduct } from './B2BListedProduct.model.js';
-import { IntegrationLog } from './IntegrationLog.model.js';
+import { B2BRequest, B2BListedProduct } from './B2BModels.js';
+import { IntegrationLog } from './LogModels.js';
 import { DropshippingOrder } from './DropshippingOrder.model.js';
 import { OrderStatusHistory } from './OrderStatusHistory.model.js';
 import { ApiKey } from './ApiKey.model.js';
 import { CreditLog } from './CreditLog.model.js';
-import { Page } from './Page.model.js';
-import { StoreLocation } from './StoreLocation.model.js';
-import { StorePaymentMethod } from './StorePaymentMethod.model.js';
-import { ExternalFeed } from './ExternalFeed.model.js';
-import { FeedSyncLog } from './FeedSyncLog.model.js';
-import { Variation } from './Variation.model.js';
-import { VariationOption } from './VariationOption.model.js';
+import { Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption } from './ContentModels.js';
 
 export function setupAssociations() {
   Store.hasMany(User, { foreignKey: 'storeId', as: 'users' });

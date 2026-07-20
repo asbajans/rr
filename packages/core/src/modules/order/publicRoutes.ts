@@ -4,7 +4,7 @@ import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { Store } from '../../models/Store.model.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
 
-export const publicOrderRoutes = Router();
+export const publicOrderRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);

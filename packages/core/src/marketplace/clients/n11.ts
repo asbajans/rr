@@ -1,6 +1,6 @@
 import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256 } from './base.js';
 
-interface N11Config {
+export interface N11Config {
   appKey: string;
   appSecret: string;
 }

@@ -1,6 +1,6 @@
 import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256Hex } from './base.js';
 
-interface HepsiburadaConfig {
+export interface HepsiburadaConfig {
   username: string;
   password: string;
   merchantId: string;

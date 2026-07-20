@@ -1,6 +1,6 @@
 import { BaseMarketplaceClient, MarketplaceClient } from './base.js';
 
-interface PazaramaConfig {
+export interface PazaramaConfig {
   clientId: string;
   clientSecret: string;
   apiKey: string;

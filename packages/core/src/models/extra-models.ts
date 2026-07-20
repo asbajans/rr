@@ -3,6 +3,9 @@ import {
   AllowNull, Default, ForeignKey, BelongsTo, Index, Unique,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
+import { Product } from './Product.model.js';
+import { ProductVariant } from './ProductVariant.model.js';
+import { User } from './User.model.js';
 
 @Table({ tableName: 'pages', timestamps: true, indexes: [{ fields: ['storeId', 'slug'] }, { fields: ['storeId', 'isActive'] }] })
 export class Page extends Model {

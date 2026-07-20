@@ -4,13 +4,12 @@ import { body, param, query, validationResult } from 'express-validator';
 import { Product } from '../../models/Product.model.js';
 import { ProductVariant } from '../../models/ProductVariant.model.js';
 import { ProductB2bSetting } from '../../models/ProductB2bSetting.model.js';
-import { B2BRequest } from '../../models/B2BRequest.model.js';
-import { B2BListedProduct } from '../../models/B2BListedProduct.model.js';
+import { B2BRequest, B2BListedProduct } from '../../models/B2BModels.js';
 import { Store } from '../../models/Store.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
-export const b2bRoutes = Router();
+export const b2bRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -63,7 +62,7 @@ b2bRoutes.get('/discover', authMiddleware, requireStore, async (req: Request, re
       pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     });
   } catch (error) {
-    logger.error('B2B discover error:', error);
+    logger.error({ err: error }, 'B2B discover error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -77,7 +76,7 @@ b2bRoutes.get('/settings', authMiddleware, requireStore, async (req: Request, re
     });
     res.json({ settings });
   } catch (error) {
-    logger.error('B2B settings error:', error);
+    logger.error({ err: error }, 'B2B settings error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -106,7 +105,7 @@ b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requir
     logger.info(`B2B setting updated for product ${productId}`);
     res.json({ setting });
   } catch (error) {
-    logger.error('Update B2B setting error:', error);
+    logger.error({ err: error }, 'Update B2B setting error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -137,7 +136,7 @@ b2bRoutes.get('/requests', authMiddleware, requireStore, async (req: Request, re
 
     res.json({ requests });
   } catch (error) {
-    logger.error('List B2B requests error:', error);
+    logger.error({ err: error }, 'List B2B requests error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -184,7 +183,7 @@ b2bRoutes.post('/requests', authMiddleware, requireStore, [
     logger.info(`B2B request created: ${request.id} by store ${store.id} for product ${productId}`);
     res.status(201).json({ request });
   } catch (error) {
-    logger.error('Create B2B request error:', error);
+    logger.error({ err: error }, 'Create B2B request error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -216,7 +215,7 @@ b2bRoutes.put('/requests/:id', authMiddleware, requireStore, [
     logger.info(`B2B request ${request.id} ${status} by store ${store.id}`);
     res.json({ request });
   } catch (error) {
-    logger.error('Update B2B request error:', error);
+    logger.error({ err: error }, 'Update B2B request error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -312,7 +311,7 @@ b2bRoutes.get('/listed', authMiddleware, requireStore, async (req: Request, res:
       pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     });
   } catch (error) {
-    logger.error('List B2B products error:', error);
+    logger.error({ err: error }, 'List B2B products error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

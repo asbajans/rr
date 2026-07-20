@@ -1,9 +1,8 @@
 import {
-  Table, Column, Model, DataType, PrimaryKey, AutoIncrement, CreatedAt,
-  CreatedAt, AllowNull, Default, ForeignKey, BelongsTo, Index,
+  Table, Column, Model, DataType, PrimaryKey, AutoIncrement,   CreatedAt, AllowNull, Default, ForeignKey, BelongsTo, Index,
 } from 'sequelize-typescript';
-import { User } from './User.model.js';
 import { Store } from './Store.model.js';
+import { User } from './User.model.js';
 
 @Table({ tableName: 'credit_logs', timestamps: false, indexes: [{ fields: ['userId'] }, { fields: ['storeId'] }, { fields: ['createdAt'] }] })
 export class CreditLog extends Model {

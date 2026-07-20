@@ -12,7 +12,7 @@ import Stripe from 'stripe';
 
 const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: '2024-04-10' }) : null;
 
-export const storeRoutes = Router();
+export const storeRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);

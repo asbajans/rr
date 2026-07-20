@@ -14,12 +14,12 @@ import {
   BelongsTo,
   HasMany,
 } from 'sequelize-typescript';
-import { Store } from './Store';
-import { Product } from './Product';
-import { ApiKey } from './ApiKey';
-import { CreditLog } from './CreditLog';
-import { B2BRequest } from './B2BRequest';
-import { IntegrationLog } from './IntegrationLog';
+import { Store } from './Store.model.js';
+import { Product } from './Product.model.js';
+import { ApiKey } from './ApiKey.model.js';
+import { CreditLog } from './CreditLog.model.js';
+import { B2BRequest } from './B2BModels.js';
+import { IntegrationLog } from './LogModels.js';
 
 @Table({
   tableName: 'users',

@@ -11,7 +11,7 @@ import { Subscription } from '../../models/Subscription.model.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
-const router = Router();
+const router: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -25,7 +25,7 @@ function generateAccessToken(user: User, store: Store): string {
   return jwt.sign(
     { userId: user.id, storeId: store.id, role: user.role },
     config.jwt.secret,
-    { expiresIn: config.jwt.accessExpiry }
+    { expiresIn: config.jwt.accessExpiry as any }
   );
 }
 
@@ -33,7 +33,7 @@ function generateRefreshToken(user: User, store: Store): string {
   return jwt.sign(
     { userId: user.id, storeId: store.id, type: 'refresh' },
     config.jwt.refreshSecret,
-    { expiresIn: config.jwt.refreshExpiry }
+    { expiresIn: config.jwt.refreshExpiry as any }
   );
 }
 
@@ -158,7 +158,7 @@ router.post('/register', [
       },
     });
   } catch (error) {
-    logger.error('Register error:', error);
+    logger.error({ err: error }, 'Register error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -206,7 +206,7 @@ router.post('/login', [
       },
     });
   } catch (error) {
-    logger.error('Login error:', error);
+    logger.error({ err: error }, 'Login error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -313,7 +313,7 @@ router.post('/api-keys', authMiddleware, requireRole('owner', 'admin'), [
       createdAt: apiKey.createdAt,
     });
   } catch (error) {
-    logger.error('Create API key error:', error);
+    logger.error({ err: error }, 'Create API key error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -328,7 +328,7 @@ router.get('/api-keys', authMiddleware, requireRole('owner', 'admin'), async (re
     });
     res.json(keys);
   } catch (error) {
-    logger.error('List API keys error:', error);
+    logger.error({ err: error }, 'List API keys error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -347,7 +347,7 @@ router.delete('/api-keys/:id', authMiddleware, requireRole('owner', 'admin'), as
     logger.info(`API key revoked: ${key.keyPrefix} (store: ${store.id})`);
     res.json({ message: 'API key revoked' });
   } catch (error) {
-    logger.error('Revoke API key error:', error);
+    logger.error({ err: error }, 'Revoke API key error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

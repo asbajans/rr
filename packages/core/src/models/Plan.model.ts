@@ -12,8 +12,8 @@ import {
   Default,
   HasMany,
 } from 'sequelize-typescript';
-import { Store } from './Store';
-import { Subscription } from './Subscription';
+import { Store } from './Store.model.js';
+import { Subscription } from './Subscription.model.js';
 
 @Table({
   tableName: 'plans',

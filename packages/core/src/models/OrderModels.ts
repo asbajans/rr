@@ -1,6 +1,6 @@
 import {
   Table, Column, Model, DataType, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt,
-  AllowNull, Default, ForeignKey, BelongsTo, Index,
+  AllowNull, Default, ForeignKey, BelongsTo, Index, Unique,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
 

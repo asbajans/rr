@@ -1,6 +1,6 @@
 import { BaseMarketplaceClient, MarketplaceClient } from './base.js';
 
-interface EtsyConfig {
+export interface EtsyConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;

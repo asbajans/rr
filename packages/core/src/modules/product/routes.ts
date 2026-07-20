@@ -9,7 +9,7 @@ import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
-export const productRoutes = Router();
+export const productRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);

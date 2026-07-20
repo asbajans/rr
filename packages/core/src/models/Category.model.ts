@@ -15,8 +15,7 @@ import {
   Index,
   Unique,
 } from 'sequelize-typescript';
-import { Store } from './Store';
-import { Category } from './Category';
+import { Store } from './Store.model.js';
 
 @Table({
   tableName: 'categories',

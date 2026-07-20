@@ -1,6 +1,6 @@
 import { BaseMarketplaceClient, MarketplaceClient } from './base.js';
 
-interface AmazonConfig {
+export interface AmazonConfig {
   refreshToken: string;
   lwaClientId: string;
   lwaClientSecret: string;

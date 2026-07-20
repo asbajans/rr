@@ -14,8 +14,8 @@ import {
   HasMany,
   Index,
 } from 'sequelize-typescript';
-import { Store } from '../Store';
-import { VariationOption } from './VariationOption';
+import { Store } from './Store.model.js';
+import { VariationOption } from './VariationOption.model.js';
 
 @Table({
   tableName: 'variations',

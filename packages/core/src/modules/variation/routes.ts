@@ -4,7 +4,7 @@ import { Variation, VariationOption } from '../../models/ContentModels.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
-export const variationRoutes = Router();
+export const variationRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);

@@ -1,6 +1,6 @@
 import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256 } from './base.js';
 
-interface TrendyolConfig {
+export interface TrendyolConfig {
   apiKey: string;
   apiSecret: string;
   supplierId: number;

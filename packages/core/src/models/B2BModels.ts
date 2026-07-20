@@ -4,6 +4,7 @@ import {
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
 import { Product } from './Product.model.js';
+import { ProductVariant } from './ProductVariant.model.js';
 
 @Table({ tableName: 'product_b2b_settings', timestamps: true, indexes: [{ unique: true, fields: ['storeId', 'productId'] }] })
 export class ProductB2bSetting extends Model {

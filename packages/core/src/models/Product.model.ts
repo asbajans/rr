@@ -16,12 +16,12 @@ import {
   Index,
   HasOne,
 } from 'sequelize-typescript';
-import { Store } from './Store';
-import { Category } from './Category';
-import { ProductVariant } from './ProductVariant';
-import { ProductMarketplaceListing } from './ProductMarketplaceListing';
-import { ProductB2bSetting } from './B2BSetting';
-import { B2BRequest } from './B2BRequest';
+import { Store } from './Store.model.js';
+import { Category } from './Category.model.js';
+import { ProductVariant } from './ProductVariant.model.js';
+import { ProductMarketplaceListing } from './ProductMarketplaceListing.model.js';
+import { ProductB2bSetting } from './ProductB2bSetting.model.js';
+import { B2BRequest } from './B2BModels.js';
 
 @Table({
   tableName: 'products',

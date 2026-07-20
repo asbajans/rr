@@ -13,7 +13,7 @@ import {
   BelongsTo,
   Index,
 } from 'sequelize-typescript';
-import { Variation } from './Variation';
+import { Variation } from './Variation.model.js';
 
 @Table({
   tableName: 'variation_options',

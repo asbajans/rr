@@ -13,7 +13,7 @@ import {
   BelongsTo,
   Index,
 } from 'sequelize-typescript';
-import { Store } from '../Store.model.js';
+import { Store } from './Store.model.js';
 
 @Table({
   tableName: 'dropshipping_orders',

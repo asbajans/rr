@@ -6,7 +6,7 @@ import { MarketplaceCategoryMapping } from '../../models/Category.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
-export const categoryRoutes = Router();
+export const categoryRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -38,7 +38,7 @@ categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: 
 
     res.json({ categories });
   } catch (error) {
-    logger.error('List categories error:', error);
+    logger.error({ err: error }, 'List categories error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -53,7 +53,7 @@ categoryRoutes.get('/tree', authMiddleware, requireStore, async (req: Request, r
     });
     res.json({ categories: roots });
   } catch (error) {
-    logger.error('Category tree error:', error);
+    logger.error({ err: error }, 'Category tree error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -97,7 +97,7 @@ categoryRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireS
     logger.info(`Category created: ${category.id} (${category.slug})`);
     res.status(201).json({ category });
   } catch (error) {
-    logger.error('Create category error:', error);
+    logger.error({ err: error }, 'Create category error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -118,7 +118,7 @@ categoryRoutes.get('/:id', authMiddleware, requireStore, [
 
     res.json({ category });
   } catch (error) {
-    logger.error('Get category error:', error);
+    logger.error({ err: error }, 'Get category error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -127,7 +127,7 @@ categoryRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requir
   param('id').isInt(),
   body('name').optional().isObject(),
   body('slug').optional().isString().isLength({ min: 2, max: 200 }).matches(/^[a-z0-9-]+$/),
-  body('parentId').optional().isInt().nullable(),
+  body('parentId').optional({ values: 'null' }).isInt(),
   body('translations').optional().isObject(),
   body('icon').optional().isString(),
   body('sortOrder').optional().isInt({ min: 0 }),
@@ -156,7 +156,7 @@ categoryRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requir
       if (!parent) {
         return res.status(404).json({ error: 'Parent category not found' });
       }
-      let current = parent;
+      let current: any = parent;
       while (current.parentId) {
         if (current.parentId === category.id) {
           return res.status(400).json({ error: 'Circular reference detected' });
@@ -169,7 +169,7 @@ categoryRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requir
     logger.info(`Category updated: ${category.id}`);
     res.json({ category });
   } catch (error) {
-    logger.error('Update category error:', error);
+    logger.error({ err: error }, 'Update category error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -194,7 +194,7 @@ categoryRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), req
     logger.info(`Category deleted: ${req.params.id}`);
     res.json({ success: true });
   } catch (error) {
-    logger.error('Delete category error:', error);
+    logger.error({ err: error }, 'Delete category error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -210,7 +210,7 @@ categoryRoutes.get('/:id/mappings', authMiddleware, requireStore, [
     const mappings = await MarketplaceCategoryMapping.findAll({ where: { categoryId: category.id } });
     res.json({ mappings });
   } catch (error) {
-    logger.error('Get mappings error:', error);
+    logger.error({ err: error }, 'Get mappings error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -242,7 +242,7 @@ categoryRoutes.post('/:id/mappings', authMiddleware, requireRole('owner', 'admin
     logger.info(`Category mapping created: ${mapping.id}`);
     res.status(201).json({ mapping });
   } catch (error) {
-    logger.error('Create mapping error:', error);
+    logger.error({ err: error }, 'Create mapping error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -268,7 +268,7 @@ categoryRoutes.put('/:id/mappings/:mappingId', authMiddleware, requireRole('owne
     logger.info(`Category mapping updated: ${mapping.id}`);
     res.json({ mapping });
   } catch (error) {
-    logger.error('Update mapping error:', error);
+    logger.error({ err: error }, 'Update mapping error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -291,7 +291,7 @@ categoryRoutes.delete('/:id/mappings/:mappingId', authMiddleware, requireRole('o
     logger.info(`Category mapping deleted: ${req.params.mappingId}`);
     res.json({ success: true });
   } catch (error) {
-    logger.error('Delete mapping error:', error);
+    logger.error({ err: error }, 'Delete mapping error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

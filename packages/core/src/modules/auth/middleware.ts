@@ -15,7 +15,7 @@ export const generateAccessToken = (user: User, store: Store): string => {
   return jwt.sign(
     { userId: user.id, storeId: store.id, role: user.role, type: 'access' },
     config.jwt.secret,
-    { expiresIn: config.jwt.accessExpiry }
+    { expiresIn: config.jwt.accessExpiry as any }
   );
 };
 
@@ -23,7 +23,7 @@ export const generateRefreshToken = (user: User, store: Store): string => {
   return jwt.sign(
     { userId: user.id, storeId: store.id, role: user.role, type: 'refresh' },
     config.jwt.refreshSecret,
-    { expiresIn: config.jwt.refreshExpiry }
+    { expiresIn: config.jwt.refreshExpiry as any }
   );
 };
 
@@ -131,7 +131,7 @@ export const apiKeyMiddleware = async (req: Request, res: Response, next: NextFu
     }
 
     if (signature) {
-      const expectedSignature = crypto.createHmac('sha256', config.internal.key)
+      const expectedSignature = crypto.createHmac('sha256', config.apiKey.internalKey)
         .update(`${timestamp}.${JSON.stringify(req.body)}`)
         .digest('hex');
 

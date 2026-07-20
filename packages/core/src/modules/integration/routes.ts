@@ -7,7 +7,7 @@ import { ProductMarketplaceListing } from '../../models/ProductMarketplaceListin
 import { Store } from '../../models/Store.model.js';
 import { logger } from '../../utils/logger.js';
 
-export const integrationRoutes = Router();
+export const integrationRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -68,7 +68,7 @@ integrationRoutes.post('/webhook/order', [
     logger.info(`Webhook order created: ${order.id} from ${marketplace}`);
     res.status(201).json({ order, created: true });
   } catch (error) {
-    logger.error('Webhook order error:', error);
+    logger.error({ err: error }, 'Webhook order error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -96,7 +96,7 @@ integrationRoutes.post('/webhook/stock', [
     logger.info(`Stock updated via webhook: ${productId} = ${quantity} on ${marketplace}`);
     res.json({ success: true, quantity });
   } catch (error) {
-    logger.error('Webhook stock error:', error);
+    logger.error({ err: error }, 'Webhook stock error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -124,7 +124,7 @@ integrationRoutes.post('/webhook/price', [
     logger.info(`Price updated via webhook: ${productId} = ${price} on ${marketplace}`);
     res.json({ success: true, price });
   } catch (error) {
-    logger.error('Webhook price error:', error);
+    logger.error({ err: error }, 'Webhook price error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
