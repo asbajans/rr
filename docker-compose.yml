@@ -69,7 +69,7 @@ services:
       retries: 5
 
   core-api:
-    image: ${REGISTRY:-cont.asb.web.tr}/rahatio/core:${CORE_TAG:-latest}
+    image: ghcr.io/asbajans/rahatio/core:latest
     container_name: rahatio-core
     restart: unless-stopped
     networks:
@@ -104,7 +104,7 @@ services:
         condition: service_healthy
 
   ai-service:
-    image: ${REGISTRY:-cont.asb.web.tr}/rahatio/ai-service:${AI_TAG:-latest}
+    image: ghcr.io/asbajans/rahatio/ai-service:latest
     container_name: rahatio-ai
     restart: unless-stopped
     networks:
@@ -124,7 +124,7 @@ services:
         condition: service_healthy
 
   integration-service:
-    image: ${REGISTRY:-cont.asb.web.tr}/rahatio/integration-service:${INTEGRATION_TAG:-latest}
+    image: ghcr.io/asbajans/rahatio/integration-service:latest
     container_name: rahatio-integration
     restart: unless-stopped
     networks:
@@ -165,7 +165,7 @@ services:
         condition: service_started
 
   frontend:
-    image: ${REGISTRY:-cont.asb.web.tr}/rahatio/frontend:${FRONTEND_TAG:-latest}
+    image: ghcr.io/asbajans/rahatio/frontend:latest
     container_name: rahatio-frontend
     restart: unless-stopped
     networks:

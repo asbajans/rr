@@ -39,8 +39,7 @@
     "axios": "^1.7.0",
     "crypto-js": "^4.2.0",
     "stripe": "^15.0.0",
-    "node-cron": "^3.0.3",
-    "gold-price": "^1.0.0"
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
