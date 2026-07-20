@@ -95,6 +95,7 @@ services:
       CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RUN_SEEDERS: ${RUN_SEEDERS:-true}
     depends_on:
       postgres:
         condition: service_healthy
