@@ -15,6 +15,13 @@ import { publicPlanRoutes } from './modules/plan/publicRoutes.js';
 import { publicStoreRoutes } from './modules/store/publicRoutes.js';
 import { publicProductRoutes } from './modules/product/publicRoutes.js';
 import { publicOrderRoutes } from './modules/order/publicRoutes.js';
+import { pageRoutes } from './modules/page/routes.js';
+import { locationRoutes } from './modules/location/routes.js';
+import { paymentMethodRoutes } from './modules/paymentMethod/routes.js';
+import { feedRoutes } from './modules/feed/routes.js';
+import { creditsRoutes } from './modules/ai/creditsRoutes.js';
+import { dashboardRoutes } from './modules/dashboard/routes.js';
+import { uploadRoutes } from './modules/upload/routes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -28,6 +35,13 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/b2b', b2bRoutes);
   app.use('/api/admin/integrations', marketplaceRoutes);
   app.use('/api/admin/orders', orderRoutes);
+  app.use('/api/admin/pages', pageRoutes);
+  app.use('/api/admin/locations', locationRoutes);
+  app.use('/api/admin/payment-methods', paymentMethodRoutes);
+  app.use('/api/admin/feeds', feedRoutes);
+  app.use('/api/admin/ai/credits', creditsRoutes);
+  app.use('/api/admin/dashboard', dashboardRoutes);
+  app.use('/api/admin/upload', uploadRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api', slaveRoutes);
   app.use('/api/admin/integration', integrationRoutes);
