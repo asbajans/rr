@@ -728,7 +728,7 @@ class ApiClient {
   }
 
   getMarketplaceTrees() {
-    return this.get<{ trees: Record<string, any[]> }>('/api/admin/categories/trees')
+    return this.get<{ trees: Record<string, import('./types').MarketplaceCategory[]> }>('/api/admin/integrations/marketplace-trees')
   }
 
   getCategoriesFlat() {

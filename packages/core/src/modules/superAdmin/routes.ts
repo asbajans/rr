@@ -18,15 +18,16 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-// All super admin routes require superadmin role
+// Auth runs for all requests (sets req.user, req.store)
 router.use(authMiddleware);
-router.use(requireRole('superadmin'));
+
+const superAdminOnly = requireRole('superadmin');
 
 /**
  * GET /api/admin/stores
  * List all stores
  */
-router.get('/stores', async (req: Request, res: Response) => {
+router.get('/stores', superAdminOnly, async (req: Request, res: Response) => {
   try {
     const stores = await Store.findAll({
       include: [
@@ -46,7 +47,7 @@ router.get('/stores', async (req: Request, res: Response) => {
  * GET /api/admin/users
  * List all users across all stores
  */
-router.get('/users', async (req: Request, res: Response) => {
+router.get('/users', superAdminOnly, async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 50, search, storeId } = req.query;
     const where: any = {};
@@ -89,7 +90,7 @@ router.get('/users', async (req: Request, res: Response) => {
  * PUT /api/admin/users/:id
  * Update a user (any store)
  */
-router.put('/users/:id', [
+router.put('/users/:id', superAdminOnly, [
   param('id').isInt(),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('email').optional().isEmail().normalizeEmail(),
@@ -141,7 +142,7 @@ router.put('/users/:id', [
  * POST /api/admin/users/:id/assign-plan
  * Assign plan to user's store
  */
-router.post('/users/:id/assign-plan', [
+router.post('/users/:id/assign-plan', superAdminOnly, [
   param('id').isInt(),
   body('planId').isInt(),
 ], validate, async (req: Request, res: Response) => {
@@ -179,7 +180,7 @@ router.post('/users/:id/assign-plan', [
  * GET /api/admin/plans
  * List all plans (super admin view - all plans)
  */
-router.get('/plans', async (req: Request, res: Response) => {
+router.get('/plans', superAdminOnly, async (req: Request, res: Response) => {
   try {
     const plans = await Plan.findAll({
       order: [['price', 'ASC']],
@@ -195,7 +196,7 @@ router.get('/plans', async (req: Request, res: Response) => {
  * POST /api/admin/plans
  * Create a new plan
  */
-router.post('/plans', [
+router.post('/plans', superAdminOnly, [
   body('name').isString().isLength({ min: 2, max: 100 }),
   body('slug').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
   body('price').isFloat({ min: 0 }),
@@ -224,7 +225,7 @@ router.post('/plans', [
  * PUT /api/admin/plans/:id
  * Update a plan
  */
-router.put('/plans/:id', [
+router.put('/plans/:id', superAdminOnly, [
   param('id').isInt(),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
   body('slug').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
@@ -257,7 +258,7 @@ router.put('/plans/:id', [
  * DELETE /api/admin/plans/:id
  * Delete a plan
  */
-router.delete('/plans/:id', [
+router.delete('/plans/:id', superAdminOnly, [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {
   try {
