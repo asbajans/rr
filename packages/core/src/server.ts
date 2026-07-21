@@ -23,7 +23,10 @@ export const createApp = async (): Promise<Express> => {
   app.use(cors({
     origin: config.corsOrigin,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-API-Key-HMAC', 'X-Timestamp'],
   }));
+  app.options('*', cors()); // Handle preflight for all routes
   app.use(compression());
   app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
   app.use(express.json({ limit: '10mb' }));

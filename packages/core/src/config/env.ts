@@ -3,7 +3,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   version: process.env.npm_package_version || '2.0.0',
   apiUrl: process.env.APP_URL || 'http://localhost:3000',
-  corsOrigin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081', 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'],
+  corsOrigin: process.env.CORS_ORIGIN ? [...new Set([...process.env.CORS_ORIGIN.split(','), 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'])] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081', 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'],
   
   jwt: {
     secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
