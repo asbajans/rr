@@ -3,6 +3,7 @@ import {
   AllowNull, Default, ForeignKey, BelongsTo, Index, Unique,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
+import { CreditLog } from './CreditLog.model.js';
 
 @Table({ tableName: 'dropshipping_orders', timestamps: true, indexes: [{ fields: ['storeId', 'marketplace'] }, { fields: ['status'] }, { fields: ['marketplaceOrderId'] }] })
 export class DropshippingOrder extends Model {
@@ -35,22 +36,6 @@ export class OrderStatusHistory extends Model {
   @CreatedAt @Column(DataType.DATE) declare createdAt: Date;
 
   @BelongsTo(() => DropshippingOrder) declare order: DropshippingOrder;
-}
-
-@Table({ tableName: 'credit_logs', timestamps: true, indexes: [{ fields: ['userId'] }, { fields: ['storeId'] }, { fields: ['createdAt'] }] })
-export class CreditLog extends Model {
-  @PrimaryKey @AutoIncrement @Column(DataType.BIGINT) declare id: number;
-  @ForeignKey(() => User) @AllowNull(false) @Index @Column(DataType.BIGINT) declare userId: number;
-  @ForeignKey(() => Store) @AllowNull(false) @Index @Column(DataType.BIGINT) declare storeId: number;
-  @AllowNull(false) @Column(DataType.STRING(50)) declare action: string;
-  @AllowNull(false) @Column(DataType.STRING(50)) declare module: string;
-  @AllowNull(false) @Column(DataType.INTEGER) declare amount: number;
-  @AllowNull(false) @Column(DataType.INTEGER) declare balanceBefore: number;
-  @AllowNull(false) @Column(DataType.INTEGER) declare balanceAfter: number;
-  @CreatedAt @Column(DataType.DATE) declare createdAt: Date;
-
-  @BelongsTo(() => User) declare user: User;
-  @BelongsTo(() => Store) declare store: Store;
 }
 
 import { User } from './User.model.js';
