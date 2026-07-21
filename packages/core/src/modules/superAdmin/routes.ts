@@ -176,21 +176,7 @@ router.post('/users/:id/assign-plan', superAdminOnly, [
   }
 });
 
-/**
- * GET /api/admin/plans
- * List all plans (super admin view - all plans)
- */
-router.get('/plans', superAdminOnly, async (req: Request, res: Response) => {
-  try {
-    const plans = await Plan.findAll({
-      order: [['price', 'ASC']],
-    });
-    res.json({ plans: serializePlans(plans) });
-  } catch (error) {
-    logger.error({ err: error }, 'Get all plans error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+
 
 /**
  * POST /api/admin/plans

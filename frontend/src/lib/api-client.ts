@@ -128,8 +128,9 @@ class ApiClient {
     return this.getPlans()
   }
 
-  getSubscription() {
-    return this.get<import('./types').Subscription>('/api/admin/me/subscription')
+  async getSubscription() {
+    const r = await this.get<{ subscription: import('./types').Subscription }>('/api/admin/me')
+    return r.subscription
   }
 
   changePlan(planId: number) {
