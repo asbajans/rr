@@ -4,6 +4,38 @@ type FetchOptions = RequestInit & {
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
 
+function mapProduct(p: any): any {
+  if (!p) return p
+  return {
+    ...p,
+    code: p.sku ?? p.code,
+    label: p.title ?? p.label,
+    status: p.isActive !== undefined ? (p.isActive ? 1 : 0) : p.status,
+    price: p.priceTRY ?? p.price,
+    stock: p.quantity ?? p.stock,
+    b2b_enabled: p.isB2BEnabled ?? p.b2b_enabled,
+    b2b_discount: p.b2bDiscount ?? p.b2b_discount,
+    b2b_price: p.b2bPrice ?? p.b2b_price,
+  }
+}
+
+function mapOrder(o: any): any {
+  if (!o) return o
+  const address = o.shippingAddress || o.shipping_address
+  return {
+    ...o,
+    grand_total: o.totalAmount ?? o.grand_total,
+    shipping_address: typeof address === 'object' ? [address.addressLine1, address.addressLine2, address.city, address.state].filter(Boolean).join(', ') : (address || ''),
+    customer_name: o.customerName || (typeof address === 'object' ? address?.name || address?.fullName || '' : ''),
+    customer_email: o.customerEmail || (typeof address === 'object' ? address?.email || '' : ''),
+    customer_phone: o.customerPhone || (typeof address === 'object' ? address?.phone || '' : ''),
+    external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
+    subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
+    shipping: o.shipping ?? 0,
+    tax: o.tax ?? 0,
+  }
+}
+
 class ApiClient {
   private token: string | null = null
 
@@ -199,12 +231,12 @@ class ApiClient {
       Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = String(v) })
     }
     const r = await this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
-    return { data: r.products, current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
+    return { data: r.products.map(mapProduct), current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
   }
 
   async getProduct(id: number) {
     const r = await this.get<{ product: import('./types').Product }>(`/api/admin/products/${id}`)
-    return r.product
+    return mapProduct(r.product)
   }
 
   createProduct(data: {
@@ -553,12 +585,14 @@ class ApiClient {
   }
 
   // Orders
-  getOrders(filters?: { page?: number; limit?: number; status?: string; marketplace?: string; search?: string; dateFrom?: string; dateTo?: string }) {
-    return this.get<{ orders: import('./types').DropshippingOrder[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/orders`, { params: filters })
+  async getOrders(filters?: { page?: number; limit?: number; status?: string; marketplace?: string; search?: string; dateFrom?: string; dateTo?: string }) {
+    const r = await this.get<{ orders: import('./types').DropshippingOrder[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/orders`, { params: filters })
+    return { ...r, orders: r.orders.map(mapOrder) }
   }
 
-  getOrder(id: number) {
-    return this.get<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}`)
+  async getOrder(id: number) {
+    const r = await this.get<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}`)
+    return { order: mapOrder(r.order) }
   }
 
   updateOrderStatus(id: number, status: string, note?: string) {
@@ -773,12 +807,12 @@ class ApiClient {
 
   async getStoreProducts(siteCode: string, filters?: { page?: number; limit?: number; categoryId?: number; search?: string; priceMin?: number; priceMax?: number }) {
     const r = await this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/store/${siteCode}/products`, { params: filters })
-    return { data: r.products, current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
+    return { data: r.products.map(mapProduct), current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
   }
 
   async getStoreProduct(siteCode: string, id: number | string) {
     const r = await this.get<{ product: import('./types').Product }>(`/api/store/${siteCode}/products/${id}`)
-    return r.product
+    return mapProduct(r.product)
   }
 
   async getStoreCategories(siteCode: string) {
@@ -817,7 +851,7 @@ class ApiClient {
     if (filters?.priceMax) params.priceMax = filters.priceMax
     if (filters?.search) params.search = filters.search
     return this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
-      .then(r => ({ data: r.products, total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }))
+      .then(r => ({ data: r.products.map(mapProduct), total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }))
   }
 
   createAdminProduct(data: Record<string, any>) {
