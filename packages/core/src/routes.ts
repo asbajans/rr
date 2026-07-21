@@ -22,7 +22,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin', superAdminRoutes); // Super admin routes first (cross-store)
   app.use('/api/admin', storeRoutes); // Store-scoped routes
   app.use('/api/admin/products', productRoutes);
-  app.use('/api/admin', variantRoutes);
+  app.use('/api/admin/variants', variantRoutes);
   app.use('/api/admin/categories', categoryRoutes);
   app.use('/api/admin/variations', variationRoutes);
   app.use('/api/admin/b2b', b2bRoutes);

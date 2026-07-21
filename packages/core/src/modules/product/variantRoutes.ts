@@ -16,59 +16,7 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-variantRoutes.get('/product/:productId', authMiddleware, requireStore, [
-  param('productId').isInt(),
-], validate, async (req: Request, res: Response) => {
-  try {
-    const store = (req as any).store;
-    const product = await Product.findOne({ where: { id: req.params.productId, storeId: store.id } });
-    if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    const variants = await ProductVariant.findAll({
-      where: { productId: product.id, storeId: store.id },
-      order: [['createdAt', 'ASC']],
-    });
-    res.json({ variants });
-  } catch (error: unknown) {
-    logger.error({ err: error }, 'List variants error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-variantRoutes.post('/product/:productId', authMiddleware, requireRole('owner', 'admin'), requireStore, [
-  param('productId').isInt(),
-  body('sku').isString().isLength({ min: 2, max: 100 }),
-  body('attributes').isObject().notEmpty(),
-  body('gramWeight').optional().isFloat({ min: 0 }),
-  body('quantity').optional().isInt({ min: 0 }),
-  body('priceTRY').optional().isFloat({ min: 0 }),
-  body('priceUSD').optional().isFloat({ min: 0 }),
-  body('b2bPrice').optional().isFloat({ min: 0 }),
-  body('isActive').optional().isBoolean(),
-], validate, async (req: Request, res: Response) => {
-  try {
-    const store = (req as any).store;
-    const product = await Product.findOne({ where: { id: req.params.productId, storeId: store.id } });
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-
-    const existing = await ProductVariant.findOne({ where: { productId: product.id, sku: req.body.sku } });
-    if (existing) return res.status(409).json({ error: 'SKU already exists for this product' });
-
-    const variant = await ProductVariant.create({
-      productId: product.id,
-      storeId: store.id,
-      ...req.body,
-    });
-
-    await product.update({ hasVariants: true });
-
-    logger.info(`Variant created: ${variant.id} (${variant.sku}) for product ${product.id}`);
-    res.status(201).json({ variant });
-  } catch (error: unknown) {
-    logger.error({ err: error }, 'Create variant error');
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 variantRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('id').isInt(),

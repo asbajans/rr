@@ -277,3 +277,50 @@ productRoutes.post('/:id/sync', authMiddleware, requireRole('owner', 'admin'), r
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// GET /api/admin/products/:id/variants — list variants for a product
+productRoutes.get('/:id/variants', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const product = await Product.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    const variants = await ProductVariant.findAll({
+      where: { productId: product.id, storeId: store.id },
+      order: [['createdAt', 'ASC']],
+    });
+    res.json({ variants });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List variants error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/products/:id/variants — create variant for a product
+productRoutes.post('/:id/variants', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+  body('sku').isString().isLength({ min: 2, max: 100 }),
+  body('attributes').isObject().notEmpty(),
+  body('gramWeight').optional().isFloat({ min: 0 }),
+  body('quantity').optional().isInt({ min: 0 }),
+  body('priceTRY').optional().isFloat({ min: 0 }),
+  body('priceUSD').optional().isFloat({ min: 0 }),
+  body('b2bPrice').optional().isFloat({ min: 0 }),
+  body('isActive').optional().isBoolean(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const product = await Product.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    const existing = await ProductVariant.findOne({ where: { productId: product.id, sku: req.body.sku } });
+    if (existing) return res.status(409).json({ error: 'SKU already exists for this product' });
+    const variant = await ProductVariant.create({ productId: product.id, storeId: store.id, ...req.body });
+    await product.update({ hasVariants: true });
+    logger.info(`Variant created: ${variant.id} (${variant.sku}) for product ${product.id}`);
+    res.status(201).json({ variant });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Create variant error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});

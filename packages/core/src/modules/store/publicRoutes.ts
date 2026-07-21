@@ -69,13 +69,3 @@ publicStoreRoutes.post('/:siteCode/addresses', apiKeyMiddleware, async (req: Req
   }
 });
 
-publicStoreRoutes.post('/:siteCode/checkout', apiKeyMiddleware, async (req: Request, res: Response) => {
-  try {
-    const store = (req as any).store;
-    const { items, shippingAddress, paymentMethod } = req.body;
-    res.json({ success: true, orderId: `ORD-${Date.now()}`, message: 'Order placed' });
-  } catch (error) {
-    console.error('Checkout error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});

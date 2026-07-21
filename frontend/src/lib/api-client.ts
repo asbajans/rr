@@ -113,11 +113,11 @@ class ApiClient {
 
   // Store / Plan / Subscription
   getStoreMe() {
-    return this.get<import('./types').StoreMeResponse>('/api/admin/store/me')
+    return this.get<import('./types').StoreMeResponse>('/api/admin/me')
   }
 
   updateStoreMe(data: Partial<import('./types').Store>) {
-    return this.put<import('./types').Store>('/api/admin/store/me', data)
+    return this.put<import('./types').Store>('/api/admin/me', data)
   }
 
   getPlans() {
@@ -129,27 +129,27 @@ class ApiClient {
   }
 
   getSubscription() {
-    return this.get<import('./types').Subscription>('/api/admin/store/me/subscription')
+    return this.get<import('./types').Subscription>('/api/admin/me/subscription')
   }
 
   changePlan(planId: number) {
-    return this.post<import('./types').Subscription>('/api/admin/store/plan/change', { planId })
+    return this.post<import('./types').Subscription>('/api/admin/plan/change', { planId })
   }
 
   createCheckoutSession(planId: number, successUrl: string, cancelUrl: string) {
-    return this.post<{ url: string }>('/api/admin/store/subscription/checkout', { planId, successUrl, cancelUrl })
+    return this.post<{ url: string }>('/api/admin/subscription/checkout', { planId, successUrl, cancelUrl })
   }
 
   createPortalSession(returnUrl: string) {
-    return this.post<{ url: string }>('/api/admin/store/subscription/portal', { returnUrl })
+    return this.post<{ url: string }>('/api/admin/subscription/portal', { returnUrl })
   }
 
   cancelSubscription() {
-    return this.post<{ message: string }>('/api/admin/store/subscription/cancel')
+    return this.post<{ message: string }>('/api/admin/subscription/cancel')
   }
 
   buyCredits(credits: number) {
-    return this.post<{ url: string }>('/api/admin/store/subscription/purchase-credits', { credits })
+    return this.post<{ url: string }>('/api/admin/subscription/purchase-credits', { credits })
   }
 
   // Users
@@ -171,19 +171,19 @@ class ApiClient {
 
   // API Keys
   getApiKeys() {
-    return this.get<import('./types').ApiKey[]>('/api/admin/store/api-keys')
+    return this.get<import('./types').ApiKey[]>('/api/admin/api-keys')
   }
 
   createApiKey(data: { name: string; allowedIps?: string[]; expiresAt?: string }) {
-    return this.post<{ key: string; keyPrefix: string; id: number }>('/api/admin/store/api-keys', data)
+    return this.post<{ key: string; keyPrefix: string; id: number }>('/api/admin/api-keys', data)
   }
 
   deleteApiKey(id: number) {
-    return this.delete<void>(`/api/admin/store/api-keys/${id}`)
+    return this.delete<void>(`/api/admin/api-keys/${id}`)
   }
 
   // Products
-  getProducts(filters?: {
+  async getProducts(filters?: {
     page?: number
     limit?: number
     status?: string
@@ -197,11 +197,13 @@ class ApiClient {
     if (filters) {
       Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = String(v) })
     }
-    return this.get<import('./types').PaginatedResponse<import('./types').Product>>('/api/admin/products', { params })
+    const r = await this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
+    return { data: r.products, current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
   }
 
-  getProduct(id: number) {
-    return this.get<import('./types').Product>(`/api/admin/products/${id}`)
+  async getProduct(id: number) {
+    const r = await this.get<{ product: import('./types').Product }>(`/api/admin/products/${id}`)
+    return r.product
   }
 
   createProduct(data: {
@@ -250,11 +252,12 @@ class ApiClient {
   }
 
   // Product Variants
-  getProductVariants(productId: number) {
-    return this.get<import('./types').ProductVariant[]>(`/api/admin/products/${productId}/variants`)
+  async getProductVariants(productId: number) {
+    const r = await this.get<{ variants: import('./types').ProductVariant[] }>(`/api/admin/products/${productId}/variants`)
+    return r.variants
   }
 
-  createProductVariant(productId: number, data: {
+  async createProductVariant(productId: number, data: {
     sku: string
     attributes: Record<string, any>
     gramWeight?: number
@@ -264,11 +267,13 @@ class ApiClient {
     b2bPrice?: number
     isActive?: boolean
   }) {
-    return this.post<import('./types').ProductVariant>(`/api/admin/products/${productId}/variants`, data)
+    const r = await this.post<{ variant: import('./types').ProductVariant }>(`/api/admin/products/${productId}/variants`, data)
+    return r.variant
   }
 
-  updateProductVariant(variantId: number, data: Partial<import('./types').ProductVariant>) {
-    return this.put<import('./types').ProductVariant>(`/api/admin/variants/${variantId}`, data)
+  async updateProductVariant(variantId: number, data: Partial<import('./types').ProductVariant>) {
+    const r = await this.put<{ variant: import('./types').ProductVariant }>(`/api/admin/variants/${variantId}`, data)
+    return r.variant
   }
 
   deleteProductVariant(variantId: number) {
@@ -281,15 +286,15 @@ class ApiClient {
     if (filters) {
       Object.entries(filters).forEach(([k, v]) => { if (v !== undefined) params[k] = String(v) })
     }
-    return this.get<import('./types').Category[]>(`/api/admin/categories`, { params })
+    return this.get<{ categories: import('./types').Category[] }>(`/api/admin/categories`, { params }).then(r => r.categories)
   }
 
   getCategoryTree() {
-    return this.get<import('./types').Category[]>(`/api/admin/categories/tree`)
+    return this.get<{ categories: import('./types').Category[] }>(`/api/admin/categories/tree`).then(r => r.categories)
   }
 
   getCategory(id: number) {
-    return this.get<import('./types').Category>(`/api/admin/categories/${id}`)
+    return this.get<{ category: import('./types').Category }>(`/api/admin/categories/${id}`).then(r => r.category)
   }
 
   createCategory(data: {
@@ -335,7 +340,7 @@ class ApiClient {
 
   // Variations
   getVariations() {
-    return this.get<import('./types').Variation[]>(`/api/admin/variations`)
+    return this.get<{ variations: import('./types').Variation[] }>(`/api/admin/variations`).then(r => r.variations)
   }
 
   createVariation(data: { name: string; type: string; options?: { value: string; sortOrder?: number }[] }) {
@@ -364,11 +369,11 @@ class ApiClient {
 
   // Marketplace Integrations
   getIntegrations() {
-    return this.get<import('./types').MarketplaceIntegration[]>(`/api/admin/integrations`)
+    return this.get<{ integrations: import('./types').MarketplaceIntegration[] }>(`/api/admin/integrations`).then(r => r.integrations)
   }
 
   getIntegration(marketplace: string) {
-    return this.get<import('./types').MarketplaceIntegration>(`/api/admin/integrations/${marketplace}`)
+    return this.get<{ integration: import('./types').MarketplaceIntegration }>(`/api/admin/integrations/${marketplace}`).then(r => r.integration)
   }
 
   updateIntegration(marketplace: string, data: { isActive?: boolean; config?: Record<string, any>; etsyCategoryId?: string; etsyShippingProfileId?: string }) {
@@ -392,28 +397,110 @@ class ApiClient {
   }
 
   // B2B
-  getB2bDiscover(filters?: { page?: number; limit?: number; search?: string }) {
+  async getB2bDiscover(filters?: { page?: number; limit?: number; search?: string }) {
     const params: Record<string, string> = {}
     if (filters) Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = String(v) })
-    return this.get<import('./types').PaginatedResponse<import('./types').B2bProduct>>(`/api/admin/b2b/discover`, { params })
+    const raw = await this.get<any>(`/api/admin/b2b/discover`, { params })
+    const products = (raw.products || []).map((p: any) => {
+      const img = Array.isArray(p.images) ? p.images[0] : p.image || null
+      return {
+        id: String(p.id),
+        product: {
+          id: String(p.id),
+          code: p.sku || '',
+          label: p.title || '',
+          status: p.isActive ? 1 : 0,
+          price: p.priceTRY ?? null,
+          currency: 'TRY',
+          stock: p.quantity ?? null,
+          image: img,
+        },
+        store: {
+          id: p.store?.id || 0,
+          name: p.store?.name || '',
+          site_code: p.store?.siteCode || '',
+        },
+        b2b_discount: p.b2bDiscount ?? p.b2bSetting?.b2bDiscount ?? null,
+        b2b_price: p.b2bPrice ?? p.b2bSetting?.b2bPrice ?? p.priceTRY ?? null,
+        my_request_status: null,
+        my_request_id: null,
+      }
+    })
+    return {
+      data: products,
+      total: raw.pagination?.total ?? products.length,
+      current_page: raw.pagination?.page ?? 1,
+      last_page: raw.pagination?.totalPages ?? 1,
+      per_page: raw.pagination?.limit ?? 20,
+    }
   }
 
-  getB2bSettings(filters?: { productId?: number } | string | number) {
+  async getB2bSettings(filters?: { productId?: number } | string | number) {
     const params: Record<string, string> = {}
     if (filters && typeof filters === 'object' && 'productId' in filters) params.productId = String(filters.productId)
     else if (typeof filters === 'number' || typeof filters === 'string') params.productId = String(filters)
-    return this.get<import('./types').ProductB2bSetting[]>(`/api/admin/b2b/settings`, { params })
+    const raw = await this.get<{ settings: any[] }>(`/api/admin/b2b/settings`, { params })
+    return (raw.settings || []).map((s: any) => {
+      const prod = s.product || {}
+      return {
+        store_id: s.storeId,
+        product_id: String(s.productId),
+        is_b2b_enabled: s.isB2BEnabled,
+        b2b_discount: s.b2bDiscount ?? null,
+        b2b_price: s.b2bPrice ?? null,
+        product: {
+          id: String(prod.id || s.productId),
+          code: prod.sku || '',
+          label: prod.title || '',
+          price: prod.priceTRY ?? null,
+          stock: prod.quantity ?? null,
+          image: Array.isArray(prod.images) ? prod.images[0] : null,
+        },
+      }
+    })
   }
 
-  updateB2bSetting(productId: number, data: { isB2BEnabled: boolean; b2bDiscount?: number; b2bPrice?: number }) {
-    return this.put<import('./types').ProductB2bSetting>(`/api/admin/b2b/settings`, { productId, ...data })
+  async updateB2bSetting(productId: number, data: { isB2BEnabled: boolean; b2bDiscount?: number; b2bPrice?: number }) {
+    const raw = await this.put<{ setting: any }>(`/api/admin/b2b/settings`, { productId, ...data })
+    const s = raw.setting || {}
+    return {
+      store_id: s.storeId,
+      product_id: String(s.productId),
+      is_b2b_enabled: s.isB2BEnabled,
+      b2b_discount: s.b2bDiscount ?? null,
+      b2b_price: s.b2bPrice ?? null,
+    }
   }
 
-  getB2bRequests(type?: 'incoming' | 'outgoing' | 'all', status?: string) {
+  async getB2bRequests(type?: 'incoming' | 'outgoing' | 'all', status?: string) {
     const params: Record<string, string> = {}
     if (type) params.type = type
     if (status) params.status = status
-    return this.get<import('./types').B2BRequest[]>(`/api/admin/b2b/requests`, { params })
+    const raw = await this.get<{ requests: any[] }>(`/api/admin/b2b/requests`, { params })
+    const list = raw.requests || []
+    return list.map((r: any) => {
+      const prod = r.product || {}
+      const img = Array.isArray(prod.images) ? prod.images[0] : null
+      return {
+        id: r.id,
+        product_id: String(r.productId || prod.id || ''),
+        product: {
+          id: String(prod.id || ''),
+          code: prod.sku || '',
+          label: prod.title || '',
+          status: prod.isActive ? 1 : 0,
+          price: prod.priceTRY ?? null,
+          currency: 'TRY',
+          stock: prod.quantity ?? null,
+          image: img,
+        },
+        from_store: r.requesterStore ? { id: r.requesterStore.id, name: r.requesterStore.name, site_code: r.requesterStore.siteCode } : null,
+        to_store: r.ownerStore ? { id: r.ownerStore.id, name: r.ownerStore.name, site_code: r.ownerStore.siteCode } : null,
+        status: r.status,
+        note: r.requestNote || r.note || null,
+        created_at: r.createdAt || r.created_at,
+      }
+    })
   }
 
   createB2bRequest(data: { productId: number; variantId?: number; requestNote?: string; profitMargin?: number; marketplaces?: string[] }) {
@@ -424,8 +511,44 @@ class ApiClient {
     return this.put<import('./types').B2BRequest>(`/api/admin/b2b/requests/${id}`, data)
   }
 
-  getB2bListed(filters?: { page?: number; limit?: number }) {
-    return this.get<import('./types').PaginatedResponse<import('./types').B2BListedProduct>>(`/api/admin/b2b/listed`, { params: filters })
+  async getB2bListed(filters?: { page?: number; limit?: number }) {
+    const raw = await this.get<any>(`/api/admin/b2b/listed`, { params: filters })
+    const products = (raw.products || []).map((lp: any) => {
+      const product = lp.product || {}
+      const originalStore = lp.originalStore || lp.original_store || {}
+      return {
+        id: lp.id,
+        storeId: lp.storeId,
+        originalStoreId: lp.originalStoreId,
+        productId: lp.productId,
+        originalProductId: lp.originalProductId,
+        b2bRequestId: lp.b2bRequestId,
+        profitMargin: lp.profitMargin,
+        created_at: lp.createdAt || lp.created_at,
+        product: {
+          id: String(product.id || ''),
+          code: product.sku || '',
+          label: product.title || '',
+          status: product.isActive ? 1 : 0,
+          price: product.priceTRY ?? null,
+          currency: 'TRY',
+          stock: product.quantity ?? null,
+          image: Array.isArray(product.images) ? product.images[0] : null,
+        },
+        original_store: {
+          id: originalStore.id || 0,
+          name: originalStore.name || '',
+          site_code: originalStore.siteCode || '',
+        },
+      }
+    })
+    return {
+      data: products,
+      total: raw.pagination?.total ?? products.length,
+      current_page: raw.pagination?.page ?? 1,
+      last_page: raw.pagination?.totalPages ?? 1,
+      per_page: raw.pagination?.limit ?? 20,
+    }
   }
 
   // Orders
@@ -531,12 +654,14 @@ class ApiClient {
   }
 
   // Settings
-  getSettings() {
-    return this.get<import('./types').Store>(`/api/admin/store/settings`)
+  async getSettings() {
+    const raw = await this.get<{ store: import('./types').Store }>(`/api/admin/me`)
+    return raw.store
   }
 
-  updateSettings(data: Partial<import('./types').Store>) {
-    return this.put<import('./types').Store>(`/api/admin/store/settings`, data)
+  async updateSettings(data: Partial<import('./types').Store>) {
+    const raw = await this.put<import('./types').Store>(`/api/admin/me`, data)
+    return raw
   }
 
   // Pages
@@ -645,16 +770,19 @@ class ApiClient {
     return this.get<any[]>(`/api/store/${siteCode}/payment-methods`).then(r => ({ data: (Array.isArray(r) ? r : (r as any).data ?? r).map((m: any) => ({ method: m.method || m.name, label: m.label || m.name })) }))
   }
 
-  getStoreProducts(siteCode: string, filters?: { page?: number; limit?: number; categoryId?: number; search?: string; priceMin?: number; priceMax?: number }) {
-    return this.get<import('./types').PaginatedResponse<import('./types').Product>>(`/api/store/${siteCode}/products`, { params: filters })
+  async getStoreProducts(siteCode: string, filters?: { page?: number; limit?: number; categoryId?: number; search?: string; priceMin?: number; priceMax?: number }) {
+    const r = await this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/store/${siteCode}/products`, { params: filters })
+    return { data: r.products, current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
   }
 
-  getStoreProduct(siteCode: string, id: number | string) {
-    return this.get<import('./types').Product>(`/api/store/${siteCode}/products/${id}`)
+  async getStoreProduct(siteCode: string, id: number | string) {
+    const r = await this.get<{ product: import('./types').Product }>(`/api/store/${siteCode}/products/${id}`)
+    return r.product
   }
 
-  getStoreCategories(siteCode: string) {
-    return this.get<import('./types').Category[]>(`/api/store/${siteCode}/categories`)
+  async getStoreCategories(siteCode: string) {
+    const r = await this.get<{ categories: import('./types').Category[] }>(`/api/store/${siteCode}/categories`)
+    return r.categories
   }
 
   getStoreLocations(siteCode: string) {
@@ -731,8 +859,9 @@ class ApiClient {
     return this.get<{ trees: Record<string, import('./types').MarketplaceCategory[]> }>('/api/admin/integrations/marketplace-trees')
   }
 
-  getCategoriesFlat() {
-    return this.get<{ data: import('./types').Category[] }>('/api/admin/categories', { params: { flat: 'true' } })
+  async getCategoriesFlat() {
+    const r = await this.get<{ categories: import('./types').Category[] }>('/api/admin/categories', { params: { flat: 'true' } })
+    return { data: r.categories }
   }
 
   generateProductDescription(data: { name?: string; brand?: string; category?: string; price?: number; field?: string; title?: string; attributes?: Record<string, any>; keywords?: string[] }) {
@@ -783,14 +912,16 @@ class ApiClient {
   }
 
   // Shipping
-  getShippingSettings() {
-    return this.get<import('./types').Store>('/api/admin/store/settings')
-      .then(s => ({ id: s.id, method: (s as any).shippingSettings?.method || 'flat_rate', flat_rate: (s as any).shippingSettings?.flat_rate || 0, free_shipping_threshold: (s as any).shippingSettings?.free_shipping_threshold || null, zones: (s as any).shippingSettings?.zones || null, is_active: (s as any).shippingSettings?.is_active ?? true }))
+  async getShippingSettings() {
+    const raw = await this.get<{ store: any }>('/api/admin/me')
+    const s = raw.store
+    const ss = s.shippingSettings || {}
+    return { id: s.id, method: ss.method || 'flat_rate', flat_rate: ss.flat_rate || 0, free_shipping_threshold: ss.free_shipping_threshold || null, zones: ss.zones || null, is_active: ss.is_active ?? true }
   }
 
-  updateShippingSettings(data: { method: string; flat_rate: number; is_active: boolean; free_shipping_threshold?: number }) {
-    return this.put<any>('/api/admin/store/settings', { shippingSettings: data })
-      .then(() => ({ id: 1, method: data.method, flat_rate: data.flat_rate, is_active: data.is_active, free_shipping_threshold: data.free_shipping_threshold ?? null, zones: null as any[] | null }))
+  async updateShippingSettings(data: { method: string; flat_rate: number; is_active: boolean; free_shipping_threshold?: number }) {
+    const raw = await this.put<{ store: any }>('/api/admin/me', { shippingSettings: data })
+    return { id: raw.store?.id || 1, method: data.method, flat_rate: data.flat_rate, is_active: data.is_active, free_shipping_threshold: data.free_shipping_threshold ?? null, zones: null as any[] | null }
   }
 
   // Super Admin

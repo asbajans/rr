@@ -11,6 +11,92 @@ Domain: `rahatio.com.tr` → Cloudflare proxied → Portainer sunucu
 
 ---
 
+# BİLİNEN HATALAR / BUG ENVANTERİ
+
+Aşağıdaki tüm hatalar tespit edilmiş olup **Phase 1-6**'da sıralı olarak düzeltilecektir.
+
+## ~~🔴 PHASE 1 — Sayfa Çökmesine Sebep Olan Kritik Hatalar~~ ✅ DÜZELTİLDİ
+
+| # | Hata | Dosya(lar) | Çözüm |
+|---|------|-----------|-------|
+| 1 | **B2B discover: `Cannot read properties of undefined (reading 'length')`** | `api-client.ts` | B2B metodlarında async unwrap + field mapping eklendi |
+| 2 | **B2B listed: aynı hata** | `api-client.ts` | Aynı çözüm |
+| 3 | **B2B requests: `res.length` undefined** | `api-client.ts` | `raw.requests` unwrap + field mapping |
+| 4 | **Store route prefix: tüm `/api/admin/store/*` 404** | `api-client.ts` | `/store/` prefix'i kaldırıldı |
+| 5 | **Variant routes: `GET products/:id/variants` 404** | `product/routes.ts`, `variantRoutes.ts`, `routes.ts` | Product routes'a eklendi, mount `/api/admin/variants` yapıldı |
+| 6 | **Variant routes: `PUT/DELETE /api/admin/variants/:id` asla eşleşmez** | `variantRoutes.ts`, `routes.ts` | Mount `/api/admin/variants` → `/:id` tek segment olarak çalışır |
+| 7 | **Checkout route conflict: stub gerçek checkout'u ezer** | `publicStoreRoutes.ts` | Stub `POST /:siteCode/checkout` kaldırıldı |
+
+## ~~🟠 PHASE 2 — Response Wrapper Uyumsuzlukları (Sayfalar Boş Görünür)~~ ✅ DÜZELTİLDİ
+
+| # | Hata | Frontend | Backend Key | Çözüm |
+|---|------|----------|-------------|-------|
+| 8 | `getCategories()` undefined | `Category[]` bekler | `{ categories }` döner | `.then(r => r.categories)` |
+| 9 | `getCategoryTree()` undefined | `Category[]` bekler | `{ categories }` döner | `.then(r => r.categories)` |
+| 10 | `getCategory(id)` undefined | `Category` bekler | `{ category }` döner | `.then(r => r.category)` |
+| 11 | `getIntegrations()` undefined | `MarketplaceIntegration[]` bekler | `{ integrations }` döner | `.then(r => r.integrations)` |
+| 12 | `getVariations()` undefined | `Variation[]` bekler | `{ variations }` döner | `.then(r => r.variations)` |
+| 13 | `getB2bSettings()` undefined | `ProductB2bSetting[]` bekler | `{ settings }` döner | Phase 1'de çözüldü |
+| 14 | `getCategoriesFlat()` `res.data` undefined | `{ data }` bekler | `{ categories }` döner | `async` unwrap + `{ data: r.categories }` |
+| 15 | `getProducts()` pagination mismatch | `{ data, current_page, ... }` bekler | `{ products, pagination: { page, limit, ... } }` döner | Pagination map `async` unwrap |
+
+## 🟡 PHASE 3 — Alan Adı Uyumsuzlukları (Veriler Gözükmez / NaN)
+
+| # | Alan | Frontend | Backend | Etki |
+|---|------|----------|---------|------|
+| 16 | product.code | `code` | `sku` | Ürün kodu sütunu boş |
+| 17 | product.label | `label` | `title` | Ürün adı sütunu boş |
+| 18 | product.status | `0/1` (number) | `isActive` (boolean) | Tüm ürünler "Satışta Değil" |
+| 19 | product.price | `price` | `priceTRY` | Fiyat sütunu "-" |
+| 20 | product.stock | `stock` | `quantity` | Stok sütunu "-" |
+| 21 | b2b_discount | snake_case | `b2bDiscount` camelCase | B2B indirimi gözükmez |
+| 22 | order.grand_total | `grand_total` | `totalAmount` | NaN ₺ |
+| 23 | order.customer_name | `customer_name` | Yok | Müşteri adı boş |
+| 24 | order.shipping_address | `shipping_address` | `shippingAddress` | Adres "—" |
+| 25 | order.items.map() | `items.map(...)` | `items` null olabilir | Sayfa çöker |
+
+## 🔵 PHASE 4 — Eksik Backend Endpoint'leri (Hepsi 404)
+
+| # | Sayfa | Endpoint | Durum |
+|---|-------|----------|-------|
+| 26 | Dashboard | `GET /api/admin/dashboard` | **YOK** |
+| 27 | Pages | Tüm CRUD `/api/admin/pages` | **YOK** (model var, route yok) |
+| 28 | Feeds | Tüm CRUD `/api/admin/feeds` | **YOK** |
+| 29 | Locations | Admin CRUD `/api/admin/locations` | **YOK** |
+| 30 | Payment Methods | Admin CRUD `/api/admin/payment-methods` | **YOK** |
+| 31 | AI Credits Logs | `/api/admin/ai/credits/logs`, `/stats` | **YOK** |
+| 32 | File Upload | `POST /api/admin/upload` | **YOK** |
+| 33 | Subscription Cancel/Change | `/store/subscription/cancel`, `/plan/change` | **YOK** |
+| 34 | Bulk Order Status | `POST /api/admin/orders/bulk-status` | **YOK** |
+| 35 | Sync Job Status | `/api/admin/sync/*` | **Yanlış path** |
+| 36 | AI Status/Output | `/api/ai/status/:id`, `/api/ai/output/:id/:file` | **YOK** (proxy yok) |
+
+## 🟣 PHASE 5 — AI Endpoint Payload Uyuşmazlığı
+
+| # | Endpoint | Frontend Gönderir | Backend Bekler | Sonuç |
+|---|----------|-------------------|----------------|--------|
+| 37 | `/api/ai/process-image` | FormData (File) | JSON `{ imageUrl }` | Validation hatası |
+| 38 | `/api/ai/analyze-product` | FormData (File) | JSON `{ imageUrl }` | Validation hatası |
+| 39 | `/api/ai/generate-description` | `{ name, ... }` | `{ title, ... }` | Alan adı uyuşmazlığı |
+
+## ⚪ PHASE 6 — Slave / Site Builder Hataları
+
+| # | Hata | Detay |
+|---|------|-------|
+| 40 | **TS slave routes STUB** | `slave/routes.ts` `"not implemented"` döndürüyor |
+| 41 | **Slave download path yanlış** | Frontend `/api/admin/slave/` çağırıyor, backend `/api/slave/`'de |
+| 42 | **Slave Aimeos formatı bekliyor** | `product.code`, `product.label` — yeni TS backend Sequelize döndüğü için kırılacak |
+| 43 | **Go slave HEAD'den silinmiş** | Git history'de kalmış, geri getirilebilir |
+| 44 | **Site Builder (görsel) hiç yok** | Drag-drop, tema, renk/font özelleştirme, template sistemi yok |
+| 45 | **`theme` JSONB alanı ölü** | Store modelinde var ama frontend'de UI'ı yok |
+| 46 | **Pages migration/routes yeni backend'de yok** | Model duplicate, migration ve route eksik |
+| 47 | **Custom domain dashboard'da read-only** | API ile set edilebiliyor ama frontend'de input yok |
+| 48 | **Vercel ZIP'te package.json yok** | npm install kırılır |
+| 49 | **HMAC secret slave + internal ortak** | Slave config sızarsa internal auth da kırılır |
+| 50 | **API key her download'da yenilenir** | Eski slave anında çalışmaz |
+
+---
+
 # YENİ MİMARİ PLANI: Rahatio v2 (Golden-Marketplace Hybrid)
 
 ## Stratejik Karar
@@ -378,16 +464,40 @@ POST   /api/ai/chat                 # Proxy → ai-service
 
 ## Geliştirme Aşamaları (Roadmap)
 
-### Phase 0 — Altyapı Hazırlığı (1 hafta)
-- [ ] Monorepo: `pnpm workspaces` + `turbo.json` kur
-- [ ] `packages/core` Express + TypeScript + Sequelize + PostgreSQL scaffold
-- [ ] `packages/ai-service` mevcut kodu `packages/ai-service/` altına taşı
-- [ ] `packages/integration-service` scaffold (webhook + bullmq)
-- [ ] Docker Compose: PostgreSQL + Redis + MinIO + Core + AI + Integration + Frontend
-- [ ] Migration: MySQL → PostgreSQL (sequelize-cli)
-- [ ] CI/CD: GitHub Actions path-filter → sadece değişen package build
+### Phase 0 — Kritik Hata Düzeltmeleri (Bu hafta)
+- [ ] **B2B response shape**: `discover`, `listed`, `requests` response'larını frontend'in beklediği formata çevir
+- [ ] **Store route prefix**: Frontend'deki `/api/admin/store/*` çağrılarını `/api/admin/*` yap
+- [ ] **Variant routes**: Mount noktasını `/api/admin/variants` yap, path'leri düzelt
+- [ ] **Checkout conflict**: Stub'ı `publicStoreRoutes`'tan kaldır
+- [ ] **Response wrapper'lar**: Tüm `api-client.ts` get/list method'larına `.then(r => r.data)` unwrap ekle
+- [ ] **Frontend API path fix**: Slave download ve sync path'lerini düzelt
 
-### Phase 1 — Core API + Auth + Store/Plan (1-2 hafta)
+### Phase 0.5 — Eksik Endpoint'ler (Bu hafta)
+- [ ] Pages CRUD route'ları ekle (`packages/core/src/modules/page/routes.ts`)
+- [ ] Dashboard stats endpoint'i ekle
+- [ ] File upload route'u ekle (multer + MinIO)
+- [ ] Feeds CRUD route'ları ekle
+- [ ] Locations/Payment Methods admin route'ları ekle
+- [ ] Bulk order status endpoint'i ekle
+- [ ] AI credits log/stats endpoint'leri ekle
+- [ ] AI status/output proxy route'ları ekle
+
+### Phase 0.6 — Slave & Site Builder (1-2 hafta)
+- [ ] `packages/core/src/modules/slave/routes.ts` download endpoint'lerini implement et (config injection + file serve)
+- [ ] PHP slave template + download controller'ı TypeScript'e taşı
+- [ ] Vercel slave template + ZIP oluşturma
+- [ ] Vercel ZIP'e `package.json` ekle
+- [ ] HMAC secret slave/internal ayrımı yap (`RAHAT_SLAVE_HMAC_SECRET`)
+- [ ] API key download'da yenileme mantığını kaldır
+- [ ] Slave `GET /api/slave/products` + `POST /api/slave/sync` endpoint'lerini ekle (Sequelize formatında)
+- [ ] Site Theme modeli + CRUD route'ları
+- [ ] Site Page modeli + CRUD route'ları (blocks JSONB ile)
+- [ ] Site Menu modeli + CRUD route'ları
+- [ ] Frontend Site Builder UI (renk/font/logo ayarları)
+- [ ] Frontend drag-drop page editor
+- [ ] Go slave geri getir (opsiyonel)
+
+### Phase 7 — Core API + Auth + Store/Plan (1-2 hafta)
 - [ ] Auth: JWT (access/refresh) + API Key HMAC middleware
 - [ ] Store/Plan/Subscription CRUD + Stripe webhook
 - [ ] Tenant middleware (req.store) + otomatik storeId filter
@@ -395,7 +505,7 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [ ] Frontend `api-client.ts` → yeni endpoint'lere güncelle
 - [ ] Mobile `api-client.ts` → yeni endpoint'lere güncelle
 
-### Phase 2 — Product + Category + Variation (1-2 hafta)
+### Phase 8 — Product + Category + Variation (1-2 hafta)
 - [ ] Product CRUD (image upload → MinIO, marketplace config per mp)
 - [ ] Category tree (universal + marketplace mappings)
 - [ ] Variation/Option/Variant CRUD
@@ -403,7 +513,7 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [ ] Frontend Products sayfası entegrasyonu (filtreler, modal, AI)
 - [ ] Mobile Products sayfası entegrasyonu
 
-### Phase 3 — Marketplace Integrations (2-3 hafta)
+### Phase 9 — Marketplace Integrations (2-3 hafta)
 - [ ] Integration CRUD (Trendyol, Hepsiburada, Pazarama, N11, Amazon, Etsy)
 - [ ] **Import**: Golden'dan `productSyncJob` mimarisi + Rahatio client'ları (TS port)
 - [ ] **Push**: Product create/update → BullMQ → integration clients
@@ -411,14 +521,14 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [ ] **Etsy**: Golden'dan tam OAuth + Listing CRUD al
 - [ ] Frontend Integrations sayfası (import/poll, config form)
 
-### Phase 4 — B2B Sistemi (Golden'dan gelişmiş) (1 hafta)
+### Phase 10 — B2B Sistemi (Golden'dan gelişmiş) (1 hafta)
 - [ ] ProductB2bSetting (isEnabled, discount, price)
 - [ ] B2B Discover (seller storeId filter + enrichProduct)
 - [ ] B2B Request (create, incoming/outgoing, approve/reject)
 - [ ] **Clone + List**: Golden'dan `listB2BProduct` (variant destekli, profitMargin, originalProductId/originalStoreId referans)
 - [ ] Frontend B2B Keşfet + Talepler + Listed
 
-### Phase 5 — AI + Order + Extras (1-2 hafta)
+### Phase 11 — AI + Order + Extras (1-2 hafta)
 - [ ] AI Gateway Proxy (Core → ai-service)
 - [ ] AI: analyze-product, generate-description, chat, search, recommend
 - [ ] Dropshipping Order (create, status, tracking, history, split by vendor)
@@ -426,13 +536,13 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [ ] XML Feed (import wizard, mapping, auto-sync)
 - [ ] Store Location, Payment Methods, Shipping
 
-### Phase 6 — Frontend & Mobile Entegrasyon (1 hafta)
+### Phase 12 — Frontend & Mobile Entegrasyon (1 hafta)
 - [ ] Frontend: Tüm sayfalar yeni API'ye bağla
 - [ ] Mobile: Tüm ekranlar yeni API'ye bağla (SecureStore token)
 - [ ] Slave: PHP + Vercel config → yeni API Base + HMAC
 - [ ] E2E test: Register → Store → Product → Marketplace → Order
 
-### Phase 7 — Deployment & Migration (1 hafta)
+### Phase 13 — Deployment & Migration (1 hafta)
 - [ ] PostgreSQL migration script (MySQL → PG, Aimeos tabloları atılır)
 - [ ] Docker images: core, ai, integration, frontend
 - [ ] Portainer stack güncelle (env, volumes)
