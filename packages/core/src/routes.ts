@@ -43,7 +43,8 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/dashboard', dashboardRoutes);
   app.use('/api/admin/upload', uploadRoutes);
   app.use('/api/ai', aiRoutes);
-  app.use('/api', slaveRoutes);
+  app.use('/api/slave', slaveRoutes);
+  app.use('/api/admin/slave', slaveRoutes);
   app.use('/api/admin/integration', integrationRoutes);
   app.use('/api/store', publicStoreRoutes);
   app.use('/api/store', publicProductRoutes);

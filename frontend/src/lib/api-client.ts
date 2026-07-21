@@ -629,16 +629,35 @@ class ApiClient {
     return this.get<{ credits: number }>(`/api/ai/credits`)
   }
 
-  processImage(formData: FormData) {
-    return this.upload<{ sessionId: string; message: string }>(`/api/ai/process-image`, formData)
+  async processImage(formData: FormData) {
+    const entries = Array.from(formData.entries())
+    const payload: Record<string, any> = {}
+    for (const [k, v] of entries) {
+      if (v instanceof File) {
+        if (!payload.imageUrl) {
+          const uploaded = await this.uploadImage(v)
+          payload.imageUrl = uploaded.url
+        }
+      } else {
+        payload[k] = v
+      }
+    }
+    if (!payload.category) payload.category = 'diger'
+    return this.post<{ sessionId: string; message: string }>(`/api/ai/process-image`, payload)
   }
 
   getAiStatus(sessionId: string) {
     return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
   }
 
-  analyzeProduct(formData: FormData) {
-    return this.upload<{
+  async analyzeProduct(formData: FormData) {
+    let imageUrl: string | undefined
+    const file = formData.get('image') || formData.get('imageUrl')
+    if (file instanceof File) {
+      const uploaded = await this.uploadImage(file)
+      imageUrl = uploaded.url
+    }
+    return this.post<{
       specs: { material: string; color: string; type: string; style: string; category: string }
       title: string
       description: string
@@ -647,7 +666,7 @@ class ApiClient {
       meta_description: string
       keywords: string[]
       slug: string
-    }>(`/api/ai/analyze-product`, formData)
+    }>(`/api/ai/analyze-product`, { imageUrl })
   }
 
   generateDescription(data: { title: string; category: string; attributes?: Record<string, any>; keywords?: string[] }) {
@@ -912,11 +931,7 @@ class ApiClient {
   }
 
   editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
-    const formData = new FormData()
-    formData.append('prompt', data.prompt)
-    if (data.image_urls[0]) formData.append('imageUrl', data.image_urls[0])
-    if (data.category) formData.append('category', data.category)
-    return this.upload<{ sessionId: string }>(`/api/ai/process-image`, formData)
+    return this.post<{ sessionId: string }>(`/api/ai/process-image`, { imageUrl: data.image_urls[0], prompt: data.prompt, category: data.category || 'diger' })
   }
 
   getAiOutputUrl(sessionId: string, filename: string) {
