@@ -135,7 +135,12 @@ marketplaceRoutes.get('/', authMiddleware, requireStore, async (req: Request, re
       where: { storeId: store.id },
       order: [['marketplace', 'ASC']],
     });
-    res.json({ integrations });
+    const existing = new Set(integrations.map(i => i.marketplace));
+    const all = MARKETPLACES.map(mp => {
+      const found = integrations.find(i => i.marketplace === mp);
+      return found || { marketplace: mp, storeId: store.id, isActive: false, config: {}, etsyCategoryId: null, etsyShippingProfileId: null };
+    });
+    res.json({ integrations: all });
   } catch (error: unknown) {
     logger.error({ err: error }, 'List integrations error');
     res.status(500).json({ error: 'Internal server error' });
