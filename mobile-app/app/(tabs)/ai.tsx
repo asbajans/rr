@@ -96,7 +96,7 @@ export default function AiScreen() {
         type: 'image/jpeg',
       } as any)
 
-      const res = await api.upload<AiAnalysis>('/api/ai/analyze-product', formData)
+      const res = await api.analyzeProduct(formData)
       setAnalysis(res)
       setProductForm({
         code: res.slug || res.title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 32),

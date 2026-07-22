@@ -133,6 +133,39 @@ class ApiClient {
     return result.uri
   }
 
+  // Field mapping helpers
+  private mapProduct(p: any): any {
+    if (!p) return p
+    return {
+      ...p,
+      code: p.sku ?? p.code,
+      label: p.title ?? p.label,
+      status: p.isActive !== undefined ? (p.isActive ? 1 : 0) : p.status,
+      price: p.priceTRY ?? p.price,
+      stock: p.quantity ?? p.stock,
+      b2b_enabled: p.isB2BEnabled ?? p.b2b_enabled,
+      b2b_discount: p.b2bDiscount ?? p.b2b_discount,
+      b2b_price: p.b2bPrice ?? p.b2b_price,
+    }
+  }
+
+  private mapOrder(o: any): any {
+    if (!o) return o
+    const address = o.shippingAddress || o.shipping_address
+    return {
+      ...o,
+      grand_total: o.totalAmount ?? o.grand_total,
+      shipping_address: typeof address === 'object' ? [address.addressLine1, address.addressLine2, address.city, address.state].filter(Boolean).join(', ') : (address || ''),
+      customer_name: o.customerName || (typeof address === 'object' ? address?.name || address?.fullName || '' : ''),
+      customer_email: o.customerEmail || (typeof address === 'object' ? address?.email || '' : ''),
+      customer_phone: o.customerPhone || (typeof address === 'object' ? address?.phone || '' : ''),
+      external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
+      subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
+      shipping: o.shipping ?? 0,
+      tax: o.tax ?? 0,
+    }
+  }
+
   // Auth
   login(email: string, password: string) {
     return this.post<AuthResponse>('/api/auth/login', { email, password })
@@ -215,7 +248,7 @@ class ApiClient {
   }
 
   // Admin Products
-  getAdminProducts(filters?: {
+  async getAdminProducts(filters?: {
     marketplaces?: string[]
     status?: '' | '1' | '0'
     priceMin?: string | number
@@ -224,82 +257,56 @@ class ApiClient {
     perPage?: number | 'all'
     b2b?: '' | '1' | '0'
   }) {
-    const params = new URLSearchParams()
-    if (filters?.marketplaces?.length) params.set('marketplaces', filters.marketplaces.join(','))
-    if (filters?.status) params.set('status', filters.status)
-    if (filters?.b2b) params.set('b2b', filters.b2b)
-    if (filters?.priceMin !== undefined && filters.priceMin !== '') params.set('price_min', String(filters.priceMin))
-    if (filters?.priceMax !== undefined && filters.priceMax !== '') params.set('price_max', String(filters.priceMax))
-    if (filters?.page) params.set('page', String(filters.page))
-    if (filters?.perPage) params.set('per_page', String(filters.perPage))
-    const qs = params.toString()
-    return this.get<{
-      data: Product[]
-      total: number
-      page: number
-      per_page: number
-      last_page: number
-    }>(`/api/admin/products${qs ? '?' + qs : ''}`)
+    const params: Record<string, string> = {}
+    if (filters?.marketplaces?.length) params.marketplace = filters.marketplaces[0]
+    if (filters?.status === '1') params.status = 'active'
+    else if (filters?.status === '0') params.status = 'inactive'
+    if (filters?.b2b) params.b2b = filters.b2b
+    if (filters?.priceMin !== undefined && filters.priceMin !== '') params.priceMin = String(filters.priceMin)
+    if (filters?.priceMax !== undefined && filters.priceMax !== '') params.priceMax = String(filters.priceMax)
+    if (filters?.page) params.page = String(filters.page)
+    if (filters?.perPage && filters.perPage !== 'all') params.limit = String(filters.perPage)
+    const r = await this.get<{ products: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
+    return {
+      data: (r.products || []).map(this.mapProduct),
+      total: r.pagination.total,
+      current_page: r.pagination.page,
+      per_page: r.pagination.limit,
+      last_page: r.pagination.totalPages,
+    }
   }
 
-  getAdminProduct(id: string) {
-    return this.get<ProductDetail>(`/api/admin/products/${id}`)
+  async getAdminProduct(id: string) {
+    const r = await this.get<{ product: ProductDetail }>(`/api/admin/products/${id}`)
+    return this.mapProduct(r.product)
   }
 
-  createAdminProduct(data: {
-    title: string
-    sku: string
-    categoryId?: number
-    description?: string
-    gramWeight?: number
-    milyem?: number
-    effectiveMilyem?: number
-    profitMargin?: number
-    priceMultiplier?: number
-    priceTRY?: number
-    priceUSD?: number
-    isB2BEnabled?: boolean
-    b2bDiscount?: number
-    b2bPrice?: number
-    discountRate?: number
-    quantity?: number
-    images?: string[]
-    videoUrl?: string
-    marketplaces?: string[]
-    marketplaceConfig?: Record<string, any>
-    hasVariants?: boolean
-    variantAttributes?: Record<string, any>
-    tags?: string[]
-  }) {
-    return this.post<Product>('/api/admin/products', data)
+  createAdminProduct(data: Record<string, any>) {
+    const payload: Record<string, any> = {}
+    if (data.label || data.title) payload.title = data.label || data.title
+    if (data.code || data.sku) payload.sku = data.code || data.sku
+    if (data.price !== undefined) payload.priceTRY = data.price
+    if (data.stock !== undefined) payload.quantity = data.stock
+    if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
+    if (data.marketplaces) payload.marketplaces = data.marketplaces
+    if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
+    if (data.media_urls) payload.images = data.media_urls
+    if (data.description) payload.description = data.description
+    return this.post<{ product: Product }>('/api/admin/products', payload).then(r => r.product)
   }
 
-  updateAdminProduct(id: string, data: {
-    title?: string
-    sku?: string
-    categoryId?: number
-    description?: string
-    gramWeight?: number
-    milyem?: number
-    effectiveMilyem?: number
-    profitMargin?: number
-    priceMultiplier?: number
-    priceTRY?: number
-    priceUSD?: number
-    isB2BEnabled?: boolean
-    b2bDiscount?: number
-    b2bPrice?: number
-    discountRate?: number
-    quantity?: number
-    images?: string[]
-    videoUrl?: string
-    marketplaces?: string[]
-    marketplaceConfig?: Record<string, any>
-    hasVariants?: boolean
-    variantAttributes?: Record<string, any>
-    tags?: string[]
-  }) {
-    return this.put<Product>(`/api/admin/products/${id}`, data)
+  updateAdminProduct(id: string, data: Record<string, any>) {
+    const payload: Record<string, any> = {}
+    if (data.label || data.title) payload.title = data.label || data.title
+    if (data.code || data.sku) payload.sku = data.code || data.sku
+    if (data.price !== undefined) payload.priceTRY = data.price
+    if (data.stock !== undefined) payload.quantity = data.stock
+    if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
+    if (data.marketplaces) payload.marketplaces = data.marketplaces
+    if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
+    if (data.media_urls) payload.images = data.media_urls
+    if (data.description !== undefined) payload.description = data.description
+    return this.put<{ product: Product }>(`/api/admin/products/${id}`, payload).then(r => r.product)
   }
 
   deleteAdminProduct(id: string) {
@@ -324,8 +331,9 @@ class ApiClient {
     return this.get<{ trees: Record<string, MarketplaceCategory[]> }>('/api/admin/integrations/marketplace-trees')
   }
 
-  getCategoriesFlat() {
-    return this.get<{ data: Category[] }>('/api/admin/categories/flat')
+  async getCategoriesFlat() {
+    const r = await this.get<{ categories: Category[] }>('/api/admin/categories', { params: { flat: 'true' } })
+    return { data: r.categories }
   }
 
   uploadImage(fileUri: string, fileName: string, mimeType: string) {
@@ -337,15 +345,15 @@ class ApiClient {
     }))
   }
 
-  generateProductDescription(data: {
-    name: string
-    brand?: string
-    category?: string
-    price?: number
-    keywords?: string
-    field?: 'description' | 'title'
-  }) {
-    return this.post<{ description?: string; title?: string }>('/api/ai/generate-description', data)
+  generateProductDescription(data: { name?: string; brand?: string; category?: string; price?: number; field?: string; title?: string; keywords?: string[] }) {
+    const payload: Record<string, any> = {}
+    if (data.title) payload.title = data.title
+    else if (data.name) payload.title = data.name
+    if (data.category) payload.category = data.category
+    if (data.brand) payload.attributes = { ...payload.attributes, brand: data.brand }
+    if (data.price) payload.attributes = { ...payload.attributes, price: data.price }
+    if (data.keywords) payload.keywords = data.keywords
+    return this.post<{ description: string; title: string; keywords: string[]; slug: string }>('/api/ai/generate-description', payload)
   }
 
   editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
@@ -361,12 +369,14 @@ class ApiClient {
   }
 
   // Admin Orders (storefront / Aimeos)
-  getAdminOrders() {
-    return this.get<{ data: Order[]; total: number }>('/api/admin/orders')
+  async getAdminOrders() {
+    const r = await this.get<{ orders: Order[]; pagination: { total: number } }>('/api/admin/orders')
+    return { data: (r.orders || []).map(this.mapOrder), total: r.pagination.total }
   }
 
-  getAdminOrder(id: string) {
-    return this.get<Order>(`/api/admin/orders/${id}`)
+  async getAdminOrder(id: string) {
+    const r = await this.get<{ order: Order }>(`/api/admin/orders/${id}`)
+    return this.mapOrder(r.order)
   }
 
   // Admin Dropshipping / Marketplace Orders
@@ -400,21 +410,46 @@ class ApiClient {
   }
 
   // Settings
-  getSettings() {
-    return this.get<Store>('/api/admin/settings')
+  async getSettings() {
+    const r = await this.get<{ store: Store }>('/api/admin/me')
+    return r.store
   }
 
   updateSettings(data: Partial<Store>) {
-    return this.put<Store>('/api/admin/settings', data)
+    return this.put<Store>('/api/admin/me', data)
   }
 
   // AI
-  processImage(formData: FormData) {
-    return this.upload<{ url: string }>('/api/ai/process-image', formData)
+  async processImage(formData: FormData) {
+    const entries = Array.from((formData as any).entries?.() ?? [])
+    const payload: Record<string, any> = {}
+    for (const [k, v] of entries) {
+      if (v && typeof v === 'object' && v.uri) {
+        if (!payload.imageUrl) {
+          const uploaded = await this.uploadImage(v.uri, v.name || 'photo.jpg', v.type || 'image/jpeg')
+          payload.imageUrl = uploaded.url
+        }
+      } else {
+        payload[k] = v
+      }
+    }
+    if (!payload.category) payload.category = 'diger'
+    return this.post<{ sessionId: string; message: string }>('/api/ai/process-image', payload)
   }
 
-  analyzeProduct(formData: FormData) {
-    return this.upload<{
+  async analyzeProduct(formData: FormData) {
+    let imageUrl: string | undefined
+    let category: string | undefined
+    const entries = Array.from((formData as any).entries?.() ?? [])
+    for (const [k, v] of entries) {
+      if (v && typeof v === 'object' && v.uri) {
+        const uploaded = await this.uploadImage(v.uri, v.name || 'photo.jpg', v.type || 'image/jpeg')
+        imageUrl = uploaded.url
+      } else if (k === 'category') {
+        category = v
+      }
+    }
+    return this.post<{
       specs: { material: string; color: string; type: string; style: string; category: string }
       title: string
       description: string
@@ -423,7 +458,7 @@ class ApiClient {
       meta_description: string
       keywords: string[]
       slug: string
-    }>('/api/ai/analyze-product', formData)
+    }>('/api/ai/analyze-product', { imageUrl, category })
   }
 
   // Subscription
@@ -452,51 +487,126 @@ class ApiClient {
   }
 
   // B2B product settings
-  getProductB2b(id: string) {
-    return this.get<ProductB2bSetting | null>(`/api/b2b/settings/${id}`)
+  async getProductB2b(id: string) {
+    const raw = await this.get<{ setting: any }>(`/api/admin/b2b/settings/${id}`).catch(() => ({ setting: null }))
+    if (!raw?.setting) return null as ProductB2bSetting | null
+    const s = raw.setting
+    return {
+      product_id: String(s.productId ?? id),
+      is_b2b_enabled: !!s.isB2BEnabled,
+      b2b_discount: s.b2bDiscount ?? null,
+      b2b_price: s.b2bPrice ?? null,
+    } as ProductB2bSetting
   }
 
   updateProductB2b(data: { product_id: string; is_b2b_enabled: boolean; b2b_discount?: number | null; b2b_price?: number | null }) {
-    return this.put<ProductB2bSetting>('/api/b2b/settings', data)
+    return this.put<any>('/api/admin/b2b/settings', {
+      productId: Number(data.product_id),
+      isB2BEnabled: data.is_b2b_enabled,
+      b2bDiscount: data.b2b_discount,
+      b2bPrice: data.b2b_price,
+    })
   }
 
   bulkSetB2b(ids: string[], is_b2b_enabled: boolean) {
-    return this.post<{ updated: number }>('/api/b2b/bulk', { ids, is_b2b_enabled })
+    return this.post<{ updated: number }>('/api/admin/b2b/bulk', { ids, isB2BEnabled: is_b2b_enabled })
   }
 
   // B2B discover / requests / clone
-  getB2bDiscover(params?: { page?: number; search?: string }) {
-    const q = new URLSearchParams()
-    if (params?.page) q.set('page', String(params.page))
-    if (params?.search) q.set('search', params.search)
-    const qs = q.toString()
-    return this.get<{ data: B2bProductItem[]; total: number; current_page: number; last_page: number }>(
-      `/api/b2b/discover${qs ? `?${qs}` : ''}`
-    )
+  async getB2bDiscover(params?: { page?: number; search?: string }) {
+    const filters: Record<string, string> = {}
+    if (params?.page) filters.page = String(params.page)
+    if (params?.search) filters.search = params.search
+    const raw = await this.get<any>('/api/admin/b2b/discover', { params: filters })
+    const products = (raw.products || []).map((p: any) => ({
+      id: String(p.id),
+      code: p.sku || '',
+      label: p.title || '',
+      price: p.priceTRY ?? null,
+      currency: 'TRY',
+      stock: p.quantity ?? 0,
+      images: Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []),
+      store_id: String(p.store?.id ?? ''),
+      store_name: p.store?.name ?? null,
+      store_code: p.store?.siteCode ?? null,
+      b2b_discount: p.b2bDiscount ?? p.b2bSetting?.b2bDiscount ?? null,
+      b2b_price: p.b2bPrice ?? p.b2bSetting?.b2bPrice ?? p.priceTRY ?? null,
+      is_b2b_enabled: !!p.isB2BEnabled,
+    }))
+    return {
+      data: products,
+      total: raw.pagination?.total ?? products.length,
+      current_page: raw.pagination?.page ?? 1,
+      last_page: raw.pagination?.totalPages ?? 1,
+      per_page: raw.pagination?.limit ?? 20,
+    }
   }
 
-  getB2bRequests(params?: { type?: 'incoming' | 'outgoing'; status?: string }) {
-    const q = new URLSearchParams()
-    if (params?.type) q.set('type', params.type)
-    if (params?.status) q.set('status', params.status)
-    const qs = q.toString()
-    return this.get<{ data: B2bRequest[] }>(`/api/b2b/requests${qs ? `?${qs}` : ''}`)
+  async getB2bRequests(params?: { type?: 'incoming' | 'outgoing'; status?: string }) {
+    const filters: Record<string, string> = {}
+    if (params?.type) filters.type = params.type
+    if (params?.status) filters.status = params.status
+    const raw = await this.get<{ requests: any[] }>('/api/admin/b2b/requests', { params: filters })
+    const list = raw.requests || []
+    const mapped: B2bRequest[] = list.map((r: any) => {
+      const prod = r.product || {}
+      return {
+        id: String(r.id),
+        product_id: String(r.productId || prod.id || ''),
+        status: r.status,
+        note: r.requestNote || r.note || null,
+        created_at: r.createdAt || r.created_at,
+        from_store_id: r.requesterStore?.id ? String(r.requesterStore.id) : undefined,
+        to_store_id: r.ownerStore?.id ? String(r.ownerStore.id) : undefined,
+        from_store_name: r.requesterStore?.name ?? null,
+        to_store_name: r.ownerStore?.name ?? null,
+        product: prod.id ? {
+          id: String(prod.id),
+          code: prod.sku || '',
+          label: prod.title || '',
+          price: prod.priceTRY ?? null,
+          stock: prod.quantity ?? 0,
+        } : null,
+      }
+    })
+    return { data: mapped }
   }
 
   createB2bRequest(data: { product_id: string; to_store_id?: string; note?: string }) {
-    return this.post<B2bRequest>('/api/b2b/requests', data)
+    return this.post<B2bRequest>('/api/admin/b2b/requests', {
+      productId: Number(data.product_id),
+      toStoreId: data.to_store_id ? Number(data.to_store_id) : undefined,
+      requestNote: data.note,
+    })
   }
 
   updateB2bRequest(id: string, status: 'approved' | 'rejected') {
-    return this.put<B2bRequest>(`/api/b2b/requests/${id}`, { status })
+    return this.put<B2bRequest>(`/api/admin/b2b/requests/${id}`, { status })
   }
 
   cloneB2bRequest(id: string) {
-    return this.post<B2bRequest>(`/api/b2b/requests/${id}/clone`, {})
+    return this.post<B2bRequest>(`/api/admin/b2b/requests/${id}/clone`, {})
   }
 
-  getB2bListed() {
-    return this.get<{ data: B2bProductItem[] }>('/api/b2b/listed')
+  async getB2bListed() {
+    const raw = await this.get<any>('/api/admin/b2b/listed')
+    const products = (raw.products || []).map((lp: any) => {
+      const p = lp.product || {}
+      return {
+        id: String(lp.id),
+        code: p.sku || '',
+        label: p.title || '',
+        price: p.priceTRY ?? null,
+        currency: 'TRY',
+        stock: p.quantity ?? 0,
+        store_id: String(lp.storeId ?? ''),
+        store_name: lp.originalStore?.name ?? lp.original_store?.name ?? null,
+        b2b_discount: null,
+        b2b_price: p.priceTRY ?? null,
+        is_b2b_enabled: true,
+      }
+    })
+    return { data: products }
   }
 
   // Slave Download
