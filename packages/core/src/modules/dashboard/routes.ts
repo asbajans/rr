@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Product } from '../../models/Product.model.js';
-import { DropshippingOrder } from '../../models/OrderModels.js';
+import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { User } from '../../models/User.model.js';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
