@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
-import { ShoppingBag, Store, Download } from 'lucide-react'
+import { ShoppingBag, Store, Download, ExternalLink } from 'lucide-react'
 
 const MARKETPLACE_LOGOS: Record<string, string> = {
   trendyol: 'Trendyol',
@@ -212,7 +212,27 @@ export default function IntegrationsPage() {
               {integration.is_active && renderConfigForm(integration)}
               {integration.is_active && (
                 <div className="mt-4 border-t border-zinc-100 pt-4">
-                  {Object.keys(integration.fields).some((k) => !integration.config[k]) ? (
+                  {integration.marketplace === 'etsy' ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-zinc-500">
+                        Etsy hesabına bağlanmak için aşağıdaki butonu kullan.
+                      </p>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await api.get<any>(`/api/admin/integrations/etsy/oauth/connect`)
+                            if (res.url) window.location.href = res.url
+                          } catch (err: any) {
+                            setMessage(err.message || 'Etsy bağlantısı başlatılamadı')
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-medium text-white hover:bg-orange-700"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Etsy ile Bağlan
+                      </button>
+                    </div>
+                  ) : Object.keys(integration.fields).some((k) => !integration.config[k]) ? (
                     <p className="text-xs text-amber-600">
                       Önce yukarıdaki API bilgilerini ({Object.values(integration.fields).join(', ')}) girip <strong>Kaydet</strong> yapmalısın.
                     </p>

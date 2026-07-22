@@ -716,6 +716,14 @@ class ApiClient {
     return this.post<{ success: boolean; price: number }>(`/api/admin/integration/webhook/price`, { marketplace, productId, price })
   }
 
+  getGlobalSettings() {
+    return this.get<{ settings: Record<string, any> }>('/api/admin/settings')
+  }
+
+  updateGlobalSetting(key: string, value: any) {
+    return this.put<{ key: string; value: any }>(`/api/admin/settings/${key}`, { value })
+  }
+
   getIntegrationLogs(params?: Record<string, string | number | undefined>) {
     return this.get<{ logs: any[]; total: number }>(`/api/admin/integration/logs`, { params })
   }

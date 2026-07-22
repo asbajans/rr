@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { body, param, validationResult } from 'express-validator';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
+import { Setting } from '../../models/Setting.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
@@ -66,21 +67,28 @@ marketplaceRoutes.get('/marketplace-trees', authMiddleware, requireStore, async 
   }
 });
 
+async function getEtsyGlobalConfig(): Promise<{ clientId: string; clientSecret: string }> {
+  const settings = await Setting.findAll({ where: { key: ['etsy_client_id', 'etsy_client_secret'] } });
+  const map: Record<string, string> = {};
+  for (const s of settings) map[s.key] = s.value as string;
+  return {
+    clientId: map.etsy_client_id || process.env.ETSY_CLIENT_ID || '',
+    clientSecret: map.etsy_client_secret || process.env.ETSY_CLIENT_SECRET || '',
+  };
+}
+
 marketplaceRoutes.get('/etsy/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const integration = await MarketplaceIntegration.findOne({
-      where: { storeId: store.id, marketplace: 'etsy' },
-    });
-    if (!integration?.config) {
-      return res.status(400).json({ error: 'Etsy client ID not configured. Save Etsy config first.' });
+    const globalCfg = await getEtsyGlobalConfig();
+    if (!globalCfg.clientId) {
+      return res.status(400).json({ error: 'Etsy Client ID not configured. Ask super admin to add it in Settings.' });
     }
-    const config = integration.config as any;
     const callbackUrl = `${req.protocol}://${req.get('host')}/api/admin/integrations/etsy/oauth/callback`;
     const state = Buffer.from(JSON.stringify({ storeId: store.id, ts: Date.now() })).toString('base64');
     const params = new URLSearchParams({
       response_type: 'code',
-      client_id: config.clientId,
+      client_id: globalCfg.clientId,
       redirect_uri: callbackUrl,
       scope: 'listings_r listings_w transactions_r transactions_w profile_r profile_w shops_r shops_w',
       state,
@@ -111,14 +119,14 @@ marketplaceRoutes.get('/etsy/oauth/callback', async (req: Request, res: Response
     if (!integration?.config) {
       return res.status(400).json({ error: 'Etsy integration not configured' });
     }
-    const config = integration.config as any;
+    const globalCfg = await getEtsyGlobalConfig();
     const callbackUrl = `${req.protocol}://${req.get('host')}/api/admin/integrations/etsy/oauth/callback`;
     const { EtsyClient } = await import('../../marketplace/clients/etsy.js');
-    const etsyClient = new EtsyClient({ ...config, redirectUri: callbackUrl });
+    const etsyClient = new EtsyClient({ ...globalCfg, redirectUri: callbackUrl });
     const tokenData = await etsyClient.exchangeCodeForToken(code as string);
     await integration.update({
       isActive: true,
-      config: { ...config, accessToken: tokenData.access_token, refreshToken: tokenData.refresh_token, tokenExpiry: Date.now() + (tokenData.expires_in - 60) * 1000 },
+      config: { ...(integration.config as any || {}), accessToken: tokenData.access_token, refreshToken: tokenData.refresh_token, tokenExpiry: Date.now() + (tokenData.expires_in - 60) * 1000 },
     });
     logger.info(`Etsy OAuth completed for store ${storeId}`);
     res.redirect(`/admin/integrations?etsy=connected`);

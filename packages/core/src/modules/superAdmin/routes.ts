@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { body, param, query, validationResult } from 'express-validator';
 import { User } from '../../models/User.model.js';
 import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
+import { Setting } from '../../models/Setting.model.js';
 import { authMiddleware, requireRole } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 import { serializePlans, serializePlan } from '../planSerializer.js';
@@ -261,6 +262,42 @@ router.delete('/plans/:id', superAdminOnly, [
     res.json({ message: 'Plan deleted' });
   } catch (error) {
     logger.error({ err: error }, 'Delete plan error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/settings
+ * List all global settings
+ */
+router.get('/settings', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const settings = await Setting.findAll();
+    const map: Record<string, any> = {};
+    for (const s of settings) map[s.key] = s.value;
+    res.json({ settings: map });
+  } catch (error) {
+    logger.error({ err: error }, 'Get settings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/admin/settings/:key
+ * Upsert a global setting
+ */
+router.put('/settings/:key', superAdminOnly, [
+  param('key').isString().isLength({ min: 2, max: 100 }),
+  body('value').notEmpty(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+    await Setting.upsert({ key, value });
+    logger.info(`Global setting updated: ${key}`);
+    res.json({ key, value });
+  } catch (error) {
+    logger.error({ err: error }, 'Update setting error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
