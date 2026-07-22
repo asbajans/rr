@@ -6,6 +6,7 @@ import { type ReactNode, useState, useEffect } from 'react'
 import { CartProvider, useCart } from '@/lib/cart'
 import { ShoppingCart, MapPin } from 'lucide-react'
 import AiChat from '@/components/store/AiChat'
+import PixelInjector from '@/components/store/PixelInjector'
 import { api } from '@/lib/api-client'
 
 function StoreHeader({ siteCode }: { siteCode: string }) {
@@ -49,6 +50,7 @@ export default function StoreLayout({ children }: { children: ReactNode }) {
         <main>{children}</main>
         {siteCode && <AiChat siteCode={siteCode} storeName={storeName} />}
       </div>
+      {siteCode && <PixelInjector siteCode={siteCode} />}
     </CartProvider>
   )
 }

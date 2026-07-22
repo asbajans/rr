@@ -23,6 +23,7 @@ import { creditsRoutes } from './modules/ai/creditsRoutes.js';
 import { dashboardRoutes } from './modules/dashboard/routes.js';
 import { uploadRoutes } from './modules/upload/routes.js';
 import { menuRoutes } from './modules/menu/routes.js';
+import { pixelRoutes } from './modules/pixels/routes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -44,6 +45,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/dashboard', dashboardRoutes);
   app.use('/api/admin/upload', uploadRoutes);
   app.use('/api/admin/menus', menuRoutes);
+  app.use('/api/admin/pixels', pixelRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/slave', slaveRoutes);
   app.use('/api/admin/slave', slaveRoutes);

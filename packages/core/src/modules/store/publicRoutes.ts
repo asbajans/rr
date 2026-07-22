@@ -45,6 +45,18 @@ publicStoreRoutes.get('/:siteCode/locations', async (req: Request, res: Response
   }
 });
 
+publicStoreRoutes.get('/:siteCode/pixels', async (req: Request, res: Response) => {
+  try {
+    const { siteCode } = req.params;
+    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+    res.json({ pixels: store.pixels || {} });
+  } catch (error) {
+    console.error('Public pixels error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 publicStoreRoutes.get('/:siteCode/payment-methods', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;

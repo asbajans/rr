@@ -867,6 +867,19 @@ class ApiClient {
     return this.put<any>(`/api/admin/payment-methods/${method}`, body).then(r => mapPaymentMethod(r.paymentMethod ?? r))
   }
 
+  // Pixels / Tracking Codes
+  getPixels() {
+    return this.get<{ pixels: Record<string, any> }>('/api/admin/pixels').then(r => r.pixels)
+  }
+
+  updatePixels(pixels: Record<string, any>) {
+    return this.put<{ pixels: Record<string, any> }>('/api/admin/pixels', { pixels }).then(r => r.pixels)
+  }
+
+  getStorePixels(siteCode: string) {
+    return this.get<{ pixels: Record<string, any> }>(`/api/store/${siteCode}/pixels`).then(r => r.pixels)
+  }
+
   // Credits
   getCreditLogs() {
     return this.get<any>(`/api/admin/ai/credits/logs`).then(r => {
