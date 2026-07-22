@@ -115,6 +115,25 @@ export const createApp = async (): Promise<Express> => {
 export const startServer = async (): Promise<void> => {
   const app = await createApp();
   const port = config.port;
+
+  // Start BullMQ workers
+  logger.info('Starting marketplace workers...');
+  try {
+    const { createImportWorker, createSyncWorker, createWebhookWorker } = await import('./queues/index.js');
+    const importWorker = await createImportWorker();
+    const syncWorker = await createSyncWorker();
+    const webhookWorker = await createWebhookWorker();
+
+    importWorker.on('error', (err) => logger.error({ err }, 'Import worker error'));
+    syncWorker.on('error', (err) => logger.error({ err }, 'Sync worker error'));
+    webhookWorker.on('error', (err) => logger.error({ err }, 'Webhook worker error'));
+
+    importWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Import job failed'));
+    syncWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Sync job failed'));
+    webhookWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Webhook job failed'));
+  } catch (err) {
+    logger.error({ err }, 'Failed to start workers (Redis may be unavailable)');
+  }
   
   app.listen(port, () => {
     logger.info(`🚀 Rahatio Core API running on port ${port} (${config.env})`);

@@ -102,6 +102,18 @@ productRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireSt
     });
 
     logger.info(`Product created: ${product.id} (${product.sku}) by store ${store.id}`);
+
+    // Auto-queue sync for configured marketplaces
+    const mps = req.body.marketplaces;
+    if (Array.isArray(mps) && mps.length > 0) {
+      try {
+        const syncQueue = (await import('../../queues/index.js')).syncQueue;
+        await syncQueue.add('product-sync', { productId: product.id, storeId: store.id, marketplaces: mps, trigger: 'create' });
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to auto-queue sync for new product');
+      }
+    }
+
     res.status(201).json({ product });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create product error');
@@ -174,8 +186,22 @@ productRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
       }
     }
 
+    const changedFields = Object.keys(req.body);
     await product.update(req.body);
     logger.info(`Product updated: ${product.id} (${product.sku})`);
+
+    // Auto-queue sync for configured marketplaces on price/stock/fields change
+    const mps = req.body.marketplaces || product.marketplaces;
+    const syncTriggers = ['priceTRY', 'quantity', 'title', 'description', 'images', 'discountRate', 'isActive', 'marketplaces'];
+    if (Array.isArray(mps) && mps.length > 0 && changedFields.some(f => syncTriggers.includes(f))) {
+      try {
+        const syncQueue = (await import('../../queues/index.js')).syncQueue;
+        await syncQueue.add('product-sync', { productId: product.id, storeId: store.id, marketplaces: mps, trigger: 'update' });
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to auto-queue sync for updated product');
+      }
+    }
+
     res.json({ product });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update product error');
@@ -269,7 +295,7 @@ productRoutes.post('/:id/sync', authMiddleware, requireRole('owner', 'admin'), r
     }
 
     const syncQueue = (await import('../../queues/index.js')).syncQueue;
-    const job = await syncQueue.add('product-sync', { productId: product.id, marketplaces });
+    const job = await syncQueue.add('product-sync', { productId: product.id, storeId: store.id, marketplaces, trigger: 'manual' });
 
     res.status(202).json({ jobId: job.id, message: 'Sync job queued' });
   } catch (error: unknown) {

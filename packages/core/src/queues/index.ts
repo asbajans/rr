@@ -1,5 +1,12 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { config } from '../config/env.js';
+import { Product } from '../models/Product.model.js';
+import { ProductMarketplaceListing } from '../models/ProductMarketplaceListing.model.js';
+import { MarketplaceIntegration } from '../models/MarketplaceIntegration.model.js';
+import { IntegrationLog } from '../models/LogModels.js';
+import { Store } from '../models/Store.model.js';
+import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../marketplace/clients/index.js';
+import { logger } from '../utils/logger.js';
 
 export const syncQueue = new Queue('product-sync', {
   connection: { url: config.redis.url },
@@ -19,7 +26,7 @@ export const webhookQueue = new Queue('webhook-processing', {
 interface SyncJobData {
   productId: number;
   storeId: number;
-  marketplaces: string[];
+  marketplaces?: string[];
   trigger: 'create' | 'update' | 'manual';
 }
 
@@ -29,16 +36,105 @@ interface ImportJobData {
   maxPages: number;
 }
 
-export async function createSyncWorker() {
-  return new Worker<SyncJobData>(
-    'product-sync',
-    async (job: Job<SyncJobData>) => {
-      const { productId, storeId, marketplaces, trigger } = job.data;
-      console.log(`[Worker] Syncing product ${productId} to ${marketplaces.join(', ')} (trigger: ${trigger})`);
-      return { success: true, productId, marketplaces };
-    },
-    { connection: { url: config.redis.url } }
-  );
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 190);
+}
+
+async function logIntegration(storeId: number, platform: string, endpoint: string, method: string, isSuccess: boolean, requestPayload?: any, responsePayload?: any, errorMessage?: string) {
+  try {
+    await IntegrationLog.create({ storeId, platform, endpoint, method, isSuccess, requestPayload, responsePayload, errorMessage });
+  } catch (e) {
+    logger.error({ err: e }, 'Failed to write integration log');
+  }
+}
+
+function mapMarketplaceProduct(mp: string, raw: any, storeId: number): Partial<Product> {
+  switch (mp) {
+    case 'trendyol':
+      return {
+        storeId,
+        title: raw.title || 'Imported Product',
+        sku: raw.barcode || raw.stockCode || `imp-${Date.now()}`,
+        description: raw.description || '',
+        priceTRY: raw.salePrice || raw.listPrice || 0,
+        quantity: raw.quantity || 0,
+        images: (raw.images || []).map((img: any) => img.url || img),
+        isActive: true,
+      };
+    case 'hepsiburada':
+      return {
+        storeId,
+        title: raw.title || raw.name || 'Imported Product',
+        sku: raw.merchantSku || raw.barcode || `imp-${Date.now()}`,
+        description: raw.description || '',
+        priceTRY: raw.salePrice || raw.price || 0,
+        quantity: raw.stockAmount || raw.quantity || 0,
+        images: (raw.images || []).map((img: any) => typeof img === 'string' ? img : img.url || ''),
+        isActive: true,
+      };
+    case 'pazarama':
+      return {
+        storeId,
+        title: raw.title || raw.name || 'Imported Product',
+        sku: raw.barcode || raw.sku || `imp-${Date.now()}`,
+        description: raw.description || '',
+        priceTRY: raw.price || raw.salePrice || 0,
+        quantity: raw.stock || raw.quantity || 0,
+        images: Array.isArray(raw.images) ? raw.images : [],
+        isActive: true,
+      };
+    case 'n11':
+      return {
+        storeId,
+        title: raw.title || raw.name || 'Imported Product',
+        sku: raw.id?.toString() || raw.productCode || `imp-${Date.now()}`,
+        description: raw.description || '',
+        priceTRY: raw.salePrice || raw.price || 0,
+        quantity: raw.stockQuantity || raw.availableStock || 0,
+        images: raw.images ? (Array.isArray(raw.images) ? raw.images : [raw.images]) : [],
+        isActive: true,
+      };
+    case 'amazon':
+      return {
+        storeId,
+        title: raw.title || raw.itemName || 'Imported Product',
+        sku: raw.sku || raw.asin || raw.sellerSKU || `imp-${Date.now()}`,
+        description: raw.description || raw.itemDescription || '',
+        priceTRY: raw.price?.amount || raw.salePrice || 0,
+        quantity: raw.quantity || raw.fulfillmentAvailability?.availability?.availableQuantity || 0,
+        images: (raw.images || []).map((img: any) => typeof img === 'string' ? img : img.url || ''),
+        isActive: true,
+      };
+    case 'etsy':
+      return {
+        storeId,
+        title: raw.title || raw.name || 'Imported Product',
+        sku: raw.sku || raw.listing_id?.toString() || `imp-${Date.now()}`,
+        description: raw.description || '',
+        priceTRY: raw.price?.amount || raw.price || 0,
+        quantity: raw.quantity || raw.stock || 0,
+        images: (raw.images || []).map((img: any) => img.url_fullxfull || img.url_570xN || img.url || ''),
+        isActive: true,
+      };
+    default:
+      return { storeId, title: 'Imported Product', sku: `imp-${Date.now()}`, isActive: true };
+  }
+}
+
+function getExternalId(mp: string, raw: any): string {
+  switch (mp) {
+    case 'trendyol': return raw.barcode || raw.stockCode || '';
+    case 'hepsiburada': return raw.merchantSku || raw.barcode || '';
+    case 'pazarama': return raw.barcode || raw.sku || '';
+    case 'n11': return raw.productCode || raw.id?.toString() || '';
+    case 'amazon': return raw.asin || raw.sellerSKU || raw.sku || '';
+    case 'etsy': return raw.listing_id?.toString() || raw.sku || '';
+    default: return '';
+  }
 }
 
 export async function createImportWorker() {
@@ -46,42 +142,240 @@ export async function createImportWorker() {
     'marketplace-import',
     async (job: Job<ImportJobData>) => {
       const { marketplace, storeId, maxPages } = job.data;
-      console.log(`[Worker] Importing from ${marketplace} for store ${storeId} (${maxPages} pages)`);
-      return { success: true, marketplace, imported: 0 };
+      logger.info({ marketplace, storeId }, 'Starting marketplace import');
+
+      const integration = await MarketplaceIntegration.findOne({
+        where: { storeId, marketplace, isActive: true },
+      });
+      if (!integration) {
+        logger.warn({ marketplace, storeId }, 'Integration not found or inactive');
+        return { success: false, reason: 'Integration not found or inactive' };
+      }
+
+      const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
+      const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
+
+      let totalImported = 0;
+      let totalUpdated = 0;
+      let totalFailed = 0;
+      let hasMore = true;
+      let page = 0;
+
+      while (hasMore && page < maxPages) {
+        try {
+          const result = await client.getProducts({ page, size: 50 });
+          const products = result.products || [];
+          hasMore = result.hasMore;
+
+          for (const raw of products) {
+            let mapped: any;
+            try {
+              mapped = mapMarketplaceProduct(marketplace, raw, storeId);
+              if (!mapped.sku) continue;
+
+              const slug = slugify(mapped.title!);
+              mapped.slug = `${slug}-${Date.now()}`;
+
+              const [product, created] = await Product.upsert({
+                ...mapped,
+                storeId,
+                sku: mapped.sku,
+              } as any);
+
+              const externalId = getExternalId(marketplace, raw);
+              if (externalId) {
+                await ProductMarketplaceListing.upsert({
+                  productId: product.id,
+                  storeId,
+                  platform: marketplace,
+                  externalId,
+                  status: 'active',
+                  lastSyncedAt: new Date(),
+                } as any);
+              }
+
+              if (created) totalImported++;
+              else totalUpdated++;
+            } catch (err: any) {
+              totalFailed++;
+              logger.error({ err, sku: mapped?.sku || 'unknown' }, 'Failed to upsert imported product');
+              await logIntegration(storeId, marketplace, 'import-upsert', 'POST', false, undefined, undefined, err.message);
+            }
+          }
+
+          page++;
+          if (hasMore) {
+            await job.updateProgress(Math.round((page / maxPages) * 100));
+          }
+        } catch (err: any) {
+          logger.error({ err, marketplace, page }, 'Failed to fetch page from marketplace');
+          hasMore = false;
+          await logIntegration(storeId, marketplace, `import-fetch?page=${page}`, 'GET', false, undefined, undefined, err.message);
+        }
+      }
+
+      await logIntegration(storeId, marketplace, 'import', 'POST', true, { maxPages, pagesFetched: page }, { imported: totalImported, updated: totalUpdated, failed: totalFailed });
+
+      logger.info({ marketplace, storeId, imported: totalImported, updated: totalUpdated, failed: totalFailed }, 'Marketplace import completed');
+      return { success: true, marketplace, imported: totalImported, updated: totalUpdated, failed: totalFailed, pagesFetched: page };
     },
-    { connection: { url: config.redis.url } }
+    { connection: { url: config.redis.url }, concurrency: 2 }
   );
 }
 
-export async function createOrderWorker() {
-  return new Worker(
-    'webhook-processing',
-    async (job: Job) => {
-      console.log('[Worker] Processing webhook:', job.name);
-      return { success: true };
+export async function createSyncWorker() {
+  return new Worker<SyncJobData>(
+    'product-sync',
+    async (job: Job<SyncJobData>) => {
+      const { productId, storeId, marketplaces, trigger } = job.data;
+      logger.info({ productId, storeId, trigger }, 'Starting product sync');
+
+      const product = await Product.findOne({
+        where: { id: productId, storeId },
+        include: [{ model: ProductMarketplaceListing, as: 'marketplaceListings' }],
+      });
+      if (!product) {
+        logger.warn({ productId, storeId }, 'Product not found for sync');
+        return { success: false, reason: 'Product not found' };
+      }
+
+      const targetMps = marketplaces || product.marketplaces || [];
+      if (targetMps.length === 0) {
+        const integrations = await MarketplaceIntegration.findAll({
+          where: { storeId, isActive: true },
+        });
+        targetMps.push(...integrations.map(i => i.marketplace));
+      }
+
+      const results: Record<string, any> = {};
+
+      for (const mp of targetMps) {
+        try {
+          const integration = await MarketplaceIntegration.findOne({
+            where: { storeId, marketplace: mp, isActive: true },
+          });
+          if (!integration) {
+            results[mp] = { success: false, reason: 'Integration not active' };
+            continue;
+          }
+
+          const mpConfig = getMarketplaceConfig(mp as MarketplaceType, integration);
+          const client = createMarketplaceClient(mp as MarketplaceType, mpConfig);
+
+          const existingListing = product.marketplaceListings?.find(l => l.platform === mp);
+
+          if (existingListing?.externalId) {
+            await client.updateProduct(existingListing.externalId, {
+              title: product.title,
+              description: product.description,
+              salePrice: product.priceTRY,
+              quantity: product.quantity,
+              images: product.images?.map(url => ({ url })),
+            });
+            if (product.priceTRY != null) {
+              await client.updatePrice(existingListing.externalId, product.priceTRY);
+            }
+            if (product.quantity != null) {
+              await client.updateStock(existingListing.externalId, product.quantity);
+            }
+            await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
+            results[mp] = { success: true, action: 'updated' };
+          } else {
+            const listingResult = await client.createProduct({
+              title: product.title,
+              description: product.description,
+              salePrice: product.priceTRY,
+              listPrice: product.priceTRY,
+              quantity: product.quantity,
+              barcode: product.sku,
+              stockCode: product.sku,
+              images: product.images?.map(url => ({ url })),
+            });
+
+            const externalId = typeof listingResult === 'string' ? listingResult : listingResult?.batchRequestId || listingResult?.listing_id?.toString() || '';
+            await ProductMarketplaceListing.create({
+              productId: product.id,
+              storeId,
+              platform: mp,
+              externalId,
+              status: 'active',
+              lastSyncedAt: new Date(),
+            } as any);
+            results[mp] = { success: true, action: 'created', externalId };
+          }
+
+          await logIntegration(storeId, mp, `sync-product/${productId}`, 'POST', true, { trigger }, {}, undefined);
+        } catch (err: any) {
+          logger.error({ err, mp, productId }, 'Failed to sync product to marketplace');
+          await logIntegration(storeId, mp, `sync-product/${productId}`, 'POST', false, undefined, undefined, err.message);
+
+          const listing = await ProductMarketplaceListing.findOne({ where: { productId: product.id, storeId, platform: mp } });
+          if (listing) {
+            await listing.update({ status: 'failed', lastError: err.message });
+          }
+          results[mp] = { success: false, error: err.message };
+        }
+      }
+
+      logger.info({ productId, storeId, results }, 'Product sync completed');
+      return { success: true, productId, trigger, results };
     },
-    { connection: { url: config.redis.url } }
+    { connection: { url: config.redis.url }, concurrency: 3 }
   );
 }
 
-export async function createStockWorker() {
+export async function createWebhookWorker() {
   return new Worker(
     'webhook-processing',
     async (job: Job) => {
-      console.log('[Worker] Processing stock update:', job.name);
-      return { success: true };
-    },
-    { connection: { url: config.redis.url } }
-  );
-}
+      const { type, data, storeId } = job.data || {};
+      logger.info({ type, storeId }, 'Processing webhook');
 
-export async function createPriceWorker() {
-  return new Worker(
-    'webhook-processing',
-    async (job: Job) => {
-      console.log('[Worker] Processing price update:', job.name);
-      return { success: true };
+      try {
+        if (type === 'order') {
+          const { DropshippingOrder, OrderStatusHistory } = await import('../models/OrderModels.js');
+          const existing = await DropshippingOrder.findOne({
+            where: { marketplaceOrderId: data.marketplaceOrderId, storeId },
+          });
+          if (!existing) {
+            await DropshippingOrder.create({
+              storeId,
+              marketplace: data.marketplace,
+              marketplaceOrderId: data.marketplaceOrderId,
+              marketplaceOrderNumber: data.marketplaceOrderNumber,
+              totalAmount: data.totalAmount,
+              shippingAddress: data.shippingAddress,
+              items: data.items,
+              status: 'pending',
+            } as any);
+            logger.info({ marketplaceOrderId: data.marketplaceOrderId }, 'Order created from webhook');
+          } else {
+            logger.info({ marketplaceOrderId: data.marketplaceOrderId }, 'Order already exists, skipping');
+          }
+        } else if (type === 'stock') {
+          if (data.sku && data.quantity != null) {
+            const product = await Product.findOne({ where: { storeId, sku: data.sku } });
+            if (product) {
+              await product.update({ quantity: data.quantity });
+              logger.info({ sku: data.sku, quantity: data.quantity }, 'Stock updated from webhook');
+            }
+          }
+        } else if (type === 'price') {
+          if (data.sku && data.price != null) {
+            const product = await Product.findOne({ where: { storeId, sku: data.sku } });
+            if (product) {
+              await product.update({ priceTRY: data.price });
+              logger.info({ sku: data.sku, price: data.price }, 'Price updated from webhook');
+            }
+          }
+        }
+
+        return { success: true, type };
+      } catch (err: any) {
+        logger.error({ err, type }, 'Webhook processing failed');
+        return { success: false, error: err.message };
+      }
     },
-    { connection: { url: config.redis.url } }
+    { connection: { url: config.redis.url }, concurrency: 5 }
   );
 }
