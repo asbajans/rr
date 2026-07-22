@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { Settings, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
 
-export default function SuperSettingsPage() {
+export default function SuperApiSettingsPage() {
   const { user } = useAuth()
   const [settings, setSettings] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
@@ -43,8 +43,8 @@ export default function SuperSettingsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-zinc-900">Global Ayarlar</h1>
-      <p className="mt-1 text-sm text-zinc-600">Pazaryeri entegrasyonları için API anahtarları</p>
+      <h1 className="text-2xl font-bold text-zinc-900">Global API Ayarları</h1>
+      <p className="mt-1 text-sm text-zinc-600">Pazaryeri entegrasyonları için global API anahtarları</p>
 
       {message && (
         <div className={`mt-4 rounded-lg p-3 text-sm flex items-center gap-2 ${message.includes('edildi') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>

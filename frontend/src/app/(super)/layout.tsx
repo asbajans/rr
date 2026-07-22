@@ -13,7 +13,7 @@ const navItems = [
   { href: '/plans', label: 'Planlar', icon: CreditCard },
   { href: '/super/categories', label: 'Kategoriler', icon: FolderTree },
   { href: '/super-ai', label: 'AI Yönetimi', icon: Sparkles },
-  { href: '/settings', label: 'API Ayarları', icon: Settings },
+  { href: '/api-settings', label: 'API Ayarları', icon: Settings },
 ]
 
 function SuperShell({ children }: { children: React.ReactNode }) {
