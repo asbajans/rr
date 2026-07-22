@@ -11,6 +11,7 @@ import { authMiddleware, optionalAuth } from './middleware/auth.js';
 import { apiKeyMiddleware } from './middleware/apiKey.js';
 import { sequelize } from './config/database.js';
 // Associations auto-configured via sequelize-typescript decorators
+import { setupAssociations } from './models/associations.js';
 import { registerRoutes } from './routes.js';
 import { logger } from './utils/logger.js';
 
@@ -94,6 +95,8 @@ export const createApp = async (): Promise<Express> => {
   } catch (e) {
     // Ignore if column doesn't exist yet
   }
+
+  setupAssociations();
 
   app.use(tenantMiddleware);
 

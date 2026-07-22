@@ -754,12 +754,13 @@ class ApiClient {
   }
 
   // External Feeds
-  getFeeds() {
-    return this.get<import('./types').ExternalFeed[]>(`/api/admin/feeds`)
+  async getFeeds() {
+    const r = await this.get<{ feeds: import('./types').ExternalFeed[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/feeds`)
+    return { data: r.feeds, total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }
   }
 
   getFeed(id: number) {
-    return this.get<import('./types').ExternalFeed>(`/api/admin/feeds/${id}`)
+    return this.get<{ feed: import('./types').ExternalFeed }>(`/api/admin/feeds/${id}`).then(r => r.feed)
   }
 
   createFeed(data: Partial<import('./types').ExternalFeed>) {
@@ -783,12 +784,12 @@ class ApiClient {
   }
 
   getFeedLogs(id: number) {
-    return this.get<import('./types').FeedSyncLog[]>(`/api/admin/feeds/${id}/logs`)
+    return this.get<{ logs: import('./types').FeedSyncLog[] }>(`/api/admin/feeds/${id}/logs`).then(r => r.logs)
   }
 
   // Store Locations
   getLocations() {
-    return this.get<import('./types').StoreLocation[]>(`/api/admin/locations`)
+    return this.get<{ locations: import('./types').StoreLocation[] }>(`/api/admin/locations`).then(r => r.locations)
   }
 
   createLocation(data: Partial<import('./types').StoreLocation>) {
@@ -805,7 +806,7 @@ class ApiClient {
 
   // Payment Methods
   getPaymentMethods() {
-    return this.get<import('./types').StorePaymentMethod[]>(`/api/admin/payment-methods`)
+    return this.get<{ paymentMethods: import('./types').StorePaymentMethod[] }>(`/api/admin/payment-methods`).then(r => r.paymentMethods)
   }
 
   updatePaymentMethod(method: string, data: { isActive: boolean; config?: Record<string, string> }) {

@@ -17,7 +17,7 @@ export default function FeedsPage() {
   const load = useCallback(() => {
     setLoading(true)
     api.getFeeds()
-      .then((res) => setFeeds(res))
+      .then((res) => setFeeds(res.data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
