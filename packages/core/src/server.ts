@@ -69,6 +69,13 @@ export const createApp = async (): Promise<Express> => {
     // ENUM might be created by sync below, ignore
   }
 
+  // Add pixels column to stores table if missing (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS pixels JSONB`);
+  } catch (e) {
+    // Ignore
+  }
+
   // Add new plan columns if missing (safe migration, runs every boot)
   try {
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS slug VARCHAR(50) UNIQUE`);
