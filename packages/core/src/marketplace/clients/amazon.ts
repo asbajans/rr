@@ -73,10 +73,71 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
     return { products: data.items || [], hasMore: !!data.nextToken };
   }
 
-  async createProduct(product: any): Promise<any> { return {}; }
-  async updateProduct(productId: string, product: any): Promise<any> { return {}; }
-  async updatePrice(productId: string, price: number): Promise<any> { return {}; }
-  async updateStock(productId: string, quantity: number): Promise<any> { return {}; }
+  async createProduct(product: any): Promise<any> {
+    const sku = product.barcode || product.stockCode || product.sku || `SKU-${Date.now()}`;
+    const attributes: any = {
+      item_name: [{ value: product.title, language_tag: 'en_US' }],
+      product_description: [{ value: product.description || '', language_tag: 'en_US' }],
+    };
+    if (product.images?.length) {
+      attributes.main_product_image_locator = [{ media_location: product.images[0] }];
+    }
+    const body = JSON.stringify({ productType: 'PRODUCT', requirements: 'LISTING', attributes });
+    const headers = await this.signRequest('POST', `/listings/2021-08-01/items/${this.config.sellerId}?marketplaceIds=${this.config.marketplaceId}`, body);
+    const data = await this.request<any>({ method: 'POST', url: `/listings/2021-08-01/items/${this.config.sellerId}?marketplaceIds=${this.config.marketplaceId}`, data: body, headers });
+    return { externalId: sku, ...data };
+  }
+
+  async updateProduct(productId: string, product: any): Promise<any> {
+    const patches: any[] = [
+      { op: 'replace', path: '/attributes/item_name', value: [{ value: product.title, language_tag: 'en_US' }] },
+    ];
+    if (product.description) {
+      patches.push({ op: 'replace', path: '/attributes/product_description', value: [{ value: product.description, language_tag: 'en_US' }] });
+    }
+    if (product.images?.length) {
+      patches[0] = { op: 'replace', path: '/attributes/main_product_image_locator', value: [{ media_location: product.images[0] }] };
+    }
+    const body = JSON.stringify({ productType: 'PRODUCT', patches });
+    const headers = await this.signRequest('PATCH', `/listings/2021-08-01/items/${this.config.sellerId}/${productId}?marketplaceIds=${this.config.marketplaceId}`, body);
+    return this.request<any>({ method: 'PATCH', url: `/listings/2021-08-01/items/${this.config.sellerId}/${productId}?marketplaceIds=${this.config.marketplaceId}`, data: body, headers });
+  }
+
+  async updatePrice(productId: string, price: number): Promise<any> {
+    const body = JSON.stringify([
+      {
+        sellerId: this.config.sellerId,
+        updates: [{
+          condition: 'New_new',
+          status: 'Cad',
+          availableQuantity: 999,
+          value: {
+            amount: price,
+            currencyCode: 'TRY',
+          },
+          saleValue: {
+            amount: price,
+            currencyCode: 'TRY',
+          },
+        }],
+      },
+    ]);
+    const headers = await this.signRequest('PUT', `/product/pricing/v0/listingOffers/B00${productId.slice(-8)}?sellerId=${this.config.sellerId}&marketplaceId=${this.config.marketplaceId}`, body);
+    return this.request<any>({ method: 'PUT', url: `/product/pricing/v0/listingOffers/B00${productId.slice(-8)}?sellerId=${this.config.sellerId}&marketplaceId=${this.config.marketplaceId}`, data: body, headers });
+  }
+
+  async updateStock(productId: string, quantity: number): Promise<any> {
+    const body = JSON.stringify(({
+      productType: 'PRODUCT',
+      patches: [{
+        op: 'replace',
+        path: '/attributes/fulfillment_availability',
+        value: [{ fulfillment_channel_code: 'DEFAULT', quantity }],
+      }],
+    }) as any);
+    const headers = await this.signRequest('PATCH', `/listings/2021-08-01/items/${this.config.sellerId}/${productId}?marketplaceIds=${this.config.marketplaceId}`, body);
+    return this.request<any>({ method: 'PATCH', url: `/listings/2021-08-01/items/${this.config.sellerId}/${productId}?marketplaceIds=${this.config.marketplaceId}`, data: body, headers });
+  }
 
   async getOrders(params: any = {}): Promise<any[]> {
     const headers = await this.signRequest('GET', `/orders/v0/orders?MarketplaceIds=${this.config.marketplaceId}&OrderStatuses=Unshipped,PartiallyShipped`);

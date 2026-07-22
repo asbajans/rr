@@ -505,12 +505,12 @@ class ApiClient {
     return this.post<{ jobId: string; message: string }>(`/api/admin/integrations/${marketplace}/import`, { maxPages })
   }
 
-  getImportJobStatus(jobId: string) {
-    return this.get<{ jobId: string; state: string; progress: number; data: any; result: any; failedReason: string }>(`/api/admin/sync/import/${jobId}`)
+  getImportJobStatus(marketplace: string, jobId: string) {
+    return this.get<{ jobId: string; state: string; progress: number; data: any; result: any; failedReason: string }>(`/api/admin/integrations/${marketplace}/import/${jobId}`)
   }
 
   syncProduct(productId: number, marketplaces?: string[]) {
-    return this.post<{ jobId: string; message: string }>(`/api/admin/sync/product/${productId}`, { marketplaces })
+    return this.post<{ jobId: string; message: string }>(`/api/admin/products/${productId}/sync`, { marketplaces })
   }
 
   getMarketplaceCategories(marketplace: string) {
@@ -714,6 +714,18 @@ class ApiClient {
 
   webhookPrice(marketplace: string, productId: string, price: number) {
     return this.post<{ success: boolean; price: number }>(`/api/admin/integration/webhook/price`, { marketplace, productId, price })
+  }
+
+  getIntegrationLogs(params?: Record<string, string | number | undefined>) {
+    return this.get<{ logs: any[]; total: number }>(`/api/admin/integration/logs`, { params })
+  }
+
+  deleteIntegration(marketplace: string) {
+    return this.delete<{ success: boolean }>(`/api/admin/integrations/${marketplace}`)
+  }
+
+  deleteMarketplaceListing(marketplace: string, productId: number) {
+    return this.delete<{ success: boolean }>(`/api/admin/integrations/${marketplace}/listings/${productId}`)
   }
 
   // AI

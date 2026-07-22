@@ -97,7 +97,7 @@ export default function IntegrationsPage() {
       const started = Date.now()
       while (Date.now() - started < 20 * 60 * 1000) {
         await new Promise((r) => setTimeout(r, 3000))
-        const status = await api.getImportJobStatus(res.jobId)
+        const status = await api.getImportJobStatus(marketplace, res.jobId)
         if (status.state === 'completed' || status.state === 'done') {
           const s = status.result
           if (s) {

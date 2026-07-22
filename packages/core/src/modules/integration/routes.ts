@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
+import { body, query, validationResult } from 'express-validator';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { Product } from '../../models/Product.model.js';
 import { ProductMarketplaceListing } from '../../models/ProductMarketplaceListing.model.js';
 import { Store } from '../../models/Store.model.js';
+import { IntegrationLog } from '../../models/LogModels.js';
+import { authMiddleware, requireStore } from '../auth/middleware.js';
+import { Op } from 'sequelize';
 import { logger } from '../../utils/logger.js';
 
 export const integrationRoutes: Router = Router();
@@ -125,6 +128,33 @@ integrationRoutes.post('/webhook/price', [
     res.json({ success: true, price });
   } catch (error) {
     logger.error({ err: error }, 'Webhook price error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+integrationRoutes.get('/logs', authMiddleware, requireStore, [
+  query('marketplace').optional().isString(),
+  query('isSuccess').optional().isBoolean(),
+  query('endpoint').optional().isString(),
+  query('limit').optional().isInt({ min: 1, max: 500 }),
+  query('offset').optional().isInt({ min: 0 }),
+], async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { marketplace, isSuccess, endpoint, limit = 50, offset = 0 } = req.query;
+    const where: any = { storeId: store.id };
+    if (marketplace) where.platform = marketplace;
+    if (isSuccess !== undefined) where.isSuccess = isSuccess === 'true';
+    if (endpoint) where.endpoint = { [Op.like]: `%${endpoint}%` };
+    const { rows, count } = await IntegrationLog.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: Number(offset),
+    });
+    res.json({ logs: rows, total: count });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Integration logs error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

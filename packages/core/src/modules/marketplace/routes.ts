@@ -66,6 +66,68 @@ marketplaceRoutes.get('/marketplace-trees', authMiddleware, requireStore, async 
   }
 });
 
+marketplaceRoutes.get('/etsy/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace: 'etsy' },
+    });
+    if (!integration?.config) {
+      return res.status(400).json({ error: 'Etsy client ID not configured. Save Etsy config first.' });
+    }
+    const config = integration.config as any;
+    const callbackUrl = `${req.protocol}://${req.get('host')}/api/admin/integrations/etsy/oauth/callback`;
+    const state = Buffer.from(JSON.stringify({ storeId: store.id, ts: Date.now() })).toString('base64');
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: config.clientId,
+      redirect_uri: callbackUrl,
+      scope: 'listings_r listings_w transactions_r transactions_w profile_r profile_w shops_r shops_w',
+      state,
+    });
+    res.json({ url: `https://www.etsy.com/oauth/connect?${params.toString()}` });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Etsy OAuth connect error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+marketplaceRoutes.get('/etsy/oauth/callback', async (req: Request, res: Response) => {
+  try {
+    const { code, state } = req.query;
+    if (!code || !state) {
+      return res.status(400).json({ error: 'Missing code or state parameter' });
+    }
+    let storeId: number;
+    try {
+      const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
+      storeId = decoded.storeId;
+    } catch {
+      return res.status(400).json({ error: 'Invalid state parameter' });
+    }
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId, marketplace: 'etsy' },
+    });
+    if (!integration?.config) {
+      return res.status(400).json({ error: 'Etsy integration not configured' });
+    }
+    const config = integration.config as any;
+    const callbackUrl = `${req.protocol}://${req.get('host')}/api/admin/integrations/etsy/oauth/callback`;
+    const { EtsyClient } = await import('../../marketplace/clients/etsy.js');
+    const etsyClient = new EtsyClient({ ...config, redirectUri: callbackUrl });
+    const tokenData = await etsyClient.exchangeCodeForToken(code as string);
+    await integration.update({
+      isActive: true,
+      config: { ...config, accessToken: tokenData.access_token, refreshToken: tokenData.refresh_token, tokenExpiry: Date.now() + (tokenData.expires_in - 60) * 1000 },
+    });
+    logger.info(`Etsy OAuth completed for store ${storeId}`);
+    res.redirect(`/admin/integrations?etsy=connected`);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Etsy OAuth callback error');
+    res.status(500).send('Etsy authorization failed. Please try again.');
+  }
+});
+
 marketplaceRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -152,6 +214,27 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
   }
 });
 
+marketplaceRoutes.delete('/:marketplace', authMiddleware, requireRole('owner'), requireStore, [
+  param('marketplace').isIn(MARKETPLACES),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { marketplace } = req.params;
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace },
+    });
+    if (!integration) {
+      return res.status(404).json({ error: 'Integration not found' });
+    }
+    await integration.destroy();
+    logger.info(`Integration deleted: ${marketplace} for store ${store.id}`);
+    res.json({ success: true });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete integration error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('marketplace').isIn(MARKETPLACES),
   body('maxPages').optional().isInt({ min: 1, max: 100 }),
@@ -179,6 +262,29 @@ marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owne
     res.status(202).json({ jobId: job.id, message: 'Import started' });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Import error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+marketplaceRoutes.delete('/:marketplace/listings/:productId', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('marketplace').isIn(MARKETPLACES),
+  param('productId').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { marketplace, productId } = req.params;
+    const { ProductMarketplaceListing } = await import('../../models/ProductMarketplaceListing.model.js');
+    const listing = await ProductMarketplaceListing.findOne({
+      where: { storeId: store.id, productId, platform: marketplace },
+    });
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    await listing.destroy();
+    logger.info(`Marketplace listing deleted: ${marketplace} product ${productId}`);
+    res.json({ success: true });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete marketplace listing error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -45,56 +45,29 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - **Storefront integration**: `<PixelInjector>` in `store/layout.tsx`
 - **Deployed**: ConfigHash `b24b38b` live, /health OK, login OK, pixels/stores/pages APIs OK
 
-## Aktif / Sıradaki
+### Phase 7 — Core API + Auth + Store/Plan ✅ TAMAMLANDI
+- Auth: JWT (access/refresh) + API Key HMAC middleware
+- Store/Plan/Subscription CRUD + Stripe webhook
+- Tenant middleware + otomatik storeId filter
+- API Key yönetimi (create/list/revoke, HMAC secret)
 
-### Phase 0.5 — Eksik Endpoint'ler ✅ TAMAMLANDI
-- [x] Dashboard stats endpoint (zaten vardı)
-- [x] File upload route (zaten vardı, local disk)
-- [x] Feeds CRUD (zaten vardı)
-- [x] Locations/Payment Methods admin CRUD (zaten vardı)
-- [x] Bulk order status endpoint (POST /api/admin/orders/bulk-status) **eklendi**
-- [x] AI credits log/stats (zaten vardı)
-- [x] AI status/output proxy routes **eklendi**
-- [x] requireRole superadmin bypass fix
+### Phase 8 — Product + Category + Variation ✅ TAMAMLANDI
+- Product CRUD (backend + frontend full)
+- Category tree + marketplace mappings
+- Variation/Option/Variant CRUD
+- Marketplace config + per-mp category/brand
 
-### Phase 3 — Alan Adı Uyumsuzlukları (Veriler Gözükmez / NaN) ✅ TAMAMLANDI
-- [x] product.code → sku (mapProduct ile)
-- [x] product.label → title (mapProduct ile)
-- [x] product.status → isActive (0/1 vs boolean, mapProduct ile)
-- [x] product.price → priceTRY (+ priceUSD ve price_currency eklendi)
-- [x] product.stock → quantity (mapProduct ile)
-- [x] b2b_discount → b2bDiscount (mapProduct ile)
-- [x] order.grand_total → totalAmount (mapOrder ile)
-- [x] order.customer_name — shippingAddress'den extract, + items null guard
-- [x] order.shipping_address → shippingAddress (mapOrder ile)
-- [x] order.items null guard (mapOrder: items → [] default)
+### Phase 9 — Marketplace Integrations ✅ TAMAMLANDI
+- Integration CRUD (Trendyol/HB/Pazarama/N11/Amazon/Etsy)
+- BullMQ import/push/webhook queues (core + integration-service)
+- Etsy OAuth flow (connect + callback + Listing CRUD)
+- Full marketplace clients (Amazon write ops, N11 categories/orders)
+- Integration log viewer + DELETE endpoints
+- Model cleanup (7 duplicate files removed)
 
-### Phase 5 — AI Endpoint Payload Uyuşmazlığı ✅ TAMAMLANDI
-- [x] /api/ai/process-image: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
-- [x] /api/ai/analyze-product: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
-- [x] /api/ai/generate-description: ai-service'e route eklendi (`{ title, category, attributes?, keywords? }` → Ollama description generation)
+## Sıradaki
 
-### Phase 0.6 — Slave & Site Builder
-- [ ] Slave download endpoints implement et
-- [ ] PHP/Vercel slave template + ZIP
-- [ ] HMAC secret ayrımı
-- [ ] Site Theme/Page/Menu CRUD + Frontend Builder UI
-
-### Phase 0.6 — Slave & Site Builder ✅ TAMAMLANDI
-- [x] Slave download endpoints (config injection + PHP/Vercel ZIP)
-- [x] PHP slave template (zero-dependency, standalone)
-- [x] Vercel slave template (serverless, package.json auto-generated)
-- [x] Deterministic slave API key (no regeneration on each download)
-- [x] Slave-facing API (products, sync, orders) with HMAC auth
-- [x] mapSlaveProduct() — dual format (Aimeos compat + new)
-- [x] Site Theme CRUD (JSONB on Store model + Site Builder UI)
-- [x] Site Page CRUD (model + routes + multi-lang content)
-- [x] Site Menu CRUD (model + routes + multiple locations)
-- [x] Frontend Site Builder (logo, colors, fonts, custom CSS)
-- [x] Frontend Menüler page (create/list/edit/delete menus)
-- [x] HMAC secret warning in production if same as internal key
-
-## Blokajlar
+### Phase 10 — B2B Sistemi (Golden'dan gelişmiş)
 - Portainer redeploy endpoint 524 Cloudflare timeout (ama deploy çalışıyor, 2. denemede başarılı)
 
 ---
@@ -644,23 +617,36 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] Frontend api-client.ts zaten Node.js API'sini kullanıyor
 - [x] Mobile api-client.ts zaten Node.js API'sini kullanıyor
 
-### Phase 8 — Product + Category + Variation (Sıradaki)
-- [ ] Product CRUD (image upload → MinIO, marketplace config per mp)
-- [ ] Category tree (universal + marketplace mappings)
-- [ ] Variation/Option/Variant CRUD
-- [ ] Marketplace config per product (categoryId, brandId, attributes per mp)
-- [ ] Frontend Products sayfası entegrasyonu (filtreler, modal, AI)
-- [ ] Mobile Products sayfası entegrasyonu
+### Phase 8 — Product + Category + Variation ✅ TAMAMLANDI
+- [x] Product CRUD (backend full + frontend sayfa)
+- [x] Category tree (backend full + frontend sayfa)
+- [x] Variation/Option/Variant CRUD (backend full + frontend sayfa)
+- [x] Marketplace config per product (categoryId, brandId, attributes per mp)
+- [x] Frontend Products sayfası entegrasyonu (filtreler, modal, AI)
+- [ ] Mobile CRUD methods (category create/update/delete + variation methods)
 
-### Phase 9 — Marketplace Integrations (2-3 hafta)
-- [ ] Integration CRUD (Trendyol, Hepsiburada, Pazarama, N11, Amazon, Etsy)
-- [ ] **Import**: Golden'dan `productSyncJob` mimarisi + Rahatio client'ları (TS port)
-- [ ] **Push**: Product create/update → BullMQ → integration clients
-- [ ] **Webhook**: Integration service (order/stock/price) → Core sync
-- [ ] **Etsy**: Golden'dan tam OAuth + Listing CRUD al
-- [ ] Frontend Integrations sayfası (import/poll, config form)
+### Phase 9 — Marketplace Integrations ✅ TAMAMLANDI
+- [x] Integration CRUD (Trendyol/HB/Pazarama/N11/Amazon/Etsy tam)
+- [x] **Import**: BullMQ workers (`marketplace-import` queue) + `mapMarketplaceProduct()` normalization
+- [x] **Push**: BullMQ workers (`product-sync` queue) → marketplace clients (create/update/price/stock)
+- [x] **Webhook**: Integration service (order/stock/price) + signature verification
+- [x] **Etsy**: OAuth flow (connect + callback) + Listing CRUD (full client)
+- [x] Frontend Integrations sayfası (import/poll, config form, Etsy OAuth connect)
 
-### Phase 10 — B2B Sistemi (Golden'dan gelişmiş) (1 hafta)
+### Model Cleanup (Phase 9 Technical Debt)
+- [x] Removed duplicate model files: `ExtraModels.ts`, `extra-models.ts`, `content-models.ts`, `StoreExtras.ts`, `Variation.model.ts`, `VariationOption.model.ts`, `OrderModels.ts`
+- [x] Fixed `IntegrationLog` (3 definitions → 1 in `LogModels.ts`)
+- [x] Fixed `DropshippingOrder` / `OrderStatusHistory` multiple definitions → single source in `.model.ts` files
+- [x] Added `DELETE /api/admin/integrations/:marketplace` endpoint
+- [x] Added `DELETE /api/admin/integrations/:marketplace/listings/:productId` endpoint
+- [x] Added `GET /api/admin/integration/logs` endpoint with filtering
+- [x] Fixed frontend `getImportJobStatus` path (`/sync/import/` → `/integrations/:marketplace/import/`)
+- [x] Fixed frontend `syncProduct` path (`/sync/product/` → `/products/:id/sync`)
+- [x] Implemented Amazon write operations (`createProduct`, `updateProduct`, `updatePrice`, `updateStock`)
+- [x] Implemented N11 `getCategories`, `getOrders`, `getOrder`
+- [x] Added Etsy OAuth callback endpoint
+
+### Phase 10 — B2B Sistemi (Golden'dan gelişmiş) (Sıradaki)
 - [ ] ProductB2bSetting (isEnabled, discount, price)
 - [ ] B2B Discover (seller storeId filter + enrichProduct)
 - [ ] B2B Request (create, incoming/outgoing, approve/reject)

@@ -36,7 +36,15 @@ ${body}
     return response.data.data;
   }
 
-  async getCategories(): Promise<any[]> { return []; }
+  async getCategories(): Promise<any[]> {
+    try {
+      const body = '<categoryService><categoryListRequest><page>1</page><pageSize>1000</pageSize></categoryListRequest></categoryService>';
+      const data = await this.requestWithAuth<any>('CategoryServicePort', body);
+      return data?.categoryList?.category || [];
+    } catch {
+      return [];
+    }
+  }
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
     const body = `<productService>
@@ -76,8 +84,24 @@ ${body}
     return this.requestWithAuth<any>('ProductServicePort', body);
   }
 
-  async getOrders(params: any = {}): Promise<any[]> { return []; }
-  async getOrder(orderId: string): Promise<any> { return null; }
+  async getOrders(params: any = {}): Promise<any[]> {
+    try {
+      const body = `<orderService><orderListRequest><page>${params.page || 1}</page><pageSize>${params.size || 50}</pageSize></orderListRequest></orderService>`;
+      const data = await this.requestWithAuth<any>('OrderServicePort', body);
+      return data?.orderList?.order || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getOrder(orderId: string): Promise<any> {
+    try {
+      const body = `<orderService><orderDetailRequest><orderId>${orderId}</orderId></orderDetailRequest></orderService>`;
+      return this.requestWithAuth<any>('OrderServicePort', body);
+    } catch {
+      return null;
+    }
+  }
 
   private serializeProduct(product: any): string {
     return `<title>${product.title}</title><subtitle>${product.subtitle || ''}</subtitle>

@@ -320,7 +320,8 @@ export async function createWebhookWorker() {
 
       try {
         if (type === 'order') {
-          const { DropshippingOrder, OrderStatusHistory } = await import('../models/OrderModels.js');
+          const { DropshippingOrder } = await import('../models/DropshippingOrder.model.js');
+          const { OrderStatusHistory } = await import('../models/OrderStatusHistory.model.js');
           const existing = await DropshippingOrder.findOne({
             where: { marketplaceOrderId: data.marketplaceOrderId, storeId },
           });
