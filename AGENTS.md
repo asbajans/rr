@@ -47,14 +47,36 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 
 ## Aktif / Sıradaki
 
-### Phase 0.5 — Eksik Endpoint'ler (devam)
-- [ ] Bulk order status endpoint (`POST /api/admin/orders/bulk-status`)
-- [ ] AI status/output proxy route'ları (`GET /api/ai/status/:id`, `GET /api/ai/output/:id/:file`)
-- [ ] Sync job status path fix
+### Phase 0.5 — Eksik Endpoint'ler ✅ TAMAMLANDI
+- [x] Dashboard stats endpoint (zaten vardı)
+- [x] File upload route (zaten vardı, local disk)
+- [x] Feeds CRUD (zaten vardı)
+- [x] Locations/Payment Methods admin CRUD (zaten vardı)
+- [x] Bulk order status endpoint (POST /api/admin/orders/bulk-status) **eklendi**
+- [x] AI credits log/stats (zaten vardı)
+- [x] AI status/output proxy routes **eklendi**
+- [x] requireRole superadmin bypass fix
+
+### Phase 3 — Alan Adı Uyumsuzlukları (Veriler Gözükmez / NaN) ✅ TAMAMLANDI
+- [x] product.code → sku (mapProduct ile)
+- [x] product.label → title (mapProduct ile)
+- [x] product.status → isActive (0/1 vs boolean, mapProduct ile)
+- [x] product.price → priceTRY (+ priceUSD ve price_currency eklendi)
+- [x] product.stock → quantity (mapProduct ile)
+- [x] b2b_discount → b2bDiscount (mapProduct ile)
+- [x] order.grand_total → totalAmount (mapOrder ile)
+- [x] order.customer_name — shippingAddress'den extract, + items null guard
+- [x] order.shipping_address → shippingAddress (mapOrder ile)
+- [x] order.items null guard (mapOrder: items → [] default)
+
+### Phase 5 — AI Endpoint Payload Uyuşmazlığı
+- [ ] /api/ai/process-image: FormData → JSON imageUrl
+- [ ] /api/ai/analyze-product: FormData → JSON imageUrl
+- [ ] /api/ai/generate-description: { name, ... } → { title, ... }
 
 ### Phase 0.6 — Slave & Site Builder
 - [ ] Slave download endpoints implement et
-- [ ] PHP/Vervel slave template + ZIP
+- [ ] PHP/Vercel slave template + ZIP
 - [ ] HMAC secret ayrımı
 - [ ] Site Theme/Page/Menu CRUD + Frontend Builder UI
 
@@ -564,10 +586,32 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] Frontend field mappers & sayfa düzeltmeleri (stores, pages, payment, integration)
 - [x] Pixel/Tag Integrations feature (backend + frontend + storefront)
 
-### 🔄 Phase 0.5 — Eksik Endpoint'ler (Aktif)
-- [ ] Bulk order status endpoint (`POST /api/admin/orders/bulk-status`)
-- [ ] AI status/output proxy route'ları
-- [ ] Sync job status path fix
+### 🔄 Phase 0.5 — Eksik Endpoint'ler ✅ TAMAMLANDI
+- [x] Dashboard stats endpoint (zaten vardı)
+- [x] File upload route (zaten vardı, local disk)
+- [x] Feeds CRUD (zaten vardı)
+- [x] Locations/Payment Methods admin CRUD (zaten vardı)
+- [x] Bulk order status endpoint (POST /api/admin/orders/bulk-status) **eklendi**
+- [x] AI credits log/stats (zaten vardı)
+- [x] AI status/output proxy routes **eklendi**
+- [x] requireRole superadmin bypass fix
+
+### 🔄 Phase 3 — Alan Adı Uyumsuzlukları ✅ TAMAMLANDI
+- [x] product.code → sku (mapProduct ile)
+- [x] product.label → title (mapProduct ile)
+- [x] product.status → isActive (0/1 vs boolean, mapProduct ile)
+- [x] product.price → priceTRY (+ priceUSD ve price_currency eklendi)
+- [x] product.stock → quantity (mapProduct ile)
+- [x] b2b_discount → b2bDiscount (mapProduct ile)
+- [x] order.grand_total → totalAmount (mapOrder ile)
+- [x] order.customer_name — shippingAddress'den extract, + items null guard
+- [x] order.shipping_address → shippingAddress (mapOrder ile)
+- [x] order.items null guard (mapOrder: items → [] default)
+
+### Phase 5 — AI Endpoint Payload Uyuşmazlığı (Sıradaki)
+- [ ] /api/ai/process-image: FormData → JSON imageUrl
+- [ ] /api/ai/analyze-product: FormData → JSON imageUrl
+- [ ] /api/ai/generate-description: { name, ... } → { title, ... }
 
 ### Phase 0.6 — Slave & Site Builder
 - [ ] Slave download endpoint'lerini implement et (config injection + file serve)

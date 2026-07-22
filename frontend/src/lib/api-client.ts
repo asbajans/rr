@@ -6,16 +6,39 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.
 
 function mapProduct(p: any): any {
   if (!p) return p
+  const hasTRY = p.priceTRY !== null && p.priceTRY !== undefined
+  const hasUSD = p.priceUSD !== null && p.priceUSD !== undefined
   return {
     ...p,
     code: p.sku ?? p.code,
     label: p.title ?? p.label,
     status: p.isActive !== undefined ? (p.isActive ? 1 : 0) : p.status,
-    price: p.priceTRY ?? p.price,
+    price: p.priceTRY ?? p.priceUSD ?? p.price,
+    price_currency: hasTRY ? 'TRY' : hasUSD ? 'USD' : 'TRY',
+    price_try: p.priceTRY ?? null,
+    price_usd: p.priceUSD ?? null,
     stock: p.quantity ?? p.stock,
+    gram_weight: p.gramWeight ?? null,
+    milyem: p.milyem ?? null,
+    effective_milyem: p.effectiveMilyem ?? null,
+    profit_margin: p.profitMargin ?? 0,
+    price_multiplier: p.priceMultiplier ?? 1.0,
+    discount_rate: p.discountRate ?? 0,
+    discounted_price: p.discountedPrice ?? null,
     b2b_enabled: p.isB2BEnabled ?? p.b2b_enabled,
     b2b_discount: p.b2bDiscount ?? p.b2b_discount,
     b2b_price: p.b2bPrice ?? p.b2b_price,
+    has_variants: p.hasVariants ?? false,
+    variant_attributes: p.variantAttributes ?? null,
+    tags: p.tags ?? null,
+    video_url: p.videoUrl ?? null,
+    is_b2b_clone: p.originalProductId ? true : (p.is_b2b_clone ?? false),
+    original_product_id: p.originalProductId ?? null,
+    original_store_id: p.originalStoreId ?? null,
+    slug: p.slug ?? null,
+    category_id: p.categoryId ?? p.category_id ?? null,
+    created_at: p.createdAt ?? p.created_at,
+    updated_at: p.updatedAt ?? p.updated_at,
   }
 }
 
@@ -75,15 +98,19 @@ function mapOrder(o: any): any {
   const address = o.shippingAddress || o.shipping_address
   return {
     ...o,
+    id: Number(o.id),
     grand_total: o.totalAmount ?? o.grand_total,
-    shipping_address: typeof address === 'object' ? [address.addressLine1, address.addressLine2, address.city, address.state].filter(Boolean).join(', ') : (address || ''),
-    customer_name: o.customerName || (typeof address === 'object' ? address?.name || address?.fullName || '' : ''),
-    customer_email: o.customerEmail || (typeof address === 'object' ? address?.email || '' : ''),
-    customer_phone: o.customerPhone || (typeof address === 'object' ? address?.phone || '' : ''),
+    shipping_address: typeof address === 'object' ?
+      [address.addressLine1, address.addressLine2, address.city, address.state, address.country].filter(Boolean).join(', ')
+      : (address || ''),
+    customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || address.firstName + ' ' + address.lastName || '') : ''),
+    customer_email: o.customerEmail || (typeof address === 'object' ? (address.email || '') : ''),
+    customer_phone: o.customerPhone || (typeof address === 'object' ? (address.phone || address.phoneNumber || '') : ''),
     external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
     subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
     shipping: o.shipping ?? 0,
     tax: o.tax ?? 0,
+    items: o.items ?? [],
   }
 }
 
@@ -983,13 +1010,24 @@ class ApiClient {
     const payload: Record<string, any> = {}
     if (data.label || data.title) payload.title = data.label || data.title
     if (data.code || data.sku) payload.sku = data.code || data.sku
-    if (data.price !== undefined) payload.priceTRY = data.price
+    if (data.price !== undefined) {
+      if (data.price_currency === 'USD') payload.priceUSD = data.price
+      else payload.priceTRY = data.price
+    }
+    if (data.price_try !== undefined) payload.priceTRY = data.price_try
+    if (data.price_usd !== undefined) payload.priceUSD = data.price_usd
     if (data.stock !== undefined) payload.quantity = data.stock
     if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
     if (data.marketplaces) payload.marketplaces = data.marketplaces
     if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
     if (data.media_urls) payload.images = data.media_urls
     if (data.description) payload.description = data.description
+    if (data.gram_weight !== undefined) payload.gramWeight = data.gram_weight
+    if (data.milyem !== undefined) payload.milyem = data.milyem
+    if (data.profit_margin !== undefined) payload.profitMargin = data.profit_margin
+    if (data.price_multiplier !== undefined) payload.priceMultiplier = data.price_multiplier
+    if (data.video_url) payload.videoUrl = data.video_url
+    if (data.tags) payload.tags = data.tags
     return this.post<{ product: import('./types').Product }>('/api/admin/products', payload).then(r => r.product)
   }
 
@@ -997,13 +1035,24 @@ class ApiClient {
     const payload: Record<string, any> = {}
     if (data.label || data.title) payload.title = data.label || data.title
     if (data.code || data.sku) payload.sku = data.code || data.sku
-    if (data.price !== undefined) payload.priceTRY = data.price
+    if (data.price !== undefined) {
+      if (data.price_currency === 'USD') payload.priceUSD = data.price
+      else payload.priceTRY = data.price
+    }
+    if (data.price_try !== undefined) payload.priceTRY = data.price_try
+    if (data.price_usd !== undefined) payload.priceUSD = data.price_usd
     if (data.stock !== undefined) payload.quantity = data.stock
     if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
     if (data.marketplaces) payload.marketplaces = data.marketplaces
     if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
     if (data.media_urls) payload.images = data.media_urls
     if (data.description !== undefined) payload.description = data.description
+    if (data.gram_weight !== undefined) payload.gramWeight = data.gram_weight
+    if (data.milyem !== undefined) payload.milyem = data.milyem
+    if (data.profit_margin !== undefined) payload.profitMargin = data.profit_margin
+    if (data.price_multiplier !== undefined) payload.priceMultiplier = data.price_multiplier
+    if (data.video_url) payload.videoUrl = data.video_url
+    if (data.tags) payload.tags = data.tags
     return this.put<{ product: import('./types').Product }>(`/api/admin/products/${id}`, payload).then(r => r.product)
   }
 

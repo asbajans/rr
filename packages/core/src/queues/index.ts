@@ -52,76 +52,62 @@ async function logIntegration(storeId: number, platform: string, endpoint: strin
   }
 }
 
+function marketplacePrice(mp: string, raw: any): { priceTRY?: number; priceUSD?: number } {
+  const currency = raw.currency || (raw.price?.currency ?? null);
+  const priceVal = raw.salePrice ?? raw.listPrice ?? raw.price?.amount ?? raw.price ?? 0;
+  if (currency === 'USD' || currency === 'EUR' || currency === 'GBP') {
+    return { priceUSD: Number(priceVal) };
+  }
+  if (currency === 'TRY' || !currency) {
+    return { priceTRY: Number(priceVal) };
+  }
+  return { priceTRY: Number(priceVal) };
+}
+
 function mapMarketplaceProduct(mp: string, raw: any, storeId: number): Partial<Product> {
+  const base = {
+    storeId,
+    title: raw.title || raw.name || 'Imported Product',
+    sku: raw.barcode || raw.stockCode || raw.merchantSku || raw.sku || raw.productCode || raw.asin || raw.sellerSKU || `imp-${Date.now()}`,
+    description: raw.description || raw.itemDescription || '',
+    quantity: raw.quantity || raw.stockAmount || raw.stock || raw.stockQuantity || raw.availableStock || raw.fulfillmentAvailability?.availability?.availableQuantity || 0,
+    images: [] as string[],
+    isActive: true,
+    ...marketplacePrice(mp, raw),
+  };
   switch (mp) {
     case 'trendyol':
       return {
-        storeId,
-        title: raw.title || 'Imported Product',
-        sku: raw.barcode || raw.stockCode || `imp-${Date.now()}`,
-        description: raw.description || '',
-        priceTRY: raw.salePrice || raw.listPrice || 0,
-        quantity: raw.quantity || 0,
+        ...base,
         images: (raw.images || []).map((img: any) => img.url || img),
-        isActive: true,
       };
     case 'hepsiburada':
       return {
-        storeId,
-        title: raw.title || raw.name || 'Imported Product',
-        sku: raw.merchantSku || raw.barcode || `imp-${Date.now()}`,
-        description: raw.description || '',
-        priceTRY: raw.salePrice || raw.price || 0,
-        quantity: raw.stockAmount || raw.quantity || 0,
+        ...base,
         images: (raw.images || []).map((img: any) => typeof img === 'string' ? img : img.url || ''),
-        isActive: true,
       };
     case 'pazarama':
       return {
-        storeId,
-        title: raw.title || raw.name || 'Imported Product',
-        sku: raw.barcode || raw.sku || `imp-${Date.now()}`,
-        description: raw.description || '',
-        priceTRY: raw.price || raw.salePrice || 0,
-        quantity: raw.stock || raw.quantity || 0,
+        ...base,
         images: Array.isArray(raw.images) ? raw.images : [],
-        isActive: true,
       };
     case 'n11':
       return {
-        storeId,
-        title: raw.title || raw.name || 'Imported Product',
-        sku: raw.id?.toString() || raw.productCode || `imp-${Date.now()}`,
-        description: raw.description || '',
-        priceTRY: raw.salePrice || raw.price || 0,
-        quantity: raw.stockQuantity || raw.availableStock || 0,
+        ...base,
         images: raw.images ? (Array.isArray(raw.images) ? raw.images : [raw.images]) : [],
-        isActive: true,
       };
     case 'amazon':
       return {
-        storeId,
-        title: raw.title || raw.itemName || 'Imported Product',
-        sku: raw.sku || raw.asin || raw.sellerSKU || `imp-${Date.now()}`,
-        description: raw.description || raw.itemDescription || '',
-        priceTRY: raw.price?.amount || raw.salePrice || 0,
-        quantity: raw.quantity || raw.fulfillmentAvailability?.availability?.availableQuantity || 0,
+        ...base,
         images: (raw.images || []).map((img: any) => typeof img === 'string' ? img : img.url || ''),
-        isActive: true,
       };
     case 'etsy':
       return {
-        storeId,
-        title: raw.title || raw.name || 'Imported Product',
-        sku: raw.sku || raw.listing_id?.toString() || `imp-${Date.now()}`,
-        description: raw.description || '',
-        priceTRY: raw.price?.amount || raw.price || 0,
-        quantity: raw.quantity || raw.stock || 0,
+        ...base,
         images: (raw.images || []).map((img: any) => img.url_fullxfull || img.url_570xN || img.url || ''),
-        isActive: true,
       };
     default:
-      return { storeId, title: 'Imported Product', sku: `imp-${Date.now()}`, isActive: true };
+      return base;
   }
 }
 
@@ -264,16 +250,17 @@ export async function createSyncWorker() {
 
           const existingListing = product.marketplaceListings?.find(l => l.platform === mp);
 
+          const pushPrice = product.priceTRY ?? product.priceUSD ?? 0;
           if (existingListing?.externalId) {
             await client.updateProduct(existingListing.externalId, {
               title: product.title,
               description: product.description,
-              salePrice: product.priceTRY,
+              salePrice: pushPrice,
               quantity: product.quantity,
               images: product.images?.map(url => ({ url })),
             });
-            if (product.priceTRY != null) {
-              await client.updatePrice(existingListing.externalId, product.priceTRY);
+            if (pushPrice > 0) {
+              await client.updatePrice(existingListing.externalId, pushPrice);
             }
             if (product.quantity != null) {
               await client.updateStock(existingListing.externalId, product.quantity);
@@ -284,8 +271,8 @@ export async function createSyncWorker() {
             const listingResult = await client.createProduct({
               title: product.title,
               description: product.description,
-              salePrice: product.priceTRY,
-              listPrice: product.priceTRY,
+              salePrice: pushPrice,
+              listPrice: pushPrice,
               quantity: product.quantity,
               barcode: product.sku,
               stockCode: product.sku,

@@ -121,22 +121,41 @@ export type Product = {
   id: string
   code: string
   label: string
+  slug?: string | null
   status: number
   price?: number
+  price_currency?: 'TRY' | 'USD'
+  price_try?: number | null
+  price_usd?: number | null
   stock?: number
+  gram_weight?: number | null
+  milyem?: number | null
+  effective_milyem?: number | null
+  profit_margin?: number
+  price_multiplier?: number
+  discount_rate?: number
+  discounted_price?: number | null
   marketplaces?: string[]
   marketplace_data?: Record<string, MarketplaceEntry>
   marketplace_sync?: Record<string, MarketplaceSyncEntry>
   images?: string[]
   media_url?: string
+  video_url?: string | null
   description?: string | null
   category?: string | null
+  category_id?: number | null
   brand?: string | null
+  tags?: string[] | null
+  has_variants?: boolean
+  variant_attributes?: Record<string, any> | null
   is_b2b_clone?: boolean
-  b2b_source_store_id?: string | null
+  original_product_id?: number | null
+  original_store_id?: number | null
   b2b_enabled?: boolean
   b2b_discount?: number | null
   b2b_price?: number | null
+  created_at?: string
+  updated_at?: string
 }
 
 export type DashboardData = {

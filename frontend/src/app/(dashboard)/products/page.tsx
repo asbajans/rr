@@ -18,6 +18,9 @@ interface ProductModalData {
   code: string
   label: string
   price: number
+  price_currency: 'TRY' | 'USD'
+  price_try: number | null
+  price_usd: number | null
   stock: number
   status: number
   category: string
@@ -197,7 +200,10 @@ export default function ProductsPage() {
       id: p.id,
       code: p.code,
       label: p.label,
-      price: p.price ?? 0,
+      price: p.price_try ?? p.price_usd ?? p.price ?? 0,
+      price_currency: p.price_currency ?? (p.price_try != null ? 'TRY' : p.price_usd != null ? 'USD' : 'TRY'),
+      price_try: p.price_try ?? null,
+      price_usd: p.price_usd ?? null,
       stock: p.stock ?? 0,
       status: p.status ?? (md?.on_sale ? 1 : 0),
       category: md?.category ?? '',
@@ -234,6 +240,9 @@ export default function ProductsPage() {
       code: '',
       label: '',
       price: 0,
+      price_currency: 'TRY',
+      price_try: null,
+      price_usd: null,
       stock: 0,
       status: 1,
       category: '',
@@ -266,6 +275,9 @@ export default function ProductsPage() {
     const payload: Record<string, unknown> = {
       label: product.label,
       price: Number(product.price),
+      price_currency: product.price_currency,
+      price_try: product.price_try,
+      price_usd: product.price_usd,
       stock: Number(product.stock),
       status: product.status,
       marketplaces: product.marketplaces,
@@ -727,7 +739,15 @@ export default function ProductsPage() {
                         <img src={p.media_url} alt="" className="mt-1 h-10 w-10 object-cover rounded" />
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{p.price != null ? `${p.price} ₺` : '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {p.price != null ? (
+                        <span>
+                          {p.price_try != null ? <span className="block">{p.price_try.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span> : null}
+                          {p.price_usd != null ? <span className="block text-xs text-gray-400">{p.price_usd.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} $</span> : null}
+                          {p.price_try == null && p.price_usd == null ? <span>{p.price} {p.price_currency === 'USD' ? '$' : '₺'}</span> : null}
+                        </span>
+                      ) : '-'}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">{p.stock ?? '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{p.brand ?? md?.brand ?? '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">

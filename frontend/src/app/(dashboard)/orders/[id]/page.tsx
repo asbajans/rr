@@ -136,7 +136,7 @@ export default function OrderDetailPage() {
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-semibold text-zinc-900">Ürünler</h3>
             <div className="mt-4 space-y-3">
-              {order.items.map((item, i) => (
+              {(order.items ?? []).map((item: any, i: number) => (
                 <div key={i} className="flex items-center justify-between text-sm">
                   <div>
                     <p className="font-medium text-zinc-900">{item.name}</p>
