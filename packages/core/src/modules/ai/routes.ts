@@ -200,3 +200,36 @@ aiRoutes.post('/recommend', authMiddleware, requireStore, [
     res.status(status).json({ error: upstream });
   }
 });
+
+aiRoutes.get('/status/:id', authMiddleware, requireStore, async (req: Request, res: Response) => {
+  try {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
+    const axios = (await import('axios')).default;
+    const response = await axios.get(`${aiServiceUrl}/ai/status/${req.params.id}`, { timeout: 10000 });
+    res.json(response.data);
+  } catch (error: any) {
+    logger.error({ err: error }, 'AI status proxy error');
+    const status = error?.response?.status || 502;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
+  }
+});
+
+aiRoutes.get('/output/:id/:file', authMiddleware, requireStore, async (req: Request, res: Response) => {
+  try {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
+    const axios = (await import('axios')).default;
+    const response = await axios.get(`${aiServiceUrl}/ai/output/${req.params.id}/${req.params.file}`, {
+      responseType: 'stream',
+      timeout: 30000,
+    });
+    response.data.pipe(res);
+  } catch (error: any) {
+    logger.error({ err: error }, 'AI output proxy error');
+    const status = error?.response?.status || 502;
+    const upstream = error?.response?.data?.error || error.message;
+    if (!res.headersSent) {
+      res.status(status).json({ error: upstream });
+    }
+  }
+});
