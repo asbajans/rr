@@ -11,7 +11,7 @@ const navItems = [
   { href: '/stores', label: 'Mağazalar', icon: Store },
   { href: '/users', label: 'Kullanıcılar', icon: Users },
   { href: '/plans', label: 'Planlar', icon: CreditCard },
-  { href: '/categories', label: 'Kategoriler', icon: FolderTree },
+  { href: '/super/categories', label: 'Kategoriler', icon: FolderTree },
   { href: '/super-ai', label: 'AI Yönetimi', icon: Sparkles },
 ]
 

@@ -32,7 +32,7 @@ export default function CategoryDetailPage() {
         setCategory((cat as any).category ?? cat)
         setMappings(mapRes as any)
       })
-      .catch(() => router.push('/categories'))
+      .catch(() => router.push('/super/categories'))
       .finally(() => setLoading(false))
   }, [id, router])
 
@@ -75,7 +75,7 @@ export default function CategoryDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.push('/categories')} className="mb-4 flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
+      <button onClick={() => router.push('/super/categories')} className="mb-4 flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
         <ArrowLeft className="h-4 w-4" /> Kategoriler
       </button>
 
