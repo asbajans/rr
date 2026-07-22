@@ -636,15 +636,15 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] HMAC secret warning in production
 - [ ] Go slave geri getir (opsiyonel)
 
-### Phase 7 — Core API + Auth + Store/Plan (1-2 hafta)
-- [ ] Auth: JWT (access/refresh) + API Key HMAC middleware
-- [ ] Store/Plan/Subscription CRUD + Stripe webhook
-- [ ] Tenant middleware (req.store) + otomatik storeId filter
-- [ ] API Key yönetimi (create/list/revoke, HMAC secret)
-- [ ] Frontend `api-client.ts` → yeni endpoint'lere güncelle
-- [ ] Mobile `api-client.ts` → yeni endpoint'lere güncelle
+### Phase 7 — Core API + Auth + Store/Plan ✅ TAMAMLANDI
+- [x] Auth: JWT (access/refresh) + API Key HMAC middleware
+- [x] Store/Plan/Subscription CRUD + Stripe webhook
+- [x] Tenant middleware (req.store) + otomatik storeId filter
+- [x] API Key yönetimi (create/list/revoke, HMAC secret)
+- [x] Frontend api-client.ts zaten Node.js API'sini kullanıyor
+- [x] Mobile api-client.ts zaten Node.js API'sini kullanıyor
 
-### Phase 8 — Product + Category + Variation (1-2 hafta)
+### Phase 8 — Product + Category + Variation (Sıradaki)
 - [ ] Product CRUD (image upload → MinIO, marketplace config per mp)
 - [ ] Category tree (universal + marketplace mappings)
 - [ ] Variation/Option/Variant CRUD
