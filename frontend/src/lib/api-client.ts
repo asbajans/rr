@@ -140,7 +140,17 @@ class ApiClient {
 
   // Dashboard
   getDashboard() {
-    return this.get<import('./types').DashboardData>('/api/admin/dashboard')
+    return this.get<any>('/api/admin/dashboard').then(r => ({
+      user: r.user || null,
+      store: r.store || null,
+      stats: {
+        total_products: r.totalProducts ?? 0,
+        total_orders: r.totalOrders ?? 0,
+        ai_credits: r.currentCredits ?? 0,
+        total_revenue: r.totalRevenue ?? 0,
+        active_integrations: r.activeIntegrations ?? 0,
+      },
+    }))
   }
 
   // Store / Plan / Subscription
@@ -800,11 +810,35 @@ class ApiClient {
 
   // Credits
   getCreditLogs() {
-    return this.get<import('./types').CreditLog[]>(`/api/admin/ai/credits/logs`)
+    return this.get<any>(`/api/admin/ai/credits/logs`).then(r => {
+      const raw = r.logs ?? r.data ?? []
+      return raw.map((log: any) => ({
+        id: log.id,
+        userId: log.userId,
+        storeId: log.storeId,
+        action: log.action,
+        module: log.module,
+        amount: log.amount,
+        balanceBefore: log.balanceBefore,
+        balanceAfter: log.balanceAfter,
+        balance_before: log.balanceBefore ?? log.balance_before,
+        balance_after: log.balanceAfter ?? log.balance_after,
+        created_at: log.createdAt ?? log.created_at,
+        createdAt: log.createdAt,
+        note: log.note || '',
+      }))
+    })
   }
 
   getCreditStats() {
-    return this.get<{ currentCredits: number; totalConsumed: number; totalGranted: number }>(`/api/admin/ai/credits/stats`)
+    return this.get<any>(`/api/admin/ai/credits/stats`).then(r => ({
+      currentCredits: r.currentCredits,
+      totalConsumed: r.totalConsumed,
+      totalGranted: r.totalGranted,
+      current_credits: r.currentCredits ?? r.current_credits,
+      total_consumed: r.totalConsumed ?? r.total_consumed,
+      total_granted: r.totalGranted ?? r.total_granted,
+    }))
   }
 
   // Storefront (Public)
