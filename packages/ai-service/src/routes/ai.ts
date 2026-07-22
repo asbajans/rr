@@ -6,20 +6,59 @@ import { ProductCategory, SellerNotes } from '../types';
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
+import http from 'http';
 import { callOllama, OllamaUnavailableError } from '../services/ollama.js';
 
 const router: Router = Router();
 
 const FRIENDLY_ERROR = 'AI servisi şu an kullanılamıyor (Ollama bağlantısı yok). Lütfen daha sonra tekrar deneyin.';
 
-// Existing: process-image
+async function downloadImage(url: string, destDir: string): Promise<string> {
+  const ext = path.extname(new URL(url).pathname) || '.png';
+  const filename = `${uuid()}${ext}`;
+  const dest = path.join(destDir, filename);
+  await fs.promises.mkdir(destDir, { recursive: true });
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (response) => {
+      response.pipe(file);
+      file.on('finish', () => { file.close(); resolve(dest); });
+    }).on('error', (err) => { fs.unlink(dest, () => {}); reject(err); });
+  });
+}
+
+function resolveFiles(req: Request, uploadsDir: string): Promise<string[]> {
+  const files = req.files as Express.Multer.File[];
+  if (files && files.length > 0) {
+    return Promise.resolve(files.map((f) => f.path));
+  }
+  const imageUrl = req.body.imageUrl;
+  if (imageUrl) {
+    return downloadImage(imageUrl, uploadsDir).then((p) => [p]);
+  }
+  return Promise.reject(new Error('En az bir görsel gerekli'));
+}
+
+function resolveSingleFile(req: Request, uploadsDir: string): Promise<string> {
+  const file = req.file;
+  if (file) {
+    return Promise.resolve(file.path);
+  }
+  const imageUrl = req.body.imageUrl;
+  if (imageUrl) {
+    return downloadImage(imageUrl, uploadsDir);
+  }
+  return Promise.reject(new Error('Görsel gerekli'));
+}
+
+// process-image: accepts multipart images[] OR JSON { imageUrl, category }
 router.post(
   '/process-image',
   upload.array('images', 10),
   async (req: Request, res: Response) => {
     const category = (req.body.category || 'diger').toLowerCase() as ProductCategory;
-    const files = req.files as Express.Multer.File[];
-
     const notes: SellerNotes = {
       shortDescription: req.body.short_description,
       keywords: req.body.keywords,
@@ -27,8 +66,11 @@ router.post(
       notes: req.body.notes,
     };
 
-    if (!files || files.length === 0) {
-      res.status(400).json({ error: 'En az bir görsel gerekli' });
+    let filePaths: string[];
+    try {
+      filePaths = await resolveFiles(req, path.resolve('uploads'));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
       return;
     }
 
@@ -42,8 +84,6 @@ router.post(
     });
 
     try {
-      const filePaths = files.map((f) => f.path);
-
       await runPipeline(filePaths, category, notes, sessionId, true);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
@@ -52,14 +92,16 @@ router.post(
   }
 );
 
-// AI Product Creator: analyze image → generate title/description/price/category
+// analyze-product: accepts multipart image OR JSON { imageUrl, category }
 router.post(
   '/analyze-product',
   upload.single('image'),
   async (req: Request, res: Response) => {
-    const file = req.file;
-    if (!file) {
-      res.status(400).json({ error: 'Görsel gerekli' });
+    let filePath: string;
+    try {
+      filePath = await resolveSingleFile(req, path.resolve('uploads'));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
       return;
     }
 
@@ -67,7 +109,7 @@ router.post(
       const { analyzeProductImage } = await import('../services/visionAnalyzer.js');
       const { generateListings } = await import('../services/llmChain.js');
 
-      const specs = await analyzeProductImage(file.path, (req.body.category || 'diger') as any);
+      const specs = await analyzeProductImage(filePath, (req.body.category || 'diger') as any);
 
       const result = await generateListings(specs, {
         shortDescription: req.body.short_description,
@@ -100,6 +142,70 @@ router.post(
     }
   }
 );
+
+// Generate product description from title/category/attributes
+router.post('/generate-description', async (req: Request, res: Response) => {
+  const { title, category, attributes, keywords } = req.body;
+
+  if (!title || !category) {
+    res.status(400).json({ error: 'title and category required' });
+    return;
+  }
+
+  try {
+    const attrStr = attributes ? Object.entries(attributes).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
+    const kwStr = keywords?.length ? `Anahtar kelimeler: ${keywords.join(', ')}` : '';
+
+    const prompt = `Ürün adı: ${title}
+Kategori: ${category}
+${attrStr ? `Özellikler: ${attrStr}` : ''}
+${kwStr}
+
+Yukarıdaki ürün bilgilerine göre aşağıdaki çıktıları oluştur:
+
+1. Meta başlık (SEO için, max 60 karakter)
+2. Kısa açıklama (max 160 karakter, meta description olarak kullanılacak)
+3. Uzun açıklama (3-5 cümle, HTML etiketsiz, düz metin)
+4. URL dostu slug (sadece küçük harf, tire ile ayrılmış)
+5. Önerilen anahtar kelimeler (virgülle ayrılmış, 5-10 adet)
+
+Çıktıyı şu formatta ver:
+META_TITLE: ...
+META_DESCRIPTION: ...
+DESCRIPTION: ...
+SLUG: ...
+KEYWORDS: ...`;
+
+    const response = await callOllama(prompt, 'Sen bir e-ticaret ürün metni yazarısın. Verilen formatta çıktı üret.');
+    const lines = response.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+    const extract = (prefix: string): string => {
+      const line = lines.find((l: string) => l.startsWith(prefix));
+      return line ? line.substring(prefix.length).trim() : '';
+    };
+
+    const generatedDescription = extract('DESCRIPTION:');
+    const metaTitle = extract('META_TITLE:') || title.substring(0, 60);
+    const metaDescription = extract('META_DESCRIPTION:');
+    const slug = extract('SLUG:');
+    const kwLine = extract('KEYWORDS:');
+    const parsedKeywords = kwLine ? kwLine.split(',').map((k: string) => k.trim()).filter(Boolean) : (keywords || []);
+
+    res.json({
+      description: generatedDescription,
+      title: metaTitle,
+      keywords: parsedKeywords,
+      slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      short_description: metaDescription || generatedDescription.substring(0, 160),
+    });
+  } catch (err: any) {
+    if (err instanceof OllamaUnavailableError) {
+      res.status(503).json({ error: FRIENDLY_ERROR });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get('/status/:sessionId', (req: Request, res: Response) => {
   const { sessionId } = req.params;

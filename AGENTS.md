@@ -69,10 +69,10 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - [x] order.shipping_address → shippingAddress (mapOrder ile)
 - [x] order.items null guard (mapOrder: items → [] default)
 
-### Phase 5 — AI Endpoint Payload Uyuşmazlığı
-- [ ] /api/ai/process-image: FormData → JSON imageUrl
-- [ ] /api/ai/analyze-product: FormData → JSON imageUrl
-- [ ] /api/ai/generate-description: { name, ... } → { title, ... }
+### Phase 5 — AI Endpoint Payload Uyuşmazlığı ✅ TAMAMLANDI
+- [x] /api/ai/process-image: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
+- [x] /api/ai/analyze-product: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
+- [x] /api/ai/generate-description: ai-service'e route eklendi (`{ title, category, attributes?, keywords? }` → Ollama description generation)
 
 ### Phase 0.6 — Slave & Site Builder
 - [ ] Slave download endpoints implement et
@@ -608,10 +608,10 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] order.shipping_address → shippingAddress (mapOrder ile)
 - [x] order.items null guard (mapOrder: items → [] default)
 
-### Phase 5 — AI Endpoint Payload Uyuşmazlığı (Sıradaki)
-- [ ] /api/ai/process-image: FormData → JSON imageUrl
-- [ ] /api/ai/analyze-product: FormData → JSON imageUrl
-- [ ] /api/ai/generate-description: { name, ... } → { title, ... }
+### ✅ Phase 5 — AI Endpoint Payload Uyuşmazlığı (Tamamlandı)
+- [x] /api/ai/process-image: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
+- [x] /api/ai/analyze-product: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
+- [x] /api/ai/generate-description: ai-service'e route eklendi (`{ title, category, attributes?, keywords? }` → Ollama description generation)
 
 ### Phase 0.6 — Slave & Site Builder
 - [ ] Slave download endpoint'lerini implement et (config injection + file serve)
