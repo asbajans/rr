@@ -194,6 +194,45 @@ orderRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requir
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+orderRoutes.post('/bulk-status', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('ids').isArray({ min: 1 }).custom((ids: any[]) => ids.every((id: any) => Number.isInteger(id))),
+  body('status').isIn(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned']),
+  body('note').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { ids, status, note } = req.body;
+
+    const orders = await DropshippingOrder.findAll({
+      where: { id: ids, storeId: store.id },
+    });
+
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'No matching orders found' });
+    }
+
+    const historyEntries = [];
+    for (const order of orders) {
+      const oldStatus = order.status;
+      await order.update({ status });
+      historyEntries.push({
+        dropshippingOrderId: order.id,
+        fromStatus: oldStatus,
+        toStatus: status,
+        note: note || `Bulk status change: ${oldStatus} -> ${status}`,
+      });
+    }
+
+    await OrderStatusHistory.bulkCreate(historyEntries);
+
+    logger.info(`Bulk status update: ${orders.length} orders -> ${status} by store ${store.id}`);
+    res.json({ success: true, updated: orders.length });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Bulk order status error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 orderRoutes.get('/:id/history', authMiddleware, requireStore, [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {

@@ -4,41 +4,131 @@
 
 Monorepo: `rr` (Rahatio)
 GitHub: `https://github.com/asbajans/rr`
-Portainer Stack: `rahatio-stack` (ID: 66)
+Portainer Stack: `rahatio-stack` (ID: 75)
 Portainer API: `https://cont.asb.web.tr` (Endpoint 2, X-API-Key auth)
-Portainer Webhook: `d6050fb9-2679-4422-902f-916da4785ca6`
+Portainer Webhook: `51a90d30-c009-468f-b1bd-a72bf09abc7d`
 Domain: `rahatio.com.tr` → Cloudflare proxied → Portainer sunucu
+Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
+
+---
+
+# Work State (Session History)
+
+## Tamamlananlar
+
+### Phase 0 — Kritik Hata Düzeltmeleri ✅
+- B2B discover/listed/requests response shape fix (async unwrap + field mapping)
+- Store route prefix fix (`/store/` prefix kaldırıldı, frontend `api-client.ts`)
+- Variant routes fix (mount `/api/admin/variants`, path düzeltildi)
+- Checkout conflict fix (stub `POST /:siteCode/checkout` kaldırıldı)
+- Response wrapper fix (tüm `api-client.ts` get/list method'ları `.then(r => r.data)` unwrap)
+
+### Phase 1 — Runtime Crash Fixes ✅
+- **Duplicate alias `users`** in `associations.ts`: decorator-covered associations removed, 137→8 satır
+- **CORS preflight**: `app.options('*', cors())` + origin list (admin.rahatio.com.tr dahil)
+- **StoreMenu not defined**: model imported in `database.ts`
+- **setupAssociations() never called**: added import + call in `server.ts`
+- **DropshippingOrder status ENUM→STRING**: `DataType.STRING(50)` for existing table compat
+- **Pages route**: GET `/api/admin/pages` works (model+route vardı ama frontend unwrap bekliyordu)
+- **Payment method route**: `:id` (int) → `:type` (string) param change
+- **Marketplace PUT validation**: `body('config').optional()` fix
+- **Stores page Pasif hatası**: `getAdminStores()` camelCase→snake_case normalize
+- **Responselar için field mappers**: `mapPaymentMethod`, `mapIntegration`, `mapPage`, `mapAdminStore`
+
+### Pixel/Tag Integrations Feature (Yeni) ✅
+- **Backend**: JSONB `pixels` column added to Store model, safe migration in `server.ts`
+- **Backend routes**: `GET|PUT /api/admin/pixels` with validation (8 platform: GA4, GTM, FB, TikTok, IG, GMC, custom head/body)
+- **Backend public**: `GET /api/store/:siteCode/pixels` endpoint
+- **Frontend page**: `pixels/page.tsx` expandable config cards for all 8 platforms
+- **Frontend nav**: "Piksel & Takip" sidebar entry
+- **Frontend storefront**: `PixelInjector.tsx` component renders `<Script>` tags with platform-specific snippets
+- **Storefront integration**: `<PixelInjector>` in `store/layout.tsx`
+- **Deployed**: ConfigHash `b24b38b` live, /health OK, login OK, pixels/stores/pages APIs OK
+
+## Aktif / Sıradaki
+
+### Phase 0.5 — Eksik Endpoint'ler (devam)
+- [ ] Bulk order status endpoint (`POST /api/admin/orders/bulk-status`)
+- [ ] AI status/output proxy route'ları (`GET /api/ai/status/:id`, `GET /api/ai/output/:id/:file`)
+- [ ] Sync job status path fix
+
+### Phase 0.6 — Slave & Site Builder
+- [ ] Slave download endpoints implement et
+- [ ] PHP/Vervel slave template + ZIP
+- [ ] HMAC secret ayrımı
+- [ ] Site Theme/Page/Menu CRUD + Frontend Builder UI
+
+### Phase 0.6 — Slave & Site Builder
+- [ ] Slave download endpoints implement et
+- [ ] PHP/Vervel slave template + ZIP
+- [ ] HMAC secret ayrımı
+- [ ] Site Theme/Page/Menu CRUD + Frontend Builder UI
+
+## Blokajlar
+- Portainer redeploy endpoint 524 Cloudflare timeout (ama deploy çalışıyor, 2. denemede başarılı)
 
 ---
 
 # BİLİNEN HATALAR / BUG ENVANTERİ
 
-Aşağıdaki tüm hatalar tespit edilmiş olup **Phase 1-6**'da sıralı olarak düzeltilecektir.
+Aşağıdaki tüm hatalar tespit edilmiş olup sıralı olarak düzeltilecektir.
 
 ## ~~🔴 PHASE 1 — Sayfa Çökmesine Sebep Olan Kritik Hatalar~~ ✅ DÜZELTİLDİ
 
 | # | Hata | Dosya(lar) | Çözüm |
 |---|------|-----------|-------|
-| 1 | **B2B discover: `Cannot read properties of undefined (reading 'length')`** | `api-client.ts` | B2B metodlarında async unwrap + field mapping eklendi |
-| 2 | **B2B listed: aynı hata** | `api-client.ts` | Aynı çözüm |
-| 3 | **B2B requests: `res.length` undefined** | `api-client.ts` | `raw.requests` unwrap + field mapping |
-| 4 | **Store route prefix: tüm `/api/admin/store/*` 404** | `api-client.ts` | `/store/` prefix'i kaldırıldı |
-| 5 | **Variant routes: `GET products/:id/variants` 404** | `product/routes.ts`, `variantRoutes.ts`, `routes.ts` | Product routes'a eklendi, mount `/api/admin/variants` yapıldı |
-| 6 | **Variant routes: `PUT/DELETE /api/admin/variants/:id` asla eşleşmez** | `variantRoutes.ts`, `routes.ts` | Mount `/api/admin/variants` → `/:id` tek segment olarak çalışır |
-| 7 | **Checkout route conflict: stub gerçek checkout'u ezer** | `publicStoreRoutes.ts` | Stub `POST /:siteCode/checkout` kaldırıldı |
+| 1-7 | Tüm B2B, store prefix, variant, checkout, response wrapper hataları | `api-client.ts`, routes | async unwrap + field mapping + route fix |
 
 ## ~~🟠 PHASE 2 — Response Wrapper Uyumsuzlukları (Sayfalar Boş Görünür)~~ ✅ DÜZELTİLDİ
 
-| # | Hata | Frontend | Backend Key | Çözüm |
-|---|------|----------|-------------|-------|
-| 8 | `getCategories()` undefined | `Category[]` bekler | `{ categories }` döner | `.then(r => r.categories)` |
-| 9 | `getCategoryTree()` undefined | `Category[]` bekler | `{ categories }` döner | `.then(r => r.categories)` |
-| 10 | `getCategory(id)` undefined | `Category` bekler | `{ category }` döner | `.then(r => r.category)` |
-| 11 | `getIntegrations()` undefined | `MarketplaceIntegration[]` bekler | `{ integrations }` döner | `.then(r => r.integrations)` |
-| 12 | `getVariations()` undefined | `Variation[]` bekler | `{ variations }` döner | `.then(r => r.variations)` |
-| 13 | `getB2bSettings()` undefined | `ProductB2bSetting[]` bekler | `{ settings }` döner | Phase 1'de çözüldü |
-| 14 | `getCategoriesFlat()` `res.data` undefined | `{ data }` bekler | `{ categories }` döner | `async` unwrap + `{ data: r.categories }` |
-| 15 | `getProducts()` pagination mismatch | `{ data, current_page, ... }` bekler | `{ products, pagination: { page, limit, ... } }` döner | Pagination map `async` unwrap |
+| # | Hata | Çözüm |
+|---|------|-------|
+| 8-15 | Tüm response wrapper uyumsuzlukları | `.then(r => r.data)` unwrap eklendi |
+
+## 🟡 PHASE 3 — Alan Adı Uyumsuzlukları (Veriler Gözükmez / NaN) ⏳ DEVAM EDİYOR
+
+| # | Alan | Frontend | Backend |
+|---|------|----------|---------|
+| 16 | product.code | `code` | `sku` |
+| 17 | product.label | `label` | `title` |
+| 18 | product.status | `0/1` (number) | `isActive` (boolean) |
+| 19 | product.price | `price` | `priceTRY` |
+| 20 | product.stock | `stock` | `quantity` |
+| 21 | b2b_discount | snake_case | `b2bDiscount` camelCase |
+| 22 | order.grand_total | `grand_total` | `totalAmount` |
+| 23 | order.customer_name | `customer_name` | Yok |
+| 24 | order.shipping_address | `shipping_address` | `shippingAddress` |
+| 25 | order.items.map() | `items.map(...)` | `items` null olabilir |
+
+## 🟡 PHASE 4 — Eksik Backend Endpoint'leri (Çoğu VAR) ⏳ DEVAM EDİYOR
+
+| # | Sayfa | Endpoint | Durum |
+|---|-------|----------|-------|
+| 26 | Dashboard | `GET /api/admin/dashboard` | **VAR** (7 field döndürüyor) |
+| 27 | Pages | CRUD `/api/admin/pages` | **VAR** (GET list, CRUD tam) |
+| 28 | Feeds | CRUD `/api/admin/feeds` | **VAR** (CRUD + test + sync) |
+| 29 | Locations | Admin CRUD `/api/admin/locations` | **VAR** (CRUD tam) |
+| 30 | Payment Methods | Admin CRUD `/api/admin/payment-methods` | **VAR** (CRUD tam) |
+| 31 | AI Credits Logs | `/api/admin/ai/credits/logs`, `/stats` | **VAR** |
+| 32 | File Upload | `POST /api/admin/upload` | **VAR** (local disk, MinIO yok) |
+| 33 | Subscription Cancel/Change | `/store/subscription/cancel`, `/plan/change` | **Portal-based** (Stripe Billing Portal üzerinden, direct API yok) |
+| 34 | Bulk Order Status | `POST /api/admin/orders/bulk-status` | **YOK** — eklenecek |
+| 35 | Sync Job Status | `/api/admin/sync/*` | **Yanlış path** — düzeltilecek |
+| 36 | AI Status/Output | `/api/ai/status/:id`, `/api/ai/output/:id/:file` | **YOK** — proxy eklenecek |
+
+## 🟣 PHASE 5 — AI Endpoint Payload Uyuşmazlığı ⏳ DEVAM EDİYOR
+
+| # | Endpoint | Frontend Gönderir | Backend Bekler |
+|---|----------|-------------------|----------------|
+| 37 | `/api/ai/process-image` | FormData (File) | JSON `{ imageUrl }` |
+| 38 | `/api/ai/analyze-product` | FormData (File) | JSON `{ imageUrl }` |
+| 39 | `/api/ai/generate-description` | `{ name, ... }` | `{ title, ... }` |
+
+## ⚪ PHASE 6 — Slave / Site Builder Hataları ⏳ BEKLİYOR
+
+| # | Hata | Detay |
+|---|------|-------|
+| 40-50 | Slave routes stub, download path, format, Go slave, Site Builder, theme, pages, domain, ZIP, HMAC, API key | Bekliyor |
 
 ## 🟡 PHASE 3 — Alan Adı Uyumsuzlukları (Veriler Gözükmez / NaN)
 
@@ -464,37 +554,31 @@ POST   /api/ai/chat                 # Proxy → ai-service
 
 ## Geliştirme Aşamaları (Roadmap)
 
-### Phase 0 — Kritik Hata Düzeltmeleri (Bu hafta)
-- [ ] **B2B response shape**: `discover`, `listed`, `requests` response'larını frontend'in beklediği formata çevir
-- [ ] **Store route prefix**: Frontend'deki `/api/admin/store/*` çağrılarını `/api/admin/*` yap
-- [ ] **Variant routes**: Mount noktasını `/api/admin/variants` yap, path'leri düzelt
-- [ ] **Checkout conflict**: Stub'ı `publicStoreRoutes`'tan kaldır
-- [ ] **Response wrapper'lar**: Tüm `api-client.ts` get/list method'larına `.then(r => r.data)` unwrap ekle
-- [ ] **Frontend API path fix**: Slave download ve sync path'lerini düzelt
+### ✅ Phase 0 — Kritik Hata Düzeltmeleri (Tamamlandı)
+- [x] B2B response shape fix
+- [x] Store route prefix fix
+- [x] Variant routes fix
+- [x] Checkout conflict fix
+- [x] Response wrapper'lar (tüm api-client.ts unwrap)
+- [x] Runtime crash fixes (associations, CORS, model imports, sync call)
+- [x] Frontend field mappers & sayfa düzeltmeleri (stores, pages, payment, integration)
+- [x] Pixel/Tag Integrations feature (backend + frontend + storefront)
 
-### Phase 0.5 — Eksik Endpoint'ler (Bu hafta)
-- [ ] Pages CRUD route'ları ekle (`packages/core/src/modules/page/routes.ts`)
-- [ ] Dashboard stats endpoint'i ekle
-- [ ] File upload route'u ekle (multer + MinIO)
-- [ ] Feeds CRUD route'ları ekle
-- [ ] Locations/Payment Methods admin route'ları ekle
-- [ ] Bulk order status endpoint'i ekle
-- [ ] AI credits log/stats endpoint'leri ekle
-- [ ] AI status/output proxy route'ları ekle
+### 🔄 Phase 0.5 — Eksik Endpoint'ler (Aktif)
+- [ ] Bulk order status endpoint (`POST /api/admin/orders/bulk-status`)
+- [ ] AI status/output proxy route'ları
+- [ ] Sync job status path fix
 
-### Phase 0.6 — Slave & Site Builder (1-2 hafta)
-- [ ] `packages/core/src/modules/slave/routes.ts` download endpoint'lerini implement et (config injection + file serve)
+### Phase 0.6 — Slave & Site Builder
+- [ ] Slave download endpoint'lerini implement et (config injection + file serve)
 - [ ] PHP slave template + download controller'ı TypeScript'e taşı
 - [ ] Vercel slave template + ZIP oluşturma
-- [ ] Vercel ZIP'e `package.json` ekle
-- [ ] HMAC secret slave/internal ayrımı yap (`RAHAT_SLAVE_HMAC_SECRET`)
+- [ ] Vercel ZIP'e package.json ekle
+- [ ] HMAC secret slave/internal ayrımı yap
 - [ ] API key download'da yenileme mantığını kaldır
-- [ ] Slave `GET /api/slave/products` + `POST /api/slave/sync` endpoint'lerini ekle (Sequelize formatında)
-- [ ] Site Theme modeli + CRUD route'ları
-- [ ] Site Page modeli + CRUD route'ları (blocks JSONB ile)
-- [ ] Site Menu modeli + CRUD route'ları
-- [ ] Frontend Site Builder UI (renk/font/logo ayarları)
-- [ ] Frontend drag-drop page editor
+- [ ] Slave product/sync endpoint'lerini ekle
+- [ ] Site Theme/Page/Menu CRUD
+- [ ] Frontend Site Builder UI
 - [ ] Go slave geri getir (opsiyonel)
 
 ### Phase 7 — Core API + Auth + Store/Plan (1-2 hafta)
