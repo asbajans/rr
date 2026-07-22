@@ -554,6 +554,10 @@ class ApiClient {
     return this.put<import('./types').B2BRequest>(`/api/admin/b2b/requests/${id}`, data)
   }
 
+  cloneB2bProduct(requestId: number) {
+    return this.post<import('./types').Product>(`/api/admin/b2b/requests/${requestId}/clone`)
+  }
+
   async getB2bListed(filters?: { page?: number; limit?: number }) {
     const raw = await this.get<any>(`/api/admin/b2b/listed`, { params: filters })
     const products = (raw.products || []).map((lp: any) => {

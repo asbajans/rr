@@ -160,11 +160,21 @@ export default function B2bRequestsPage() {
                 )}
                 {tab === 'outgoing' && req.status === 'approved' && (
                   <button
-                    onClick={() => handleAction(req.id, 'approved')}
+                    onClick={async () => {
+                      setProcessing(req.id)
+                      try {
+                        await api.cloneB2bProduct(req.id)
+                        loadRequests()
+                      } catch (err: any) {
+                        alert(err.message || 'Klonlama başarısız')
+                      } finally {
+                        setProcessing(null)
+                      }
+                    }}
                     disabled={processing === req.id}
                     className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                   >
-                    {processing === req.id ? 'İşleniyor...' : 'Mağazama Ekle'}
+                    {processing === req.id ? 'Klonlanıyor...' : 'Mağazama Ekle'}
                   </button>
                 )}
               </div>

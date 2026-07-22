@@ -208,10 +208,6 @@ b2bRoutes.put('/requests/:id', authMiddleware, requireStore, [
 
     await request.update({ status, profitMargin: profitMargin || request.profitMargin });
 
-    if (status === 'approved') {
-      await cloneProductForB2B(request, store, profitMargin || request.profitMargin);
-    }
-
     logger.info(`B2B request ${request.id} ${status} by store ${store.id}`);
     res.json({ request });
   } catch (error) {
@@ -220,7 +216,32 @@ b2bRoutes.put('/requests/:id', authMiddleware, requireStore, [
   }
 });
 
-async function cloneProductForB2B(request: any, ownerStore: any, profitMargin: number) {
+b2bRoutes.post('/requests/:id/clone', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+
+    const request = await B2BRequest.findOne({
+      where: { id: req.params.id },
+      include: [{ model: Product, as: 'product', include: [{ model: ProductVariant, as: 'variants' }] }],
+    });
+
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.requesterStoreId !== store.id) return res.status(403).json({ error: 'Not authorized' });
+    if (request.status !== 'approved') return res.status(400).json({ error: 'Request must be approved first' });
+
+    const product = await cloneProductForB2B(request, store, request.profitMargin);
+
+    logger.info(`B2B product cloned: request ${request.id} → product ${product.id} for store ${store.id}`);
+    res.status(201).json({ product });
+  } catch (error) {
+    logger.error({ err: error }, 'Clone B2B product error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+async function cloneProductForB2B(request: any, targetStore: any, profitMargin: number) {
   const originalProduct = request.product;
   const variant = request.variant;
 
@@ -229,14 +250,14 @@ async function cloneProductForB2B(request: any, ownerStore: any, profitMargin: n
     : null;
 
   const clonedProduct = await Product.create({
-    storeId: ownerStore.id,
+    storeId: targetStore.id,
     originalStoreId: originalProduct.storeId,
     originalProductId: originalProduct.id,
     title: originalProduct.title,
     slug: originalProduct.title.toLowerCase().replace(/[^a-z0-9ğüşıöç]+/g, '-') + '-b2b-' + Date.now().toString(36),
     description: originalProduct.description,
     categoryId: originalProduct.categoryId,
-    sku: `B2B-${originalProduct.sku}-${ownerStore.siteCode}`,
+    sku: `B2B-${originalProduct.sku}-${targetStore.siteCode}`,
     gramWeight: originalProduct.gramWeight,
     milyem: originalProduct.milyem,
     effectiveMilyem: originalProduct.effectiveMilyem,
@@ -264,8 +285,8 @@ async function cloneProductForB2B(request: any, ownerStore: any, profitMargin: n
         : null;
       await ProductVariant.create({
         productId: clonedProduct.id,
-        storeId: ownerStore.id,
-        sku: `B2B-${origVariant.sku}-${ownerStore.siteCode}`,
+        storeId: targetStore.id,
+        sku: `B2B-${origVariant.sku}-${targetStore.siteCode}`,
         attributes: origVariant.attributes,
         gramWeight: origVariant.gramWeight,
         quantity: origVariant.quantity,
@@ -278,13 +299,15 @@ async function cloneProductForB2B(request: any, ownerStore: any, profitMargin: n
   }
 
   await B2BListedProduct.create({
-    storeId: ownerStore.id,
+    storeId: targetStore.id,
     originalStoreId: originalProduct.storeId,
     productId: clonedProduct.id,
     originalProductId: originalProduct.id,
     b2bRequestId: request.id,
     profitMargin,
   });
+
+  return clonedProduct;
 }
 
 b2bRoutes.get('/listed', authMiddleware, requireStore, async (req: Request, res: Response) => {
