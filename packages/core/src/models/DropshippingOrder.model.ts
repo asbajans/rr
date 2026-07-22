@@ -61,9 +61,8 @@ export class DropshippingOrder extends Model {
   @Column(DataType.STRING(3))
   declare currency: string;
 
-  @AllowNull(false)
   @Default('pending')
-  @Column(DataType.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'))
+  @Column(DataType.STRING(50))
   declare status: string;
 
   @AllowNull(true)
