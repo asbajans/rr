@@ -113,7 +113,7 @@ marketplaceRoutes.get('/:marketplace', authMiddleware, requireStore, [
 marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('marketplace').isIn(MARKETPLACES),
   body('isActive').optional().isBoolean(),
-  body('config').isObject(),
+  body('config').optional().isObject(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;

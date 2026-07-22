@@ -74,21 +74,24 @@ paymentMethodRoutes.get('/:id', authMiddleware, requireStore, [
   }
 });
 
-paymentMethodRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireStore, [
-  param('id').isInt(),
-  body('type').optional().isString().isLength({ min: 2, max: 50 }),
+paymentMethodRoutes.put('/:type', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('type').isString().isLength({ min: 2, max: 50 }),
   body('config').optional().isObject(),
   body('isActive').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const method = await StorePaymentMethod.findOne({ where: { id: req.params.id, storeId: store.id } });
+    const method = await StorePaymentMethod.findOne({ where: { type: req.params.type, storeId: store.id } });
 
     if (!method) {
       return res.status(404).json({ error: 'Payment method not found' });
     }
 
-    await method.update(req.body);
+    const updateData: any = {};
+    if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
+    if (req.body.config !== undefined) updateData.config = req.body.config;
+
+    await method.update(updateData);
     logger.info(`Payment method updated: ${method.id} (${method.type})`);
     res.json({ paymentMethod: method });
   } catch (error: unknown) {

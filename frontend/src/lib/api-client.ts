@@ -19,6 +19,57 @@ function mapProduct(p: any): any {
   }
 }
 
+function mapPaymentMethod(p: any): any {
+  if (!p) return p
+  return {
+    ...p,
+    method: p.type ?? p.method,
+    label: p.label ?? (p.type ? p.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : ''),
+    is_active: p.isActive ?? p.is_active,
+    created_at: p.createdAt ?? p.created_at,
+    updated_at: p.updatedAt ?? p.updated_at,
+  }
+}
+
+const MARKETPLACE_LABELS: Record<string, string> = {
+  trendyol: 'Trendyol',
+  hepsiburada: 'Hepsiburada',
+  pazarama: 'Pazarama',
+  n11: 'N11',
+  amazon: 'Amazon',
+  etsy: 'Etsy',
+}
+
+const MARKETPLACE_FIELDS: Record<string, Record<string, string>> = {
+  trendyol: { apiKey: 'API Anahtarı', apiSecret: 'API Secret', supplierId: 'Tedarikçi ID' },
+  hepsiburada: { username: 'Kullanıcı Adı', password: 'Şifre', merchantId: 'Mağaza ID' },
+  pazarama: { clientId: 'Client ID', clientSecret: 'Client Secret', apiKey: 'API Anahtar' },
+  n11: { appKey: 'App Key', appSecret: 'App Secret' },
+  amazon: { refreshToken: 'Refresh Token', sellerId: 'Satıcı ID', awsAccessKey: 'AWS Access Key', awsSecretKey: 'AWS Secret Key' },
+  etsy: { clientId: 'Client ID', clientSecret: 'Client Secret' },
+}
+
+function mapIntegration(i: any): any {
+  if (!i) return null
+  return {
+    ...i,
+    is_active: i.isActive ?? i.is_active,
+    label: MARKETPLACE_LABELS[i.marketplace] ?? i.marketplace,
+    fields: MARKETPLACE_FIELDS[i.marketplace] ?? {},
+  }
+}
+
+function mapPage(p: any): any {
+  if (!p) return p
+  return {
+    ...p,
+    store_id: p.storeId ?? p.store_id,
+    is_active: p.isActive ?? p.is_active,
+    created_at: p.createdAt ?? p.created_at,
+    updated_at: p.updatedAt ?? p.updated_at,
+  }
+}
+
 function mapOrder(o: any): any {
   if (!o) return o
   const address = o.shippingAddress || o.shipping_address
@@ -412,15 +463,15 @@ class ApiClient {
 
   // Marketplace Integrations
   getIntegrations() {
-    return this.get<{ integrations: import('./types').MarketplaceIntegration[] }>(`/api/admin/integrations`).then(r => r.integrations)
+    return this.get<{ integrations: any[] }>(`/api/admin/integrations`).then(r => (r.integrations || []).map(mapIntegration))
   }
 
   getIntegration(marketplace: string) {
-    return this.get<{ integration: import('./types').MarketplaceIntegration }>(`/api/admin/integrations/${marketplace}`).then(r => r.integration)
+    return this.get<any>(`/api/admin/integrations/${marketplace}`).then(r => mapIntegration(r.integration ?? r))
   }
 
   updateIntegration(marketplace: string, data: { isActive?: boolean; config?: Record<string, any>; etsyCategoryId?: string; etsyShippingProfileId?: string }) {
-    return this.put<import('./types').MarketplaceIntegration>(`/api/admin/integrations/${marketplace}`, data)
+    return this.put<any>(`/api/admin/integrations/${marketplace}`, data).then(r => mapIntegration(r.integration ?? r))
   }
 
   importIntegrationProducts(marketplace: string, maxPages = 10) {
@@ -734,19 +785,21 @@ class ApiClient {
 
   // Pages
   getPages() {
-    return this.get<import('./types').Page[]>(`/api/admin/pages`)
+    return this.get<{ pages: any[] }>(`/api/admin/pages`).then(r => (r.pages || []).map(mapPage))
   }
 
   getPage(id: number) {
-    return this.get<import('./types').Page>(`/api/admin/pages/${id}`)
+    return this.get<any>(`/api/admin/pages/${id}`).then(r => mapPage(r.page ?? r))
   }
 
   createPage(data: Partial<import('./types').Page>) {
-    return this.post<import('./types').Page>(`/api/admin/pages`, data)
+    const body = { ...data, isActive: data.is_active, is_active: undefined }
+    return this.post<any>(`/api/admin/pages`, body).then(r => mapPage(r.page ?? r))
   }
 
   updatePage(id: number, data: Partial<import('./types').Page>) {
-    return this.put<import('./types').Page>(`/api/admin/pages/${id}`, data)
+    const body = { ...data, isActive: data.is_active, is_active: undefined }
+    return this.put<any>(`/api/admin/pages/${id}`, body).then(r => mapPage(r.page ?? r))
   }
 
   deletePage(id: number) {
@@ -806,11 +859,12 @@ class ApiClient {
 
   // Payment Methods
   getPaymentMethods() {
-    return this.get<{ paymentMethods: import('./types').StorePaymentMethod[] }>(`/api/admin/payment-methods`).then(r => r.paymentMethods)
+    return this.get<{ paymentMethods: any[] }>(`/api/admin/payment-methods`).then(r => (r.paymentMethods || []).map(mapPaymentMethod))
   }
 
   updatePaymentMethod(method: string, data: { isActive: boolean; config?: Record<string, string> }) {
-    return this.put<import('./types').StorePaymentMethod>(`/api/admin/payment-methods/${method}`, data)
+    const body = { isActive: data.isActive, config: data.config }
+    return this.put<any>(`/api/admin/payment-methods/${method}`, body).then(r => mapPaymentMethod(r.paymentMethod ?? r))
   }
 
   // Credits
@@ -1015,7 +1069,15 @@ class ApiClient {
 
   // Super Admin
   getAdminStores() {
-    return this.get<{ data: import('./types').Store[] }>('/api/admin/stores').then(r => ({ data: (r as any).stores ?? r.data ?? [] }))
+    return this.get<{ data: import('./types').Store[] }>('/api/admin/stores').then(r => ({
+      data: ((r as any).stores ?? r.data ?? []).map((s: any) => ({
+        ...s,
+        site_code: s.siteCode ?? s.site_code,
+        is_active: s.isActive ?? s.is_active,
+        tax_settings: s.taxSettings ?? s.tax_settings,
+        shipping_settings: s.shippingSettings ?? s.shipping_settings,
+      }))
+    }))
   }
 
   updateAdminUser(id: number, data: Record<string, any>) {
