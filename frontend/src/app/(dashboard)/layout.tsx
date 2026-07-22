@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin, Truck, FileText, Coins, Plus, Camera } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Sparkles, Settings, Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban, MapPin, Truck, FileText, Coins, Plus, Camera, Palette, MenuIcon } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { AiProductCreator } from '@/components/ai/AiProductCreator'
@@ -23,6 +23,8 @@ const navItems = [
   { href: '/integrations', label: 'Pazaryeri', icon: ShoppingCart },
   { href: '/shipping', label: 'Kargo', icon: Truck },
   { href: '/pages', label: 'Sayfalar', icon: FileText },
+  { href: '/menus', label: 'Menüler', icon: MenuIcon },
+  { href: '/site-builder', label: 'Site Tasarım', icon: Palette },
   { href: '/credits', label: 'AI Kredileri', icon: Coins },
   { href: '/settings', label: 'Ayarlar', icon: Settings },
 ]

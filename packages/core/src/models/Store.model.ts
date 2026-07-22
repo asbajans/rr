@@ -31,6 +31,7 @@ import { StorePaymentMethod } from './ContentModels.js';
 import { ExternalFeed } from './ContentModels.js';
 import { CreditLog } from './CreditLog.model.js';
 import { IntegrationLog } from './LogModels.js';
+import { StoreMenu } from './Menu.model.js';
 
 @Table({
   tableName: 'stores',
@@ -150,4 +151,7 @@ export class Store extends Model {
 
   @HasMany(() => IntegrationLog)
   declare integrationLogs: IntegrationLog[];
+
+  @HasMany(() => StoreMenu)
+  declare menus: StoreMenu[];
 }

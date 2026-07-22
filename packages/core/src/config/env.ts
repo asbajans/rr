@@ -14,6 +14,7 @@ export const config = {
 
   apiKey: {
     internalKey: process.env.RAHAT_INTERNAL_KEY || 'internal-dev-key',
+    slaveHmacSecret: process.env.RAHAT_SLAVE_HMAC_SECRET || process.env.RAHAT_INTERNAL_KEY || 'slave-hmac-dev-key',
     hmacAlgorithm: 'sha256',
   },
 

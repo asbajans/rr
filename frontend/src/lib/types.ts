@@ -37,6 +37,41 @@ export type Store = {
   domain: string | null
   email: string | null
   is_active: boolean
+  theme?: StoreTheme | null
+  tax_settings?: Record<string, any> | null
+  shipping_settings?: Record<string, any> | null
+}
+
+export type StoreTheme = {
+  primary_color?: string
+  secondary_color?: string
+  accent_color?: string
+  font_family?: string
+  logo_url?: string
+  favicon_url?: string
+  custom_css?: string
+  [key: string]: any
+}
+
+export type StoreMenu = {
+  id: number
+  store_id: number
+  name: string
+  slug: string
+  items: StoreMenuItem[]
+  location: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type StoreMenuItem = {
+  id: string
+  label: string
+  url?: string
+  page_id?: number
+  target?: '_self' | '_blank'
+  children?: StoreMenuItem[]
 }
 
 export type Plan = {
@@ -492,13 +527,18 @@ export type OrderStatusHistory = {
 export type Page = {
   id: number
   store_id: number
-  type: 'page' | 'blog'
-  title: string
+  title: Record<string, string> | string
   slug: string
-  content: string
-  meta_title: string | null
-  meta_description: string | null
-  is_published: boolean
+  content: PageBlock[] | null
+  meta: Record<string, string> | null
+  is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export type PageBlock = {
+  id: string
+  type: 'hero' | 'text' | 'image' | 'gallery' | 'products' | 'features' | 'cta' | 'contact' | 'html'
+  content: Record<string, any>
+  settings?: Record<string, any>
 }

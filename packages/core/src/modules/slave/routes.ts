@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { verifyAccessToken } from '../auth/middleware.js';
+import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import path from 'path';
 import fs from 'fs';
@@ -8,6 +9,10 @@ import crypto from 'crypto';
 export const slaveRoutes: Router = Router();
 
 const SLAVE_DIR = path.resolve(process.cwd(), 'slave');
+
+function getSlaveHmacSecret(): string {
+  return config.apiKey.slaveHmacSecret;
+}
 
 // ── HMAC Auth for slave node requests ──
 async function slaveAuth(req: Request, res: Response, next: Function) {
@@ -36,7 +41,7 @@ async function slaveAuth(req: Request, res: Response, next: Function) {
       return;
     }
 
-    const hmacSecret = process.env.RAHAT_INTERNAL_KEY || 'internal-dev-key';
+    const hmacSecret = getSlaveHmacSecret();
     const method = req.method;
     const reqPath = req.path;
     const body = JSON.stringify(req.body || {});
@@ -55,6 +60,39 @@ async function slaveAuth(req: Request, res: Response, next: Function) {
     logger.error('Slave auth error:', error);
     res.status(500).json({ error: error.message });
   }
+}
+
+// ── Deterministic slave API key (same store → same key, no regeneration) ──
+async function getOrCreateSlaveApiKey(storeId: number): Promise<string> {
+  const { ApiKey } = await import('../../models/ApiKey.model.js');
+
+  const existing = await ApiKey.findOne({ where: { storeId, name: 'slave-auto' } });
+  if (existing) {
+    // Derive the raw key deterministically from storeId + secret
+    const hmac = crypto.createHmac('sha256', getSlaveHmacSecret());
+    hmac.update(`slave-key:${storeId}`);
+    const derived = hmac.digest('hex').substring(0, 40);
+    return `rh_${derived}`;
+  }
+
+  // First time: derive key, store hash
+  const hmac = crypto.createHmac('sha256', getSlaveHmacSecret());
+  hmac.update(`slave-key:${storeId}`);
+  const derived = hmac.digest('hex').substring(0, 40);
+  const key = `rh_${derived}`;
+  const keyHash = crypto.createHash('sha256').update(key).digest('hex');
+  const keyPrefix = `rh_${key.substring(3, 11)}`;
+
+  await ApiKey.create({
+    storeId,
+    keyHash,
+    keyPrefix,
+    name: 'slave-auto',
+    allowedIps: null,
+    expiresAt: null,
+  });
+
+  return key;
 }
 
 // ── Helper: map Sequelize product → legacy Aimeos-compatible format ──
@@ -85,7 +123,6 @@ function mapSlaveProduct(p: any) {
 
 // ── Slave-facing API endpoints ──
 
-// GET /api/slave/products — list products for the slave store
 slaveRoutes.get('/products', slaveAuth, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -103,7 +140,6 @@ slaveRoutes.get('/products', slaveAuth, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/slave/products/:id — single product
 slaveRoutes.get('/products/:id', slaveAuth, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -123,7 +159,6 @@ slaveRoutes.get('/products/:id', slaveAuth, async (req: Request, res: Response) 
   }
 });
 
-// POST /api/slave/sync — trigger product sync (returns all products)
 slaveRoutes.post('/sync', slaveAuth, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -140,7 +175,6 @@ slaveRoutes.post('/sync', slaveAuth, async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/slave/orders — receive order from slave
 slaveRoutes.post('/orders', slaveAuth, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -175,22 +209,7 @@ function getToken(req: Request): string | null {
   return token;
 }
 
-async function generateSlaveApiKey(storeId: number) {
-  const { ApiKey } = await import('../../models/ApiKey.model.js');
-  const randomBytes = crypto.randomBytes(32);
-  const key = `rah_${randomBytes.toString('hex')}`;
-  const keyHash = crypto.createHash('sha256').update(key).digest('hex');
-  const keyPrefix = `rah_${key.substring(4, 12)}`;
-  await ApiKey.create({
-    storeId,
-    keyHash,
-    keyPrefix,
-    name: 'slave-auto',
-    allowedIps: null,
-    expiresAt: null,
-  });
-  return key;
-}
+// ── Download endpoints (JWT-authenticated, admin panel) ──
 
 slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
   try {
@@ -218,16 +237,15 @@ slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
       return;
     }
 
-    const apiKey = await generateSlaveApiKey(store.id);
+    const apiKey = await getOrCreateSlaveApiKey(store.id);
+    const appUrl = process.env.APP_URL || 'https://api.rahatio.com.tr';
+    const hmacSecret = getSlaveHmacSecret();
 
     const templatePath = path.join(SLAVE_DIR, 'php', 'slave.php');
     if (!fs.existsSync(templatePath)) {
       res.status(500).json({ error: 'PHP slave template not found' });
       return;
     }
-
-    const appUrl = process.env.APP_URL || 'https://api.rahatio.com.tr';
-    const hmacSecret = process.env.RAHAT_INTERNAL_KEY || 'internal-dev-key';
 
     let content = fs.readFileSync(templatePath, 'utf-8');
     content = content.replace(
@@ -271,16 +289,15 @@ slaveRoutes.get('/download-vercel', async (req: Request, res: Response) => {
       return;
     }
 
-    const apiKey = await generateSlaveApiKey(store.id);
+    const apiKey = await getOrCreateSlaveApiKey(store.id);
+    const appUrl = process.env.APP_URL || 'https://api.rahatio.com.tr';
+    const hmacSecret = getSlaveHmacSecret();
 
     const templatePath = path.join(SLAVE_DIR, 'vercel', 'api', 'index.js');
     if (!fs.existsSync(templatePath)) {
       res.status(500).json({ error: 'Vercel slave template not found' });
       return;
     }
-
-    const appUrl = process.env.APP_URL || 'https://api.rahatio.com.tr';
-    const hmacSecret = process.env.RAHAT_INTERNAL_KEY || 'internal-dev-key';
 
     let indexContent = fs.readFileSync(templatePath, 'utf-8');
     indexContent = indexContent.replace(

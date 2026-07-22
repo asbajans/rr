@@ -999,6 +999,27 @@ class ApiClient {
     return this.delete<void>(`/api/admin/plans/${id}`)
   }
 
+  // Store Menu
+  getMenus() {
+    return this.get<{ menus: import('./types.js').StoreMenu[] }>('/api/admin/menus').then(r => r.menus)
+  }
+
+  getMenu(id: number) {
+    return this.get<{ menu: import('./types.js').StoreMenu }>(`/api/admin/menus/${id}`).then(r => r.menu)
+  }
+
+  createMenu(data: { name: string; slug: string; items?: any[]; location?: string; isActive?: boolean }) {
+    return this.post<{ menu: import('./types.js').StoreMenu }>('/api/admin/menus', data).then(r => r.menu)
+  }
+
+  updateMenu(id: number, data: Partial<{ name: string; slug: string; items: any[]; location: string; isActive: boolean }>) {
+    return this.put<{ menu: import('./types.js').StoreMenu }>(`/api/admin/menus/${id}`, data).then(r => r.menu)
+  }
+
+  deleteMenu(id: number) {
+    return this.delete<void>(`/api/admin/menus/${id}`)
+  }
+
   // Slave Download
   downloadSlavePhp() {
     return this.download('/api/admin/slave/download-php')
