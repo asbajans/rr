@@ -39,9 +39,9 @@ export default function IntegrationsPage() {
     setSaving(marketplace)
     setMessage('')
     try {
-      await api.updateIntegration(marketplace, { isActive: !currentActive })
+      const res = await api.updateIntegration(marketplace, { isActive: !currentActive })
       setIntegrations((prev) =>
-        prev.map((i) => i.marketplace === marketplace ? { ...i, isActive: !currentActive } : i)
+        prev.map((i) => i.marketplace === marketplace ? { ...i, is_active: res.is_active ?? !currentActive } : i)
       )
       setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace} ${!currentActive ? 'aktifleştirildi' : 'devre dışı bırakıldı'}`)
     } catch (err: any) {
@@ -55,9 +55,9 @@ export default function IntegrationsPage() {
     setSaving(marketplace)
     setMessage('')
     try {
-      await api.updateIntegration(marketplace, { isActive: true, config })
+      const res = await api.updateIntegration(marketplace, { isActive: true, config })
       setIntegrations((prev) =>
-        prev.map((i) => i.marketplace === marketplace ? { ...i, config, isActive: true } : i)
+        prev.map((i) => i.marketplace === marketplace ? { ...i, config: res.config ?? config, is_active: true } : i)
       )
       setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace} ayarları kaydedildi`)
     } catch (err: any) {
