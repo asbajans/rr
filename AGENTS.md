@@ -80,11 +80,19 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - [ ] HMAC secret ayrımı
 - [ ] Site Theme/Page/Menu CRUD + Frontend Builder UI
 
-### Phase 0.6 — Slave & Site Builder
-- [ ] Slave download endpoints implement et
-- [ ] PHP/Vervel slave template + ZIP
-- [ ] HMAC secret ayrımı
-- [ ] Site Theme/Page/Menu CRUD + Frontend Builder UI
+### Phase 0.6 — Slave & Site Builder ✅ TAMAMLANDI
+- [x] Slave download endpoints (config injection + PHP/Vercel ZIP)
+- [x] PHP slave template (zero-dependency, standalone)
+- [x] Vercel slave template (serverless, package.json auto-generated)
+- [x] Deterministic slave API key (no regeneration on each download)
+- [x] Slave-facing API (products, sync, orders) with HMAC auth
+- [x] mapSlaveProduct() — dual format (Aimeos compat + new)
+- [x] Site Theme CRUD (JSONB on Store model + Site Builder UI)
+- [x] Site Page CRUD (model + routes + multi-lang content)
+- [x] Site Menu CRUD (model + routes + multiple locations)
+- [x] Frontend Site Builder (logo, colors, fonts, custom CSS)
+- [x] Frontend Menüler page (create/list/edit/delete menus)
+- [x] HMAC secret warning in production if same as internal key
 
 ## Blokajlar
 - Portainer redeploy endpoint 524 Cloudflare timeout (ama deploy çalışıyor, 2. denemede başarılı)
@@ -613,16 +621,19 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] /api/ai/analyze-product: ai-service artık JSON `{ imageUrl, category }` kabul ediyor (multipart fallback ile)
 - [x] /api/ai/generate-description: ai-service'e route eklendi (`{ title, category, attributes?, keywords? }` → Ollama description generation)
 
-### Phase 0.6 — Slave & Site Builder
-- [ ] Slave download endpoint'lerini implement et (config injection + file serve)
-- [ ] PHP slave template + download controller'ı TypeScript'e taşı
-- [ ] Vercel slave template + ZIP oluşturma
-- [ ] Vercel ZIP'e package.json ekle
-- [ ] HMAC secret slave/internal ayrımı yap
-- [ ] API key download'da yenileme mantığını kaldır
-- [ ] Slave product/sync endpoint'lerini ekle
-- [ ] Site Theme/Page/Menu CRUD
-- [ ] Frontend Site Builder UI
+### Phase 0.6 — Slave & Site Builder ✅ TAMAMLANDI
+- [x] Slave download endpoints (config injection + PHP/Vercel ZIP)
+- [x] PHP slave template (zero-dependency, standalone)
+- [x] Vercel slave template (serverless, package.json auto-generated)
+- [x] Deterministic slave API key (no regeneration)
+- [x] Slave-facing API (products, sync, orders) with HMAC auth
+- [x] mapSlaveProduct() — dual format (Aimeos + new)
+- [x] Site Theme CRUD (JSONB on Store + Site Builder UI)
+- [x] Site Page CRUD (model + routes + multi-lang content)
+- [x] Site Menu CRUD (model + routes + multiple locations)
+- [x] Frontend Site Builder (logo, colors, fonts, CSS)
+- [x] Frontend Menüler page
+- [x] HMAC secret warning in production
 - [ ] Go slave geri getir (opsiyonel)
 
 ### Phase 7 — Core API + Auth + Store/Plan (1-2 hafta)

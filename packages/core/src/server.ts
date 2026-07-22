@@ -16,6 +16,11 @@ import { registerRoutes } from './routes.js';
 import { logger } from './utils/logger.js';
 
 export const createApp = async (): Promise<Express> => {
+  // Warn if slave HMAC secret matches internal key in production
+  if (config.env === 'production' &&
+      config.apiKey.slaveHmacSecret === config.apiKey.internalKey) {
+    logger.warn('RAHAT_SLAVE_HMAC_SECRET equals RAHAT_INTERNAL_KEY — set a separate SLAVE_HMAC_SECRET for production security');
+  }
   const app = express();
 
   app.use(helmet({
