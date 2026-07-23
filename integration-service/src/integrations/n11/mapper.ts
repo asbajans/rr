@@ -13,36 +13,62 @@ function normalizeN11Currency(code?: string): string {
   return map[c] ?? 'TL';
 }
 
+function readValue(source: any, paths: string[]) {
+  for (const path of paths) {
+    let current: any = source;
+    const parts = path.split('.');
+    let found = true;
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object' || !(part in current)) {
+        found = false;
+        break;
+      }
+      current = current[part];
+    }
+    if (found && current !== undefined && current !== null && current !== '') {
+      return current;
+    }
+  }
+  return undefined;
+}
+
 /** Map an N11 GetProductQuery content item -> normalized ProductData. */
 export function mapToN11Product(p: any): ProductData {
-  const images: string[] = Array.isArray(p.imageUrls) ? p.imageUrls.filter((u: any) => !!u) : [];
+  const images: string[] = Array.isArray(readValue(p, ['imageUrls', 'images', 'imageUrl'])) ? (readValue(p, ['imageUrls', 'images', 'imageUrl']) as any[]).filter((u: any) => !!u) : [];
 
   const attributes: Record<string, string> = {};
   const attrs = Array.isArray(p.attributes) ? p.attributes : [];
   let brand: string | undefined;
   for (const a of attrs) {
-    const name = a?.attributeName ?? a?.name;
-    const value = a?.attributeValue ?? a?.value;
+    const name = a?.attributeName ?? a?.name ?? a?.key;
+    const value = a?.attributeValue ?? a?.value ?? a?.customValue;
     if (name) {
       attributes[name] = String(value ?? '');
       if (String(name).toLowerCase() === 'marka') brand = String(value ?? '');
     }
   }
 
-  const categoryId = p.categoryId ?? p.category?.id;
-  const sku = String(p.stockCode ?? p.productSellerCode ?? p.n11ProductId ?? '');
+  const alternativeBrand = readValue(p, ['brand', 'brandName', 'brand.name', 'manufacturer', 'sellerBrand']);
+  if (!brand && alternativeBrand) {
+    brand = String(alternativeBrand);
+  }
+
+  const categoryId = readValue(p, ['categoryId', 'category.id', 'categoryId.value', 'pimCategoryId']);
+  const sku = String(readValue(p, ['stockCode', 'productSellerCode', 'n11ProductId', 'sku', 'code']) ?? '');
+  const price = Number(readValue(p, ['salePrice', 'listPrice', 'price', 'unitPrice', 'sellingPrice']) ?? 0);
+  const stock = Number(readValue(p, ['quantity', 'stock', 'availableStock', 'stockQuantity', 'inventory']) ?? 0);
 
   return {
-    id: String(p.n11ProductId ?? p.stockCode ?? ''),
+    id: String(readValue(p, ['n11ProductId', 'stockCode', 'id']) ?? ''),
     sku,
-    name: p.title ?? '',
-    description: p.description ?? '',
-    price: Number(p.salePrice ?? p.listPrice ?? 0),
-    currency: (p.currencyType ?? 'TL').toString().toUpperCase() === 'TL' ? 'TRY' : (p.currencyType ?? 'TL').toString().toUpperCase(),
-    stock: Number(p.quantity ?? 0),
+    name: String(readValue(p, ['title', 'name', 'productName', 'label']) ?? ''),
+    description: String(readValue(p, ['description', 'content', 'detail']) ?? ''),
+    price,
+    currency: (String(readValue(p, ['currencyType', 'currency']) ?? 'TL')).toUpperCase() === 'TL' ? 'TRY' : (String(readValue(p, ['currencyType', 'currency']) ?? 'TL')).toUpperCase(),
+    stock,
     category: String(categoryId ?? ''),
     category_id: categoryId != null ? String(categoryId) : undefined,
-    barcode: p.barcode ?? undefined,
+    barcode: String(readValue(p, ['barcode', 'gtin']) ?? undefined),
     brand,
     images: images.slice(0, 8),
     attributes,
