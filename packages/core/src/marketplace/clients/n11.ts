@@ -1,4 +1,4 @@
-import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256 } from './base.js';
+import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256Hex } from './base.js';
 
 export interface N11Config {
   appKey: string;
@@ -14,7 +14,7 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
   }
 
   private signRequest(xml: string): string {
-    return generateHmacSHA256(xml, this.config.appSecret);
+    return generateHmacSHA256Hex(xml, this.config.appSecret);
   }
 
   private async requestWithAuth<T>(action: string, body: string): Promise<T> {
