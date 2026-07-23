@@ -41,7 +41,10 @@ export default function AiProvidersPage() {
     name: '',
     type: 'llm',
     baseUrl: '',
-    authConfig: {},
+    authType: 'api-key' as 'bearer' | 'api-key' | 'basic' | 'none',
+    apiKey: '',
+    headerName: '',
+    authConfig: {} as Record<string, string>,
     isActive: true,
     isDefault: false,
   })
@@ -63,6 +66,7 @@ export default function AiProvidersPage() {
     image: 'Image Generation',
     diffusion: 'Diffusion',
   }
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const typeIcons: Record<string, React.ReactNode> = {
     llm: <Brain className="h-4 w-4" />,
@@ -97,6 +101,9 @@ export default function AiProvidersPage() {
       name: '',
       type: 'llm',
       baseUrl: '',
+      authType: 'api-key',
+      apiKey: '',
+      headerName: '',
       authConfig: {},
       isActive: true,
       isDefault: false,
@@ -123,13 +130,32 @@ export default function AiProvidersPage() {
       setMessage('Kod ve isim zorunlu')
       return
     }
+    const authConfig: Record<string, string> = {}
+    if (providerForm.apiKey) {
+      authConfig.apiKey = providerForm.apiKey
+      authConfig.authType = providerForm.authType === 'api-key' ? 'header' : providerForm.authType
+      if (providerForm.authType === 'api-key' && providerForm.headerName) {
+        authConfig.headerName = providerForm.headerName
+      }
+    }
+    const payload: any = {
+      code: providerForm.code,
+      name: providerForm.name,
+      type: providerForm.type,
+      baseUrl: providerForm.baseUrl || '',
+      isActive: providerForm.isActive,
+      isDefault: providerForm.isDefault,
+    }
+    if (Object.keys(authConfig).length > 0) {
+      payload.authConfig = authConfig
+    }
     setSaving(editingProvider?.id || -1)
     try {
       if (editingProvider) {
-        await api.updateAiProvider(editingProvider.id, providerForm)
+        await api.updateAiProvider(editingProvider.id, payload)
         setMessage('Sağlayıcı güncellendi')
       } else {
-        await api.createAiProvider(providerForm)
+        await api.createAiProvider(payload)
         setMessage('Sağlayıcı oluşturuldu')
       }
       resetProviderForm()
@@ -235,12 +261,37 @@ export default function AiProvidersPage() {
                         }`}>
                           {provider.isActive ? 'Aktif' : 'Pasif'}
                         </span>
+                        {provider.authConfig?.apiKey ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Anahtar Var
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-600">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-400" /> Anahtar Yok
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => { setEditingProvider(provider); setProviderForm({...provider, baseUrl: provider.baseUrl || '', authConfig: provider.authConfig || {}}); setShowProviderForm(true); }}
+                      onClick={() => {
+                        const cfg = provider.authConfig || {};
+                        setEditingProvider(provider);
+                        setProviderForm({
+                          code: provider.code,
+                          name: provider.name,
+                          type: provider.type,
+                          baseUrl: provider.baseUrl || '',
+                          authType: cfg.authType === 'bearer' ? 'bearer' : 'api-key',
+                          apiKey: '',
+                          headerName: cfg.headerName || '',
+                          authConfig: cfg,
+                          isActive: provider.isActive,
+                          isDefault: provider.isDefault,
+                        });
+                        setShowProviderForm(true);
+                      }}
                       className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100"
                       title="Düzenle"
                     >
@@ -401,18 +452,49 @@ export default function AiProvidersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Auth Config (JSON)</label>
-                <textarea
-                  value={JSON.stringify(providerForm.authConfig || {}, null, 2)}
-                  onChange={e => {
-                    try {
-                      setProviderForm({...providerForm, authConfig: JSON.parse(e.target.value)})
-                    } catch {}
-                  }}
-                  rows={4}
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder='{"authType": "bearer", "headerName": "Authorization", "apiKeyEnv": "OPENROUTER_API_KEY"}'
-                />
+                <label className="block text-sm font-medium text-zinc-700 mb-1">API Key <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={providerForm.apiKey}
+                    onChange={e => setProviderForm({...providerForm, apiKey: e.target.value})}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 pr-10 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder={editingProvider ? '••••••••••••••••' : 'sk-or-v1-...'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">Auth Türü</label>
+                  <select
+                    value={providerForm.authType}
+                    onChange={e => setProviderForm({...providerForm, authType: e.target.value as any})}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="bearer">Bearer Token</option>
+                    <option value="api-key">API Key (Header)</option>
+                    <option value="basic">Basic Auth</option>
+                    <option value="none">Auth Yok</option>
+                  </select>
+                </div>
+                {providerForm.authType === 'api-key' && (
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">Header Adı</label>
+                    <input
+                      value={providerForm.headerName}
+                      onChange={e => setProviderForm({...providerForm, headerName: e.target.value})}
+                      className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="X-API-Key"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2">

@@ -20,6 +20,17 @@ superAdminAiRoutes.use(authMiddleware);
 
 const superAdminOnly = requireRole('superadmin');
 
+function stripApiKey(provider: any): any {
+  const data = provider.toJSON ? provider.toJSON() : { ...provider };
+  if (data.authConfig) {
+    data.authConfig = { ...data.authConfig as any };
+    if (data.authConfig.apiKey) {
+      data.authConfig.apiKey = '••••••••';
+    }
+  }
+  return data;
+}
+
 // ============ AI PROVIDERS ============
 
 superAdminAiRoutes.get('/ai/providers', superAdminOnly, async (req: Request, res: Response) => {
@@ -28,7 +39,7 @@ superAdminAiRoutes.get('/ai/providers', superAdminOnly, async (req: Request, res
       order: [['code', 'ASC']],
       include: [{ model: AiModel, as: 'models' }],
     });
-    res.json({ providers });
+    res.json({ providers: providers.map(stripApiKey) });
   } catch (error) {
     logger.error({ err: error }, 'List AI providers error');
     res.status(500).json({ error: 'Internal server error' });
@@ -39,7 +50,7 @@ superAdminAiRoutes.post('/ai/providers', superAdminOnly, [
   body('code').isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9_-]+$/),
   body('name').isString().isLength({ min: 2, max: 100 }),
   body('type').isIn(['llm', 'vision', 'embedding', 'image', 'diffusion']),
-  body('baseUrl').optional().isURL(),
+  body('baseUrl').optional({ values: 'falsy' }).isString(),
   body('authConfig').optional().isObject(),
   body('isActive').optional().isBoolean(),
   body('isDefault').optional().isBoolean(),
@@ -61,8 +72,10 @@ superAdminAiRoutes.post('/ai/providers', superAdminOnly, [
       isDefault: isDefault === true,
     });
 
+    // Strip API key from response
+
     logger.info(`AI Provider created: ${code}`);
-    res.status(201).json({ provider });
+    res.status(201).json({ provider: stripApiKey(provider) });
   } catch (error: any) {
     logger.error({ err: error }, 'Create AI provider error');
     if (error.name === 'SequelizeUniqueConstraintError') {
@@ -76,7 +89,7 @@ superAdminAiRoutes.post('/ai/providers', superAdminOnly, [
 superAdminAiRoutes.put('/ai/providers/:id', superAdminOnly, [
   param('id').isInt(),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
-  body('baseUrl').optional().isURL(),
+  body('baseUrl').optional({ values: 'falsy' }).isString(),
   body('authConfig').optional().isObject(),
   body('isActive').optional().isBoolean(),
   body('isDefault').optional().isBoolean(),
@@ -91,7 +104,7 @@ superAdminAiRoutes.put('/ai/providers/:id', superAdminOnly, [
 
     await provider.update(req.body);
     logger.info(`AI Provider updated: ${provider.code}`);
-    res.json({ provider });
+    res.json({ provider: stripApiKey(provider) });
   } catch (error) {
     logger.error({ err: error }, 'Update AI provider error');
     res.status(500).json({ error: 'Internal server error' });
