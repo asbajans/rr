@@ -36,9 +36,10 @@ export default function SuperUsersPage() {
     setSaving(true)
     setMessage('')
     try {
-      await api.updateAdminUser(user.id, { ai_credits: user.ai_credits + amount })
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, ai_credits: user.ai_credits + amount } : u))
-      setMessage(`${user.name} kullanıcısına ${amount} kredi tanımlandı`)
+      const newCredits = (user.ai_credits || 0) + amount
+      await api.updateAdminUser(user.id, { ai_credits: newCredits })
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, ai_credits: newCredits } : u))
+      setMessage(`${user.name} kullanıcısına ${amount} kredi tanımlandı (${newCredits})`)
       setEditingId(null)
       setCreditAmount('')
     } catch (err: any) {
@@ -86,9 +87,10 @@ export default function SuperUsersPage() {
     setSaving(true)
     setMessage('')
     try {
-      await api.updateAdminUser(user.id, { is_active: !user.is_active })
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: !user.is_active } : u))
-      setMessage(`${user.name} kullanıcısı ${!user.is_active ? 'aktif' : 'pasif'} hale getirildi`)
+      const newActive = !user.is_active
+      await api.updateAdminUser(user.id, { is_active: newActive })
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: newActive } : u))
+      setMessage(`${user.name} ${newActive ? 'aktif' : 'pasif'} hale getirildi`)
     } catch (err: any) {
       setMessage(err.message || 'Durum güncellenemedi')
     } finally {
@@ -98,31 +100,29 @@ export default function SuperUsersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Kullanıcılar</h1>
-          <p className="mt-1 text-sm text-zinc-400">Tüm kullanıcıları yönet, AI kredisi ve paket ata.</p>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-white">Kullanıcılar</h1>
+        <p className="mt-1 text-sm text-zinc-400">Tüm kullanıcıları yönet, AI kredisi ve paket ata.</p>
       </div>
 
-      {message && <div className="mt-4 rounded-lg bg-zinc-800 p-3 text-sm text-green-400">{message}</div>}
+      {message && <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-400">{message}</div>}
       {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
       {error && <p className="mt-8 text-sm text-red-400">{error}</p>}
 
       {!loading && !error && (
-        <div className="mt-6 overflow-hidden rounded-xl border border-zinc-700">
-          <table className="min-w-full divide-y divide-zinc-700">
-            <thead className="bg-zinc-800">
+        <div className="overflow-hidden rounded-xl border border-zinc-800">
+          <table className="min-w-full divide-y divide-zinc-800">
+            <thead className="bg-zinc-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">Ad</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">E-posta</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">AI Kredisi</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">Yetki</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">İşlemler</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Ad</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">E-posta</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">AI Kredisi</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Yetki</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">İşlemler</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-700 bg-zinc-900">
+            <tbody className="divide-y divide-zinc-800">
               {users.map((user) => (
                 <tr key={user.id} className="hover:bg-zinc-800/50">
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{user.id}</td>
@@ -130,8 +130,14 @@ export default function SuperUsersPage() {
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{user.email}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{user.ai_credits}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${user.role === 'superadmin' ? 'bg-purple-900/50 text-purple-300' : user.is_admin || user.role === 'admin' || user.role === 'owner' ? 'bg-amber-900/50 text-amber-400' : 'bg-zinc-800 text-zinc-400'}`}>
-                      {user.role === 'superadmin' ? 'Süper Admin' : user.is_admin || user.role === 'admin' || user.role === 'owner' ? 'Yönetici' : 'Kullanıcı'}
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      user.role === 'superadmin' ? 'bg-purple-900/40 text-purple-300'
+                      : user.is_admin || user.role === 'admin' || user.role === 'owner' ? 'bg-amber-900/40 text-amber-400'
+                      : 'bg-zinc-800 text-zinc-400'
+                    }`}>
+                      {user.role === 'superadmin' ? 'Süper Admin'
+                        : user.is_admin || user.role === 'admin' || user.role === 'owner' ? 'Yönetici'
+                        : 'Kullanıcı'}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
@@ -139,18 +145,18 @@ export default function SuperUsersPage() {
                       {editingId === user.id ? (
                         <div className="flex items-center gap-2">
                           <input type="number" min="1" value={creditAmount} onChange={e => setCreditAmount(e.target.value)}
-                            className="w-20 rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white" placeholder="Adet" />
+                            className="w-20 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-white placeholder-zinc-500 focus:border-zinc-500 focus:outline-none" placeholder="Adet" />
                           <button onClick={() => grantCredits(user)} disabled={saving}
                             className="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
                             {saving ? '...' : 'Ver'}
                           </button>
                           <button onClick={() => { setEditingId(null); setCreditAmount('') }}
-                            className="text-xs text-zinc-500 hover:text-white">İptal</button>
+                            className="text-xs text-zinc-500 hover:text-zinc-300">İptal</button>
                         </div>
                       ) : planUserId === user.id ? (
                         <div className="flex items-center gap-2">
                           <select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value)}
-                            className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white">
+                            className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-white focus:border-zinc-500 focus:outline-none">
                             <option value="">Paket seç...</option>
                             {plans.map((p) => (
                               <option key={p.id} value={p.id}>{p.name}</option>
@@ -161,12 +167,13 @@ export default function SuperUsersPage() {
                             {saving ? '...' : 'Ata'}
                           </button>
                           <button onClick={() => { setPlanUserId(null); setSelectedPlan('') }}
-                            className="text-xs text-zinc-500 hover:text-white">İptal</button>
+                            className="text-xs text-zinc-500 hover:text-zinc-300">İptal</button>
                         </div>
                       ) : roleUserId === user.id ? (
                         <div className="flex items-center gap-2">
                           <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)}
-                            className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-white">
+                            className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-white focus:border-zinc-500 focus:outline-none">
+                            <option value="">Rol seç...</option>
                             <option value="superadmin">Süper Admin</option>
                             <option value="owner">Sahip</option>
                             <option value="admin">Yönetici</option>
@@ -177,7 +184,7 @@ export default function SuperUsersPage() {
                             {saving ? '...' : 'Kaydet'}
                           </button>
                           <button onClick={() => { setRoleUserId(null); setSelectedRole('') }}
-                            className="text-xs text-zinc-500 hover:text-white">İptal</button>
+                            className="text-xs text-zinc-500 hover:text-zinc-300">İptal</button>
                         </div>
                       ) : (
                         <>

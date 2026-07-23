@@ -229,11 +229,16 @@ class ApiClient {
       store: r.store || null,
       stats: {
         total_products: r.totalProducts ?? 0,
+        active_products: r.activeProducts ?? 0,
         total_orders: r.totalOrders ?? 0,
+        pending_orders: r.pendingOrders ?? 0,
         ai_credits: r.currentCredits ?? 0,
         total_revenue: r.totalRevenue ?? 0,
         active_integrations: r.activeIntegrations ?? 0,
+        low_stock_count: r.lowStockCount ?? 0,
       },
+      plan: r.plan || null,
+      subscription: r.subscription || null,
     }))
   }
 

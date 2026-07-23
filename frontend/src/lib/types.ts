@@ -163,9 +163,29 @@ export type DashboardData = {
   store: Store | null
   stats: {
     total_products: number
+    active_products: number
     total_orders: number
+    pending_orders: number
     ai_credits: number
+    total_revenue: number
+    active_integrations: number
+    low_stock_count: number
   }
+  plan: {
+    id: number
+    name: string
+    price: number
+    productLimit: number | null
+    aiCredits: number
+    features: Record<string, any> | null
+  } | null
+  subscription: {
+    id: number
+    status: string
+    trialEndsAt: string | null
+    currentPeriodEnd: string | null
+    canceledAt: string | null
+  } | null
 }
 
 export type Order = {

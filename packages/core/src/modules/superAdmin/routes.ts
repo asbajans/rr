@@ -98,6 +98,9 @@ router.put('/users/:id', superAdminOnly, [
   body('role').optional().isIn(['owner', 'admin', 'staff']),
   body('isActive').optional().isBoolean(),
   body('aiCredits').optional().isInt({ min: 0 }),
+  body('ai_credits').optional().isInt({ min: 0 }),
+  body('isActive').optional().isBoolean(),
+  body('is_active').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const user = await User.findByPk(req.params.id);
@@ -105,7 +108,7 @@ router.put('/users/:id', superAdminOnly, [
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { name, email, role, isActive, aiCredits } = req.body;
+    const { name, email, role, isActive, aiCredits, ai_credits, is_active } = req.body;
 
     if (email && email !== user.email) {
       const existing = await User.findOne({ where: { email } });
@@ -118,7 +121,9 @@ router.put('/users/:id', superAdminOnly, [
     if (email) user.email = email;
     if (role) user.role = role;
     if (isActive !== undefined) user.isActive = isActive;
+    if (is_active !== undefined) user.isActive = is_active;
     if (aiCredits !== undefined) user.aiCredits = aiCredits;
+    if (ai_credits !== undefined) user.aiCredits = ai_credits;
 
     await user.save();
 
