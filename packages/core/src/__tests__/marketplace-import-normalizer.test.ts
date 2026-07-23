@@ -5,14 +5,18 @@ describe('normalizeMarketplaceProduct', () => {
   it('preserves Trendyol brand, stock, price and approval status', () => {
     const payload = {
       title: 'Kızıl Çanta',
-      barcode: 'TR-12345',
       description: 'Şık ve hafif çanta',
       brand: 'Lacoste',
-      stock: 42,
-      salePrice: 1250,
-      currency: 'USD',
-      status: 'inactive',
       images: [{ url: 'https://cdn.example.com/a.jpg' }],
+      variants: [
+        {
+          barcode: 'TR-12345',
+          stock: 42,
+          salePrice: 1250,
+          currency: 'USD',
+          status: 'inactive',
+        },
+      ],
     };
 
     const result = normalizeMarketplaceProduct('trendyol', payload, 7);

@@ -20,9 +20,41 @@ function normalizeImages(raw: any): string[] {
   return [];
 }
 
+function resolveValue(source: any, keys: string[]) {
+  for (const key of keys) {
+    let current: any = source;
+    const parts = key.split('.');
+    let found = true;
+
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object' || !(part in current)) {
+        found = false;
+        break;
+      }
+      current = current[part];
+    }
+
+    if (found && current !== undefined && current !== null && current !== '') {
+      return current;
+    }
+  }
+  return undefined;
+}
+
+function getVariantPayload(raw: MarketplaceRawProduct) {
+  if (!Array.isArray(raw?.variants) || raw.variants.length === 0) {
+    return { root: raw, variant: null };
+  }
+
+  return { root: raw, variant: raw.variants.find((item: any) => item != null) ?? null };
+}
+
 function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD?: number } {
-  const directCurrency = raw.currency ?? raw.currencyType ?? raw.price?.currency ?? raw.price?.currencyType ?? null;
-  const salePrice = raw.salePrice ?? raw.listPrice ?? raw.price?.salePrice ?? raw.price?.listPrice ?? raw.price?.amount ?? raw.price ?? null;
+  const { root, variant } = getVariantPayload(raw);
+  const directCurrency = resolveValue(root, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? resolveValue(variant, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? null;
+  const salePrice = resolveValue(root, ['salePrice', 'listPrice', 'price.salePrice', 'price.listPrice', 'price.amount', 'price.value', 'price.price', 'price'])
+    ?? resolveValue(variant, ['salePrice', 'listPrice', 'price.salePrice', 'price.listPrice', 'price.amount', 'price.value', 'price.price', 'price'])
+    ?? null;
   const resolvedPrice = Number(salePrice ?? 0);
 
   if (!Number.isFinite(resolvedPrice) || resolvedPrice <= 0) {
@@ -34,24 +66,14 @@ function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD
     return { priceUSD: resolvedPrice };
   }
 
-  if (currency === 'TRY') {
-    return { priceTRY: resolvedPrice };
-  }
-
   return { priceTRY: resolvedPrice };
 }
 
 function resolveQuantity(raw: MarketplaceRawProduct): number {
+  const { root, variant } = getVariantPayload(raw);
   const candidates = [
-    raw.quantity,
-    raw.stock,
-    raw.stockAmount,
-    raw.stockQuantity,
-    raw.availableStock,
-    raw.fulfillmentAvailability?.availability?.availableQuantity,
-    raw.inventory?.available,
-    raw.productStock,
-    raw.stock?.quantity,
+    resolveValue(root, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity']),
+    resolveValue(variant, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity']),
   ];
 
   for (const candidate of candidates) {
@@ -65,28 +87,31 @@ function resolveQuantity(raw: MarketplaceRawProduct): number {
 }
 
 export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProduct, storeId: number) {
-  const title = raw.title || raw.name || raw.productName || raw.label || 'Imported Product';
-  const sku = raw.barcode || raw.stockCode || raw.merchantSku || raw.sku || raw.productCode || raw.asin || raw.sellerSKU || raw.id || `imp-${Date.now()}`;
-  const description = raw.description || raw.itemDescription || raw.shortDescription || raw.summary || '';
+  const { root, variant } = getVariantPayload(raw);
+  const title = resolveValue(root, ['title', 'name', 'productName', 'label']) || resolveValue(variant, ['title', 'name', 'productName', 'label']) || 'Imported Product';
+  const sku = resolveValue(root, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id'])
+    || resolveValue(variant, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id'])
+    || `imp-${Date.now()}`;
+  const description = resolveValue(root, ['description', 'itemDescription', 'shortDescription', 'summary']) || resolveValue(variant, ['description', 'itemDescription', 'shortDescription', 'summary']) || '';
   const quantity = resolveQuantity(raw);
-  const images = normalizeImages(raw.images ?? raw.imageUrls ?? raw.imageUrl ?? raw.image);
-  const statusValue = raw.status ?? raw.isActive ?? raw.onSale ?? raw.saleStatus ?? raw.isAvailable ?? null;
+  const images = normalizeImages((Array.isArray(root?.images) || Array.isArray(root?.imageUrls) || Array.isArray(root?.image)) ? root.images ?? root.imageUrls ?? root.image : variant?.images ?? variant?.imageUrls ?? variant?.image);
+  const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus']);
   const normalizedStatus = typeof statusValue === 'boolean'
     ? statusValue
     : typeof statusValue === 'number'
       ? statusValue > 0
       : typeof statusValue === 'string'
-        ? !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'unavailable'].includes(statusValue.toLowerCase())
-        : true;
+        ? !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval'].includes(statusValue.toLowerCase())
+        : false;
 
   const marketplaceConfig = {
     [mp]: {
-      brand: raw.brand?.name ?? raw.brand ?? raw.brandName ?? raw.manufacturer ?? null,
+      brand: resolveValue(root, ['brand.name', 'brand', 'brandName', 'manufacturer']) ?? resolveValue(variant, ['brand.name', 'brand', 'brandName', 'manufacturer']) ?? null,
       stock: quantity,
-      currency: raw.currency ?? raw.currencyType ?? raw.price?.currency ?? raw.price?.currencyType ?? 'TRY',
-      status: raw.status ?? raw.saleStatus ?? raw.approvalStatus ?? null,
-      externalId: raw.barcode || raw.stockCode || raw.sku || raw.id || null,
-      raw: raw,
+      currency: resolveValue(root, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? resolveValue(variant, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? 'TRY',
+      status: statusValue ?? null,
+      externalId: sku || null,
+      raw,
     },
   };
 
