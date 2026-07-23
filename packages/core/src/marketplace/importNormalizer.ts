@@ -51,9 +51,32 @@ function getVariantPayload(raw: MarketplaceRawProduct) {
 
 function resolveCategory(raw: MarketplaceRawProduct) {
   const { root, variant } = getVariantPayload(raw);
-  const categoryName = resolveValue(root, ['category', 'categoryName', 'category.name', 'pimCategoryName', 'categoryName', 'category.title']) ?? resolveValue(variant, ['category', 'categoryName', 'category.name', 'pimCategoryName', 'categoryName', 'category.title']);
-  const categoryId = resolveValue(root, ['categoryId', 'category.id', 'pimCategoryId', 'category.id', 'categoryId.value']) ?? resolveValue(variant, ['categoryId', 'category.id', 'pimCategoryId', 'category.id', 'categoryId.value']);
-  return { categoryName, categoryId };
+  
+  // Handle category name - check for nested object or direct value
+  let categoryName: string | undefined;
+  const rootCategory = resolveValue(root, ['category']);
+  const variantCategory = resolveValue(variant, ['category']);
+  
+  if (rootCategory && typeof rootCategory === 'object' && rootCategory !== null) {
+    categoryName = String(rootCategory.name ?? rootCategory.categoryName ?? '');
+  } else {
+    categoryName = resolveValue(root, ['categoryName', 'category.name', 'pimCategoryName', 'category.title']) ?? 
+                   resolveValue(variant, ['categoryName', 'category.name', 'pimCategoryName', 'category.title']);
+  }
+  
+  // Handle category ID - check for nested object or direct value
+  let categoryId: string | number | undefined;
+  const rootCategoryId = resolveValue(root, ['categoryId']);
+  const variantCategoryId = resolveValue(variant, ['categoryId']);
+  
+  if (rootCategoryId && typeof rootCategoryId === 'object' && rootCategoryId !== null) {
+    categoryId = rootCategoryId.id ?? rootCategoryId.categoryId;
+  } else {
+    categoryId = resolveValue(root, ['categoryId', 'category.id', 'pimCategoryId']) ?? 
+                 resolveValue(variant, ['categoryId', 'category.id', 'pimCategoryId']);
+  }
+  
+  return { categoryName: categoryName ?? undefined, categoryId: categoryId ?? undefined };
 }
 
 function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD?: number } {
