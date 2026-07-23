@@ -113,6 +113,8 @@ function mapOrder(o: any): any {
     items: o.items ?? [],
     tracking_number: o.trackingNumber ?? o.tracking_number,
     tracking_company: o.carrier ?? o.tracking_company,
+    payment_method: o.paymentMethod ?? o.payment_method,
+    payment_status: o.paymentStatus ?? o.payment_status,
     parent_order_id: o.parentOrderId ?? o.parent_order_id,
     sub_orders: (o.subOrders || []).map((s: any) => ({ ...s, id: Number(s.id) })),
   }
@@ -978,7 +980,12 @@ class ApiClient {
   }
 
   getCheckoutPaymentMethods(siteCode: string) {
-    return this.get<any[]>(`/api/store/${siteCode}/payment-methods`).then(r => ({ data: (Array.isArray(r) ? r : (r as any).data ?? r).map((m: any) => ({ method: m.method || m.name, label: m.label || m.name })) }))
+    return this.get<{ paymentMethods: any[] }>(`/api/store/${siteCode}/payment-methods`).then(r => ({
+      data: (r.paymentMethods || []).map((m: any) => ({
+        method: m.type,
+        label: m.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+      })),
+    }))
   }
 
   async getStoreProducts(siteCode: string, filters?: { page?: number; limit?: number; categoryId?: number; search?: string; priceMin?: number; priceMax?: number }) {

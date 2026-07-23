@@ -2,7 +2,9 @@ import { Router, Request, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { Store } from '../../models/Store.model.js';
+import { StorePaymentMethod } from '../../models/ContentModels.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
+import { logger } from '../../utils/logger.js';
 
 export const publicOrderRoutes: Router = Router();
 
@@ -24,24 +26,51 @@ publicOrderRoutes.post('/:siteCode/checkout', apiKeyMiddleware, [
     const store = (req as any).store;
     const { items, shippingAddress, paymentMethod } = req.body;
 
+    // Validate payment method exists and is active
+    const method = await StorePaymentMethod.findOne({
+      where: { storeId: store.id, type: paymentMethod, isActive: true },
+    });
+    if (!method) {
+      return res.status(400).json({ error: 'Geçersiz ödeme yöntemi' });
+    }
+
     const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
     const orderNumber = `ORD-${Date.now()}`;
+
+    const paymentStatus = paymentMethod === 'cash_on_delivery' ? 'pending' : 'awaiting';
 
     const order = await DropshippingOrder.create({
       storeId: store.id,
       orderNumber,
       marketplace: 'storefront',
       marketplaceOrderId: `SF-${Date.now()}`,
-      status: 'pending',
+      status: paymentStatus === 'pending' ? 'pending' : 'pending',
+      paymentMethod,
+      paymentStatus,
       totalAmount,
       currency: store.currency || 'TRY',
       shippingAddress,
       items,
     });
 
-    res.status(201).json({ orderId: order.id, orderNumber: order.orderNumber, message: 'Order placed successfully' });
+    // For bank_transfer/cash_on_delivery, auto-confirm
+    // For stripe/iyzico/paytr, frontend needs to complete payment separately
+    const requiresPaymentGateway = ['stripe', 'iyzico', 'paytr'].includes(paymentMethod);
+
+    logger.info(`Checkout: order ${order.id}, method=${paymentMethod}, amount=${totalAmount} ${store.currency || 'TRY'}`);
+
+    res.status(201).json({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentMethod,
+      paymentStatus,
+      requiresPaymentGateway,
+      message: requiresPaymentGateway
+        ? 'Ödeme bekleniyor'
+        : 'Sipariş başarıyla oluşturuldu',
+    });
   } catch (error) {
-    console.error('Checkout error:', error);
+    logger.error({ err: error }, 'Checkout error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

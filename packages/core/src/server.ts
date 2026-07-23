@@ -102,6 +102,8 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "trackingNumber" VARCHAR(200)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS carrier VARCHAR(100)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "parentOrderId" BIGINT`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentMethod" VARCHAR(50)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentStatus" VARCHAR(20) DEFAULT 'pending'`);
   } catch (e) {
     // Ignore if columns already exist
   }

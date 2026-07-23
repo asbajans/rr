@@ -88,6 +88,14 @@ export class DropshippingOrder extends Model {
   declare carrier: string;
 
   @AllowNull(true)
+  @Column(DataType.STRING(50))
+  declare paymentMethod: string;
+
+  @Default('pending')
+  @Column(DataType.STRING(20))
+  declare paymentStatus: string;
+
+  @AllowNull(true)
   @Index
   @Column(DataType.BIGINT)
   declare parentOrderId: number;

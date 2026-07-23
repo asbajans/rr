@@ -12,6 +12,46 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   crypto: <Bitcoin className="h-5 w-5" />,
   iyzico: <Shield className="h-5 w-5" />,
   paytr: <Wallet className="h-5 w-5" />,
+  cash_on_delivery: <Wallet className="h-5 w-5" />,
+}
+
+const METHOD_LABELS: Record<string, string> = {
+  stripe: 'Kredi Kartı (Stripe)',
+  bank_transfer: 'Banka Havalesi / EFT',
+  crypto: 'Kripto Para',
+  iyzico: 'Kredi Kartı (Iyzico)',
+  paytr: 'Kredi Kartı (PayTR)',
+  cash_on_delivery: 'Kapıda Ödeme',
+}
+
+const DEFAULT_CONFIG_FIELDS: Record<string, { key: string; label: string; type: string }[]> = {
+  stripe: [
+    { key: 'publishable_key', label: 'Yayınlanabilir Anahtar', type: 'text' },
+    { key: 'secret_key', label: 'Gizli Anahtar', type: 'password' },
+    { key: 'webhook_secret', label: 'Webhook Secret', type: 'password' },
+  ],
+  bank_transfer: [
+    { key: 'iban', label: 'IBAN', type: 'text' },
+    { key: 'bank_name', label: 'Banka Adı', type: 'text' },
+    { key: 'account_holder', label: 'Hesap Sahibi', type: 'text' },
+  ],
+  iyzico: [
+    { key: 'api_key', label: 'API Anahtarı', type: 'password' },
+    { key: 'secret_key', label: 'Gizli Anahtar', type: 'password' },
+    { key: 'base_url', label: 'Base URL', type: 'text' },
+  ],
+  paytr: [
+    { key: 'merchant_id', label: 'Mağaza Numarası', type: 'text' },
+    { key: 'merchant_key', label: 'Mağaza Anahtarı', type: 'password' },
+    { key: 'merchant_salt', label: 'Mağaza Salt Değeri', type: 'password' },
+  ],
+  crypto: [
+    { key: 'wallet_address', label: 'Cüzdan Adresi', type: 'text' },
+    { key: 'network', label: 'Ağ (ERC20/BEP20/TRC20)', type: 'text' },
+  ],
+  cash_on_delivery: [
+    { key: 'extra_fee', label: 'Ek Ücret (TL)', type: 'text' },
+  ],
 }
 
 export default function PaymentSettingsPage() {
@@ -58,21 +98,29 @@ export default function PaymentSettingsPage() {
   }
 
   function renderConfigForm(method: StorePaymentMethod) {
-    const fields = Object.keys(method.config || {})
+    const defaultFields = DEFAULT_CONFIG_FIELDS[method.method] || []
+    const existingKeys = Object.keys(method.config || {})
+    const fields = existingKeys.length > 0
+      ? existingKeys.map(k => {
+          const def = defaultFields.find(d => d.key === k)
+          return { key: k, label: def?.label || k.replace(/_/g, ' '), type: def?.type || (k.includes('key') || k.includes('secret') || k.includes('salt') ? 'password' : 'text') }
+        })
+      : defaultFields
+    if (fields.length === 0) return null
     return (
       <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); const cfg: Record<string, string> = {}; fd.forEach((v, k) => cfg[k] = v as string); saveConfig(method.method, cfg) }}
         className="mt-4 space-y-3">
-        {fields.map((key) => (
-          <div key={key}>
-            <label className="block text-xs font-medium capitalize text-zinc-700">{key.replace(/_/g, ' ')}</label>
-            {key.includes('key') || key.includes('secret') || key.includes('salt') ? (
-              <input type="password" name={key} defaultValue={method.config[key] || ''}
+        {fields.map((field) => (
+          <div key={field.key}>
+            <label className="block text-xs font-medium capitalize text-zinc-700">{field.label}</label>
+            {field.type === 'password' ? (
+              <input type="password" name={field.key} defaultValue={(method.config as any)?.[field.key] || ''}
                 className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono" />
-            ) : key.includes('iban') ? (
-              <input name={key} defaultValue={method.config[key] || ''}
+            ) : field.key.includes('iban') ? (
+              <input name={field.key} defaultValue={(method.config as any)?.[field.key] || ''}
                 className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono uppercase" />
             ) : (
-              <input name={key} defaultValue={method.config[key] || ''}
+              <input name={field.key} defaultValue={(method.config as any)?.[field.key] || ''}
                 className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
             )}
           </div>
@@ -103,15 +151,15 @@ export default function PaymentSettingsPage() {
           {methods.map((method) => (
             <div key={method.method} className="rounded-xl border border-zinc-200 bg-white p-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600">
-                    {METHOD_ICONS[method.method] || <CreditCard className="h-5 w-5" />}
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600">
+                      {METHOD_ICONS[method.method] || <CreditCard className="h-5 w-5" />}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-zinc-900">{METHOD_LABELS[method.method] || method.label}</h3>
+                      <p className="text-xs text-zinc-400">{method.method}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-zinc-900">{method.label}</h3>
-                    <p className="text-xs text-zinc-400">{method.method}</p>
-                  </div>
-                </div>
                 <button
                   onClick={() => toggleMethod(method.method, method.is_active)}
                   disabled={saving === method.method}
