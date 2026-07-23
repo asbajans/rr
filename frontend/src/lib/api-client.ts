@@ -111,6 +111,10 @@ function mapOrder(o: any): any {
     shipping: o.shipping ?? 0,
     tax: o.tax ?? 0,
     items: o.items ?? [],
+    tracking_number: o.trackingNumber ?? o.tracking_number,
+    tracking_company: o.carrier ?? o.tracking_company,
+    parent_order_id: o.parentOrderId ?? o.parent_order_id,
+    sub_orders: (o.subOrders || []).map((s: any) => ({ ...s, id: Number(s.id) })),
   }
 }
 

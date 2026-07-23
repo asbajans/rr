@@ -11,6 +11,7 @@ import {
   Default,
   ForeignKey,
   BelongsTo,
+  HasMany,
   Index,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
@@ -22,6 +23,7 @@ import { Store } from './Store.model.js';
     { unique: true, fields: ['storeId', 'marketplaceOrderId'] },
     { fields: ['storeId'] },
     { fields: ['status'] },
+    { fields: ['parentOrderId'] },
   ],
 })
 export class DropshippingOrder extends Model {
@@ -77,6 +79,19 @@ export class DropshippingOrder extends Model {
   @Column(DataType.TEXT)
   declare note: string;
 
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare trackingNumber: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(100))
+  declare carrier: string;
+
+  @AllowNull(true)
+  @Index
+  @Column(DataType.BIGINT)
+  declare parentOrderId: number;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;
@@ -87,4 +102,10 @@ export class DropshippingOrder extends Model {
 
   @BelongsTo(() => Store)
   declare store: Store;
+
+  @BelongsTo(() => DropshippingOrder, 'parentOrderId')
+  declare parentOrder: DropshippingOrder;
+
+  @HasMany(() => DropshippingOrder, 'parentOrderId')
+  declare subOrders: DropshippingOrder[];
 }

@@ -4,6 +4,7 @@ import { body, param, query, validationResult } from 'express-validator';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
+import { createSplitOrder } from './orderSplit.js';
 import { logger } from '../../utils/logger.js';
 
 export const orderRoutes: Router = Router();
@@ -57,22 +58,16 @@ orderRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStor
   try {
     const store = (req as any).store;
     const orderNumber = `ORD-${Date.now()}`;
+    const { marketplace, marketplaceOrderId, marketplaceOrderNumber, totalAmount, currency, shippingAddress, items } = req.body;
 
-    const order = await DropshippingOrder.create({
-      storeId: store.id,
-      orderNumber,
-      ...req.body,
-    });
+    const { mainOrder, subOrders } = await createSplitOrder(
+      store.id, marketplace, marketplaceOrderId,
+      items, totalAmount, orderNumber,
+      currency || 'TRY', shippingAddress, req.body, marketplaceOrderNumber,
+    );
 
-    await OrderStatusHistory.create({
-      dropshippingOrderId: order.id,
-      fromStatus: null,
-      toStatus: 'pending',
-      note: 'Order created manually',
-    });
-
-    logger.info(`Order created: ${order.id} by store ${store.id}`);
-    res.status(201).json({ order });
+    logger.info(`Order created: ${mainOrder.id} by store ${store.id}${subOrders.length > 0 ? ` with ${subOrders.length} sub-order(s)` : ''}`);
+    res.status(201).json({ order: mainOrder, subOrders });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create order error');
     res.status(500).json({ error: 'Internal server error' });
@@ -93,7 +88,12 @@ orderRoutes.get('/:id', authMiddleware, requireStore, [
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    res.json({ order });
+    const subOrders = await DropshippingOrder.findAll({
+      where: { parentOrderId: order.id },
+      include: [{ model: OrderStatusHistory, as: 'statusHistory', order: [['createdAt', 'ASC']] }],
+    });
+
+    res.json({ order: { ...order.toJSON(), subOrders } });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get order error');
     res.status(500).json({ error: 'Internal server error' });

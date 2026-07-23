@@ -357,6 +357,8 @@ export type DropshippingOrderDetail = DropshippingOrder & {
   tracking_number: string | null
   tracking_company: string | null
   note: string | null
+  parent_order_id?: number | null
+  sub_orders?: DropshippingOrderDetail[]
   status_history: {
     id: number
     from_status: string | null

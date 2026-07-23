@@ -97,6 +97,15 @@ export const createApp = async (): Promise<Express> => {
     // Ignore
   }
 
+  // Add tracking/carrier/parentOrderId columns to dropshipping_orders (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "trackingNumber" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS carrier VARCHAR(100)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "parentOrderId" BIGINT`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   await sequelize.sync({ alter: config.env !== 'production' });
 
   // Migrate existing admin user to superadmin role

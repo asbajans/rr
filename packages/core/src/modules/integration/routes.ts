@@ -7,6 +7,7 @@ import { ProductMarketplaceListing } from '../../models/ProductMarketplaceListin
 import { Store } from '../../models/Store.model.js';
 import { IntegrationLog } from '../../models/LogModels.js';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
+import { createSplitOrder } from '../order/orderSplit.js';
 import { Op } from 'sequelize';
 import { logger } from '../../utils/logger.js';
 
@@ -48,28 +49,34 @@ integrationRoutes.post('/webhook/order', [
     const items = payload.items || payload.products || [];
     const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
-    const order = await DropshippingOrder.create({
-      storeId: store.id,
-      orderNumber,
-      marketplace,
-      marketplaceOrderId: payload.id.toString(),
-      marketplaceOrderNumber: payload.order_number,
-      status: 'pending',
-      totalAmount,
-      currency: payload.currency || 'TRY',
-      shippingAddress: payload.shipping_address || payload.address,
-      items,
-    });
+    const { mainOrder, subOrders } = await createSplitOrder(
+      store.id, marketplace, payload.id.toString(),
+      items, totalAmount, orderNumber,
+      payload.currency || 'TRY',
+      payload.shipping_address || payload.address,
+      payload,
+      payload.order_number,
+    );
 
-    await OrderStatusHistory.create({
-      dropshippingOrderId: order.id,
-      fromStatus: null,
-      toStatus: 'pending',
-      note: `Order received from ${marketplace}`,
-    });
+    logger.info(`Webhook order created: ${mainOrder.id} from ${marketplace}${subOrders.length > 0 ? ` with ${subOrders.length} sub-order(s)` : ''}`);
 
-    logger.info(`Webhook order created: ${order.id} from ${marketplace}`);
-    res.status(201).json({ order, created: true });
+    if (subOrders.length > 0) {
+      const user = (req as any).user;
+      await IntegrationLog.create({
+        userId: user?.id || 0,
+        storeId: store.id,
+        platform: marketplace,
+        endpoint: '/webhook/order',
+        method: 'POST',
+        isSuccess: true,
+        requestPayload: { marketplace, itemCount: items.length },
+        responsePayload: { mainOrderId: mainOrder.id, subOrderIds: subOrders.map(s => s.id) },
+        errorMessage: null,
+        createdAt: new Date(),
+      });
+    }
+
+    return res.status(201).json({ order: mainOrder, subOrders, created: true });
   } catch (error) {
     logger.error({ err: error }, 'Webhook order error:');
     res.status(500).json({ error: 'Internal server error' });

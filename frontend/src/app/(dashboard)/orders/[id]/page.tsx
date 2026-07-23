@@ -92,6 +92,12 @@ export default function OrderDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Siparişler
       </Link>
 
+      {order.parent_order_id && (
+        <div className="mt-2 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-700">
+          Bu sipariş, <Link href={`/orders/${order.parent_order_id}`} className="font-medium underline">#{order.parent_order_id}</Link> numaralı ana siparişin alt siparişidir
+        </div>
+      )}
+
       {message && (
         <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{message}</div>
       )}
@@ -205,6 +211,30 @@ export default function OrderDetailPage() {
                       </p>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sub-orders */}
+          {order.sub_orders && order.sub_orders.length > 0 && (
+            <div className="rounded-xl border border-zinc-200 bg-white p-6">
+              <h3 className="text-sm font-semibold text-zinc-900">Tedarikçi Alt Siparişleri</h3>
+              <div className="mt-4 space-y-3">
+                {order.sub_orders.map((sub: any) => (
+                  <Link key={sub.id} href={`/orders/${sub.id}`}
+                    className="flex items-center justify-between rounded-lg border border-zinc-100 p-3 hover:bg-zinc-50">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">#{sub.external_id || sub.id}</p>
+                      <p className="text-xs text-zinc-500">{sub.items?.length || 0} ürün</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[sub.status]?.color || 'bg-zinc-100 text-zinc-700'}`}>
+                        {STATUS_CONFIG[sub.status]?.label || sub.status}
+                      </span>
+                      <p className="mt-1 text-xs text-zinc-500">{parseFloat(sub.grand_total || sub.totalAmount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</p>
+                    </div>
+                  </Link>
                 ))}
               </div>
             </div>
