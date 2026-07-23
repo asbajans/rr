@@ -65,14 +65,16 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - Integration log viewer + DELETE endpoints
 - Model cleanup (7 duplicate files removed)
 
+### Phase 10 — B2B Sistemi (Golden'dan gelişmiş) ✅ TAMAMLANDI
+- ProductB2bSetting (isEnabled, discount, price)
+- B2B Discover (seller filter + enrich)
+- B2B Request (create, incoming/outgoing, approve/reject)
+- Clone + List (variant destekli, profitMargin, original references)
+- Frontend B2B Keşfet + Talepler + Listed
+
 ## Sıradaki
 
-### Phase 10 — B2B Sistemi (Golden'dan gelişmiş)
-- Portainer redeploy endpoint 524 Cloudflare timeout (ama deploy çalışıyor, 2. denemede başarılı)
-
----
-
-# BİLİNEN HATALAR / BUG ENVANTERİ
+### Phase 11 — AI + Order + Extras (Sıradaki)
 
 Aşağıdaki tüm hatalar tespit edilmiş olup sıralı olarak düzeltilecektir.
 
@@ -646,14 +648,14 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] Implemented N11 `getCategories`, `getOrders`, `getOrder`
 - [x] Added Etsy OAuth callback endpoint
 
-### Phase 10 — B2B Sistemi (Golden'dan gelişmiş) (Sıradaki)
-- [ ] ProductB2bSetting (isEnabled, discount, price)
-- [ ] B2B Discover (seller storeId filter + enrichProduct)
-- [ ] B2B Request (create, incoming/outgoing, approve/reject)
-- [ ] **Clone + List**: Golden'dan `listB2BProduct` (variant destekli, profitMargin, originalProductId/originalStoreId referans)
-- [ ] Frontend B2B Keşfet + Talepler + Listed
+### Phase 10 — B2B Sistemi (Golden'dan gelişmiş) ✅ TAMAMLANDI
+- [x] ProductB2bSetting (isEnabled, discount, price)
+- [x] B2B Discover (seller storeId filter + enrichProduct)
+- [x] B2B Request (create, incoming/outgoing, approve/reject)
+- [x] **Clone + List**: `listB2BProduct` (variant destekli, profitMargin, originalProductId/originalStoreId referans)
+- [x] Frontend B2B Keşfet + Talepler + Listed
 
-### Phase 11 — AI + Order + Extras (1-2 hafta)
+### Phase 11 — AI + Order + Extras (Sıradaki)
 - [ ] AI Gateway Proxy (Core → ai-service)
 - [ ] AI: analyze-product, generate-description, chat, search, recommend
 - [ ] Dropshipping Order (create, status, tracking, history, split by vendor)
