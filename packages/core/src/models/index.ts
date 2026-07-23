@@ -16,4 +16,5 @@ export { OrderStatusHistory } from './OrderStatusHistory.model.js';
 export { ApiKey } from './ApiKey.model.js';
 export { CreditLog } from './CreditLog.model.js';
 export { Setting } from './Setting.model.js';
+export { AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog } from './AiModels.js';
 export { Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption } from './ContentModels.js';
