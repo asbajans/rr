@@ -1212,6 +1212,79 @@ class ApiClient {
     return this.download('/api/admin/slave/download-vercel')
   }
 
+  // Super Admin - AI Providers
+  getAiProviders() {
+    return this.get<{ providers: any[] }>('/api/admin/ai/providers')
+  }
+
+  createAiProvider(data: { code: string; name: string; type: string; baseUrl?: string; authConfig?: any; isActive?: boolean; isDefault?: boolean }) {
+    return this.post<{ provider: any }>('/api/admin/ai/providers', data)
+  }
+
+  updateAiProvider(id: number, data: any) {
+    return this.put<{ provider: any }>(`/api/admin/ai/providers/${id}`, data)
+  }
+
+  deleteAiProvider(id: number) {
+    return this.delete<{ success: boolean }>(`/api/admin/ai/providers/${id}`)
+  }
+
+  // Super Admin - AI Models
+  getAiModels() {
+    return this.get<{ models: any[] }>('/api/admin/ai/models')
+  }
+
+  createAiModel(data: { providerId: number; modelCode: string; displayName: string; capability?: string; parameters?: any; isActive?: boolean }) {
+    return this.post<{ model: any }>('/api/admin/ai/models', data)
+  }
+
+  updateAiModel(id: number, data: any) {
+    return this.put<{ model: any }>(`/api/admin/ai/models/${id}`, data)
+  }
+
+  deleteAiModel(id: number) {
+    return this.delete<{ success: boolean }>(`/api/admin/ai/models/${id}`)
+  }
+
+  // Super Admin - AI Scenarios
+  getAiScenarios() {
+    return this.get<{ scenarios: any[] }>('/api/admin/ai/scenarios')
+  }
+
+  createAiScenario(data: { code: string; name: string; description?: string; modelId?: number; parameters?: any; costCredits?: number; isActive?: boolean }) {
+    return this.post<{ scenario: any }>('/api/admin/ai/scenarios', data)
+  }
+
+  updateAiScenario(id: number, data: any) {
+    return this.put<{ scenario: any }>(`/api/admin/ai/scenarios/${id}`, data)
+  }
+
+  deleteAiScenario(id: number) {
+    return this.delete<{ success: boolean }>(`/api/admin/ai/scenarios/${id}`)
+  }
+
+  // Super Admin - AI Rate Limits
+  getAiRateLimits() {
+    return this.get<{ limits: any[] }>('/api/admin/ai/rate-limits')
+  }
+
+  createAiRateLimit(data: { providerId: number; scope: string; maxRequests: number; isActive?: boolean }) {
+    return this.post<{ limit: any }>('/api/admin/ai/rate-limits', data)
+  }
+
+  updateAiRateLimit(id: number, data: any) {
+    return this.put<{ limit: any }>(`/api/admin/ai/rate-limits/${id}`, data)
+  }
+
+  deleteAiRateLimit(id: number) {
+    return this.delete<{ success: boolean }>(`/api/admin/ai/rate-limits/${id}`)
+  }
+
+  // Super Admin - AI Usage Logs
+  getAiUsageLogs(params?: { userId?: number; storeId?: number; providerId?: number; scenarioId?: number; limit?: number; offset?: number }) {
+    return this.get<{ logs: any[]; total: number }>('/api/admin/ai/usage-logs', { params })
+  }
+
   private download(path: string) {
     const url = new URL(`${API_BASE}${path}`)
     if (this.token) {
