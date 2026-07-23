@@ -656,8 +656,23 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] Frontend B2B Keşfet + Talepler + Listed
 
 ### Phase 11 — AI + Order + Extras (Sıradaki)
-- [ ] AI Gateway Proxy (Core → ai-service)
-- [ ] AI: analyze-product, generate-description, chat, search, recommend
+
+#### AI Gateway & API Key Yönetimi (Öncelikli)
+- [ ] **Global AI Settings (Super Admin)** — NVIDIA developer key, OpenRouter key, default model seçimi
+- [ ] **AI Provider Yönetimi** — Provider CRUD (NVIDIA, OpenRouter, OpenAI, Ollama, ComfyUI), her provider için baseURL, auth türü, modeller
+- [ ] **Model Kullanım Senaryoları** — Her senaryo (analyze-product, generate-description, chat, search, recommend) için: hangi provider/model, parametreler, rate limit
+- [ ] **Per-Store AI Override (Opsiyonel)** — Mağaza bazında farklı key/model kullanımı
+- [ ] **API Key Gizliliği** — Keyler sadece super admin panelinde, seller panelinde GÖRÜNMEZ
+- [ ] **AI Gateway Proxy** — Core'den `/api/ai/*` endpointleri → ai-service'e yönlendirme (key injection ile)
+
+#### AI İşlevleri
+- [ ] analyze-product (görsel analizi → kategori/özellik önerisi)
+- [ ] generate-description (başlık + özellikler → SEO açıklama)
+- [ ] chat (müşteri destek / ürün soruları)
+- [ ] search (semantik ürün arama)
+- [ ] recommend (cross-sell / up-sell önerileri)
+
+#### Sipariş & Diğer
 - [ ] Dropshipping Order (create, status, tracking, history, split by vendor)
 - [ ] Express Checkout (address, payment methods, cart)
 - [ ] XML Feed (import wizard, mapping, auto-sync)
