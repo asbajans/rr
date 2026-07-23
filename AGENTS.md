@@ -72,11 +72,26 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - Clone + List (variant destekli, profitMargin, original references)
 - Frontend B2B Keşfet + Talepler + Listed
 
+### Phase 11 — AI Provider/Model/Scenario/RL Yönetimi ✅ TAMAMLANDI
+
+#### Completed
+- [x] **AiModels.ts** — AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog
+- [x] **Super admin API** — Full CRUD (`/api/admin/ai/providers`, `/ai/models`, `/ai/scenarios`, `/ai/rate-limits`, `/ai/usage-logs`)
+- [x] **Frontend API client** — Tüm metotlar (get/create/update/delete)
+- [x] **AI Sağlayıcılar** (`/ai-providers`) — Provider list + inline model CRUD
+- [x] **AI Senaryoları** (`/ai-scenarios`) — 5 ön tanımlı senaryo (analyze_product, generate_description, chat, search, recommend)
+- [x] **AI Rate Limits** (`/ai-rate-limits`) — Sağlayıcı bazında dakika/saat/gün limit
+- [x] **Setting modeli** (`Setting.model.ts`) — Global anahtar-değer deposu (Etsy OAuth)
+- [x] **Super admin nav** — Tüm AI sayfaları linklendi
+
 ## Sıradaki
 
-### Phase 11 — AI + Order + Extras (Sıradaki)
+### Phase 11 (devam) — AI Gateway Proxy & Siparişler
 
-Aşağıdaki tüm hatalar tespit edilmiş olup sıralı olarak düzeltilecektir.
+- [ ] AI Gateway Proxy — Core → ai-service yönlendirme (key injection ile)
+- [ ] Dropshipping Order (create, status, tracking, history, split by vendor)
+- [ ] Express Checkout (address, payment methods, cart)
+- [ ] XML Feed (import wizard, mapping, auto-sync)
 
 ## ~~🔴 PHASE 1 — Sayfa Çökmesine Sebep Olan Kritik Hatalar~~ ✅ DÜZELTİLDİ
 
@@ -655,12 +670,20 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] **Clone + List**: `listB2BProduct` (variant destekli, profitMargin, originalProductId/originalStoreId referans)
 - [x] Frontend B2B Keşfet + Talepler + Listed
 
-### Phase 11 — AI + Order + Extras (Sıradaki)
+### Phase 11 — AI Gateway & Provider Yönetimi ⏳ DEVAM EDİYOR
 
-#### AI Gateway & API Key Yönetimi (Öncelikli)
+#### AI Provider/Model/Scenario/RL Yönetimi ✅ TAMAMLANDI
+- [x] **AiModels.ts** — AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog modelleri (Sequelize)
+- [x] **Super admin API** — `/api/admin/ai/providers`, `/ai/models`, `/ai/scenarios`, `/ai/rate-limits`, `/ai/usage-logs` (full CRUD + validator)
+- [x] **Frontend api-client.ts** — Tüm AI yönetim metotları (get/create/update/delete)
+- [x] **AI Sağlayıcılar sayfası** (`/ai-providers`) — Provider list + inline model CRUD (create/edit/delete)
+- [x] **AI Senaryoları sayfası** (`/ai-scenarios`) — 5 ön tanımlı senaryo (analyze_product, generate_description, chat, search, recommend) için model/parametre/kredi atama
+- [x] **AI Rate Limits sayfası** (`/ai-rate-limits`) — Sağlayıcı bazında dakika/saat/gün limit tanımlama
+- [x] **Setting modeli** (`Setting.model.ts`) — Global anahtar-değer deposu (Etsy OAuth credential'ları için)
+- [x] **Super admin nav** — Tüm AI sayfaları linklendi
+
+#### AI Gateway & API Key Yönetimi (Sıradaki)
 - [ ] **Global AI Settings (Super Admin)** — NVIDIA developer key, OpenRouter key, default model seçimi
-- [ ] **AI Provider Yönetimi** — Provider CRUD (NVIDIA, OpenRouter, OpenAI, Ollama, ComfyUI), her provider için baseURL, auth türü, modeller
-- [ ] **Model Kullanım Senaryoları** — Her senaryo (analyze-product, generate-description, chat, search, recommend) için: hangi provider/model, parametreler, rate limit
 - [ ] **Per-Store AI Override (Opsiyonel)** — Mağaza bazında farklı key/model kullanımı
 - [ ] **API Key Gizliliği** — Keyler sadece super admin panelinde, seller panelinde GÖRÜNMEZ
 - [ ] **AI Gateway Proxy** — Core'den `/api/ai/*` endpointleri → ai-service'e yönlendirme (key injection ile)

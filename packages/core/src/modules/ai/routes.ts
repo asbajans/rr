@@ -2,10 +2,11 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
+import { AiProvider, AiModel, AiScenario, AiUsageLog } from '../../models/AiModels.js';
 
 export const aiRoutes: Router = Router();
 
-const AI_TIMEOUT_MS = 25000;
+const AI_TIMEOUT_MS = 30000;
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -39,6 +40,127 @@ async function deductCredits(userId: number, storeId: number, amount: number, ac
   await user.update({ aiCredits: balanceAfter });
 }
 
+async function logAiUsage(
+  userId: number, storeId: number,
+  scenarioCode: string,
+  providerId: number | null,
+  modelId: number | null,
+  creditsUsed: number,
+  requestMeta: any,
+  responseMeta: any
+) {
+  const scenario = await AiScenario.findOne({ where: { code: scenarioCode } });
+  await AiUsageLog.create({
+    userId,
+    storeId,
+    providerId,
+    modelId,
+    scenarioId: scenario?.id || null,
+    creditsUsed,
+    balanceBefore: 0,
+    balanceAfter: 0,
+    requestMeta,
+    responseMeta,
+  });
+}
+
+async function resolveScenarioConfig(scenarioCode: string): Promise<{
+  provider: any | null;
+  model: any | null;
+  scenario: any | null;
+  parameters: any;
+  costCredits: number;
+}> {
+  try {
+    const scenario = await AiScenario.findOne({
+      where: { code: scenarioCode, isActive: true },
+      include: [
+        { model: AiModel, as: 'model' },
+        { model: AiProvider, as: 'provider' },
+      ],
+    });
+
+    if (!scenario) {
+      return { provider: null, model: null, scenario: null, parameters: {}, costCredits: scenarioCode === 'chat' ? 1 : 3 };
+    }
+
+    return {
+      provider: scenario.provider || null,
+      model: scenario.model || null,
+      scenario,
+      parameters: scenario.parameters || {},
+      costCredits: scenario.costCredits,
+    };
+  } catch (err) {
+    logger.warn({ err, scenarioCode }, 'Scenario config lookup failed, using defaults');
+    return { provider: null, model: null, scenario: null, parameters: {}, costCredits: scenarioCode === 'chat' ? 1 : 3 };
+  }
+}
+
+function buildProviderPayload(provider: any, model: any, scenario: any) {
+  if (!provider || !model) return {};
+
+  let apiKey = '';
+  if (provider.authConfig && typeof provider.authConfig === 'object') {
+    const ac = provider.authConfig as any;
+    if (ac.apiKey) {
+      apiKey = ac.apiKey;
+    } else if (ac.apiKeyEnv) {
+      apiKey = process.env[ac.apiKeyEnv] || '';
+    }
+  }
+
+  return {
+    provider: {
+      baseUrl: provider.baseUrl,
+      apiKey,
+      authType: (provider.authConfig as any)?.authType || 'bearer',
+    },
+    model: model.modelId,
+    parameters: scenario?.parameters || {},
+  };
+}
+
+async function proxyToAiService(req: Request, res: Response, path: string, scenarioCode: string, defaultCredits: number) {
+  const user = (req as any).user;
+  const store = (req as any).store;
+
+  const { provider, model, scenario, costCredits } = await resolveScenarioConfig(scenarioCode);
+  const credits = costCredits || defaultCredits;
+
+  try {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
+    const axios = (await import('axios')).default;
+
+    const providerPayload = buildProviderPayload(provider, model, scenario);
+    const body = { ...req.body, ...providerPayload };
+
+    const response = await axios.post(`${aiServiceUrl}${path}`, body, { timeout: AI_TIMEOUT_MS });
+
+    await deductCredits(user.id, store.id, credits, scenarioCode, 'ai');
+    await logAiUsage(
+      user.id, store.id, scenarioCode,
+      provider?.id || null, model?.id || null, credits,
+      { path, bodyKeys: Object.keys(req.body) },
+      { status: response.status }
+    );
+
+    res.json(response.data);
+  } catch (error: any) {
+    logger.error({ err: error, scenarioCode, path }, 'AI proxy error');
+    await logAiUsage(
+      user.id, store.id, scenarioCode,
+      provider?.id || null, model?.id || null, credits,
+      { path, bodyKeys: Object.keys(req.body) },
+      { error: error.message }
+    ).catch(() => {});
+
+    const status = error?.response?.status || 500;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
+  }
+}
+
 aiRoutes.get('/credits', authMiddleware, requireStore, async (req: Request, res: Response) => {
   const user = (req as any).user;
   res.json({ credits: user.aiCredits });
@@ -48,54 +170,14 @@ aiRoutes.post('/process-image', authMiddleware, requireStore, [
   body('imageUrl').isURL(),
   body('category').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const store = (req as any).store;
-    const { imageUrl, category } = req.body;
-
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
-    const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/process-image`, {
-      imageUrl,
-      category: category || 'diger',
-    }, { timeout: AI_TIMEOUT_MS });
-
-    await deductCredits(user.id, store.id, 5, 'process_image', 'ai');
-
-    res.json(response.data);
-  } catch (error: any) {
-    logger.error('AI process image error:', error);
-    const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    res.status(status).json({ error: upstream });
-  }
+  return proxyToAiService(req, res, '/ai/process-image', 'process-image', 5);
 });
 
 aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
   body('imageUrl').isURL(),
   body('category').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const store = (req as any).store;
-    const { imageUrl, category } = req.body;
-
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
-    const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/analyze-product`, {
-      imageUrl,
-      category: category || 'diger',
-    }, { timeout: AI_TIMEOUT_MS });
-
-    await deductCredits(user.id, store.id, 10, 'analyze_product', 'ai');
-
-    res.json(response.data);
-  } catch (error: any) {
-    logger.error('AI analyze product error:', error);
-    const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    res.status(status).json({ error: upstream });
-  }
+  return proxyToAiService(req, res, '/ai/analyze-product', 'analyze-product', 10);
 });
 
 aiRoutes.post('/generate-description', authMiddleware, requireStore, [
@@ -104,23 +186,7 @@ aiRoutes.post('/generate-description', authMiddleware, requireStore, [
   body('attributes').optional().isObject(),
   body('keywords').optional().isArray(),
 ], validate, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const store = (req as any).store;
-
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
-    const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/generate-description`, req.body, { timeout: AI_TIMEOUT_MS });
-
-    await deductCredits(user.id, store.id, 3, 'generate_description', 'ai');
-
-    res.json(response.data);
-  } catch (error: any) {
-    logger.error('AI generate description error:', error);
-    const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    res.status(status).json({ error: upstream });
-  }
+  return proxyToAiService(req, res, '/ai/generate-description', 'generate-description', 3);
 });
 
 aiRoutes.post('/chat', authMiddleware, requireStore, [
@@ -128,52 +194,14 @@ aiRoutes.post('/chat', authMiddleware, requireStore, [
   body('history').optional().isArray(),
   body('storeInfo').optional().isObject(),
 ], validate, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const store = (req as any).store;
-    const { message, history, storeInfo } = req.body;
-
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
-    const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/chat`, {
-      message,
-      history,
-      storeInfo: { ...storeInfo, name: store.name, site_code: store.siteCode },
-    }, { timeout: AI_TIMEOUT_MS });
-
-    await deductCredits(user.id, store.id, 1, 'chat', 'ai');
-
-    res.json(response.data);
-  } catch (error: any) {
-    logger.error('AI chat error:', error);
-    const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    res.status(status).json({ error: upstream });
-  }
+  return proxyToAiService(req, res, '/ai/chat', 'chat', 1);
 });
 
 aiRoutes.post('/search', authMiddleware, requireStore, [
   body('query').isString().isLength({ min: 1 }),
   body('products').isArray(),
 ], validate, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const store = (req as any).store;
-    const { query, products } = req.body;
-
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
-    const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/search`, { query, products }, { timeout: AI_TIMEOUT_MS });
-
-    await deductCredits(user.id, store.id, 2, 'search', 'ai');
-
-    res.json(response.data);
-  } catch (error: any) {
-    logger.error('AI search error:', error);
-    const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    res.status(status).json({ error: upstream });
-  }
+  return proxyToAiService(req, res, '/ai/search', 'search', 2);
 });
 
 aiRoutes.post('/recommend', authMiddleware, requireStore, [
@@ -181,24 +209,7 @@ aiRoutes.post('/recommend', authMiddleware, requireStore, [
   body('allProducts').isArray(),
   body('type').optional().isIn(['similar', 'trending', 'cross-sell']),
 ], validate, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const store = (req as any).store;
-    const { product, allProducts, type } = req.body;
-
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
-    const axios = (await import('axios')).default;
-    const response = await axios.post(`${aiServiceUrl}/ai/recommend`, { product, allProducts, type }, { timeout: AI_TIMEOUT_MS });
-
-    await deductCredits(user.id, store.id, 2, 'recommend', 'ai');
-
-    res.json(response.data);
-  } catch (error: any) {
-    logger.error('AI recommend error:', error);
-    const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    res.status(status).json({ error: upstream });
-  }
+  return proxyToAiService(req, res, '/ai/recommend', 'recommend', 2);
 });
 
 aiRoutes.get('/status/:id', authMiddleware, requireStore, async (req: Request, res: Response) => {

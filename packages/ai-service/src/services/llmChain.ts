@@ -1,5 +1,5 @@
 import { ProductSpecs, SellerNotes, SeoContent, TrendyolListing, AmazonListing } from '../types';
-import { callOllama } from './ollama.js';
+import { callLlm, ProviderConfig } from './llmProvider.js';
 
 function buildSystemPrompt(): string {
   return `You are an expert e-commerce copywriter and SEO specialist for the Turkish market.
@@ -73,10 +73,6 @@ Generate the following JSON structure exactly:
 }`;
 }
 
-async function callOllamaLocal(prompt: string): Promise<string> {
-  return callOllama(prompt, buildSystemPrompt(), { temperature: 0.3, top_p: 0.95 });
-}
-
 function parseJsonResponse(raw: string) {
   const cleaned = raw
     .replace(/```json\s*/gi, '')
@@ -95,7 +91,8 @@ export async function generateListings(
   specs: ProductSpecs,
   notes: SellerNotes,
   imageUrls: string[],
-  onProgress: (msg: string) => void
+  onProgress: (msg: string) => void,
+  providerConfig?: ProviderConfig
 ): Promise<{
   seo: SeoContent;
   trendyol: TrendyolListing;
@@ -104,7 +101,23 @@ export async function generateListings(
   onProgress('Yapay zeka metinleri oluşturuluyor...');
 
   const prompt = buildPrompt(specs, notes, imageUrls);
-  const raw = await callOllamaLocal(prompt);
+  const config: ProviderConfig = providerConfig
+    ? {
+        baseUrl: providerConfig.baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434',
+        model: providerConfig.model || process.env.OLLAMA_LLM_MODEL || 'llama3',
+        apiKey: providerConfig.apiKey,
+        authType: 'bearer',
+      }
+    : {
+        baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+        model: process.env.OLLAMA_LLM_MODEL || 'llama3',
+      };
+
+  const raw = await callLlm(config, [
+    { role: 'system', content: buildSystemPrompt() },
+    { role: 'user', content: prompt },
+  ], { temperature: 0.3, topP: 0.95 });
+
   const data = parseJsonResponse(raw);
 
   return {

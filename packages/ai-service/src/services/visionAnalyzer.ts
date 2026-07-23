@@ -5,6 +5,13 @@ import { ProductSpecs, ProductCategory } from '../types';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const VISION_MODEL = process.env.VISION_MODEL || 'llama3.2-vision';
 
+interface ProviderConfig {
+  baseUrl?: string;
+  model?: string;
+  apiKey?: string;
+  authType?: string;
+}
+
 function buildVisionPrompt(category: ProductCategory): string {
   return `You are a professional product analyst. Analyze this product image carefully.
 
@@ -63,7 +70,10 @@ async function analyzeWithOllama(
 
 export async function analyzeProductImage(
   imagePath: string,
-  category: ProductCategory
+  category: ProductCategory,
+  providerConfig?: ProviderConfig
 ): Promise<ProductSpecs> {
+  // Use Ollama for vision analysis (LLaVA/llama3.2-vision)
+  // Future: extend to support GPT-4o, Claude 3, Gemini vision APIs
   return analyzeWithOllama(imagePath, category);
 }

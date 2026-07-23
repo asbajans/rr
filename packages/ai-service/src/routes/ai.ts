@@ -9,10 +9,23 @@ import fs from 'fs';
 import https from 'https';
 import http from 'http';
 import { callOllama, OllamaUnavailableError } from '../services/ollama.js';
+import { callLlm, buildDefaultConfig, ProviderConfig } from '../services/llmProvider.js';
 
 const router: Router = Router();
 
 const FRIENDLY_ERROR = 'AI servisi şu an kullanılamıyor (Ollama bağlantısı yok). Lütfen daha sonra tekrar deneyin.';
+
+function extractProviderConfig(body: any): ProviderConfig {
+  if (body.provider) {
+    return {
+      baseUrl: body.provider.baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434',
+      model: body.model || body.provider.model || process.env.OLLAMA_LLM_MODEL || 'llama3',
+      apiKey: body.provider.apiKey,
+      authType: body.provider.authType || 'bearer',
+    };
+  }
+  return buildDefaultConfig();
+}
 
 async function downloadImage(url: string, destDir: string): Promise<string> {
   const ext = path.extname(new URL(url).pathname) || '.png';
@@ -92,7 +105,7 @@ router.post(
   }
 );
 
-// analyze-product: accepts multipart image OR JSON { imageUrl, category }
+// analyze-product: accepts multipart image OR JSON { imageUrl, category, provider?, model? }
 router.post(
   '/analyze-product',
   upload.single('image'),
@@ -106,16 +119,17 @@ router.post(
     }
 
     try {
+      const providerConfig = extractProviderConfig(req.body);
       const { analyzeProductImage } = await import('../services/visionAnalyzer.js');
       const { generateListings } = await import('../services/llmChain.js');
 
-      const specs = await analyzeProductImage(filePath, (req.body.category || 'diger') as any);
+      const specs = await analyzeProductImage(filePath, (req.body.category || 'diger') as any, providerConfig);
 
       const result = await generateListings(specs, {
         shortDescription: req.body.short_description,
         keywords: req.body.keywords,
         notes: req.body.notes,
-      }, [], () => {});
+      }, [], () => {}, providerConfig);
 
       res.json({
         specs: {
@@ -153,9 +167,11 @@ router.post('/generate-description', async (req: Request, res: Response) => {
   }
 
   try {
+    const providerConfig = extractProviderConfig(req.body);
     const attrStr = attributes ? Object.entries(attributes).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
     const kwStr = keywords?.length ? `Anahtar kelimeler: ${keywords.join(', ')}` : '';
 
+    const system = 'Sen bir e-ticaret ürün metni yazarısın. Verilen formatta çıktı üret.';
     const prompt = `Ürün adı: ${title}
 Kategori: ${category}
 ${attrStr ? `Özellikler: ${attrStr}` : ''}
@@ -176,7 +192,11 @@ DESCRIPTION: ...
 SLUG: ...
 KEYWORDS: ...`;
 
-    const response = await callOllama(prompt, 'Sen bir e-ticaret ürün metni yazarısın. Verilen formatta çıktı üret.');
+    const response = await callLlm(providerConfig, [
+      { role: 'system', content: system },
+      { role: 'user', content: prompt },
+    ], { temperature: 0.7 });
+
     const lines = response.split('\n').map((l: string) => l.trim()).filter(Boolean);
 
     const extract = (prefix: string): string => {
@@ -230,11 +250,13 @@ router.post('/search', async (req: Request, res: Response) => {
   }
 
   try {
+    const providerConfig = extractProviderConfig(req.body);
     const productList = products.map((p: any, i: number) =>
       `[${i}] ${p.label} - ${p.description || 'açıklama yok'} - ${p.price || 0} ${p.currency || 'TRY'}`
     ).join('\n');
 
-    const prompt = `Kullanıcı şu aramayı yaptı: "${query}"
+    const system = 'Sen bir e-ticaret arama asistanısın. Sadece index numaraları döndür.';
+    const userPrompt = `Kullanıcı şu aramayı yaptı: "${query}"
 
 Aşağıdaki ürünler arasından en uygun olanların index numaralarını virgülle ayırarak döndür:
 
@@ -242,7 +264,11 @@ ${productList}
 
 Sadece en alakalı 5 ürünün index numaralarını virgülle ayırarak yaz, başka bir şey yazma.`;
 
-    const response = await callOllama(prompt, 'Sen bir e-ticaret arama asistanısın. Sadece index numaraları döndür.');
+    const response = await callLlm(providerConfig, [
+      { role: 'system', content: system },
+      { role: 'user', content: userPrompt },
+    ], { temperature: 0.3 });
+
     const indices = response.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n < products.length);
 
     const results = indices.map((i: number) => products[i]);
@@ -266,6 +292,7 @@ router.post('/recommend', async (req: Request, res: Response) => {
   }
 
   try {
+    const providerConfig = extractProviderConfig(req.body);
     const currentProduct = product
       ? `${product.label} - ${product.description || ''} - ${product.price || 0} ${product.currency || 'TRY'}`
       : 'genel';
@@ -274,11 +301,16 @@ router.post('/recommend', async (req: Request, res: Response) => {
       `[${i}] ${p.label} - ${p.description || ''} - ${p.price || 0} ${p.currency || 'TRY'}`
     ).join('\n');
 
-    const prompt = type === 'trending'
+    const system = 'Sen bir e-ticaret öneri asistanısın. Sadece index numaraları döndür.';
+    const userPrompt = type === 'trending'
       ? `En çok satan/trend ürünler hangileri? Aşağıdaki listeden en popüler olabilecek 5 ürünün index numaralarını döndür:\n\n${productList}`
       : `Mevcut ürün: ${currentProduct}\n\nAşağıdaki listeden buna en çok benzeyen/önerilebilecek 5 ürünün index numaralarını döndür:\n\n${productList}`;
 
-    const response = await callOllama(prompt, 'Sen bir e-ticaret öneri asistanısın. Sadece index numaraları döndür.');
+    const response = await callLlm(providerConfig, [
+      { role: 'system', content: system },
+      { role: 'user', content: userPrompt },
+    ], { temperature: 0.3 });
+
     const indices = response.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n < allProducts.length);
 
     const results = indices.map((i: number) => allProducts[i]);
@@ -302,6 +334,7 @@ router.post('/chat', async (req: Request, res: Response) => {
   }
 
   try {
+    const providerConfig = extractProviderConfig(req.body);
     const storeContext = storeInfo
       ? `Mağaza: ${storeInfo.name}\nSite: ${storeInfo.site_code || ''}\n`
       : '';
@@ -310,18 +343,22 @@ router.post('/chat', async (req: Request, res: Response) => {
       .map((h: any) => `${h.role}: ${h.content}`)
       .join('\n');
 
-    const prompt = `${storeContext}Müşteri mesajı: ${message}
+    const system = `Sen ${storeInfo?.name || 'Rahatio'} mağazasının müşteri hizmetleri AI asistanısın.
+Kibar, yardımsever ve kısa cevaplar ver. Türkçe yanıtla.
+Sipariş durumu, kargo, iade, ürün bilgisi gibi konularda yardımcı ol.
+Emin olmadığın konularda "Müşteri hizmetlerimize yönlendireceğim" de.`;
+    const userPrompt = `${storeContext}Müşteri mesajı: ${message}
 
 ${conversation ? `Sohbet geçmişi:\n${conversation}` : ''}
 
 Yardımcı ol:`;
 
-    const response = await callOllama(prompt, `Sen ${storeInfo?.name || 'Rahatio'} mağazasının müşteri hizmetleri AI asistanısın.
-Kibar, yardımsever ve kısa cevaplar ver. Türkçe yanıtla.
-Sipariş durumu, kargo, iade, ürün bilgisi gibi konularda yardımcı ol.
-Emin olmadığın konularda "Müşteri hizmetlerimize yönlendireceğim" de.`);
+    const reply = await callLlm(providerConfig, [
+      { role: 'system', content: system },
+      { role: 'user', content: userPrompt },
+    ], { temperature: 0.7 });
 
-    res.json({ reply: response });
+    res.json({ reply });
   } catch (err: any) {
     if (err instanceof OllamaUnavailableError) {
       res.status(503).json({ error: FRIENDLY_ERROR });
