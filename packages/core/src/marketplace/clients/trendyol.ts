@@ -1,9 +1,9 @@
-import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256 } from './base.js';
+import { BaseMarketplaceClient, MarketplaceClient } from './base.js';
 
 export interface TrendyolConfig {
   apiKey: string;
   apiSecret: string;
-  supplierId: number;
+  supplierId: string;
 }
 
 interface TrendyolProduct {
@@ -31,27 +31,17 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
   private config: TrendyolConfig;
 
   constructor(config: TrendyolConfig) {
-    super('https://api.trendyol.com/sapigw', {
-      'User-Agent': `${config.apiKey} - Rahatio Integration`,
+    super('https://apigw.trendyol.com/integration/product', {
+      'Content-Type': 'application/json',
+      'User-Agent': config.supplierId,
+      'Authorization': `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString('base64')}`,
     });
     this.config = config;
   }
 
-  private getAuthHeaders(method: string, path: string): Record<string, string> {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const stringToSign = `${method}\n${path}\n${timestamp}`;
-    const signature = generateHmacSHA256(stringToSign, this.config.apiSecret);
-
-    return {
-      'Authorization': `Basic ${Buffer.from(`${this.config.apiKey}:${signature}`).toString('base64')}`,
-      'X-Trendyol-Timestamp': timestamp,
-    };
-  }
-
   async getCategories(): Promise<any[]> {
     const path = `/product-categories`;
-    const headers = this.getAuthHeaders('GET', path);
-    const data = await this.request<any>({ method: 'GET', url: path, headers });
+    const data = await this.request<any>({ method: 'GET', url: path });
     const categories = data.categories || [];
     const flat: any[] = [];
     const walk = (list: any[]) => {
@@ -74,81 +64,44 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
 
   async getProducts(params: { page?: number; size?: number; status?: string } = {}): Promise<{ products: any[]; hasMore: boolean }> {
     const { page = 0, size = 50, status = 'Approved' } = params;
-    const path = `/suppliers/${this.config.supplierId}/products`;
-    const headers = this.getAuthHeaders('GET', path);
-    const data = await this.request<any>({
-      method: 'GET',
-      url: path,
-      headers,
-      params: { page, size, status },
-    });
-    return { products: data.content || [], hasMore: !data.last };
+    const url = `/sellers/${this.config.supplierId}/products/approved`;
+    const data = await this.request<any>({ method: 'GET', url, params: { page, size } });
+    return {
+      products: data.content || [],
+      hasMore: data.last ? false : true
+    };
   }
 
   async createProduct(product: TrendyolProduct): Promise<any> {
-    const path = `/suppliers/${this.config.supplierId}/products`;
-    const headers = this.getAuthHeaders('POST', path);
-    const data = await this.request<any>({
-      method: 'POST',
-      url: path,
-      headers,
-      data: { items: [product] },
-    });
-    return data.batchRequestId;
+    const url = `/sellers/${this.config.supplierId}/products`;
+    const data = await this.request<any>({ method: 'POST', url, data: { items: [product] } });
+    return data.batchRequestId || data.listing_id;
   }
 
   async updateProduct(productId: string, product: Partial<TrendyolProduct>): Promise<any> {
-    const path = `/suppliers/${this.config.supplierId}/products/${productId}`;
-    const headers = this.getAuthHeaders('PUT', path);
-    const data = await this.request<any>({
-      method: 'PUT',
-      url: path,
-      headers,
-      data: product,
-    });
-    return data;
+    const url = `/sellers/${this.config.supplierId}/products/${productId}`;
+    return this.request<any>({ method: 'PUT', url, data: product });
   }
 
   async updatePrice(productId: string, price: number): Promise<any> {
-    const path = `/suppliers/${this.config.supplierId}/products/${productId}/price`;
-    const headers = this.getAuthHeaders('POST', path);
-    const data = await this.request<any>({
-      method: 'POST',
-      url: path,
-      headers,
-      data: { salePrice: price },
-    });
-    return data;
+    const url = `/sellers/${this.config.supplierId}/products/${productId}/price`;
+    return this.request<any>({ method: 'POST', url, data: { salePrice: price } });
   }
 
   async updateStock(productId: string, quantity: number): Promise<any> {
-    const path = `/suppliers/${this.config.supplierId}/products/${productId}/stock`;
-    const headers = this.getAuthHeaders('POST', path);
-    const data = await this.request<any>({
-      method: 'POST',
-      url: path,
-      headers,
-      data: { quantity },
-    });
-    return data;
+    const url = `/sellers/${this.config.supplierId}/products/${productId}/stock`;
+    return this.request<any>({ method: 'PUT', url, data: { quantity } });
   }
 
   async getOrders(params: { startDate?: string; endDate?: string; page?: number; size?: number } = {}): Promise<any[]> {
-    const path = `/suppliers/${this.config.supplierId}/orders`;
-    const headers = this.getAuthHeaders('GET', path);
-    const data = await this.request<any>({
-      method: 'GET',
-      url: path,
-      headers,
-      params: params,
-    });
+    const url = `/sellers/${this.config.supplierId}/orders`;
+    const data = await this.request<any>({ method: 'GET', url, params });
     return data.content || [];
   }
 
   async getOrder(orderId: string): Promise<any> {
-    const path = `/suppliers/${this.config.supplierId}/orders/${orderId}`;
-    const headers = this.getAuthHeaders('GET', path);
-    return this.request<any>({ method: 'GET', url: path, headers });
+    const url = `/sellers/${this.config.supplierId}/orders/${orderId}`;
+    return this.request<any>({ method: 'GET', url });
   }
 }
 

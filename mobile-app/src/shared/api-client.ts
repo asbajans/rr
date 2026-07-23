@@ -210,25 +210,86 @@ class ApiClient {
   }
 
   // Dashboard
-  getDashboard() {
-    return this.get<DashboardData>('/api/admin/dashboard')
+  async getDashboard() {
+    const r = await this.get<any>('/api/admin/dashboard')
+    return {
+      user: r.user || null,
+      store: r.store || null,
+      plan: r.plan || null,
+      subscription: r.subscription || null,
+      stats: {
+        total_products: r.totalProducts ?? 0,
+        active_products: r.activeProducts ?? 0,
+        total_orders: r.totalOrders ?? 0,
+        pending_orders: r.pendingOrders ?? 0,
+        ai_credits: r.currentCredits ?? 0,
+        total_revenue: r.totalRevenue ?? 0,
+        active_integrations: r.activeIntegrations ?? 0,
+        low_stock_count: r.lowStockCount ?? 0,
+      },
+    } as DashboardData
   }
 
   // Admin Stores
-  getAdminStores(page = 1) {
-    return this.get<PaginatedResponse<Store>>(`/api/admin/stores?page=${page}`)
+  async getAdminStores(page = 1) {
+    const r = await this.get<any>(`/api/admin/stores?page=${page}`)
+    const raw = Array.isArray(r) ? r : (r.data || r.stores || [])
+    const stores: Store[] = raw.map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      site_code: s.siteCode ?? s.site_code ?? '',
+      domain: s.domain ?? null,
+      email: s.email ?? null,
+      is_active: s.isActive ?? s.is_active ?? true,
+    }))
+    return {
+      data: stores,
+      total: stores.length,
+      current_page: 1,
+      last_page: 1,
+      per_page: stores.length || 50,
+    } as PaginatedResponse<Store>
   }
 
-  getAdminStore(id: number) {
-    return this.get<Store>(`/api/admin/stores/${id}`)
+  async getAdminStore(id: number) {
+    const r = await this.get<any>(`/api/admin/stores/${id}`)
+    const s = r.store || r.data || r
+    return {
+      id: s.id,
+      name: s.name,
+      site_code: s.siteCode ?? s.site_code ?? '',
+      domain: s.domain ?? null,
+      email: s.email ?? null,
+      is_active: s.isActive ?? s.is_active ?? true,
+    } as Store
   }
 
-  createAdminStore(data: Partial<Store>) {
-    return this.post<Store>('/api/admin/stores', data)
+  async createAdminStore(data: Partial<Store>) {
+    const payload: any = { name: data.name }
+    if (data.site_code) payload.siteCode = data.site_code
+    if (data.email) payload.email = data.email
+    if (data.domain) payload.domain = data.domain
+    const r = await this.post<any>('/api/admin/stores', payload)
+    const s = r.store || r.data || r
+    return {
+      id: s.id,
+      name: s.name,
+      site_code: s.siteCode ?? s.site_code ?? '',
+      domain: s.domain ?? null,
+      email: s.email ?? null,
+      is_active: true,
+    } as Store
   }
 
-  updateAdminStore(id: number, data: Partial<Store>) {
-    return this.put<Store>(`/api/admin/stores/${id}`, data)
+  async updateAdminStore(id: number, data: Partial<Store>) {
+    const payload: any = {}
+    if (data.name) payload.name = data.name
+    if (data.site_code) payload.siteCode = data.site_code
+    if (data.email) payload.email = data.email
+    if (data.domain) payload.domain = data.domain
+    if (data.is_active !== undefined) payload.isActive = data.is_active
+    await this.put<any>(`/api/admin/stores/${id}`, payload)
+    return this.getAdminStore(id)
   }
 
   deleteAdminStore(id: number) {
@@ -236,16 +297,47 @@ class ApiClient {
   }
 
   // Admin Users
-  getAdminUsers(page = 1) {
-    return this.get<PaginatedResponse<User>>(`/api/admin/users?page=${page}`)
+  async getAdminUsers(page = 1) {
+    const r = await this.get<any>(`/api/admin/users?page=${page}`)
+    const raw = Array.isArray(r) ? r : (r.data || r.users || [])
+    const users: User[] = raw.map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      ai_credits: u.aiCredits ?? u.ai_credits ?? 0,
+      store_id: u.storeId ?? u.store_id ?? null,
+      is_admin: u.role === 'superadmin' || u.is_admin === true,
+    }))
+    const pagination = r.pagination || {}
+    return {
+      data: users,
+      total: pagination.total ?? users.length,
+      current_page: pagination.page ?? pagination.current_page ?? 1,
+      last_page: pagination.totalPages ?? pagination.last_page ?? 1,
+      per_page: pagination.limit ?? pagination.per_page ?? (users.length || 50),
+    } as PaginatedResponse<User>
   }
 
-  getAdminUser(id: number) {
-    return this.get<User>(`/api/admin/users/${id}`)
+  async getAdminUser(id: number) {
+    const r = await this.get<any>(`/api/admin/users/${id}`)
+    const u = r.user || r.data || r
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      ai_credits: u.aiCredits ?? u.ai_credits ?? 0,
+      store_id: u.storeId ?? u.store_id ?? null,
+      is_admin: u.role === 'superadmin' || u.is_admin === true,
+    } as User
   }
 
-  updateAdminUser(id: number, data: Partial<User>) {
-    return this.put<User>(`/api/admin/users/${id}`, data)
+  async updateAdminUser(id: number, data: Partial<User>) {
+    const payload: any = {}
+    if (data.name) payload.name = data.name
+    if (data.email) payload.email = data.email
+    if (data.is_admin !== undefined) payload.role = data.is_admin ? 'superadmin' : 'staff'
+    await this.put<any>(`/api/admin/users/${id}`, payload)
+    return this.getAdminUser(id)
   }
 
   deleteAdminUser(id: number) {
@@ -253,8 +345,9 @@ class ApiClient {
   }
 
   // Admin Plans
-  getAdminPlans() {
-    return this.get<Plan[]>('/api/admin/plans')
+  async getAdminPlans() {
+    const r = await this.get<any>('/api/admin/plans')
+    return (r.plans || r.data || r) as Plan[]
   }
 
   getAdminPlan(id: number) {
@@ -416,41 +509,95 @@ class ApiClient {
     return `${API_BASE}/api/ai/output/${encodeURIComponent(sessionId)}/${encodeURIComponent(file)}`
   }
 
-  // Admin Orders (storefront / Aimeos)
+  // Admin Orders
   async getAdminOrders() {
-    const r = await this.get<{ orders: Order[]; pagination: { total: number } }>('/api/admin/orders')
-    return { data: (r.orders || []).map(this.mapOrder), total: r.pagination.total }
+    const r = await this.get<any>('/api/admin/orders')
+    const orders = r.orders || r.data || []
+    const pagination = r.pagination || {}
+    return {
+      data: orders.map(this.mapOrder),
+      total: pagination.total ?? orders.length,
+      current_page: pagination.page ?? 1,
+      last_page: pagination.totalPages ?? 1,
+      per_page: pagination.limit ?? 20,
+    }
   }
 
   async getAdminOrder(id: string) {
-    const r = await this.get<{ order: Order }>(`/api/admin/orders/${id}`)
-    return this.mapOrder(r.order)
+    const r = await this.get<any>(`/api/admin/orders/${id}`)
+    return this.mapOrder(r.order || r.data || r)
   }
 
-  // Admin Dropshipping / Marketplace Orders
-  getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number }) {
-    const qs = params
-      ? '?' + Object.entries(params)
-          .filter(([, v]) => v !== undefined && v !== null && v !== '')
-          .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-          .join('&')
-      : ''
-    return this.get<{ data: DropshippingOrder[]; total: number; current_page: number; last_page: number }>(
-      `/api/admin/orders/dropshipping${qs}`,
-    )
+  // Dropshipping / Marketplace Orders (uses same /api/admin/orders endpoint)
+  async getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number }) {
+    const queryParams: Record<string, string> = {}
+    if (params?.status) queryParams.status = params.status
+    if (params?.marketplace) queryParams.marketplace = params.marketplace
+    if (params?.page) queryParams.page = String(params.page)
+    const r = await this.get<any>('/api/admin/orders', { params: Object.keys(queryParams).length ? queryParams : undefined })
+    const ordersRaw = r.orders || r.data || []
+    const pagination = r.pagination || {}
+    const total = pagination.total ?? ordersRaw.length
+    const current_page = pagination.page ?? 1
+    const last_page = pagination.totalPages ?? 1
+    const orders = ordersRaw.map((o: any) => {
+      const address = o.shippingAddress || o.shipping_address
+      return {
+        ...o,
+        id: Number(o.id),
+        grand_total: o.totalAmount ?? o.grand_total,
+        shipping_address: typeof address === 'object' ?
+          [address.addressLine1, address.addressLine2, address.city, address.state, address.country].filter(Boolean).join(', ')
+          : (address || ''),
+        customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || '') : ''),
+        customer_email: o.customerEmail || (typeof address === 'object' ? (address.email || '') : ''),
+        customer_phone: o.customerPhone || (typeof address === 'object' ? (address.phone || '') : ''),
+        external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
+        subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
+        shipping: o.shipping ?? 0,
+        tax: o.tax ?? 0,
+      }
+    })
+    return { data: orders, total, current_page, last_page }
   }
 
-  getAdminDropshippingOrder(id: number) {
-    return this.get<DropshippingOrder>(`/api/admin/orders/dropshipping/${id}`)
+  async getAdminDropshippingOrder(id: number) {
+    const r = await this.get<any>(`/api/admin/orders/${id}`)
+    return this.mapOrder(r.order || r.data || r)
   }
 
   // Admin API Keys
-  getAdminApiKeys() {
-    return this.get<ApiKey[]>('/api/admin/api-keys')
+  async getAdminApiKeys() {
+    const r = await this.get<any>('/api/admin/api-keys')
+    const raw = Array.isArray(r) ? r : (r.keys || [])
+    return raw.map((k: any) => ({
+      id: k.id,
+      store_id: k.storeId ?? k.store_id ?? 0,
+      name: k.name,
+      key: k.key ?? k.keyPrefix ?? '',
+      allowed_ips: k.allowedIps ?? k.allowed_ips ?? null,
+      expires_at: k.expiresAt ?? k.expires_at ?? null,
+      last_used_at: k.lastUsedAt ?? k.last_used_at ?? null,
+      created_at: k.createdAt ?? k.created_at,
+      store: k.store ?? null,
+    })) as ApiKey[]
   }
 
-  createAdminApiKey(data: { name: string }) {
-    return this.post<CreatedApiKey>('/api/admin/api-keys', data)
+  async createAdminApiKey(data: { name: string }) {
+    const r = await this.post<any>('/api/admin/api-keys', data)
+    return {
+      api_key: {
+        id: r.id,
+        store_id: r.storeId ?? r.store_id ?? 0,
+        name: r.name ?? data.name,
+        key: r.keyPrefix ?? '',
+        allowed_ips: r.allowedIps ?? null,
+        expires_at: r.expiresAt ?? null,
+        last_used_at: null,
+        created_at: r.createdAt ?? new Date().toISOString(),
+      },
+      plain_text: r.key ?? '',
+    } as CreatedApiKey
   }
 
   deleteAdminApiKey(id: number) {
@@ -459,22 +606,36 @@ class ApiClient {
 
   // Settings
   async getSettings() {
-    const r = await this.get<{ store: Store }>('/api/admin/me')
-    return r.store
+    const r = await this.get<any>('/api/admin/me')
+    const s = r.store || {}
+    return {
+      id: s.id,
+      name: s.name,
+      site_code: s.siteCode ?? s.site_code,
+      domain: s.domain ?? null,
+      email: s.email ?? null,
+      is_active: s.isActive ?? s.is_active ?? true,
+    } as Store
   }
 
-  updateSettings(data: Partial<Store>) {
-    return this.put<Store>('/api/admin/me', data)
+  async updateSettings(data: Partial<Store>) {
+    const payload: Record<string, any> = {}
+    if (data.name) payload.name = data.name
+    if (data.domain) payload.domain = data.domain
+    if (data.email) payload.email = data.email
+    if (data.site_code) payload.siteCode = data.site_code
+    await this.put<any>('/api/admin/me', payload)
+    return this.getSettings()
   }
 
   // AI
   async processImage(formData: FormData) {
-    const entries = Array.from((formData as any).entries?.() ?? [])
+    const entries: [string, FormDataEntryValue][] = Array.from((formData as any).entries() ?? [])
     const payload: Record<string, any> = {}
     for (const [k, v] of entries) {
-      if (v && typeof v === 'object' && v.uri) {
+      if (v && typeof v === 'object' && (v as any).uri) {
         if (!payload.imageUrl) {
-          const uploaded = await this.uploadImage(v.uri, v.name || 'photo.jpg', v.type || 'image/jpeg')
+          const uploaded = await this.uploadImage((v as any).uri, (v as any).name || 'photo.jpg', (v as any).type || 'image/jpeg')
           payload.imageUrl = uploaded.url
         }
       } else {
@@ -488,13 +649,13 @@ class ApiClient {
   async analyzeProduct(formData: FormData) {
     let imageUrl: string | undefined
     let category: string | undefined
-    const entries = Array.from((formData as any).entries?.() ?? [])
+    const entries: [string, FormDataEntryValue][] = Array.from((formData as any).entries() ?? [])
     for (const [k, v] of entries) {
-      if (v && typeof v === 'object' && v.uri) {
-        const uploaded = await this.uploadImage(v.uri, v.name || 'photo.jpg', v.type || 'image/jpeg')
+      if (v && typeof v === 'object' && (v as any).uri) {
+        const uploaded = await this.uploadImage((v as any).uri, (v as any).name || 'photo.jpg', (v as any).type || 'image/jpeg')
         imageUrl = uploaded.url
       } else if (k === 'category') {
-        category = v
+        category = v as string
       }
     }
     return this.post<{
@@ -509,9 +670,40 @@ class ApiClient {
     }>('/api/ai/analyze-product', { imageUrl, category })
   }
 
-  // Subscription
-  getSubscription() {
-    return this.get<{ subscription: Subscription | null; plan: Plan | null }>('/api/admin/subscription')
+  // Subscription (data comes from /me, no dedicated endpoint)
+  async getSubscription() {
+    const r = await this.get<any>('/api/admin/me')
+    const sub = r.subscription || null
+    const plan = r.store?.plan || r.plan || null
+    return {
+      subscription: sub ? {
+        id: sub.id ?? 0,
+        store_id: sub.storeId ?? 0,
+        plan_id: sub.planId ?? 0,
+        stripe_id: sub.stripeSubscriptionId ?? null,
+        stripe_status: sub.status ?? null,
+        payment_method: sub.paymentMethod ?? '',
+        quantity: sub.quantity ?? 1,
+        trial_ends_at: sub.trialEndsAt ?? null,
+        ends_at: sub.canceledAt ?? null,
+        renews_at: sub.currentPeriodEnd ?? null,
+        status: sub.status ?? 'inactive',
+      } as Subscription : null,
+      plan: plan ? {
+        id: plan.id,
+        name: plan.name,
+        slug: plan.slug ?? '',
+        description: plan.description ?? null,
+        price: Number(plan.price ?? 0),
+        currency: plan.currency ?? 'TRY',
+        ai_credits: plan.aiCredits ?? plan.ai_credits ?? 0,
+        product_limit: plan.productLimit ?? plan.product_limit ?? 0,
+        store_limit: plan.storeLimit ?? plan.store_limit ?? 1,
+        is_active: plan.isActive ?? plan.is_active ?? true,
+        created_at: plan.createdAt ?? plan.created_at ?? '',
+        updated_at: plan.updatedAt ?? plan.updated_at ?? '',
+      } as Plan : null,
+    }
   }
 
   createCheckoutSession(planId: number) {
@@ -526,8 +718,9 @@ class ApiClient {
     return this.post<{ message: string }>('/api/admin/subscription/cancel')
   }
 
-  getPlans() {
-    return this.get<Plan[]>('/api/admin/plans')
+  async getPlans() {
+    const r = await this.get<any>('/api/admin/plans')
+    return (r.plans || r.data || r) as Plan[]
   }
 
   purchaseCredits(credits: number) {

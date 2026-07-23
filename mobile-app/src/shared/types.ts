@@ -122,13 +122,26 @@ export type Category = {
 }
 
 export type DashboardData = {
-  user: User
+  user: User | null
   store: Store | null
   plan: Plan | null
+  subscription: {
+    id: number
+    status: string
+    currentPeriodEnd: string | null
+    trialEndsAt: string | null
+    canceledAt: string | null
+    plan?: Plan
+  } | null
   stats: {
     total_products: number
+    active_products: number
     total_orders: number
+    pending_orders: number
     ai_credits: number
+    total_revenue: number
+    active_integrations: number
+    low_stock_count: number
   }
 }
 

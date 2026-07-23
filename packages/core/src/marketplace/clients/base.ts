@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import crypto from 'crypto';
 
 export interface MarketplaceClient {
   getCategories(): Promise<any[]>;
@@ -36,12 +35,4 @@ export abstract class BaseMarketplaceClient implements MarketplaceClient {
     const response = await this.client.request<T>(config);
     return response.data;
   }
-}
-
-export function generateHmacSHA256(payload: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(payload).digest('base64');
-}
-
-export function generateHmacSHA256Hex(payload: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
