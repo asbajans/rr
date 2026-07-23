@@ -7,6 +7,7 @@ import { IntegrationLog } from '../models/LogModels.js';
 import { Store } from '../models/Store.model.js';
 import { ExternalFeed, FeedSyncLog } from '../models/ContentModels.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../marketplace/clients/index.js';
+import { normalizeMarketplaceProduct } from '../marketplace/importNormalizer.js';
 import { logger } from '../utils/logger.js';
 import { Op } from 'sequelize';
 
@@ -55,63 +56,8 @@ async function logIntegration(storeId: number, platform: string, endpoint: strin
   }
 }
 
-function marketplacePrice(mp: string, raw: any): { priceTRY?: number; priceUSD?: number } {
-  const currency = raw.currency || (raw.price?.currency ?? null);
-  const priceVal = raw.salePrice ?? raw.listPrice ?? raw.price?.amount ?? raw.price ?? 0;
-  if (currency === 'USD' || currency === 'EUR' || currency === 'GBP') {
-    return { priceUSD: Number(priceVal) };
-  }
-  if (currency === 'TRY' || !currency) {
-    return { priceTRY: Number(priceVal) };
-  }
-  return { priceTRY: Number(priceVal) };
-}
-
 function mapMarketplaceProduct(mp: string, raw: any, storeId: number): Partial<Product> {
-  const base = {
-    storeId,
-    title: raw.title || raw.name || 'Imported Product',
-    sku: raw.barcode || raw.stockCode || raw.merchantSku || raw.sku || raw.productCode || raw.asin || raw.sellerSKU || `imp-${Date.now()}`,
-    description: raw.description || raw.itemDescription || '',
-    quantity: raw.quantity || raw.stockAmount || raw.stock || raw.stockQuantity || raw.availableStock || raw.fulfillmentAvailability?.availability?.availableQuantity || 0,
-    images: [] as string[],
-    isActive: true,
-    ...marketplacePrice(mp, raw),
-  };
-  switch (mp) {
-    case 'trendyol':
-      return {
-        ...base,
-        images: (raw.images || []).map((img: any) => img.url || img),
-      };
-    case 'hepsiburada':
-      return {
-        ...base,
-        images: (raw.images || []).map((img: any) => typeof img === 'string' ? img : img.url || ''),
-      };
-    case 'pazarama':
-      return {
-        ...base,
-        images: Array.isArray(raw.images) ? raw.images : [],
-      };
-    case 'n11':
-      return {
-        ...base,
-        images: raw.images ? (Array.isArray(raw.images) ? raw.images : [raw.images]) : [],
-      };
-    case 'amazon':
-      return {
-        ...base,
-        images: (raw.images || []).map((img: any) => typeof img === 'string' ? img : img.url || ''),
-      };
-    case 'etsy':
-      return {
-        ...base,
-        images: (raw.images || []).map((img: any) => img.url_fullxfull || img.url_570xN || img.url || ''),
-      };
-    default:
-      return base;
-  }
+  return normalizeMarketplaceProduct(mp, raw, storeId) as Partial<Product>;
 }
 
 function getExternalId(mp: string, raw: any): string {

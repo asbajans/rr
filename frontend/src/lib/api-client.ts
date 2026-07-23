@@ -8,6 +8,11 @@ function mapProduct(p: any): any {
   if (!p) return p
   const hasTRY = p.priceTRY !== null && p.priceTRY !== undefined
   const hasUSD = p.priceUSD !== null && p.priceUSD !== undefined
+  const marketplaceConfig = p.marketplaceConfig ?? p.marketplace_config ?? p.marketplace_data ?? {}
+  const marketplaceEntry = typeof marketplaceConfig === 'object' && marketplaceConfig !== null
+    ? Object.values(marketplaceConfig as Record<string, any>)[0] as any
+    : undefined
+
   return {
     ...p,
     code: p.sku ?? p.code,
@@ -18,6 +23,9 @@ function mapProduct(p: any): any {
     price_try: p.priceTRY ?? null,
     price_usd: p.priceUSD ?? null,
     stock: p.quantity ?? p.stock,
+    brand: p.brand ?? marketplaceEntry?.brand ?? null,
+    marketplace_data: marketplaceConfig,
+    marketplaceConfig,
     gram_weight: p.gramWeight ?? null,
     milyem: p.milyem ?? null,
     effective_milyem: p.effectiveMilyem ?? null,
