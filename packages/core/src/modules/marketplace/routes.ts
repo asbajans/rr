@@ -55,7 +55,8 @@ marketplaceRoutes.get('/marketplace-trees', authMiddleware, requireStore, async 
         const client = createMarketplaceClient(mp as any, config);
         const categories = await client.getCategories();
         trees[mp] = buildCategoryTree(categories);
-      } catch {
+      } catch (err: unknown) {
+        logger.warn({ err, marketplace: mp }, 'Failed to fetch marketplace tree');
         trees[mp] = [];
       }
     }
@@ -329,24 +330,21 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
+    const { marketplace } = req.params;
 
-    if (req.params.marketplace === 'etsy') {
-      const integration = await MarketplaceIntegration.findOne({
-        where: { storeId: store.id, marketplace: 'etsy', isActive: true },
-      });
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace, isActive: true },
+    });
 
-      if (!integration || !(integration.config as any)?.accessToken) {
-        return res.status(400).json({ error: 'Etsy not connected via OAuth' });
-      }
-
-      const { EtsyClient } = await import('../../marketplace/clients/etsy.js');
-      const etsyConfig = integration.config as any;
-      const etsy = new EtsyClient(etsyConfig);
-      const categories = await etsy.getCategories();
-      return res.json({ categories });
+    if (!integration) {
+      return res.status(400).json({ error: `${marketplace} integration not configured or inactive` });
     }
 
-    res.json({ categories: [] });
+    const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
+    const config = getMarketplaceConfig(marketplace as any, integration);
+    const client = createMarketplaceClient(marketplace as any, config);
+    const categories = await client.getCategories();
+    res.json({ categories });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get marketplace categories error');
     res.status(500).json({ error: 'Internal server error' });

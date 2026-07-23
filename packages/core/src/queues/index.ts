@@ -198,8 +198,8 @@ export async function createImportWorker() {
           }
         } catch (err: any) {
           logger.error({ err, marketplace, page }, 'Failed to fetch page from marketplace');
-          hasMore = false;
           await logIntegration(storeId, marketplace, `import-fetch?page=${page}`, 'GET', false, undefined, undefined, err.message);
+          throw new Error(`${marketplace} API error at page ${page}: ${err.message}`);
         }
       }
 

@@ -49,10 +49,27 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
   }
 
   async getCategories(): Promise<any[]> {
-    const path = `/suppliers/${this.config.supplierId}/categories`;
+    const path = `/product-categories`;
     const headers = this.getAuthHeaders('GET', path);
     const data = await this.request<any>({ method: 'GET', url: path, headers });
-    return data.categories || [];
+    const categories = data.categories || [];
+    const flat: any[] = [];
+    const walk = (list: any[]) => {
+      for (const cat of list) {
+        if (!cat) continue;
+        flat.push({
+          id: cat.id,
+          name: cat.name,
+          parentId: cat.parentId ?? 0,
+          level: cat.level ?? 0,
+        });
+        if (Array.isArray(cat.subCategories) && cat.subCategories.length) {
+          walk(cat.subCategories);
+        }
+      }
+    };
+    walk(categories);
+    return flat;
   }
 
   async getProducts(params: { page?: number; size?: number; status?: string } = {}): Promise<{ products: any[]; hasMore: boolean }> {
