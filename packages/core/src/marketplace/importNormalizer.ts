@@ -49,6 +49,13 @@ function getVariantPayload(raw: MarketplaceRawProduct) {
   return { root: raw, variant: raw.variants.find((item: any) => item != null) ?? null };
 }
 
+function resolveCategory(raw: MarketplaceRawProduct) {
+  const { root, variant } = getVariantPayload(raw);
+  const categoryName = resolveValue(root, ['category', 'categoryName', 'category.name', 'pimCategoryName']) ?? resolveValue(variant, ['category', 'categoryName', 'category.name', 'pimCategoryName']);
+  const categoryId = resolveValue(root, ['categoryId', 'category.id', 'pimCategoryId']) ?? resolveValue(variant, ['categoryId', 'category.id', 'pimCategoryId']);
+  return { categoryName, categoryId };
+}
+
 function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD?: number } {
   const { root, variant } = getVariantPayload(raw);
   const directCurrency = resolveValue(root, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? resolveValue(variant, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? null;
@@ -104,12 +111,15 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
         ? !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval'].includes(statusValue.toLowerCase())
         : false;
 
+  const { categoryName, categoryId } = resolveCategory(raw);
   const marketplaceConfig = {
     [mp]: {
       brand: resolveValue(root, ['brand.name', 'brand', 'brandName', 'manufacturer']) ?? resolveValue(variant, ['brand.name', 'brand', 'brandName', 'manufacturer']) ?? null,
       stock: quantity,
       currency: resolveValue(root, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? resolveValue(variant, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? 'TRY',
       status: statusValue ?? null,
+      category: categoryName ?? null,
+      category_id: categoryId ?? null,
       externalId: sku || null,
       raw,
     },
@@ -126,6 +136,7 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
     isActive: normalizedStatus,
     marketplaceConfig,
     marketplaces: [mp],
+    categoryId: typeof categoryId === 'number' ? categoryId : undefined,
     ...resolvePrice(raw),
   };
 }

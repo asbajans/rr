@@ -41,31 +41,10 @@ export const createApp = async (): Promise<Express> => {
   await sequelize.authenticate();
   // Associations auto-configured via sequelize-typescript decorators
   try {
-    // Drop tables that were created with wrong column naming (underscored: true)
-    // so they get recreated fresh with corrected schema
-    await sequelize.query(`DROP TABLE IF EXISTS categories CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS marketplace_category_mappings CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS product_b2b_settings CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS b2b_requests CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS b2b_listed_products CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS integration_logs CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS dropshipping_orders CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS order_status_histories CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS credit_logs CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS pages CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS store_locations CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS store_payment_methods CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS external_feeds CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS feed_sync_logs CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS api_keys CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS marketplace_integrations CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS product_variants CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS product_marketplace_listings CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS variations CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS variation_options CASCADE`);
-    await sequelize.query(`DROP TABLE IF EXISTS products CASCADE`);
+    // Preserve existing data across deploys. Only add missing columns and tables.
+    // The previous implementation dropped core tables on each boot, which wiped products and integrations.
   } catch (e) {
-    // Tables might not exist, ignore
+    // Ignore startup migration issues and continue with safe sync below
   }
   // Add superadmin to role ENUM if not exists (safe migration)
   try {
@@ -141,7 +120,7 @@ export const createApp = async (): Promise<Express> => {
     // Ignore
   }
 
-  await sequelize.sync({ alter: config.env !== 'production' });
+  await sequelize.sync({ alter: false });
 
   // Migrate existing admin user to superadmin role
   try {
