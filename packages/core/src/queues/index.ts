@@ -5,8 +5,10 @@ import { ProductMarketplaceListing } from '../models/ProductMarketplaceListing.m
 import { MarketplaceIntegration } from '../models/MarketplaceIntegration.model.js';
 import { IntegrationLog } from '../models/LogModels.js';
 import { Store } from '../models/Store.model.js';
+import { ExternalFeed, FeedSyncLog } from '../models/ContentModels.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../marketplace/clients/index.js';
 import { logger } from '../utils/logger.js';
+import { Op } from 'sequelize';
 
 export const syncQueue = new Queue('product-sync', {
   connection: { url: config.redis.url },
@@ -35,6 +37,7 @@ interface ImportJobData {
   storeId: number;
   maxPages: number;
 }
+
 
 function slugify(text: string): string {
   return text
@@ -209,11 +212,196 @@ export async function createImportWorker() {
   );
 }
 
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const rows: Record<string, string>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    if (vals.length === headers.length) {
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => { row[h] = vals[idx]; });
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+function simpleXMLParse(text: string): string[][] {
+  const rows: string[][] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+  let match;
+  while ((match = itemRegex.exec(text)) !== null) {
+    const itemContent = match[1];
+    const fieldRegex = /<(\w+)>([^<]*)<\/\1>/g;
+    const row: string[] = [];
+    let fm;
+    while ((fm = fieldRegex.exec(itemContent)) !== null) {
+      row.push(fm[2].trim());
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+interface FeedSyncJobData {
+  feedId: number;
+  syncLogId: number;
+  storeId: number;
+}
+
+async function handleFeedSync(job: Job<FeedSyncJobData>) {
+  const { feedId, syncLogId, storeId } = job.data;
+  logger.info({ feedId, storeId }, 'Starting feed sync');
+
+  const feed = await ExternalFeed.findOne({ where: { id: feedId, storeId } });
+  if (!feed) {
+    logger.warn({ feedId }, 'Feed not found');
+    return { success: false, reason: 'Feed not found' };
+  }
+
+  await FeedSyncLog.update({ status: 'running', startedAt: new Date() }, { where: { id: syncLogId } });
+
+  const summary = { total: 0, imported: 0, updated: 0, failed: 0, errors: [] as string[] };
+
+  try {
+    const axios = (await import('axios')).default;
+    const headers: Record<string, string> = {};
+    const creds = (feed.authCredentials || {}) as Record<string, string>;
+
+    if (feed.authType === 'bearer' && creds['token']) {
+      headers['Authorization'] = `Bearer ${creds['token']}`;
+    } else if (feed.authType === 'api-key' && creds['key']) {
+      headers[creds['header_name'] || 'X-API-Key'] = creds['key'];
+    }
+
+    const auth: any = {};
+    if (feed.authType === 'basic' && creds['username']) {
+      auth.username = creds['username'];
+      auth.password = creds['password'] || '';
+    }
+
+    const response = await axios.get(feed.url, { timeout: 60000, headers, auth: auth.username ? auth : undefined, responseType: 'text' });
+    const rawText = response.data;
+    const fieldMap = (feed.fieldMapping || {}) as Record<string, string>;
+
+    let records: Record<string, string>[] = [];
+
+    if (feed.format === 'json') {
+      const parsed = typeof rawText === 'string' ? JSON.parse(rawText) : rawText;
+      const items = Array.isArray(parsed) ? parsed : (parsed.products || parsed.items || parsed.data || Object.values(parsed).find(Array.isArray) || []);
+      records = items.map((item: any) => {
+        const row: Record<string, string> = {};
+        for (const key of Object.keys(item)) {
+          row[key] = String(item[key] ?? '');
+        }
+        return row;
+      });
+    } else if (feed.format === 'csv') {
+      records = parseCSV(rawText);
+    } else if (feed.format === 'xml') {
+      const xmlRows = simpleXMLParse(rawText);
+      if (xmlRows.length > 0) {
+        const firstRow = xmlRows[0];
+        const keys = firstRow.map((_, idx) => `field${idx}`);
+        records = xmlRows.map(row => {
+          const obj: Record<string, string> = {};
+          row.forEach((val, idx) => { obj[keys[idx]] = val; });
+          return obj;
+        });
+      }
+    }
+
+    summary.total = records.length;
+    const priceMultiplier = parseFloat(String(feed.priceMultiplier || '1'));
+    const defaultCategory = feed.defaultCategory || '';
+    const defaultQuantity = feed.defaultQuantity || 1;
+
+    for (const raw of records) {
+      try {
+        const title = raw[fieldMap['title'] || 'title'] || raw['title'] || raw['name'] || raw['product_name'] || 'Unknown';
+        const sku = raw[fieldMap['sku'] || 'sku'] || raw['sku'] || raw['barcode'] || raw['stock_code'] || raw['product_code'] || '';
+        if (!sku) { summary.failed++; summary.errors.push('Missing SKU: ' + title); continue; }
+
+        const priceRaw = parseFloat(raw[fieldMap['price'] || 'price'] || raw['price'] || raw['fiyat'] || '0');
+        const quantity = parseInt(raw[fieldMap['quantity'] || 'quantity'] || raw['quantity'] || raw['stock'] || String(defaultQuantity)) || 0;
+        const description = raw[fieldMap['description'] || 'description'] || raw['description'] || raw['aciklama'] || '';
+        const image = raw[fieldMap['image'] || 'image'] || raw['image'] || raw['images'] || raw['gorsel'] || '';
+        const category = raw[fieldMap['category'] || 'category'] || raw['category'] || raw['kategori'] || defaultCategory;
+
+        const slug = slugify(title);
+
+        const [product, created] = await Product.upsert({
+          storeId,
+          title,
+          sku,
+          slug: `${slug}-${sku}`,
+          description: description || '',
+          priceTRY: feed.pricingMode === 'gold-formula' ? priceRaw : priceRaw * priceMultiplier,
+          quantity,
+          images: image ? [image] : [],
+          categoryId: feed.defaultCategoryId || undefined,
+          isActive: true,
+        } as any);
+
+        if (created) summary.imported++;
+        else summary.updated++;
+      } catch (err: any) {
+        summary.failed++;
+        summary.errors.push(err.message);
+        logger.error({ err, sku: raw['sku'] || 'unknown' }, 'Failed to upsert feed product');
+      }
+
+      if (job.updateProgress) {
+        const progress = Math.round((summary.imported + summary.updated + summary.failed) / records.length * 100);
+        await job.updateProgress(progress);
+      }
+    }
+
+    await feed.update({
+      lastSyncAt: new Date(),
+      lastSyncResult: { total: summary.total, imported: summary.imported, updated: summary.updated, failed: summary.failed, errors: summary.errors.slice(0, 10) },
+    });
+
+    await FeedSyncLog.update({
+      status: 'completed',
+      completedAt: new Date(),
+      summary,
+      productsProcessed: summary.total,
+      productsCreated: summary.imported,
+      productsUpdated: summary.updated,
+      productsFailed: summary.failed,
+      errorMessage: summary.failed > 0 ? `${summary.failed} product(s) failed` : null,
+    }, { where: { id: syncLogId } });
+
+    logger.info({ feedId, storeId, summary }, 'Feed sync completed');
+    return { success: true, summary };
+  } catch (err: any) {
+    logger.error({ err, feedId }, 'Feed sync failed');
+
+    await feed.update({ lastSyncResult: { error: err.message } });
+    await FeedSyncLog.update({
+      status: 'failed',
+      completedAt: new Date(),
+      summary: { ...summary, error: err.message },
+      errorMessage: err.message,
+    }, { where: { id: syncLogId } });
+
+    return { success: false, error: err.message };
+  }
+}
+
 export async function createSyncWorker() {
-  return new Worker<SyncJobData>(
+  return new Worker<SyncJobData | FeedSyncJobData>(
     'product-sync',
-    async (job: Job<SyncJobData>) => {
-      const { productId, storeId, marketplaces, trigger } = job.data;
+    async (job: Job<SyncJobData | FeedSyncJobData>) => {
+      if (job.name === 'feed-sync') {
+        return handleFeedSync(job as Job<FeedSyncJobData>);
+      }
+
+      const { productId, storeId, marketplaces, trigger } = job.data as SyncJobData;
       logger.info({ productId, storeId, trigger }, 'Starting product sync');
 
       const product = await Product.findOne({

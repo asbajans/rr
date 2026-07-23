@@ -108,6 +108,39 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Add ExternalFeed columns if missing (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "authType" VARCHAR(20) DEFAULT 'none'`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "authCredentials" JSONB`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "pricingMode" VARCHAR(20) DEFAULT 'fixed'`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'TRY'`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "priceMultiplier" DECIMAL(10,2) DEFAULT 1`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultGramWeight" DECIMAL(10,2)`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultMilyem" INTEGER`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultProfitMargin" DECIMAL(5,2)`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultCategory" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultCategoryId" INTEGER`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultIsB2bEnabled" BOOLEAN DEFAULT false`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultQuantity" INTEGER DEFAULT 1`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "defaultMarketplaces" JSONB`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "fieldMapping" JSONB DEFAULT '{}'::jsonb`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "autoSync" BOOLEAN DEFAULT false`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "updateInterval" VARCHAR(20) DEFAULT 'manual'`);
+    await sequelize.query(`ALTER TABLE external_feeds ADD COLUMN IF NOT EXISTS "lastSyncResult" JSONB`);
+    await sequelize.query(`ALTER TYPE enum_external_feeds_format ADD VALUE IF NOT EXISTS 'xlsx'`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
+  // Add FeedSyncLog columns if missing (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE feed_sync_logs ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP`);
+    await sequelize.query(`ALTER TABLE feed_sync_logs ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP`);
+    await sequelize.query(`ALTER TABLE feed_sync_logs ADD COLUMN IF NOT EXISTS summary JSONB`);
+  } catch (e) {
+    // Ignore
+  }
+
   await sequelize.sync({ alter: config.env !== 'production' });
 
   // Migrate existing admin user to superadmin role

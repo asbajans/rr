@@ -84,14 +84,23 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - [x] **Setting modeli** (`Setting.model.ts`) — Global anahtar-değer deposu (Etsy OAuth)
 - [x] **Super admin nav** — Tüm AI sayfaları linklendi
 
+### Phase 11 (devam) — AI Gateway Proxy, Siparişler & XML Feed ✅ TAMAMLANDI
+- [x] **AI Gateway Proxy** — Core → ai-service yönlendirme (key injection ile), multi-provider LLM routing (OpenAI, OpenRouter, NVIDIA, DeepSeek, Mistral, Gemini, Ollama)
+- [x] **Dropshipping Order** (create, status, tracking, history, split by vendor, `parentOrderId` sub-order system)
+- [x] **Express Checkout** (address, payment methods, cart, `paymentMethod`/`paymentStatus` validation)
+- [x] **Payment Method seeding** — 6 varsayılan method (stripe, bank_transfer, iyzico, paytr, crypto, cash_on_delivery)
+- [x] **XML Feed** — Full config model (auth, pricing, mapping, schedule), import wizard (4-step), field mapping, sync worker (JSON/CSV/XML parser + Product.upsert), auto-sync queue, `/logs` endpoint
+
 ## Sıradaki
 
-### Phase 11 (devam) — AI Gateway Proxy & Siparişler
-
-- [ ] AI Gateway Proxy — Core → ai-service yönlendirme (key injection ile)
-- [ ] Dropshipping Order (create, status, tracking, history, split by vendor)
-- [ ] Express Checkout (address, payment methods, cart)
-- [ ] XML Feed (import wizard, mapping, auto-sync)
+### Phase 12 — UI/Design Refresh
+- [ ] CSS bug: dropdown/select white text on white background
+- [ ] Global design improvements (inputs, buttons, cards, tables, scrollbars)
+- [ ] Consistent spacing/tokens across all dashboard pages
+- [ ] Loading states (skeleton screens, spinners)
+- [ ] Error/empty state improvements
+- [ ] Responsive layout fixes
+- [ ] Dark mode support (optional)
 
 ## ~~🔴 PHASE 1 — Sayfa Çökmesine Sebep Olan Kritik Hatalar~~ ✅ DÜZELTİLDİ
 
