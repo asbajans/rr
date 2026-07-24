@@ -46,6 +46,14 @@ export const createApp = async (): Promise<Express> => {
   } catch (e) {
     // Ignore startup migration issues and continue with safe sync below
   }
+  // Add source + marketplaceCategoryId to categories (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS source VARCHAR(50)`);
+    await sequelize.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS "marketplaceCategoryId" VARCHAR(200)`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Add superadmin to role ENUM if not exists (safe migration)
   try {
     await sequelize.query(`ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'superadmin'`);

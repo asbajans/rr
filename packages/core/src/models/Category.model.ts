@@ -68,6 +68,14 @@ export class Category extends Model {
   @Column(DataType.BOOLEAN)
   declare isActive: boolean;
 
+  @AllowNull(true)
+  @Column(DataType.STRING(50))
+  declare source: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare marketplaceCategoryId: string;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

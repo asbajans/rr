@@ -90,6 +90,16 @@ export async function createImportWorker() {
       const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
       const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
 
+      // Sync marketplace categories into local categories table for FK compliance
+      const categoryIdMap = new Map<string, number>();
+      try {
+        const { syncMarketplaceCategories } = await import('../marketplace/categorySync.js');
+        const map = await syncMarketplaceCategories(marketplace, storeId, () => client.getCategories());
+        for (const [k, v] of map) categoryIdMap.set(k, v);
+      } catch (e) {
+        logger.warn({ err: e }, 'Category sync failed, proceeding without category mapping');
+      }
+
       let totalImported = 0;
       let totalUpdated = 0;
       let totalFailed = 0;
@@ -111,7 +121,27 @@ export async function createImportWorker() {
               const slug = slugify(mapped.title!);
               mapped.slug = `${slug}-${Date.now()}`;
 
-              delete mapped.categoryId;
+              // Map marketplace category ID → local category ID (FK)
+              const mpCatId = raw.categoryId ?? raw.category?.id;
+              if (mpCatId != null) {
+                const localId = categoryIdMap.get(String(mpCatId));
+                if (localId) mapped.categoryId = localId;
+                else delete mapped.categoryId;
+              } else {
+                delete mapped.categoryId;
+              }
+
+              // Extract brand from N11 attributes array
+              if (marketplace === 'n11' && Array.isArray(raw.attributes)) {
+                const brandAttr = raw.attributes.find((a: any) =>
+                  a.attributeName === 'Marka' || a.attributeName?.toLowerCase() === 'marka'
+                );
+                if (brandAttr?.attributeValue && !mapped.marketplaceConfig?.n11?.brand) {
+                  if (!mapped.marketplaceConfig) mapped.marketplaceConfig = {};
+                  if (!mapped.marketplaceConfig.n11) mapped.marketplaceConfig.n11 = {};
+                  mapped.marketplaceConfig.n11.brand = brandAttr.attributeValue;
+                }
+              }
 
               const [product, created] = await Product.upsert({
                 ...mapped,

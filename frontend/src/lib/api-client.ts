@@ -429,8 +429,10 @@ class ApiClient {
     return this.get<{ categories: import('./types').Category[] }>(`/api/admin/categories`, { params }).then(r => r.categories)
   }
 
-  getCategoryTree() {
-    return this.get<{ categories: import('./types').Category[] }>(`/api/admin/categories/tree`).then(r => r.categories)
+  getCategoryTree(source?: string) {
+    const params: Record<string, string | undefined> = {}
+    if (source) params.source = source
+    return this.get<{ categories: import('./types').Category[] }>(`/api/admin/categories/tree`, { params }).then(r => r.categories)
   }
 
   getCategory(id: number) {

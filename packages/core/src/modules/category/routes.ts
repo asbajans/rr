@@ -20,10 +20,15 @@ const validate = (req: Request, res: Response, next: Function) => {
 categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { flat, isActive } = req.query;
+    const { flat, isActive, source } = req.query;
 
     const where: any = { storeId: store.id };
     if (isActive !== undefined) where.isActive = isActive === 'true';
+    if (source !== undefined && source !== '') {
+      where.source = String(source);
+    } else {
+      where.source = { [Op.eq]: null };
+    }
 
     let categories;
     if (flat === 'true') {
@@ -46,8 +51,17 @@ categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: 
 categoryRoutes.get('/tree', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
+    const { source } = req.query;
+
+    const where: any = { storeId: store.id, parentId: null, isActive: true };
+    if (source !== undefined && source !== '') {
+      where.source = String(source);
+    } else {
+      where.source = { [Op.eq]: null };
+    }
+
     const roots = await Category.findAll({
-      where: { storeId: store.id, parentId: null, isActive: true },
+      where,
       order: [['sortOrder', 'ASC']],
       include: [{ model: Category, as: 'children', where: { isActive: true }, required: false, order: [['sortOrder', 'ASC']] }],
     });

@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api-client'
-import { FolderTree, Plus, ChevronRight, ChevronDown, Pencil, Trash2, Search } from 'lucide-react'
+import { FolderTree, Plus, ChevronRight, ChevronDown, Pencil, Trash2, Search, Store } from 'lucide-react'
+
+type TabKey = 'own' | 'n11' | 'trendyol' | 'hepsiburada' | 'pazarama' | 'amazon' | 'etsy'
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'own', label: 'Kendi Kategorilerim' },
+  { key: 'trendyol', label: 'Trendyol' },
+  { key: 'hepsiburada', label: 'Hepsiburada' },
+  { key: 'pazarama', label: 'Pazarama' },
+  { key: 'n11', label: 'N11' },
+  { key: 'amazon', label: 'Amazon' },
+  { key: 'etsy', label: 'Etsy' },
+]
 
 interface CategoryItem {
   id: number
@@ -40,32 +52,39 @@ function mapCategory(raw: any): CategoryItem {
 }
 
 export default function CategoriesPage() {
+  const [tab, setTab] = useState<TabKey>('own')
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<CategoryItem | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
-
   const [form, setForm] = useState({ name: '', slug: '', parentId: '', sortOrder: 0, isActive: true })
+
+  const isOwn = tab === 'own'
 
   const load = useCallback(() => {
     setLoading(true)
-    api.getCategoryTree()
+    const source = isOwn ? undefined : tab
+    api.getCategoryTree(source)
       .then((raw: any) => setCategories((raw || []).map(mapCategory)))
       .catch(() => setCategories([]))
       .finally(() => setLoading(false))
-  }, [])
+  }, [tab, isOwn])
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => { setExpanded(new Set()); setSearch('') }, [tab])
+
   function openCreate(parentId?: number) {
+    if (!isOwn) return
     setEditing(null)
     setForm({ name: '', slug: '', parentId: parentId != null ? String(parentId) : '', sortOrder: 0, isActive: true })
     setShowForm(true)
   }
 
   function openEdit(cat: CategoryItem) {
+    if (!isOwn) return
     setEditing(cat)
     setForm({
       name: cat.name,
@@ -102,6 +121,7 @@ export default function CategoriesPage() {
   }
 
   async function handleDelete(id: number) {
+    if (!isOwn) return
     if (!confirm('Bu kategoriyi silmek istediğinize emin misiniz?')) return
     try {
       await api.deleteCategory(id)
@@ -120,18 +140,38 @@ export default function CategoriesPage() {
     ? flatList.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.slug.includes(search))
     : flatList
 
-  if (loading) return <div className="text-sm text-zinc-500">Yükleniyor...</div>
-
   return (
     <div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Kategoriler</h1>
-          <p className="mt-1 text-sm text-zinc-600">Ürün kategorilerini yönet.</p>
+          <p className="mt-1 text-sm text-zinc-600">Ürün kategorilerini yönet veya pazaryeri kategorilerini görüntüle.</p>
         </div>
-        <button onClick={() => openCreate()} className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-          <Plus className="h-4 w-4" /> Kategori Ekle
-        </button>
+        {isOwn && (
+          <button onClick={() => openCreate()} className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+            <Plus className="h-4 w-4" /> Kategori Ekle
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 flex gap-1 border-b border-zinc-200">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              tab === t.key
+                ? 'border-zinc-900 text-zinc-900'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700'
+            }`}
+          >
+            {t.key === 'own' ? (
+              <span className="flex items-center gap-1.5"><FolderTree className="h-3.5 w-3.5" />{t.label}</span>
+            ) : (
+              <span className="flex items-center gap-1.5"><Store className="h-3.5 w-3.5" />{t.label}</span>
+            )}
+          </button>
+        ))}
       </div>
 
       <div className="mt-4 relative">
@@ -141,14 +181,18 @@ export default function CategoriesPage() {
           placeholder="Kategori ara..." className="w-full rounded-lg border border-zinc-300 py-2 pl-10 pr-4 text-sm focus:border-zinc-900 focus:outline-none" />
       </div>
 
-      {filtered.length === 0 && (
+      {loading && <div className="mt-8 text-sm text-zinc-500">Yükleniyor...</div>}
+
+      {!loading && filtered.length === 0 && (
         <div className="mt-16 text-center text-sm text-zinc-500">
           <FolderTree className="mx-auto h-8 w-8 text-zinc-300" />
-          <p className="mt-2">Henüz kategori bulunmuyor.</p>
+          <p className="mt-2">
+            {isOwn ? 'Henüz kategori bulunmuyor.' : 'Bu pazaryeri için senkronize edilmiş kategori bulunmuyor. Pazaryeri entegrasyonundan kategorileri içe aktarın.'}
+          </p>
         </div>
       )}
 
-      {filtered.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
           <table className="w-full text-sm">
             <thead>
@@ -158,7 +202,7 @@ export default function CategoriesPage() {
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3 text-center">Durum</th>
                 <th className="px-4 py-3 text-right w-24">Sıra</th>
-                <th className="px-4 py-3 text-right w-24"></th>
+                {isOwn && <th className="px-4 py-3 text-right w-24"></th>}
               </tr>
             </thead>
             <tbody>
@@ -186,19 +230,21 @@ export default function CategoriesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-zinc-500">{cat.sortOrder}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <button onClick={() => openCreate(cat.id)} title="Alt Kategori Ekle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
-                        <Plus className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => openEdit(cat)} title="Düzenle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDelete(cat.id)} title="Sil" className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
+                  {isOwn && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button onClick={() => openCreate(cat.id)} title="Alt Kategori Ekle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
+                          <Plus className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => openEdit(cat)} title="Düzenle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDelete(cat.id)} title="Sil" className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -206,7 +252,7 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {showForm && (
+      {showForm && isOwn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowForm(false)}>
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-zinc-900">{editing ? 'Kategori Düzenle' : 'Yeni Kategori'}</h2>

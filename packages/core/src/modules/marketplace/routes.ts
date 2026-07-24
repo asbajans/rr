@@ -344,6 +344,15 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
     const config = getMarketplaceConfig(marketplace as any, integration);
     const client = createMarketplaceClient(marketplace as any, config);
     const categories = await client.getCategories();
+
+    // Auto-sync into local categories table
+    try {
+      const { syncMarketplaceCategories } = await import('../../marketplace/categorySync.js');
+      await syncMarketplaceCategories(marketplace, store.id, () => Promise.resolve(categories));
+    } catch (syncErr) {
+      logger.warn({ err: syncErr, marketplace }, 'Category sync failed (non-fatal)');
+    }
+
     res.json({ categories });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get marketplace categories error');
