@@ -5,6 +5,43 @@ export interface N11Config {
   appSecret: string;
 }
 
+function parseSoapXml(xml: string): any {
+  const bodyMatch = xml.match(/<soap:Body>([\s\S]*?)<\/soap:Body>/i) 
+    || xml.match(/<env:Body>([\s\S]*?)<\/env:Body>/i)
+    || xml.match(/<Body>([\s\S]*?)<\/Body>/i);
+  if (!bodyMatch) return {};
+  const root = bodyMatch[1];
+
+  const rootMatch = root.match(/<(\w+:)?(\w+)>([\s\S]*)<\/\1\2>/);
+  if (!rootMatch) return {};
+  const inner = rootMatch[3];
+
+  const result: any = {};
+  const tagRegex = /<(\w+:)?(\w+)(?:\s+[^>]*)?>([\s\S]*?)<\/\1\2>/g;
+  let m: RegExpExecArray | null;
+  while ((m = tagRegex.exec(inner)) !== null) {
+    const [, , tagName, tagContent] = m;
+    const trimmed = tagContent.trim();
+    if (/^<(\w+:)?\w+/.test(trimmed)) {
+      const child = parseSoapXml(`<Body>${trimmed}</Body>`);
+      if (result[tagName]) {
+        if (!Array.isArray(result[tagName])) result[tagName] = [result[tagName]];
+        result[tagName].push(child);
+      } else {
+        result[tagName] = child;
+      }
+    } else {
+      if (result[tagName]) {
+        if (!Array.isArray(result[tagName])) result[tagName] = [result[tagName]];
+        result[tagName].push(trimmed);
+      } else {
+        result[tagName] = trimmed;
+      }
+    }
+  }
+  return result;
+}
+
 export class N11Client extends BaseMarketplaceClient implements MarketplaceClient {
   private config: N11Config;
 
@@ -32,15 +69,17 @@ ${body}
 </env:Body>
 </env:Envelope>`;
 
-    const response = await this.client.post<{ data: T }>('', envelope, { params: { ws: action } });
-    return response.data.data;
+    const response = await this.client.post('', envelope, { params: { ws: action } });
+    const parsed = parseSoapXml(response.data as string);
+    return parsed as T;
   }
 
   async getCategories(): Promise<any[]> {
     try {
       const body = '<categoryService><categoryListRequest><page>1</page><pageSize>1000</pageSize></categoryListRequest></categoryService>';
       const data = await this.requestWithAuth<any>('CategoryServicePort', body);
-      return data?.categoryList?.category || [];
+      const raw = data?.categoryListResponse?.categoryList?.category;
+      return Array.isArray(raw) ? raw : (raw ? [raw] : []);
     } catch {
       return [];
     }
@@ -54,7 +93,8 @@ ${body}
 </productRequest>
 </productService>`;
     const data = await this.requestWithAuth<any>('ProductServicePort', body);
-    return { products: data?.productList?.product || [], hasMore: false };
+    const raw = data?.productListResponse?.productList?.product;
+    return { products: Array.isArray(raw) ? raw : (raw ? [raw] : []), hasMore: false };
   }
 
   async createProduct(product: any): Promise<any> {
@@ -88,7 +128,8 @@ ${body}
     try {
       const body = `<orderService><orderListRequest><page>${params.page || 1}</page><pageSize>${params.size || 50}</pageSize></orderListRequest></orderService>`;
       const data = await this.requestWithAuth<any>('OrderServicePort', body);
-      return data?.orderList?.order || [];
+      const raw = data?.orderListResponse?.orderList?.order;
+      return Array.isArray(raw) ? raw : (raw ? [raw] : []);
     } catch {
       return [];
     }

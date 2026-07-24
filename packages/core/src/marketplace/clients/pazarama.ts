@@ -1,3 +1,4 @@
+import axios, { AxiosInstance } from 'axios';
 import { BaseMarketplaceClient, MarketplaceClient } from './base.js';
 
 export interface PazaramaConfig {
@@ -6,81 +7,81 @@ export interface PazaramaConfig {
   apiKey: string;
 }
 
-interface PazaramaTokenResponse {
-  access_token: string;
-  expires_in: number;
-  token_type: string;
-}
-
 export class PazaramaClient extends BaseMarketplaceClient implements MarketplaceClient {
   private config: PazaramaConfig;
+  private authClient: AxiosInstance;
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
 
   constructor(config: PazaramaConfig) {
-    super('https://api.pazarama.com/v1');
+    super('https://isortagimapi.pazarama.com');
     this.config = config;
+    this.authClient = axios.create({
+      baseURL: 'https://isortagimgiris.pazarama.com/connect/token',
+      timeout: 30000,
+    });
   }
 
   private async ensureToken(): Promise<void> {
     if (this.accessToken && Date.now() < this.tokenExpiry) return;
 
-    const axios = require('axios');
-    const response = await axios.post('https://api.pazarama.com/oauth/token', new URLSearchParams({
+    const response = await this.authClient.post('', new URLSearchParams({
       grant_type: 'client_credentials',
-      client_id: this.config.clientId,
-      client_secret: this.config.clientSecret,
-      scope: 'read write',
-    }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      scope: 'merchantgatewayapi.fullaccess',
+    }), {
+      auth: { username: this.config.clientId, password: this.config.clientSecret },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
 
     this.accessToken = response.data.access_token;
     this.tokenExpiry = Date.now() + (response.data.expires_in - 60) * 1000;
   }
 
-  private async authenticatedRequest<T>(method: string, path: string, data?: any): Promise<T> {
+  private async authenticatedRequest<T>(method: string, path: string, query?: any, body?: any): Promise<T> {
     await this.ensureToken();
     const response = await this.client.request<T>({
       method,
       url: path,
-      data,
-      headers: { Authorization: `Bearer ${this.accessToken}`, 'X-Api-Key': this.config.apiKey },
+      params: query,
+      data: body,
+      headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     return response.data;
   }
 
   async getCategories(): Promise<any[]> {
-    const data = await this.authenticatedRequest<any>('GET', '/categories');
-    return data.categories || [];
+    const data = await this.authenticatedRequest<any>('GET', '/category/getCategoryTree');
+    return data?.data || [];
   }
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
-    const data = await this.authenticatedRequest<any>('GET', '/products', { params });
-    return { products: data.products || [], hasMore: data.hasMore || false };
+    const data = await this.authenticatedRequest<any>('GET', '/product/getProducts', params);
+    return { products: data?.data || [], hasMore: data?.hasMore || false };
   }
 
   async createProduct(product: any): Promise<any> {
-    return this.authenticatedRequest<any>('POST', '/products', product);
+    return this.authenticatedRequest<any>('POST', '/product/create', undefined, product);
   }
 
   async updateProduct(productId: string, product: any): Promise<any> {
-    return this.authenticatedRequest<any>('PUT', `/products/${productId}`, product);
+    return this.authenticatedRequest<any>('PUT', `/product/update/${productId}`, undefined, product);
   }
 
   async updatePrice(productId: string, price: number): Promise<any> {
-    return this.authenticatedRequest<any>('PATCH', `/products/${productId}/price`, { price });
+    return this.authenticatedRequest<any>('POST', '/product/updatePrice', undefined, { code: productId, salePrice: price });
   }
 
   async updateStock(productId: string, quantity: number): Promise<any> {
-    return this.authenticatedRequest<any>('PATCH', `/products/${productId}/stock`, { quantity });
+    return this.authenticatedRequest<any>('POST', '/product/updateStock', undefined, { code: productId, stockCount: quantity });
   }
 
   async getOrders(params: any = {}): Promise<any[]> {
-    const data = await this.authenticatedRequest<any>('GET', '/orders', { params });
-    return data.orders || [];
+    const data = await this.authenticatedRequest<any>('GET', '/order/getOrders', params);
+    return data?.data || [];
   }
 
   async getOrder(orderId: string): Promise<any> {
-    return this.authenticatedRequest<any>('GET', `/orders/${orderId}`);
+    return this.authenticatedRequest<any>('GET', `/order/getOrder/${orderId}`);
   }
 }
 
