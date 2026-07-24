@@ -111,6 +111,8 @@ export async function createImportWorker() {
               const slug = slugify(mapped.title!);
               mapped.slug = `${slug}-${Date.now()}`;
 
+              delete mapped.categoryId;
+
               const [product, created] = await Product.upsert({
                 ...mapped,
                 storeId,
