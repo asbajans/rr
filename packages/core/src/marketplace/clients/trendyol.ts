@@ -36,6 +36,7 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
       'User-Agent': config.supplierId,
       'Authorization': `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString('base64')}`,
     });
+    this.marketplaceName = 'trendyol';
     this.config = config;
   }
 

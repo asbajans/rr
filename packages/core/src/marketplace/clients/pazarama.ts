@@ -15,6 +15,7 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
 
   constructor(config: PazaramaConfig) {
     super('https://isortagimapi.pazarama.com');
+    this.marketplaceName = 'pazarama';
     this.config = config;
     this.authClient = axios.create({
       baseURL: 'https://isortagimgiris.pazarama.com/connect/token',

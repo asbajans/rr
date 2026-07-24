@@ -6,24 +6,20 @@ export interface N11Config {
 }
 
 function parseSoapXml(xml: string): any {
-  const bodyMatch = xml.match(/<soap:Body>([\s\S]*?)<\/soap:Body>/i) 
-    || xml.match(/<env:Body>([\s\S]*?)<\/env:Body>/i)
-    || xml.match(/<Body>([\s\S]*?)<\/Body>/i);
+  const bodyMatch = xml.match(/<(?:soap:|env:)?Body>([\s\S]*?)<\/(?:soap:|env:)?Body>/i);
   if (!bodyMatch) return {};
-  const root = bodyMatch[1];
+  return parseXmlChildren(bodyMatch[1].trim());
+}
 
-  const rootMatch = root.match(/<(\w+:)?(\w+)>([\s\S]*)<\/\1\2>/);
-  if (!rootMatch) return {};
-  const inner = rootMatch[3];
-
+function parseXmlChildren(xml: string): any {
   const result: any = {};
   const tagRegex = /<(\w+:)?(\w+)(?:\s+[^>]*)?>([\s\S]*?)<\/\1\2>/g;
   let m: RegExpExecArray | null;
-  while ((m = tagRegex.exec(inner)) !== null) {
+  while ((m = tagRegex.exec(xml)) !== null) {
     const [, , tagName, tagContent] = m;
     const trimmed = tagContent.trim();
     if (/^<(\w+:)?\w+/.test(trimmed)) {
-      const child = parseSoapXml(`<Body>${trimmed}</Body>`);
+      const child = parseXmlChildren(trimmed);
       if (result[tagName]) {
         if (!Array.isArray(result[tagName])) result[tagName] = [result[tagName]];
         result[tagName].push(child);
@@ -47,6 +43,7 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
 
   constructor(config: N11Config) {
     super('https://api.n11.com/ws', { 'Content-Type': 'application/xml' });
+    this.marketplaceName = 'n11';
     this.config = config;
   }
 

@@ -38,6 +38,7 @@ export class EtsyClient extends BaseMarketplaceClient implements MarketplaceClie
 
   constructor(config: EtsyConfig) {
     super('https://openapi.etsy.com/v3/application');
+    this.marketplaceName = 'etsy';
     this.config = config;
   }
 

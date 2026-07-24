@@ -29,6 +29,7 @@ export class HepsiburadaClient extends BaseMarketplaceClient implements Marketpl
 
   constructor(config: HepsiburadaConfig) {
     super('https://mpop.hepsiburada.com');
+    this.marketplaceName = 'hepsiburada';
     this.config = config;
   }
 

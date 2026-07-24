@@ -24,6 +24,7 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
 
   constructor(config: AmazonConfig) {
     super('https://sellingpartnerapi-eu.amazon.com', {});
+    this.marketplaceName = 'amazon';
     this.config = config;
   }
 
