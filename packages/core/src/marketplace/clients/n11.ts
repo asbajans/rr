@@ -1,132 +1,190 @@
-import { BaseMarketplaceClient, MarketplaceClient, generateHmacSHA256Hex } from './base.js';
+import { BaseMarketplaceClient, MarketplaceClient } from './base.js';
 
 export interface N11Config {
   appKey: string;
   appSecret: string;
 }
 
-function parseSoapXml(xml: string): any {
-  const bodyMatch = xml.match(/<(?:soap:|env:)?Body>([\s\S]*?)<\/(?:soap:|env:)?Body>/i);
-  if (!bodyMatch) return {};
-  return parseXmlChildren(bodyMatch[1].trim());
+function getAuthHeaders(config: N11Config): Record<string, string> {
+  return { appKey: config.appKey, appSecret: config.appSecret };
 }
 
-function parseXmlChildren(xml: string): any {
-  const result: any = {};
-  const tagRegex = /<(\w+:)?(\w+)(?:\s+[^>]*)?>([\s\S]*?)<\/\1\2>/g;
-  let m: RegExpExecArray | null;
-  while ((m = tagRegex.exec(xml)) !== null) {
-    const [, , tagName, tagContent] = m;
-    const trimmed = tagContent.trim();
-    if (/^<(\w+:)?\w+/.test(trimmed)) {
-      const child = parseXmlChildren(trimmed);
-      if (result[tagName]) {
-        if (!Array.isArray(result[tagName])) result[tagName] = [result[tagName]];
-        result[tagName].push(child);
-      } else {
-        result[tagName] = child;
-      }
-    } else {
-      if (result[tagName]) {
-        if (!Array.isArray(result[tagName])) result[tagName] = [result[tagName]];
-        result[tagName].push(trimmed);
-      } else {
-        result[tagName] = trimmed;
-      }
-    }
-  }
-  return result;
+interface N11Category {
+  id: number;
+  name: string;
+  subCategories?: N11Category[];
 }
 
 export class N11Client extends BaseMarketplaceClient implements MarketplaceClient {
   private config: N11Config;
 
   constructor(config: N11Config) {
-    super('https://api.n11.com/ws', { 'Content-Type': 'application/xml' });
+    super('https://api.n11.com');
     this.marketplaceName = 'n11';
     this.config = config;
   }
 
-  private signRequest(xml: string): string {
-    return generateHmacSHA256Hex(xml, this.config.appSecret);
-  }
-
-  private async requestWithAuth<T>(action: string, body: string): Promise<T> {
-    const envelope = `<?xml version="1.0" encoding="UTF-8"?>
-<env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/">
-<env:Header>
-<ns1:auth xmlns:ns1="http://www.n11.com/ws/schemas">
-<appKey>${this.config.appKey}</appKey>
-<timeStamp>${new Date().toISOString()}</timeStamp>
-<signature>${this.signRequest(body)}</signature>
-</ns1:auth>
-</env:Header>
-<env:Body>
-${body}
-</env:Body>
-</env:Envelope>`;
-
-    const response = await this.client.post('', envelope, { params: { ws: action } });
-    const parsed = parseSoapXml(response.data as string);
-    return parsed as T;
-  }
-
   async getCategories(): Promise<any[]> {
     try {
-      const body = '<categoryService><categoryListRequest><page>1</page><pageSize>1000</pageSize></categoryListRequest></categoryService>';
-      const data = await this.requestWithAuth<any>('CategoryServicePort', body);
-      const raw = data?.categoryListResponse?.categoryList?.category;
-      return Array.isArray(raw) ? raw : (raw ? [raw] : []);
+      const data = await this.request<any>({
+        method: 'GET',
+        url: '/cdn/categories',
+        headers: getAuthHeaders(this.config),
+      });
+      const raw = data?.categories || data?.categoryList || data || [];
+      const list = Array.isArray(raw) ? raw : (raw?.category ? raw.category : []);
+      return this.flattenCategories(list, 0);
     } catch {
       return [];
     }
   }
 
+  private flattenCategories(categories: N11Category[], parentId: number = 0, level: number = 0): any[] {
+    const result: any[] = [];
+    for (const cat of categories) {
+      result.push({
+        id: cat.id,
+        marketplace_category_id: String(cat.id),
+        name: cat.name,
+        parentId,
+        parent_id: String(parentId),
+        level,
+        path: cat.name,
+      });
+      if (cat.subCategories?.length) {
+        result.push(...this.flattenCategories(cat.subCategories, cat.id, level + 1));
+      }
+    }
+    return result;
+  }
+
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
-    const body = `<productService>
-<productRequest>
-<page>${params.page || 1}</page>
-<pageSize>${params.size || 50}</pageSize>
-</productRequest>
-</productService>`;
-    const data = await this.requestWithAuth<any>('ProductServicePort', body);
-    const raw = data?.productListResponse?.productList?.product;
-    return { products: Array.isArray(raw) ? raw : (raw ? [raw] : []), hasMore: false };
+    try {
+      const query: Record<string, any> = {
+        page: params.page || 0,
+        size: params.size || 100,
+      };
+      if (params.stockCode) query.stockCode = params.stockCode;
+      if (params.status) query.saleStatus = params.status;
+      if (params.categoryIds) query.categoryIds = params.categoryIds;
+
+      const data = await this.request<any>({
+        method: 'GET',
+        url: '/ms/product-query',
+        params: query,
+        headers: getAuthHeaders(this.config),
+      });
+      const products = data?.content || data?.products || data?.data || [];
+      const totalPages = data?.totalPages || data?.pageCount || 1;
+      return {
+        products: Array.isArray(products) ? products : [],
+        hasMore: (params.page || 0) < totalPages - 1,
+      };
+    } catch {
+      return { products: [], hasMore: false };
+    }
   }
 
   async createProduct(product: any): Promise<any> {
-    const body = `<productService>
-<product>${this.serializeProduct(product)}</product>
-</productService>`;
-    return this.requestWithAuth<any>('ProductServicePort', body);
+    const payload: Record<string, any> = {
+      payload: {
+        integrator: product.integrator || 'Rahatio',
+        skus: [{
+          title: product.title,
+          description: product.description || '',
+          categoryId: product.categoryId,
+          currencyType: product.currencyType || 'TL',
+          productMainId: product.productMainId || product.sku,
+          preparingDay: product.preparingDay || 3,
+          shipmentTemplate: product.shipmentTemplate || '1',
+          maxPurchaseQuantity: product.maxPurchaseQuantity || 5,
+          stockCode: product.sku,
+          quantity: product.quantity || 0,
+          images: product.images || [],
+          attributes: product.attributes || [],
+          salePrice: product.salePrice || product.price,
+          listPrice: product.listPrice || product.price,
+          vatRate: product.vatRate || 10,
+        }],
+      },
+    };
+    if (product.barcode) payload.payload.skus[0].barcode = product.barcode;
+    if (product.catalogId) payload.payload.skus[0].catalogId = product.catalogId;
+
+    return this.request<any>({
+      method: 'POST',
+      url: '/ms/product/tasks/product-create',
+      data: payload,
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(this.config) },
+    });
   }
 
   async updateProduct(productId: string, product: any): Promise<any> {
-    return this.createProduct(product);
+    const payload: Record<string, any> = {
+      payload: {
+        skus: [{
+          stockCode: productId,
+          title: product.title,
+          description: product.description,
+          categoryId: product.categoryId,
+          salePrice: product.salePrice || product.price,
+          listPrice: product.listPrice || product.price,
+          quantity: product.quantity,
+        }],
+      },
+    };
+
+    return this.request<any>({
+      method: 'POST',
+      url: '/ms/product/tasks/product-update',
+      data: payload,
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(this.config) },
+    });
   }
 
   async updatePrice(productId: string, price: number): Promise<any> {
-    const body = `<productService>
-<productId>${productId}</productId>
-<price>${price}</price>
-</productService>`;
-    return this.requestWithAuth<any>('ProductServicePort', body);
+    return this.updatePriceAndStock(productId, { salePrice: price, listPrice: price });
   }
 
   async updateStock(productId: string, quantity: number): Promise<any> {
-    const body = `<productService>
-<productId>${productId}</productId>
-<quantity>${quantity}</quantity>
-</productService>`;
-    return this.requestWithAuth<any>('ProductServicePort', body);
+    return this.updatePriceAndStock(productId, { quantity });
+  }
+
+  private async updatePriceAndStock(stockCode: string, fields: Record<string, any>): Promise<any> {
+    const payload: Record<string, any> = {
+      payload: {
+        integrator: 'Rahatio',
+        skus: [{ stockCode, ...fields }],
+      },
+    };
+
+    return this.request<any>({
+      method: 'POST',
+      url: '/ms/product/tasks/price-stock-update',
+      data: payload,
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(this.config) },
+    });
   }
 
   async getOrders(params: any = {}): Promise<any[]> {
     try {
-      const body = `<orderService><orderListRequest><page>${params.page || 1}</page><pageSize>${params.size || 50}</pageSize></orderListRequest></orderService>`;
-      const data = await this.requestWithAuth<any>('OrderServicePort', body);
-      const raw = data?.orderListResponse?.orderList?.order;
-      return Array.isArray(raw) ? raw : (raw ? [raw] : []);
+      const query: Record<string, any> = {
+        page: params.page || 0,
+        size: params.size || 100,
+      };
+      if (params.status) query.status = params.status;
+      if (params.startDate) query.startDate = params.startDate;
+      if (params.endDate) query.endDate = params.endDate;
+      if (params.orderNumber) query.orderNumber = params.orderNumber;
+
+      const data = await this.request<any>({
+        method: 'GET',
+        url: '/rest/delivery/v1/shipmentPackages',
+        params: query,
+        headers: getAuthHeaders(this.config),
+      });
+      const content = data?.content || [];
+      return Array.isArray(content) ? content : [];
     } catch {
       return [];
     }
@@ -134,18 +192,17 @@ ${body}
 
   async getOrder(orderId: string): Promise<any> {
     try {
-      const body = `<orderService><orderDetailRequest><orderId>${orderId}</orderId></orderDetailRequest></orderService>`;
-      return this.requestWithAuth<any>('OrderServicePort', body);
+      const data = await this.request<any>({
+        method: 'GET',
+        url: '/rest/delivery/v1/shipmentPackages',
+        params: { packageIds: orderId },
+        headers: getAuthHeaders(this.config),
+      });
+      const content = data?.content || [];
+      return Array.isArray(content) && content.length > 0 ? content[0] : null;
     } catch {
       return null;
     }
-  }
-
-  private serializeProduct(product: any): string {
-    return `<title>${product.title}</title><subtitle>${product.subtitle || ''}</subtitle>
-<description>${product.description || ''}</description><categoryId>${product.categoryId}</categoryId>
-<price>${product.price}</price><quantity>${product.quantity}</quantity>
-<stockCode>${product.sku}</stockCode><currencyType>TRY</currencyType>`;
   }
 }
 
