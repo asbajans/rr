@@ -84,8 +84,8 @@ b2bRoutes.get('/settings', authMiddleware, requireStore, async (req: Request, re
 b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   body('productId').isInt(),
   body('isB2BEnabled').isBoolean(),
-  body('b2bDiscount').optional().isFloat({ min: 0, max: 100 }),
-  body('b2bPrice').optional().isFloat({ min: 0 }),
+  body('b2bDiscount').optional({ values: 'null' }).isFloat({ min: 0, max: 100 }),
+  body('b2bPrice').optional({ values: 'null' }).isFloat({ min: 0 }),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -143,10 +143,10 @@ b2bRoutes.get('/requests', authMiddleware, requireStore, async (req: Request, re
 
 b2bRoutes.post('/requests', authMiddleware, requireStore, [
   body('productId').isInt(),
-  body('variantId').optional().isInt(),
-  body('requestNote').optional().isString(),
-  body('profitMargin').optional().isFloat({ min: 0, max: 100 }),
-  body('marketplaces').optional().isArray(),
+  body('variantId').optional({ values: 'null' }).isInt(),
+  body('requestNote').optional({ values: 'null' }).isString(),
+  body('profitMargin').optional({ values: 'null' }).isFloat({ min: 0, max: 100 }),
+  body('marketplaces').optional({ values: 'null' }).isArray(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -191,7 +191,7 @@ b2bRoutes.post('/requests', authMiddleware, requireStore, [
 b2bRoutes.put('/requests/:id', authMiddleware, requireStore, [
   param('id').isInt(),
   body('status').isIn(['approved', 'rejected']),
-  body('profitMargin').optional().isFloat({ min: 0, max: 100 }),
+  body('profitMargin').optional({ values: 'null' }).isFloat({ min: 0, max: 100 }),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
