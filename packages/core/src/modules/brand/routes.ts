@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger.js';
 import { createMarketplaceClient } from '../../marketplace/clients/index.js';
 import { MarketplaceClient } from '../../marketplace/clients/base.js';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
+import { Product } from '../../models/Product.model.js';
 
 export const brandRoutes: Router = Router();
 
@@ -143,13 +144,38 @@ brandRoutes.post('/sync', authMiddleware, requireRole('owner', 'admin'), require
     }
 
     const client = createMarketplaceClient(marketplace, integration.config);
-    if (!('getBrands' in client)) {
-      return res.status(400).json({ error: `${marketplace} does not support brand sync` });
-    }
-    const brands = await (client as any).getBrands();
 
-    if (!Array.isArray(brands) || brands.length === 0) {
-      return res.json({ brands: [], imported: 0 });
+    let brands: { id: number | string; name: string }[] = [];
+
+    if ('getBrands' in client) {
+      try {
+        const apiBrands = await (client as any).getBrands();
+        if (Array.isArray(apiBrands)) brands = apiBrands;
+      } catch {
+        // API failed, will use DB fallback
+      }
+    }
+
+    const brandNamesFromDb = new Set<string>();
+
+    // Extract brands from existing product marketplaceConfig
+    if (brands.length === 0) {
+      const products = await Product.findAll({
+        where: { storeId: store.id },
+        attributes: ['marketplaceConfig'],
+        raw: true,
+      });
+      for (const p of products) {
+        const mc = (p as any)?.marketplaceConfig?.[marketplace];
+        if (mc?.brand) brandNamesFromDb.add(mc.brand);
+      }
+      for (const name of brandNamesFromDb) {
+        brands.push({ id: name, name });
+      }
+    }
+
+    if (brands.length === 0) {
+      return res.json({ brands: [], imported: 0, message: 'No brands found via API or existing products' });
     }
 
     let imported = 0;
@@ -173,7 +199,7 @@ brandRoutes.post('/sync', authMiddleware, requireRole('owner', 'admin'), require
     }
 
     logger.info(`Brands synced from ${marketplace}: ${imported} new, ${brands.length} total`);
-    res.json({ brands, imported, total: brands.length });
+    res.json({ brands, imported, total: brandNamesFromDb.size || brands.length });
   } catch (error) {
     logger.error({ err: error }, 'Sync brands error:');
     res.status(500).json({ error: 'Internal server error' });

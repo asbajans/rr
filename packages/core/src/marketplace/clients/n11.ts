@@ -82,17 +82,7 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
   // ─── Brand List ────────────────────────────────────────────
 
   async getBrands(): Promise<{ id: number; name: string }[]> {
-    try {
-      const data = await this.request<any>({
-        method: 'GET',
-        url: '/ms/brands',
-        headers: authHeaders(this.config),
-      });
-      const list = data?.brands ?? data?.content ?? data?.data ?? [];
-      return Array.isArray(list) ? list.map((b: any) => ({ id: b.id ?? b.brandId ?? 0, name: b.name ?? b.brandName ?? '' })) : [];
-    } catch {
-      return [];
-    }
+    return [];
   }
 
   // ─── Product Query (sync, paginated) ───────────────────────
