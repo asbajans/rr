@@ -577,6 +577,16 @@ export type Page = {
   updated_at: string
 }
 
+export type Brand = {
+  id: number
+  name: string
+  marketplace: string | null
+  marketplaceBrandId: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export type PageBlock = {
   id: string
   type: 'hero' | 'text' | 'image' | 'gallery' | 'products' | 'features' | 'cta' | 'contact' | 'html'

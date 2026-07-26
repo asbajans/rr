@@ -94,6 +94,16 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     return this.request<any>({ method: 'PUT', url, data: { quantity } });
   }
 
+  async getBrands(search?: string): Promise<{ id: number; name: string }[]> {
+    const auth = Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64');
+    const { default: axios } = await import('axios');
+    const response = await axios.get('https://api.trendyol.com/sapigw/brands', {
+      headers: { 'Authorization': `Basic ${auth}` },
+      params: { name: search || '', size: 1000 },
+    });
+    return response.data?.brands || [];
+  }
+
   async getOrders(params: { startDate?: string; endDate?: string; page?: number; size?: number } = {}): Promise<any[]> {
     const url = `/sellers/${this.config.supplierId}/orders`;
     const data = await this.request<any>({ method: 'GET', url, params });

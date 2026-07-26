@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Sparkles, Settings,
   Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban,
   MapPin, Truck, FileText, Coins, Camera, Palette, MenuIcon,
-  FolderTree, Tag, ChevronLeft, ChevronRight, X,
+  FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -24,6 +24,7 @@ const navGroups = [
     items: [
       { href: '/products', label: 'Ürünler', icon: Package },
       { href: '/categories', label: 'Kategoriler', icon: FolderTree },
+      { href: '/brands', label: 'Markalar', icon: Building2 },
       { href: '/variations', label: 'Varyasyonlar', icon: FolderKanban },
       { href: '/feeds', label: 'XML Feed', icon: Rss },
     ],

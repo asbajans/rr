@@ -481,6 +481,34 @@ class ApiClient {
     return this.delete<void>(`/api/admin/categories/${categoryId}/mappings/${mappingIdOrMarketplace}`)
   }
 
+  // Brands
+  getBrands(filters?: { marketplace?: string; search?: string }) {
+    const params: Record<string, string> = {}
+    if (filters?.marketplace) params.marketplace = filters.marketplace
+    if (filters?.search) params.search = filters.search
+    return this.get<{ brands: import('./types').Brand[] }>('/api/admin/brands', { params }).then(r => r.brands)
+  }
+
+  getBrand(id: number) {
+    return this.get<{ brand: import('./types').Brand }>(`/api/admin/brands/${id}`).then(r => r.brand)
+  }
+
+  createBrand(data: { name: string; marketplace?: string; marketplaceBrandId?: string }) {
+    return this.post<{ brand: import('./types').Brand }>('/api/admin/brands', data).then(r => r.brand)
+  }
+
+  updateBrand(id: number, data: Partial<import('./types').Brand>) {
+    return this.put<{ brand: import('./types').Brand }>(`/api/admin/brands/${id}`, data).then(r => r.brand)
+  }
+
+  deleteBrand(id: number) {
+    return this.delete<void>(`/api/admin/brands/${id}`)
+  }
+
+  syncBrands(marketplace: string) {
+    return this.post<{ brands: any[]; imported: number; total: number }>('/api/admin/brands/sync', { marketplace })
+  }
+
   // Variations
   getVariations() {
     return this.get<{ variations: import('./types').Variation[] }>(`/api/admin/variations`).then(r => r.variations)
@@ -1061,18 +1089,18 @@ class ApiClient {
       if (data.price_currency === 'USD') payload.priceUSD = data.price
       else payload.priceTRY = data.price
     }
-    if (data.price_try !== undefined) payload.priceTRY = data.price_try
-    if (data.price_usd !== undefined) payload.priceUSD = data.price_usd
-    if (data.stock !== undefined) payload.quantity = data.stock
-    if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
+    if (data.price_try != null) payload.priceTRY = data.price_try
+    if (data.price_usd != null) payload.priceUSD = data.price_usd
+    if (data.stock != null) payload.quantity = data.stock
+    if (data.status != null) payload.isActive = data.status === '1' || data.status === true || data.status === 1
     if (data.marketplaces) payload.marketplaces = data.marketplaces
     if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
     if (data.media_urls) payload.images = data.media_urls
     if (data.description) payload.description = data.description
-    if (data.gram_weight !== undefined) payload.gramWeight = data.gram_weight
-    if (data.milyem !== undefined) payload.milyem = data.milyem
-    if (data.profit_margin !== undefined) payload.profitMargin = data.profit_margin
-    if (data.price_multiplier !== undefined) payload.priceMultiplier = data.price_multiplier
+    if (data.gram_weight != null) payload.gramWeight = data.gram_weight
+    if (data.milyem != null) payload.milyem = data.milyem
+    if (data.profit_margin != null) payload.profitMargin = data.profit_margin
+    if (data.price_multiplier != null) payload.priceMultiplier = data.price_multiplier
     if (data.video_url) payload.videoUrl = data.video_url
     if (data.tags) payload.tags = data.tags
     return this.post<{ product: import('./types').Product }>('/api/admin/products', payload).then(r => r.product)
@@ -1086,18 +1114,18 @@ class ApiClient {
       if (data.price_currency === 'USD') payload.priceUSD = data.price
       else payload.priceTRY = data.price
     }
-    if (data.price_try !== undefined) payload.priceTRY = data.price_try
-    if (data.price_usd !== undefined) payload.priceUSD = data.price_usd
-    if (data.stock !== undefined) payload.quantity = data.stock
-    if (data.status !== undefined) payload.isActive = data.status === '1' || data.status === true
+    if (data.price_try != null) payload.priceTRY = data.price_try
+    if (data.price_usd != null) payload.priceUSD = data.price_usd
+    if (data.stock != null) payload.quantity = data.stock
+    if (data.status != null) payload.isActive = data.status === '1' || data.status === true || data.status === 1
     if (data.marketplaces) payload.marketplaces = data.marketplaces
     if (data.marketplace_data) payload.marketplaceConfig = data.marketplace_data
     if (data.media_urls) payload.images = data.media_urls
-    if (data.description !== undefined) payload.description = data.description
-    if (data.gram_weight !== undefined) payload.gramWeight = data.gram_weight
-    if (data.milyem !== undefined) payload.milyem = data.milyem
-    if (data.profit_margin !== undefined) payload.profitMargin = data.profit_margin
-    if (data.price_multiplier !== undefined) payload.priceMultiplier = data.price_multiplier
+    if (data.description != null) payload.description = data.description
+    if (data.gram_weight != null) payload.gramWeight = data.gram_weight
+    if (data.milyem != null) payload.milyem = data.milyem
+    if (data.profit_margin != null) payload.profitMargin = data.profit_margin
+    if (data.price_multiplier != null) payload.priceMultiplier = data.price_multiplier
     if (data.video_url) payload.videoUrl = data.video_url
     if (data.tags) payload.tags = data.tags
     return this.put<{ product: import('./types').Product }>(`/api/admin/products/${id}`, payload).then(r => r.product)

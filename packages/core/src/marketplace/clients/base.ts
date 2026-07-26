@@ -20,6 +20,7 @@ export interface MarketplaceClient {
   updateStock(productId: string, quantity: number): Promise<any>;
   getOrders(params?: any): Promise<any[]>;
   getOrder(orderId: string): Promise<any>;
+  getBrands?(search?: string): Promise<{ id: number; name: string }[]>;
 }
 
 export abstract class BaseMarketplaceClient implements MarketplaceClient {

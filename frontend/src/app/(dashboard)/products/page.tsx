@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
-import { Product, MarketplaceEntry, MarketplaceCategory, Category } from '@/lib/types'
+import { Product, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '@/lib/types'
 import { Sparkles, Camera } from 'lucide-react'
 
 interface Filters {
@@ -56,6 +56,7 @@ export default function ProductsPage() {
   const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', priceMin: '', priceMax: '' })
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
   const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
 
   // category options per marketplace (marketplace trees, or universal categories for Kendi Sitem)
   function catOptionsFor(mp: string): { id: string; name: string }[] {
@@ -83,14 +84,12 @@ export default function ProductsPage() {
     })
   }
 
-  // brand options collected from products for a given marketplace
+  // brand options from API
   function brandsFor(mp: string): string[] {
-    const set = new Set<string>()
-    products.forEach((p) => {
-      const md = p.marketplace_data?.[mp]
-      if (md?.brand) set.add(md.brand)
-    })
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'))
+    return brands
+      .filter((b) => b.isActive && (!b.marketplace || b.marketplace === mp || mp === 'Kendi Sitem'))
+      .map((b) => b.name)
+      .sort((a, b) => a.localeCompare(b, 'tr'))
   }
 
   const [selected, setSelected] = useState<string[]>([])
@@ -139,7 +138,7 @@ export default function ProductsPage() {
     { value: '0', label: 'Satışta Değil' },
   ]
 
-  // load marketplace trees + universal categories once
+  // load marketplace trees + universal categories + brands once
   useEffect(() => {
     const token = api.getToken()
     if (!token) return
@@ -153,6 +152,12 @@ export default function ProductsPage() {
       try {
         const res = await api.getCategoriesFlat()
         setCategoriesFlat(res.data ?? [])
+      } catch {
+        // ignore
+      }
+      try {
+        const res = await api.getBrands()
+        setBrands(res ?? [])
       } catch {
         // ignore
       }
@@ -331,7 +336,7 @@ export default function ProductsPage() {
   }
 
   async function handleVerify(mp: string) {
-    if (!product) return
+    if (!product || !product.id) return
     setVerifyingMp(mp)
     try {
       const res = await api.verifyProduct(product.id, mp)
@@ -355,7 +360,7 @@ export default function ProductsPage() {
   }
 
   async function handleDelete() {
-    if (!product) return
+    if (!product || !product.id) return
     if (!confirm(`${product.label} silinecek. Emin misiniz?`)) return
     try {
       await api.deleteAdminProduct(product.id)
@@ -1074,10 +1079,10 @@ export default function ProductsPage() {
                               <button
                                 type="button"
                                 onClick={() => handleVerify(mp)}
-                                disabled={verifyingMp === mp}
+                                disabled={verifyingMp === mp || creating}
                                 className="text-xs text-indigo-600 hover:underline disabled:opacity-40"
                               >
-                                {verifyingMp === mp ? 'Doğrulanıyor…' : 'Doğrula'}
+                                {verifyingMp === mp ? 'Doğrulanıyor…' : creating ? 'Önce Kaydedin' : 'Doğrula'}
                               </button>
                             )}
                             {mp !== 'Kendi Sitem' && (
