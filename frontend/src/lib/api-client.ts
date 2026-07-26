@@ -44,7 +44,7 @@ function mapProduct(p: any): any {
     original_product_id: p.originalProductId ?? null,
     original_store_id: p.originalStoreId ?? null,
     slug: p.slug ?? null,
-    category: p.category?.name ?? null,
+    category: typeof p.category?.name === 'object' ? (p.category.name.tr || p.category.name.en || '') : (p.category?.name ?? null),
     category_id: p.categoryId ?? p.category_id ?? null,
     created_at: p.createdAt ?? p.created_at,
     updated_at: p.updatedAt ?? p.updated_at,

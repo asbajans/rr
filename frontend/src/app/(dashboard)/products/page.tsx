@@ -60,7 +60,10 @@ export default function ProductsPage() {
   // category options per marketplace (marketplace trees, or universal categories for Kendi Sitem)
   function catOptionsFor(mp: string): { id: string; name: string }[] {
     if (mp === 'Kendi Sitem') {
-      return (categoriesFlat ?? []).map((c) => ({ id: String(c.id), name: c.path || c.name }))
+      return (categoriesFlat ?? []).map((c) => {
+        const catName = typeof c.name === 'object' ? ((c.name as Record<string, string>).tr || (c.name as Record<string, string>).en || '') : c.name
+        return { id: String(c.id), name: c.path || catName }
+      })
     }
     const tree = marketplaceTrees[mp] ?? []
     const opts: { id: string; name: string }[] = []
