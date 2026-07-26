@@ -3,7 +3,9 @@ import { Op } from 'sequelize';
 import { body, param, validationResult } from 'express-validator';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { Setting } from '../../models/Setting.model.js';
+import { User } from '../../models/User.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
+import { requireInternalKey } from '../../middleware/internalAuth.js';
 import { logger } from '../../utils/logger.js';
 
 export const marketplaceRoutes: Router = Router();
@@ -399,6 +401,44 @@ marketplaceRoutes.post('/:marketplace/categories', authMiddleware, requireRole('
     res.status(201).json({ mapping });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create category mapping error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+marketplaceRoutes.get('/active', requireInternalKey, async (req: Request, res: Response) => {
+  try {
+    const { storeId, marketplace } = req.query;
+    const where: any = { isActive: true };
+    if (storeId) where.storeId = Number(storeId);
+    if (marketplace) where.marketplace = marketplace;
+    const integrations = await MarketplaceIntegration.findAll({ where });
+    const result = integrations.map(i => ({
+      storeId: i.storeId,
+      marketplace: i.marketplace,
+      config: i.config || {},
+    }));
+    res.json({ integrations: result });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Active integrations error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+marketplaceRoutes.get('/fcm-tokens', requireInternalKey, async (req: Request, res: Response) => {
+  try {
+    const { storeId } = req.query;
+    if (!storeId) {
+      res.status(400).json({ error: 'storeId is required' });
+      return;
+    }
+    const users = await User.findAll({
+      where: { storeId: Number(storeId), isActive: true },
+      attributes: ['fcmToken'],
+    });
+    const tokens = users.map(u => u.fcmToken).filter(Boolean) as string[];
+    res.json({ tokens });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'FCM tokens error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

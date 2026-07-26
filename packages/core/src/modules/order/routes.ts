@@ -1,11 +1,26 @@
 import { Router, Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { body, param, query, validationResult } from 'express-validator';
+import axios from 'axios';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { createSplitOrder } from './orderSplit.js';
 import { logger } from '../../utils/logger.js';
+import { config } from '../../config/env.js';
+
+const INTEGRATION_SERVICE_URL = process.env.INTEGRATION_SERVICE_URL || 'http://localhost:3002';
+
+async function notifyIntegrationService(payload: Record<string, any>): Promise<void> {
+  try {
+    await axios.post(`${INTEGRATION_SERVICE_URL}/webhook/order-updated`, payload, {
+      headers: { 'x-internal-key': config.apiKey.internalKey },
+      timeout: 5000,
+    });
+  } catch (err: any) {
+    logger.warn({ err: err.message, payload }, 'Failed to notify integration-service');
+  }
+}
 
 export const orderRoutes: Router = Router();
 
@@ -27,7 +42,7 @@ orderRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
 
     const where: any = { storeId: store.id };
     if (req.query.status) where.status = req.query.status;
-    if (req.query.marketplace) where.marketplace = req.query.markplace;
+    if (req.query.marketplace) where.marketplace = String(req.query.marketplace);
 
     const { count, rows } = await DropshippingOrder.findAndCountAll({
       where,
@@ -135,6 +150,17 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
     });
 
     logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
+
+    if (order.marketplace !== 'storefront') {
+      notifyIntegrationService({
+        action: 'status',
+        storeId: store.id,
+        marketplace: order.marketplace,
+        externalId: order.marketplaceOrderId,
+        value: status,
+      });
+    }
+
     res.json({ order });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update order status error');
@@ -167,6 +193,16 @@ orderRoutes.put('/:id/tracking', authMiddleware, requireRole('owner', 'admin'), 
       toStatus: 'shipped',
       note: `Tracking added: ${carrier} - ${trackingNumber}`,
     });
+
+    if (order.marketplace !== 'storefront') {
+      notifyIntegrationService({
+        action: 'tracking',
+        storeId: store.id,
+        marketplace: order.marketplace,
+        externalId: order.marketplaceOrderNumber || order.marketplaceOrderId,
+        value: { trackingNumber, carrier },
+      });
+    }
 
     res.json({ order });
   } catch (error: unknown) {

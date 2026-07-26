@@ -5,6 +5,7 @@ export const config = {
   
   coreApiUrl: process.env.CORE_API_URL || 'http://localhost:3000',
   coreApiKey: process.env.CORE_API_KEY || 'core-internal-key',
+  fcmServerKey: process.env.FCM_SERVER_KEY || '',
   
   redis: {
     url: process.env.REDIS_URL || 'redis://localhost:6379',

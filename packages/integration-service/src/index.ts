@@ -12,7 +12,11 @@ import {
   createSyncWorker, 
   createOrderWorker, 
   createStockWorker, 
-  createPriceWorker 
+  createPriceWorker,
+  createOrderPullWorker,
+  createOrderPushWorker,
+  createOrderNotifyWorker,
+  orderPullQueue,
 } from './queues/index.js';
 
 export const createApp = async (): Promise<Express> => {
@@ -42,6 +46,20 @@ export const createApp = async (): Promise<Express> => {
   return app;
 };
 
+async function registerRepeatableJobs(): Promise<void> {
+  const repeatableJobs = await orderPullQueue.getRepeatableJobs();
+  const exists = repeatableJobs.some(j => j.name === 'order-pull-periodic');
+  if (!exists) {
+    await orderPullQueue.add('order-pull-periodic', {}, {
+      repeat: { pattern: '*/5 * * * *' },
+      jobId: 'order-pull-periodic',
+    });
+    logger.info('Registered order-pull repeatable job (every 5 minutes)');
+  } else {
+    logger.info('Order-pull repeatable job already registered');
+  }
+}
+
 export const startServer = async (): Promise<void> => {
   const app = await createApp();
   const port = config.port;
@@ -51,10 +69,14 @@ export const startServer = async (): Promise<void> => {
   await createOrderWorker();
   await createStockWorker();
   await createPriceWorker();
+  await createOrderPullWorker();
+  await createOrderPushWorker();
+  await createOrderNotifyWorker();
+  await registerRepeatableJobs();
   
   app.listen(port, () => {
     logger.info(`🚀 Integration Service running on port ${port} (${config.env})`);
-    logger.info('Workers started: import, sync, order, stock, price');
+    logger.info('Workers started: import, sync, order, stock, price, order-pull, order-push, order-notify');
   });
 };
 

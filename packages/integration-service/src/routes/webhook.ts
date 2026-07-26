@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { verifyTrendyolSignature, verifyHepsiburadaSignature, verifyPazaramaSignature, verifyN11Signature, verifyAmazonSignature, verifyEtsySignature } from '../utils/webhookVerify.js';
-import { orderQueue, stockQueue, priceQueue } from '../queues/index.js';
+import { orderQueue, stockQueue, priceQueue, orderPushQueue, orderNotifyQueue } from '../queues/index.js';
 
 export const webhookRoutes: Router = Router();
 
@@ -132,6 +132,25 @@ webhookRoutes.post('/etsy', async (req: Request, res: Response) => {
     res.json({ received: true });
   } catch (err: unknown) {
     logger.error({ err }, 'Etsy webhook error');
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+webhookRoutes.post('/order-updated', async (req: Request, res: Response) => {
+  try {
+    const { action, storeId, marketplace, externalId, value, lineIds } = req.body;
+
+    if (action === 'status') {
+      await orderPushQueue.add('push-status', { action: 'status', storeId, marketplace, externalId, value, lineIds });
+      await orderNotifyQueue.add('notify-status', { type: 'status_changed', storeId, marketplace, orderId: externalId, newStatus: value });
+    } else if (action === 'tracking') {
+      await orderPushQueue.add('push-tracking', { action: 'tracking', storeId, marketplace, externalId, value });
+      await orderNotifyQueue.add('notify-tracking', { type: 'tracking_updated', storeId, marketplace, orderId: externalId, ...value });
+    }
+
+    res.json({ received: true });
+  } catch (err: unknown) {
+    logger.error({ err }, 'Order-updated webhook error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });

@@ -1,16 +1,18 @@
 import { Worker, Job } from 'bullmq';
 import { config } from '../config/env.js';
 import axios from 'axios';
+import { orderNotifyQueue } from '../queues/index.js';
 
 interface OrderJobData {
   marketplace: string;
   payload: any;
+  storeId?: number;
 }
 
 export const orderWorker = new Worker<OrderJobData>(
   'order',
   async (job: Job<OrderJobData>) => {
-    const { marketplace, payload } = job.data;
+    const { marketplace, payload, storeId } = job.data;
     
     console.log(`Processing ${marketplace} order`);
     
@@ -21,10 +23,26 @@ export const orderWorker = new Worker<OrderJobData>(
     
     const response = await coreClient.post('/api/admin/integration/webhook/order', {
       marketplace,
-      payload,
+      payload: { ...payload, storeId },
     });
     
-    return response.data;
+    const result = response.data;
+    if (result?.created) {
+      const sid = storeId || payload?.storeId;
+      if (sid) {
+        const items = payload?.items || payload?.products || [];
+        await orderNotifyQueue.add('notify-new-order', {
+          storeId: sid,
+          marketplace,
+          orderId: result.order?.marketplaceOrderId || payload?.id || '',
+          itemCount: items.length,
+          totalAmount: result.order?.totalAmount || 0,
+          currency: payload?.currency || 'TRY',
+        });
+      }
+    }
+    
+    return result;
   },
   { connection: { url: config.redis.url } }
 );

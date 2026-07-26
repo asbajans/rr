@@ -27,19 +27,25 @@ integrationRoutes.post('/webhook/order', [
   body('payload').isObject(),
 ], validate, async (req: Request, res: Response) => {
   try {
-    const { marketplace, payload } = req.body;
+    const { marketplace, payload, storeId: topLevelStoreId } = req.body;
+    const storeId = payload?.storeId || topLevelStoreId;
+
+    if (!storeId) {
+      return res.status(400).json({ error: 'storeId is required' });
+    }
 
     const store = await Store.findOne({
-      where: { id: payload.storeId },
+      where: { id: storeId },
     });
 
     if (!store) {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    const orderNumber = payload.orderNumber || payload.order_id || payload.id || `ORD-${Date.now()}`;
+    const marketplaceOrderId = payload.marketplaceOrderId || payload.id?.toString() || payload.orderId?.toString() || `${marketplace}_${Date.now()}`;
+    const orderNumber = payload.orderNumber || payload.order_id || marketplaceOrderId || `ORD-${Date.now()}`;
     const existing = await DropshippingOrder.findOne({
-      where: { marketplaceOrderId: payload.id.toString(), marketplace },
+      where: { marketplaceOrderId, marketplace },
     });
 
     if (existing) {
@@ -47,15 +53,16 @@ integrationRoutes.post('/webhook/order', [
     }
 
     const items = payload.items || payload.products || [];
-    const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+    const totalAmount = payload.totalAmount || items.reduce((sum: number, item: any) => sum + ((item.price || item.unitPrice || 0) * (item.quantity || 1)), 0);
 
+    const shippingAddress = payload.shippingAddress || payload.shipping_address || payload.address || {};
     const { mainOrder, subOrders } = await createSplitOrder(
-      store.id, marketplace, payload.id.toString(),
+      store.id, marketplace, marketplaceOrderId,
       items, totalAmount, orderNumber,
       payload.currency || 'TRY',
-      payload.shipping_address || payload.address,
+      shippingAddress,
       payload,
-      payload.order_number,
+      payload.marketplaceOrderNumber || payload.order_number,
     );
 
     logger.info(`Webhook order created: ${mainOrder.id} from ${marketplace}${subOrders.length > 0 ? ` with ${subOrders.length} sub-order(s)` : ''}`);

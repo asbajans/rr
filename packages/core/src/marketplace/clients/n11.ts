@@ -270,6 +270,23 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
     });
   }
 
+  // ─── Update Tracking ─────────────────────────────────────
+
+  async updateTracking(packageId: string, trackingNumber: string, shippingCompany: string): Promise<any> {
+    return this.request<any>({
+      method: 'PUT',
+      url: '/rest/delivery/v1/shipmentPackage',
+      data: {
+        shipmentPackage: {
+          id: Number(packageId),
+          trackingNumber,
+          shippingCompany,
+        },
+      },
+      headers: { 'Content-Type': 'application/json', ...authHeaders(this.config) },
+    });
+  }
+
   // ─── Labor Cost ──────────────────────────────────────────
 
   async addLaborCost(details: { orderLineId: number; totalLaborCostExcludingVAT: number; laborVatRate?: number }[]): Promise<any> {
