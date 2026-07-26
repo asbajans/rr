@@ -703,6 +703,7 @@ export default function ProductsPage() {
                 </th>
                 <th className="px-3 py-2 font-medium text-gray-600">Kod</th>
                 <th className="px-3 py-2 font-medium text-gray-600">Ürün Adı</th>
+                <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Kategori</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Fiyat</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Stok</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Marka</th>
@@ -713,8 +714,8 @@ export default function ProductsPage() {
             </thead>
             <tbody>
               {products.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="px-3 py-6 text-center text-gray-400">
+                  <tr>
+                    <td colSpan={10} className="px-3 py-6 text-center text-gray-400">
                     Ürün bulunamadı.
                   </td>
                 </tr>
@@ -738,6 +739,9 @@ export default function ProductsPage() {
                       {p.media_url && (
                         <img src={p.media_url} alt="" className="mt-1 h-10 w-10 object-cover rounded" />
                       )}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 max-w-[160px] truncate" title={p.category ?? md?.category ?? ''}>
+                      {p.category ?? md?.category ?? '-'}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {p.price != null ? (

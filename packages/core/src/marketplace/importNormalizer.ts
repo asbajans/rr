@@ -135,6 +135,7 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
         : false;
 
   const { categoryName, categoryId } = resolveCategory(raw);
+  const attributes = Array.isArray(raw.attributes) ? raw.attributes : undefined;
   const marketplaceConfig = {
     [mp]: {
       brand: resolveValue(root, ['brand.name', 'brand', 'brandName', 'manufacturer', 'brandName', 'sellerBrand']) ?? resolveValue(variant, ['brand.name', 'brand', 'brandName', 'manufacturer', 'brandName', 'sellerBrand']) ?? null,
@@ -144,6 +145,7 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
       category: categoryName ?? null,
       category_id: categoryId ?? null,
       externalId: sku || null,
+      attributes,
       raw,
     },
   };

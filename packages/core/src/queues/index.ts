@@ -417,6 +417,15 @@ export async function createSyncWorker() {
           const existingListing = product.marketplaceListings?.find(l => l.platform === mp);
 
           const pushPrice = product.priceTRY ?? product.priceUSD ?? 0;
+          const productEntry = (product as any).marketplaceConfig?.[mp] || {};
+
+          const categoryId = productEntry.category_id || productEntry.categoryId || undefined;
+          const brand = productEntry.brand || undefined;
+          const attrs = [...(productEntry.attributes || [])];
+          if (brand && !attrs.some((a: any) => a.attributeName === 'Marka' || a.attributeName?.toLowerCase() === 'marka')) {
+            attrs.push({ attributeName: 'Marka', attributeValue: brand });
+          }
+
           if (existingListing?.externalId) {
             await client.updateProduct(existingListing.externalId, {
               title: product.title,
@@ -424,6 +433,7 @@ export async function createSyncWorker() {
               salePrice: pushPrice,
               quantity: product.quantity,
               images: product.images?.map(url => ({ url })),
+              categoryId,
             });
             if (pushPrice > 0) {
               await client.updatePrice(existingListing.externalId, pushPrice);
@@ -443,6 +453,8 @@ export async function createSyncWorker() {
               barcode: product.sku,
               stockCode: product.sku,
               images: product.images?.map(url => ({ url })),
+              categoryId,
+              attributes: attrs.length > 0 ? attrs : undefined,
             });
 
             const externalId = typeof listingResult === 'string' ? listingResult : listingResult?.batchRequestId || listingResult?.listing_id?.toString() || '';
