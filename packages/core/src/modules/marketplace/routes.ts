@@ -20,23 +20,26 @@ const validate = (req: Request, res: Response, next: Function) => {
 const MARKETPLACES = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy'];
 
 function buildCategoryTree(rows: any[]): any[] {
-  const byParent = new Map<string | number, any[]>();
+  const byParent = new Map<string, any[]>();
   for (const r of rows) {
-    const pid = r.parent_id ?? r.parentId ?? 0;
+    const pid = String(r.parent_id ?? r.parentId ?? 0);
     if (!byParent.has(pid)) byParent.set(pid, []);
     byParent.get(pid)!.push(r);
   }
-  const build = (parentId: string | number): any[] => {
-    return (byParent.get(parentId) || []).map((r: any) => ({
-      marketplace_category_id: String(r.id ?? r.marketplace_category_id ?? r.categoryId ?? r.category_id ?? ''),
-      name: r.name,
-      parent_id: String(r.parent_id ?? r.parentId ?? ''),
-      level: r.level ?? 0,
-      path: r.path ?? r.name ?? '',
-      children: build(r.id ?? r.marketplace_category_id ?? r.categoryId ?? r.category_id ?? ''),
-    }));
+  const build = (parentId: string): any[] => {
+    return (byParent.get(parentId) || []).map((r: any) => {
+      const id = String(r.id ?? r.marketplace_category_id ?? r.categoryId ?? r.category_id ?? '');
+      return {
+        marketplace_category_id: id,
+        name: r.name,
+        parent_id: String(r.parent_id ?? r.parentId ?? ''),
+        level: r.level ?? 0,
+        path: r.path ?? r.name ?? '',
+        children: build(id),
+      };
+    });
   };
-  return build(0);
+  return build('0');
 }
 
 marketplaceRoutes.get('/marketplace-trees', authMiddleware, requireStore, async (req: Request, res: Response) => {
