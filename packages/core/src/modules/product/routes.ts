@@ -192,7 +192,7 @@ productRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
 
     // Auto-queue sync for configured marketplaces on price/stock/fields change
     const mps = req.body.marketplaces || product.marketplaces;
-    const syncTriggers = ['priceTRY', 'quantity', 'title', 'description', 'images', 'discountRate', 'isActive', 'marketplaces'];
+    const syncTriggers = ['priceTRY', 'quantity', 'title', 'description', 'images', 'discountRate', 'isActive', 'marketplaces', 'marketplaceConfig'];
     if (Array.isArray(mps) && mps.length > 0 && changedFields.some(f => syncTriggers.includes(f))) {
       try {
         const syncQueue = (await import('../../queues/index.js')).syncQueue;

@@ -789,6 +789,161 @@ NEXT_PUBLIC_API_URL=https://api.rahatio.com.tr
 
 ---
 
+# Marketplace Push Sistemi (Product Sync)
+
+## Mimari
+
+```
+Frontend (product form) → API → Product.marketplaceConfig (JSONB) → BullMQ (product-sync queue) → Sync Worker
+  → mapProductForMarketplace() → marketplace client createProduct/updateProduct → ProductMarketplaceListing (DB)
+```
+
+## Veri Akışı
+
+1. **Frontend** product formunda her marketplace için `category_id`, `brand_id`, `brand`, `attributes` seçilir
+2. `handleSubmit` → `marketplace_data` objesi oluşturur → api-client `marketplaceConfig` olarak backend'e gönderir
+3. **Backend** `Product.marketplaceConfig` JSONB kolonuna kaydeder
+4. Product create/update sonrası otomatik `product-sync` kuyruğuna job eklenir (`packages/core/src/modules/product/routes.ts:196`)
+5. **Sync Worker** (`packages/core/src/queues/index.ts`) product'ı yükler, her marketplace için mapper çağırır
+6. **Mapper** `Product.marketplaceConfig[mp]` + `MarketplaceIntegration.config`'i birleştirerek marketplace API'sinin beklediği formata çevirir
+7. Eğer daha önce listing oluşturulmamışsa → `createProduct()`; varsa → `updateProduct()` + `updatePrice()` + `updateStock()`
+
+## Zorunlu Alanlar (Frontend → Backend → Mapper)
+
+Her **marketplace** için product formunda `marketplace_data[mp]`'de şu alanlar TUTULUR:
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `category_id` | string | Marketplace kategorisi ID (catOpts'den seçilir) |
+| `category` | string | Kategori adı (görsel) |
+| `brand` | string | Marka adı (görsel) |
+| `brand_id` | string | Marketplace brand ID (brOpts'dan, `Brand.marketplaceBrandId`) |
+| `attributes` | array | Ürün attribute'ları (opsiyonel) |
+| `on_sale` | boolean | Bu pazaryerinde satışta mı |
+| `status` | number | 0/1 |
+
+`brand_id`, **kategori ile aynı pattern** ile çalışır: `brandsFor()` fonksiyonu `{ id: Brand.marketplaceBrandId, name: Brand.name }` döndürür, kullanıcı seçince `brand_id` otomatik doldurulur.
+
+## Marketplace Mapper'ları (`packages/core/src/marketplace/productMapper.ts`)
+
+### Trendyol
+```
+mapProductForTrendyol(product, integration) → {
+  barcode, title, productMainId, brandId, categoryId,
+  quantity, stockCode, dimensionalWeight, description,
+  currencyType: 'TRY', listPrice, salePrice, vatRate,
+  cargoCompanyId, shipmentAddressId, returnAddressId,
+  images: [{ url }], attributes: [{ attributeId, attributeValueId }]
+}
+```
+
+| Alan | Kaynak | Zorunlu |
+|------|--------|---------|
+| `brandId` | `marketplaceConfig.trendyol.brandId \|\| brand_id` | ✅ |
+| `categoryId` | `marketplaceConfig.trendyol.categoryId \|\| category_id` | ✅ |
+| `dimensionalWeight` | `entry.dimensionalWeight \|\| intConfig.dimensionalWeight \|\| 1` | ✅ |
+| `cargoCompanyId` | `entry.cargoCompanyId \|\| intConfig.cargoCompanyId \|\| 0` | ✅ |
+| `shipmentAddressId` | `entry.shipmentAddressId \|\| intConfig.shipmentAddressId \|\| 0` | ✅ |
+| `returnAddressId` | `entry.returnAddressId \|\| intConfig.returnAddressId \|\| 0` | ✅ |
+| `vatRate` | `entry.vatRate \|\| intConfig.vatRate \|\| 10` | ✅ |
+
+`brandId` veya `categoryId` yoksa → `{ _skip: true, reason: '...' }` → ürün atlanır.
+
+### N11
+```
+mapProductForN11(product, integration) → {
+  title, description, categoryId, currencyType: 'TL',
+  productMainId, preparingDay: 3, shipmentTemplate: '1',
+  stockCode, quantity, barcode, images: [{ url, order }],
+  attributes: [{ id, valueId, customValue }],
+  salePrice, listPrice, vatRate, maxPurchaseQuantity
+}
+```
+
+| Alan | Kaynak | Zorunlu |
+|------|--------|---------|
+| `categoryId` | `entry.categoryId \|\| category_id` | ✅ |
+| `attributes` | `entry.attributes` → `[{ id, valueId }]` | Opsiyonel |
+| Brand | `entry.brand` varsa → `{ id:1, customValue: brandName }` eklenir | Opsiyonel |
+
+`categoryId` yoksa → `{ _skip: true, reason: 'N11 category not mapped' }`.
+
+### Hepsiburada
+```
+mapProductForHepsiburada(product, integration) → {
+  merchantSku, name, description, categoryId, brandId,
+  attributes: [{ attributeId, valueId }], images,
+  listPrice, salePrice, quantity, cargoCompanyId,
+  dispatchDuration: 3, vatRate: 10
+}
+```
+
+### Pazarama
+```
+mapProductForPazarama(product, integration) → {
+  barcode, productName, description, categoryId,
+  salePrice, listPrice, quantity, cargoCompanyId,
+  dispatchDuration: 3, vatRate: 10, images,
+  attributes, brand
+}
+```
+
+### Amazon
+```
+mapProductForAmazon(product, integration) → {
+  sellerSKU, title, description, categoryId, brand,
+  images, listPrice, salePrice, quantity, attributes
+}
+```
+
+### Etsy
+```
+mapProductForEtsy(product, integration) → {
+  title, description, price, quantity, tags, images,
+  categoryId, brand, whoMade: 'someone_else',
+  whenMade: '2020_2024', taxonomyId
+}
+```
+
+## ProductMarketplaceListing (Sync State)
+
+```
+ProductMarketplaceListing: { productId, storeId, platform, externalId, status, lastError, lastSyncedAt }
+```
+
+- `externalId`: Marketplace'teki ürünün ID'si (N11'de stockCode, Trendyol'de batchRequestId, Etsy'de listing_id)
+- `status`: `'active' | 'pending' | 'failed'`
+- `lastError`: Son hata mesajı (sync worker set eder)
+
+**externalId stratejisi:**
+- N11: `product.sku` (stockCode) — çünkü N11 update/sorgu stockCode ile yapılır
+- Trendyol: `batchRequestId` — batch async create sonrası, gerçek product ID batch status sorgusuyla alınır (TODO)
+- Etsy: `listing_id`
+- Diğerleri: marketplace API yanıtından extract
+
+## Sync Trigger'ları (Ne Zaman Sync Kuyruğa Eklenir)
+
+Product update sonrası, `changedFields` şunlardan birini içeriyorsa sync tetiklenir:
+```
+['priceTRY', 'quantity', 'title', 'description', 'images', 'discountRate', 'isActive', 'marketplaces', 'marketplaceConfig']
+```
+
+Product create'te her zaman tetiklenir (eğer `marketplaces` array'i doluysa).
+
+## Yeni Marketplace Ekleme
+
+1. **Mapper**: `productMapper.ts`'e `mapProductFor<MP>()` fonksiyonu ekle, standart formatı marketplace API'sinin beklediği formata çevir
+2. **Mapper switch**: `mapProductForMarketplace()` switch case'ine ekle
+3. **Client**: `marketplace/clients/` altına client ekle, `createProduct`, `updateProduct`, `updatePrice`, `updateStock` implemente et
+4. **Factory**: `marketplace/clients/index.ts`'e `createMarketplaceClient()` ve `getMarketplaceConfig()` case'ini ekle
+5. **Frontend**: `marketplaceOptions` array'ine ekle (`page.tsx:134`)
+6. **Frontend kategori ağacı**: Varsa marketplace kategorileri `getMarketplaceTrees()` ile yüklenir
+7. **Frontend marka**: `Brand.marketplace` alanı ile filtrelenir, `marketplaceBrandId` ile ID tutulur
+8. **External ID**: Sync worker'da yeni marketplace için externalId stratejisini belirle
+9. **Migration**: Yok (JSONB + kod tabanlı, DB migration gerektirmez)
+
+---
+
 ## Notlar
 
 1. **Golden-Marketplace KODU DOKUNMUYORUZ** — Sadece mimari/pattern/kod parçalarını referans alıyoruz (`golden-marketplace/backend/src/` altındaki controller/service/job/integration dosyalarını okuyoruz).

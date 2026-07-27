@@ -87,7 +87,7 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
   async createProduct(product: TrendyolProduct): Promise<any> {
     const url = `/sellers/${this.config.supplierId}/products`;
     const data = await this.request<any>({ method: 'POST', url, data: { items: [product] } });
-    return data.batchRequestId || data.listing_id;
+    return data;
   }
 
   async updateProduct(productId: string, product: Partial<TrendyolProduct>): Promise<any> {

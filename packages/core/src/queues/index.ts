@@ -7,6 +7,7 @@ import { IntegrationLog } from '../models/LogModels.js';
 import { Store } from '../models/Store.model.js';
 import { ExternalFeed, FeedSyncLog } from '../models/ContentModels.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../marketplace/clients/index.js';
+import { mapProductForMarketplace } from '../marketplace/productMapper.js';
 import { normalizeMarketplaceProduct } from '../marketplace/importNormalizer.js';
 import { logger } from '../utils/logger.js';
 import { Op } from 'sequelize';
@@ -416,54 +417,55 @@ export async function createSyncWorker() {
 
           const existingListing = product.marketplaceListings?.find(l => l.platform === mp);
 
-          const pushPrice = product.priceTRY ?? product.priceUSD ?? 0;
-          const productEntry = (product as any).marketplaceConfig?.[mp] || {};
+          const rawMapped = mapProductForMarketplace(mp, product, integration);
 
-          const categoryId = productEntry.category_id || productEntry.categoryId || undefined;
-          const brand = productEntry.brand || undefined;
-          const attrs = [...(productEntry.attributes || [])];
-          if (brand && !attrs.some((a: any) => a.attributeName === 'Marka' || a.attributeName?.toLowerCase() === 'marka')) {
-            attrs.push({ attributeName: 'Marka', attributeValue: brand });
+          if (rawMapped._skip) {
+            results[mp] = { success: false, reason: rawMapped.reason };
+            logger.warn({ mp, productId, reason: rawMapped.reason }, 'Skipping product sync');
+            continue;
           }
 
+          const { _skip, reason, ...mpProduct } = rawMapped;
+
           if (existingListing?.externalId) {
-            await client.updateProduct(existingListing.externalId, {
-              title: product.title,
-              description: product.description,
-              salePrice: pushPrice,
-              quantity: product.quantity,
-              images: product.images?.map(url => ({ url })),
-              categoryId,
-            });
-            if (pushPrice > 0) {
-              await client.updatePrice(existingListing.externalId, pushPrice);
+            await client.updateProduct(existingListing.externalId, mpProduct);
+            if (mpProduct.salePrice > 0) {
+              await client.updatePrice(existingListing.externalId, mpProduct.salePrice);
             }
-            if (product.quantity != null) {
-              await client.updateStock(existingListing.externalId, product.quantity);
+            if (mpProduct.quantity != null) {
+              await client.updateStock(existingListing.externalId, mpProduct.quantity);
             }
             await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
             results[mp] = { success: true, action: 'updated' };
           } else {
-            const listingResult = await client.createProduct({
-              title: product.title,
-              description: product.description,
-              salePrice: pushPrice,
-              listPrice: pushPrice,
-              quantity: product.quantity,
-              barcode: product.sku,
-              stockCode: product.sku,
-              images: product.images?.map(url => ({ url })),
-              categoryId,
-              attributes: attrs.length > 0 ? attrs : undefined,
-            });
+            const listingResult = await client.createProduct(mpProduct);
 
-            const externalId = typeof listingResult === 'string' ? listingResult : listingResult?.batchRequestId || listingResult?.listing_id?.toString() || '';
+            const isN11 = mp === 'n11';
+            const isTrendyol = mp === 'trendyol';
+
+            let externalId = '';
+            if (isN11) {
+              externalId = product.sku;
+            } else if (isTrendyol && typeof listingResult === 'object') {
+              externalId = listingResult?.batchRequestId ? String(listingResult.batchRequestId) : '';
+            } else if (typeof listingResult === 'string') {
+              externalId = listingResult;
+            } else if (listingResult?.batchRequestId) {
+              externalId = listingResult.batchRequestId.toString();
+            } else if (listingResult?.listing_id) {
+              externalId = listingResult.listing_id.toString();
+            } else if (listingResult?.data?.batchRequestId) {
+              externalId = listingResult.data.batchRequestId.toString();
+            } else if (listingResult?.result?.batchRequestId) {
+              externalId = listingResult.result.batchRequestId.toString();
+            }
+
             await ProductMarketplaceListing.create({
               productId: product.id,
               storeId,
               platform: mp,
               externalId,
-              status: 'active',
+              status: externalId ? 'active' : 'pending',
               lastSyncedAt: new Date(),
             } as any);
             results[mp] = { success: true, action: 'created', externalId };

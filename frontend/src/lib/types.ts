@@ -104,8 +104,11 @@ export type MarketplaceEntry = {
   category?: string
   category_id?: string
   brand?: string
+  brand_id?: string
   on_sale?: boolean
   status?: number
+  attributes?: any[]
+  [key: string]: any
 }
 
 export type MarketplaceSyncStatus = 'none' | 'pending' | 'synced' | 'error'

@@ -84,8 +84,8 @@ b2bRoutes.get('/settings', authMiddleware, requireStore, async (req: Request, re
 b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   body('productId').isInt(),
   body('isB2BEnabled').isBoolean(),
-  body('b2bDiscount').optional({ values: 'null' }).isFloat({ min: 0, max: 100 }),
-  body('b2bPrice').optional({ values: 'null' }).isFloat({ min: 0 }),
+  body('b2bDiscount').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
+  body('b2bPrice').optional({ nullable: true }).isFloat({ min: 0 }),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;

@@ -85,11 +85,11 @@ export default function ProductsPage() {
   }
 
   // brand options from API
-  function brandsFor(mp: string): string[] {
+  function brandsFor(mp: string): { id: string; name: string }[] {
     return brands
       .filter((b) => b.isActive && (!b.marketplace || b.marketplace === mp || mp === 'Kendi Sitem'))
-      .map((b) => b.name)
-      .sort((a, b) => a.localeCompare(b, 'tr'))
+    .map((b) => ({ id: b.marketplaceBrandId ?? String(b.id), name: b.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
   }
 
   const [selected, setSelected] = useState<string[]>([])
@@ -275,6 +275,7 @@ export default function ProductsPage() {
         category: md.category ?? '',
         category_id: md.category_id ?? '',
         brand: md.brand ?? '',
+        brand_id: md.brand_id ?? '',
         on_sale: m === 'Kendi Sitem' ? product.status === 1 : !!md.on_sale,
         status: m === 'Kendi Sitem' ? product.status : (md.on_sale ? 1 : 0),
       }
@@ -1127,13 +1128,18 @@ export default function ProductsPage() {
                             <input
                               list={`brand-${mp}`}
                               value={md.brand ?? ''}
-                              onChange={(e) => updateMd(mp, { brand: e.target.value })}
+                              onChange={(e) => {
+                                const match = brOpts.find((o) => o.name === e.target.value)
+                                updateMd(mp, { brand: e.target.value, brand_id: match?.id ?? md.brand_id ?? '' })
+                              }}
                               className="w-full border rounded px-2 py-1.5 text-sm"
                               placeholder="Marka"
                             />
                             <datalist id={`brand-${mp}`}>
-                              {brOpts.map((b) => (
-                                <option key={b} value={b} />
+                              {brOpts.map((o) => (
+                                <option key={o.id} value={o.name}>
+                                  {o.id}
+                                </option>
                               ))}
                             </datalist>
                           </div>

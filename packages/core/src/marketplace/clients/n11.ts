@@ -129,8 +129,16 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
       shipmentTemplate: product.shipmentTemplate ?? '1',
       stockCode: product.sku ?? product.stockCode ?? '',
       quantity: product.quantity ?? 0,
-      images: Array.isArray(product.images) ? product.images.map((u: any) => typeof u === 'string' ? { url: u, order: 0 } : u) : [],
-      attributes: product.attributes ?? [],
+      images: Array.isArray(product.images) ? product.images.map((u: any) => {
+        if (typeof u === 'string') return { url: u, order: 0 };
+        if (u.url) return { url: u.url, order: u.order ?? 0 };
+        return null;
+      }).filter(Boolean) : [],
+      attributes: Array.isArray(product.attributes) ? product.attributes.map((a: any) => ({
+        id: a.id,
+        valueId: a.valueId ?? null,
+        customValue: a.customValue ?? null,
+      })) : [],
       salePrice: product.salePrice ?? product.price ?? 0,
       listPrice: product.listPrice ?? product.price ?? 0,
       vatRate: product.vatRate ?? 10,
