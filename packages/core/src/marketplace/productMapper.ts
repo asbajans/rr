@@ -36,15 +36,19 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
     attributeValueId: a.attributeValueId,
   })).filter((a: any) => a.attributeId && a.attributeValueId) : [];
 
-  const categoryId = entry.categoryId || entry.category_id;
-  const brandId = entry.brandId || entry.brand_id;
+  const rawCategoryId = entry.categoryId || entry.category_id;
+  const rawBrandId = entry.brandId || entry.brand_id;
 
-  if (!categoryId) return { _skip: true, reason: 'Trendyol kategorisi atanmamış' };
-  if (!brandId) return { _skip: true, reason: 'Trendyol marka ID atanmamış' };
+  if (!rawCategoryId) return { _skip: true, reason: 'Trendyol kategorisi atanmamış' };
+  if (!rawBrandId) return { _skip: true, reason: 'Trendyol marka ID atanmamış' };
 
-  const cargoCompanyId = entry.cargoCompanyId || intConfig.cargoCompanyId || 0;
-  const shipmentAddressId = entry.shipmentAddressId || intConfig.shipmentAddressId || 0;
-  const returnAddressId = entry.returnAddressId || intConfig.returnAddressId || 0;
+  const brandId = Number(rawBrandId);
+  const categoryId = Number(rawCategoryId);
+  if (!brandId || !categoryId) return { _skip: true, reason: 'Trendyol marka/kategori ID geçersiz (sayı olmalı)' };
+
+  const cargoCompanyId = Number(entry.cargoCompanyId || intConfig.cargoCompanyId || 0);
+  const shipmentAddressId = Number(entry.shipmentAddressId || intConfig.shipmentAddressId || 0);
+  const returnAddressId = Number(entry.returnAddressId || intConfig.returnAddressId || 0);
 
   return {
     barcode: product.sku || '',
@@ -52,14 +56,14 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
     productMainId: product.sku,
     brandId,
     categoryId,
-    quantity: product.quantity ?? 0,
+    quantity: Number(product.quantity ?? 0),
     stockCode: product.sku,
-    dimensionalWeight: entry.dimensionalWeight || intConfig.dimensionalWeight || 1,
+    dimensionalWeight: Number(entry.dimensionalWeight || intConfig.dimensionalWeight || 1),
     description: product.description || '',
     currencyType: 'TRY',
-    listPrice: price,
-    salePrice: price,
-    vatRate: entry.vatRate ?? intConfig.vatRate ?? 10,
+    listPrice: Number(price),
+    salePrice: Number(price),
+    vatRate: Number(entry.vatRate ?? intConfig.vatRate ?? 10),
     cargoCompanyId,
     shipmentAddressId,
     returnAddressId,
@@ -96,16 +100,16 @@ export function mapProductForN11(product: any, integration: any): Record<string,
     categoryId: Number(categoryId),
     currencyType: 'TL',
     productMainId: product.sku,
-    preparingDay: entry.preparingDay ?? 3,
+    preparingDay: Number(entry.preparingDay ?? 3),
     shipmentTemplate: String(entry.shipmentTemplate || '1'),
     stockCode: product.sku,
-    quantity: product.quantity ?? 0,
+    quantity: Number(product.quantity ?? 0),
     barcode: product.sku,
     images,
     attributes: attrs,
-    salePrice: price,
-    listPrice: price,
-    vatRate: entry.vatRate ?? 10,
+    salePrice: Number(price),
+    listPrice: Number(price),
+    vatRate: Number(entry.vatRate ?? 10),
     maxPurchaseQuantity: entry.maxPurchaseQuantity || null,
   };
 }
@@ -124,16 +128,16 @@ export function mapProductForHepsiburada(product: any, integration: any): Record
     merchantSku: product.sku,
     name: product.title,
     description: product.description || '',
-    categoryId: entry.categoryId || entry.category_id || 0,
-    brandId: entry.brandId || 0,
+    categoryId: Number(entry.categoryId || entry.category_id || 0),
+    brandId: Number(entry.brandId || entry.brand_id || 0),
     attributes: attrs,
     images,
-    listPrice: price,
-    salePrice: price,
-    quantity: product.quantity ?? 0,
-    cargoCompanyId: entry.cargoCompanyId || 0,
-    dispatchDuration: entry.dispatchDuration ?? 3,
-    vatRate: entry.vatRate ?? 10,
+    listPrice: Number(price),
+    salePrice: Number(price),
+    quantity: Number(product.quantity ?? 0),
+    cargoCompanyId: Number(entry.cargoCompanyId || 0),
+    dispatchDuration: Number(entry.dispatchDuration ?? 3),
+    vatRate: Number(entry.vatRate ?? 10),
   };
 }
 
@@ -146,13 +150,13 @@ export function mapProductForPazarama(product: any, integration: any): Record<st
     barcode: product.sku,
     productName: product.title,
     description: product.description || '',
-    categoryId: entry.categoryId || entry.category_id || 0,
-    salePrice: price,
-    listPrice: price,
-    quantity: product.quantity ?? 0,
-    cargoCompanyId: entry.cargoCompanyId || 0,
-    dispatchDuration: entry.dispatchDuration ?? 3,
-    vatRate: entry.vatRate ?? 10,
+    categoryId: Number(entry.categoryId || entry.category_id || 0),
+    salePrice: Number(price),
+    listPrice: Number(price),
+    quantity: Number(product.quantity ?? 0),
+    cargoCompanyId: Number(entry.cargoCompanyId || 0),
+    dispatchDuration: Number(entry.dispatchDuration ?? 3),
+    vatRate: Number(entry.vatRate ?? 10),
     images,
     attributes: entry.attributes || [],
     brand: entry.brand || '',
@@ -168,12 +172,12 @@ export function mapProductForAmazon(product: any, integration: any): Record<stri
     sellerSKU: product.sku,
     title: product.title,
     description: product.description || '',
-    categoryId: entry.categoryId || entry.category_id || '',
+    categoryId: Number(entry.categoryId || entry.category_id || 0),
     brand: entry.brand || '',
     images,
-    listPrice: price,
-    salePrice: price,
-    quantity: product.quantity ?? 0,
+    listPrice: Number(price),
+    salePrice: Number(price),
+    quantity: Number(product.quantity ?? 0),
     attributes: entry.attributes || [],
   };
 }
@@ -186,11 +190,11 @@ export function mapProductForEtsy(product: any, integration: any): Record<string
   return {
     title: product.title,
     description: product.description || '',
-    price,
-    quantity: product.quantity ?? 0,
+    price: Number(price),
+    quantity: Number(product.quantity ?? 0),
     tags: product.tags || entry.tags || [],
     images,
-    categoryId: entry.categoryId || entry.category_id || 0,
+    categoryId: Number(entry.categoryId || entry.category_id || 0),
     brand: entry.brand || '',
     whoMade: 'someone_else',
     whenMade: '2020_2024',

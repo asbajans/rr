@@ -87,9 +87,13 @@ export default function ProductsPage() {
   // brand options from API
   function brandsFor(mp: string): { id: string; name: string }[] {
     return brands
-      .filter((b) => b.isActive && (!b.marketplace || b.marketplace === mp || mp === 'Kendi Sitem'))
-    .map((b) => ({ id: b.marketplaceBrandId ?? String(b.id), name: b.name }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+      .filter((b) => {
+        if (!b.isActive) return false
+        if (mp === 'Kendi Sitem') return !b.marketplace || b.marketplace === 'Kendi Sitem'
+        return b.marketplace === mp && !!b.marketplaceBrandId
+      })
+      .map((b) => ({ id: b.marketplaceBrandId!, name: b.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
   }
 
   const [selected, setSelected] = useState<string[]>([])
@@ -271,11 +275,16 @@ export default function ProductsPage() {
     const marketplace_data: Record<string, MarketplaceEntry> = {}
     product.marketplaces.forEach((m) => {
       const md = product.marketplace_data[m] ?? {}
+      let brand_id = md.brand_id ?? ''
+      if (!brand_id && md.brand) {
+        const match = brands.find((b) => b.name === md.brand && b.marketplace === m && b.marketplaceBrandId)
+        if (match) brand_id = match.marketplaceBrandId!
+      }
       marketplace_data[m] = {
         category: md.category ?? '',
         category_id: md.category_id ?? '',
         brand: md.brand ?? '',
-        brand_id: md.brand_id ?? '',
+        brand_id,
         on_sale: m === 'Kendi Sitem' ? product.status === 1 : !!md.on_sale,
         status: m === 'Kendi Sitem' ? product.status : (md.on_sale ? 1 : 0),
       }
