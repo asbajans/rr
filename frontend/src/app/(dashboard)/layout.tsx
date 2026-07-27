@@ -35,7 +35,7 @@ const navGroups = [
       { href: '/orders', label: 'Siparişler', icon: ShoppingCart },
       { href: '/b2b', label: 'B2B Keşfet', icon: Handshake },
       { href: '/b2b/requests', label: 'B2B Talepler', icon: Handshake },
-      { href: '/integrations', label: 'Pazaryeri', icon: ShoppingCart },
+      { href: '/marketplaces', label: 'Pazaryerleri', icon: ShoppingCart },
     ],
   },
   {

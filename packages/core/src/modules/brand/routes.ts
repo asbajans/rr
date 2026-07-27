@@ -131,8 +131,8 @@ brandRoutes.post('/sync', authMiddleware, requireRole('owner', 'admin'), require
     const store = (req as any).store;
     const { marketplace } = req.body;
 
-    if (!marketplace || !['trendyol', 'n11'].includes(marketplace)) {
-      return res.status(400).json({ error: 'Supported marketplaces: trendyol, n11' });
+    if (!marketplace || !['trendyol', 'n11', 'hepsiburada', 'pazarama', 'amazon', 'etsy'].includes(marketplace)) {
+      return res.status(400).json({ error: 'Supported marketplaces: trendyol, n11, hepsiburada, pazarama, amazon, etsy' });
     }
 
     const integration = await MarketplaceIntegration.findOne({

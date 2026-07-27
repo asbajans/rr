@@ -5,13 +5,19 @@ import { api } from '@/lib/api-client'
 import type { Brand } from '@/lib/types'
 import { Building2, Plus, Pencil, Trash2, Search, RefreshCw, Tag } from 'lucide-react'
 
-type TabKey = 'all' | 'trendyol' | 'n11'
+type TabKey = 'all' | 'trendyol' | 'n11' | 'hepsiburada' | 'pazarama' | 'amazon' | 'etsy'
 
-const TABS: { key: TabKey; label: string }[] = [
+const TABS: { key: TabKey; label: string; emoji?: string }[] = [
   { key: 'all', label: 'Tümü' },
   { key: 'trendyol', label: 'Trendyol' },
   { key: 'n11', label: 'N11' },
+  { key: 'hepsiburada', label: 'Hepsiburada' },
+  { key: 'pazarama', label: 'Pazarama' },
+  { key: 'amazon', label: 'Amazon' },
+  { key: 'etsy', label: 'Etsy' },
 ]
+
+const ALL_MARKETPLACES = ['trendyol', 'n11', 'hepsiburada', 'pazarama', 'amazon', 'etsy']
 
 function mapBrand(raw: any): Brand {
   return {
@@ -30,6 +36,7 @@ export default function BrandsPage() {
   const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Brand | null>(null)
   const [search, setSearch] = useState('')
@@ -114,13 +121,36 @@ export default function BrandsPage() {
           <p className="mt-1 text-sm text-zinc-600">Pazaryeri markalarını yönetin veya senkronize edin.</p>
         </div>
         <div className="flex items-center gap-2">
-          {tab !== 'all' && (
-            <button onClick={() => handleSync(tab)} disabled={syncing === tab}
-              className="flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
-              <RefreshCw className={`h-4 w-4 ${syncing === tab ? 'animate-spin' : ''}`} />
-              {syncing === tab ? 'Senkronize Ediliyor...' : `${TABS.find(t => t.key === tab)?.label}'dan Al`}
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {ALL_MARKETPLACES.filter(mp => mp === tab || tab === 'all').map(mp => (
+              <button key={mp} onClick={() => handleSync(mp)} disabled={syncing === mp}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50 ${
+                  syncing === mp ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-50'
+                }`}>
+                <RefreshCw className={`h-3.5 w-3.5 ${syncing === mp ? 'animate-spin' : ''}`} />
+                {syncing === mp ? '...' : mp === tab ? `${mp} Sync` : mp}
+              </button>
+            ))}
+            {tab === 'all' && (
+              <div className="relative">
+                <button onClick={() => setMenuOpen(!menuOpen)}
+                  className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50">
+                  <RefreshCw className="h-3.5 w-3.5" /> Tümünü Senkronize Et ▾
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+                    onMouseLeave={() => setMenuOpen(false)}>
+                    {ALL_MARKETPLACES.map(mp => (
+                      <button key={mp} onClick={() => { setMenuOpen(false); handleSync(mp) }}
+                        className="w-full px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-50 capitalize">
+                        {mp} Senkronize Et
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <button onClick={openCreate} className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
             <Plus className="h-4 w-4" /> Marka Ekle
           </button>
@@ -150,13 +180,15 @@ export default function BrandsPage() {
         <div className="mt-16 text-center text-sm text-zinc-500">
           <Building2 className="mx-auto h-8 w-8 text-zinc-300" />
           <p className="mt-2">Henüz marka bulunmuyor.</p>
-          {tab !== 'all' && (
-            <button onClick={() => handleSync(tab)} disabled={syncing === tab}
-              className="mt-2 inline-flex items-center gap-1.5 text-indigo-600 hover:underline disabled:opacity-50">
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing === tab ? 'animate-spin' : ''}`} />
-              Pazaryerinden markaları içe aktar
-            </button>
-          )}
+          <div className="mt-3 flex items-center justify-center gap-2">
+            {ALL_MARKETPLACES.map(mp => (
+              <button key={mp} onClick={() => handleSync(mp)} disabled={syncing === mp}
+                className="inline-flex items-center gap-1 text-indigo-600 hover:underline disabled:opacity-50 text-xs">
+                <RefreshCw className={`h-3 w-3 ${syncing === mp ? 'animate-spin' : ''}`} />
+                {mp} Sync
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
