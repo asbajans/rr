@@ -42,9 +42,10 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
   if (!rawCategoryId) return { _skip: true, reason: 'Trendyol kategorisi atanmamış' };
   if (!rawBrandId) return { _skip: true, reason: 'Trendyol marka ID atanmamış' };
 
-  const brandId = Number(rawBrandId);
+  const numericBrandId = Number(rawBrandId);
+  const brandId = !isNaN(numericBrandId) && numericBrandId > 0 ? numericBrandId : rawBrandId;
   const categoryId = Number(rawCategoryId);
-  if (!brandId || !categoryId) return { _skip: true, reason: 'Trendyol marka/kategori ID geçersiz (sayı olmalı)' };
+  if (!categoryId) return { _skip: true, reason: 'Trendyol kategori ID geçersiz' };
 
   const cargoCompanyId = Number(entry.cargoCompanyId || intConfig.cargoCompanyId || 0);
   const shipmentAddressId = Number(entry.shipmentAddressId || intConfig.shipmentAddressId || 0);

@@ -110,6 +110,7 @@ export default function ProductsPage() {
 
   // per-marketplace verify
   const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
+  const [syncingMp, setSyncingMp] = useState<string | null>(null)
 
   async function handleUploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -276,7 +277,8 @@ export default function ProductsPage() {
     product.marketplaces.forEach((m) => {
       const md = product.marketplace_data[m] ?? {}
       let brand_id = md.brand_id ?? ''
-      if (!brand_id && md.brand) {
+      const isNumericId = brand_id && !isNaN(Number(brand_id)) && Number(brand_id) > 0
+      if (!isNumericId && md.brand) {
         const match = brands.find((b) => b.name === md.brand && b.marketplace === m && b.marketplaceBrandId)
         if (match) brand_id = match.marketplaceBrandId!
       }
@@ -366,6 +368,61 @@ export default function ProductsPage() {
       setError(e.message)
     } finally {
       setVerifyingMp(null)
+    }
+  }
+
+  async function handleSync(mp: string) {
+    if (!product || !product.id) return
+    setSyncingMp(mp)
+    try {
+      const res = await api.syncProduct(product.id, [mp])
+      const entry: import('@/lib/types').MarketplaceSyncEntry = {
+        status: 'pending',
+        marketplace_product_id: null,
+        error_message: null,
+        checked_at: new Date().toISOString(),
+      }
+      setProduct((prev) =>
+        prev
+          ? { ...prev, marketplace_sync: { ...(prev.marketplace_sync ?? {}), [mp]: entry } }
+          : prev
+      )
+      // Poll for result after 3 seconds
+      setTimeout(async () => {
+        try {
+          const status = await api.getImportJobStatus(mp, res.jobId)
+          const jobResult = status.result
+          if (jobResult?.results?.[mp]?.success) {
+            setProduct((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    marketplace_sync: {
+                      ...(prev.marketplace_sync ?? {}),
+                      [mp]: { status: 'synced', marketplace_product_id: jobResult.results[mp].externalId ?? null, error_message: null, checked_at: new Date().toISOString() },
+                    },
+                  }
+                : prev
+            )
+          } else if (status.failedReason || jobResult?.results?.[mp]?.error) {
+            setProduct((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    marketplace_sync: {
+                      ...(prev.marketplace_sync ?? {}),
+                      [mp]: { status: 'error', marketplace_product_id: null, error_message: jobResult?.results?.[mp]?.error || status.failedReason || 'Sync failed', checked_at: new Date().toISOString() },
+                    },
+                  }
+                : prev
+            )
+          }
+        } catch {}
+      }, 3000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSyncingMp(null)
     }
   }
 
@@ -1093,6 +1150,16 @@ export default function ProductsPage() {
                                 className="text-xs text-indigo-600 hover:underline disabled:opacity-40"
                               >
                                 {verifyingMp === mp ? 'Doğrulanıyor…' : creating ? 'Önce Kaydedin' : 'Doğrula'}
+                              </button>
+                            )}
+                            {mp !== 'Kendi Sitem' && (
+                              <button
+                                type="button"
+                                onClick={() => handleSync(mp)}
+                                disabled={syncingMp === mp || creating}
+                                className="text-xs text-green-600 hover:underline disabled:opacity-40"
+                              >
+                                {syncingMp === mp ? 'Senkronize…' : creating ? 'Önce Kaydedin' : 'Sync'}
                               </button>
                             )}
                             {mp !== 'Kendi Sitem' && (

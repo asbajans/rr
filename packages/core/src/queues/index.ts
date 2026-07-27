@@ -473,14 +473,15 @@ export async function createSyncWorker() {
 
           await logIntegration(storeId, mp, `sync-product/${productId}`, 'POST', true, { trigger }, {}, undefined);
         } catch (err: any) {
-          logger.error({ err, mp, productId }, 'Failed to sync product to marketplace');
-          await logIntegration(storeId, mp, `sync-product/${productId}`, 'POST', false, undefined, undefined, err.message);
+          const errDetail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+          logger.error({ err, mp, productId, errDetail }, 'Failed to sync product to marketplace');
+          await logIntegration(storeId, mp, `sync-product/${productId}`, 'POST', false, undefined, undefined, errDetail);
 
           const listing = await ProductMarketplaceListing.findOne({ where: { productId: product.id, storeId, platform: mp } });
           if (listing) {
-            await listing.update({ status: 'failed', lastError: err.message });
+            await listing.update({ status: 'failed', lastError: String(errDetail).slice(0, 2000) });
           }
-          results[mp] = { success: false, error: err.message };
+          results[mp] = { success: false, error: errDetail };
         }
       }
 

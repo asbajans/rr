@@ -11,7 +11,7 @@ interface TrendyolProduct {
   barcode: string;
   title: string;
   productMainId: string;
-  brandId: number;
+  brandId: number | string;
   categoryId: number;
   quantity: number;
   stockCode: string;
@@ -105,9 +105,19 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     return this.request<any>({ method: 'PUT', url, data: { quantity } });
   }
 
+  async getCategoryAttributes(categoryId: number): Promise<any[]> {
+    try {
+      const path = `/product-categories/${categoryId}/attributes`;
+      const data = await this.request<any>({ method: 'GET', url: path });
+      return data?.categoryAttributes || [];
+    } catch {
+      return [];
+    }
+  }
+
   async getBrands(search?: string): Promise<{ id: number; name: string }[]> {
     try {
-      const path = `/sellers/${this.config.supplierId}/brands`;
+      const path = `/brands`;
       const data = await this.request<any>({ method: 'GET', url: path, params: { name: search || '', size: 1000 } });
       return data?.brands || data?.content || [];
     } catch {

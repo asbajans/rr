@@ -559,12 +559,16 @@ class ApiClient {
     return this.get<{ jobId: string; state: string; progress: number; data: any; result: any; failedReason: string }>(`/api/admin/integrations/${marketplace}/import/${jobId}`)
   }
 
-  syncProduct(productId: number, marketplaces?: string[]) {
+  syncProduct(productId: number | string, marketplaces?: string[]) {
     return this.post<{ jobId: string; message: string }>(`/api/admin/products/${productId}/sync`, { marketplaces })
   }
 
   getMarketplaceCategories(marketplace: string) {
     return this.get<{ categories: any[] }>(`/api/admin/integrations/${marketplace}/categories`)
+  }
+
+  getMarketplaceCategoryAttributes(marketplace: string, categoryId: number | string) {
+    return this.get<{ attributes: any[] }>(`/api/admin/integrations/${marketplace}/categories/${categoryId}/attributes`)
   }
 
   // B2B

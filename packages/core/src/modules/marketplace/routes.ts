@@ -365,6 +365,38 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
   }
 });
 
+marketplaceRoutes.get('/:marketplace/categories/:categoryId/attributes', authMiddleware, requireStore, [
+  param('marketplace').isIn(MARKETPLACES),
+  param('categoryId').isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { marketplace, categoryId } = req.params;
+
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace, isActive: true },
+    });
+
+    if (!integration) {
+      return res.status(400).json({ error: `${marketplace} integration not configured or inactive` });
+    }
+
+    const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
+    const config = getMarketplaceConfig(marketplace as any, integration);
+    const client = createMarketplaceClient(marketplace as any, config);
+
+    if (typeof client.getCategoryAttributes !== 'function') {
+      return res.status(400).json({ error: `${marketplace} does not support category attributes` });
+    }
+
+    const attributes = await client.getCategoryAttributes(Number(categoryId));
+    res.json({ attributes });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get category attributes error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 marketplaceRoutes.post('/:marketplace/categories', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('marketplace').isIn(MARKETPLACES),
   body('categoryId').isInt(),
