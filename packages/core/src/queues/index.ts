@@ -132,15 +132,21 @@ export async function createImportWorker() {
                 delete mapped.categoryId;
               }
 
+              // Store marketplace brand_id and category_id in marketplaceConfig for push
+              if (!mapped.marketplaceConfig) mapped.marketplaceConfig = {};
+              if (!mapped.marketplaceConfig[marketplace]) mapped.marketplaceConfig[marketplace] = {};
+              const mpEntry = mapped.marketplaceConfig[marketplace];
+              if (raw.brandId != null) mpEntry.brand_id = String(raw.brandId);
+              if (mpCatId != null) mpEntry.category_id = String(mpCatId);
+              if (Array.isArray(raw.attributes)) mpEntry.attributes = raw.attributes;
+
               // Extract brand from N11 attributes array
               if (marketplace === 'n11' && Array.isArray(raw.attributes)) {
                 const brandAttr = raw.attributes.find((a: any) =>
                   a.attributeName === 'Marka' || a.attributeName?.toLowerCase() === 'marka'
                 );
-                if (brandAttr?.attributeValue && !mapped.marketplaceConfig?.n11?.brand) {
-                  if (!mapped.marketplaceConfig) mapped.marketplaceConfig = {};
-                  if (!mapped.marketplaceConfig.n11) mapped.marketplaceConfig.n11 = {};
-                  mapped.marketplaceConfig.n11.brand = brandAttr.attributeValue;
+                if (brandAttr?.attributeValue && !mpEntry.brand) {
+                  mpEntry.brand = brandAttr.attributeValue;
                 }
               }
 

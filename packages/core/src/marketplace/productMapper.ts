@@ -31,10 +31,15 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
   const price = product.priceTRY ?? product.priceUSD ?? 0;
   const images = Array.isArray(product.images) ? product.images.map((u: any) => typeof u === 'string' ? { url: u } : u) : [];
 
-  const attrs = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => ({
-    attributeId: a.attributeId,
-    attributeValueId: a.attributeValueId,
-  })).filter((a: any) => a.attributeId && a.attributeValueId) : [];
+  const attrs = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => {
+    if (a.customValue) {
+      return { attributeId: a.attributeId, customValue: a.customValue };
+    }
+    if (a.attributeId && a.attributeValueId) {
+      return { attributeId: a.attributeId, attributeValueId: a.attributeValueId };
+    }
+    return null;
+  }).filter(Boolean) : [];
 
   const rawCategoryId = entry.categoryId || entry.category_id;
   const rawBrandId = entry.brandId || entry.brand_id;
