@@ -111,6 +111,7 @@ export default function ProductsPage() {
   // per-marketplace verify
   const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
   const [syncingMp, setSyncingMp] = useState<string | null>(null)
+  const [syncingPid, setSyncingPid] = useState<string | null>(null)
 
   async function handleUploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -867,9 +868,28 @@ export default function ProductsPage() {
                       </span>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      <button onClick={() => openModal(p)} className="text-indigo-600 hover:underline">
-                        Düzenle
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openModal(p)} className="text-indigo-600 hover:underline">
+                          Düzenle
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSyncingPid(p.id)
+                            try {
+                              await api.syncProduct(p.id, p.marketplaces)
+                            } catch (e: any) {
+                              setError(e.message)
+                            } finally {
+                              setSyncingPid(null)
+                              setReloadKey(k => k + 1)
+                            }
+                          }}
+                          disabled={syncingPid === p.id}
+                          className="text-green-600 hover:underline disabled:opacity-40"
+                        >
+                          {syncingPid === p.id ? 'Senkronize…' : 'Sync'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1147,9 +1167,9 @@ export default function ProductsPage() {
                                 type="button"
                                 onClick={() => handleVerify(mp)}
                                 disabled={verifyingMp === mp || creating}
-                                className="text-xs text-indigo-600 hover:underline disabled:opacity-40"
+                                className="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40"
                               >
-                                {verifyingMp === mp ? 'Doğrulanıyor…' : creating ? 'Önce Kaydedin' : 'Doğrula'}
+                                {verifyingMp === mp ? 'Doğrulanıyor…' : 'Doğrula'}
                               </button>
                             )}
                             {mp !== 'Kendi Sitem' && (
@@ -1157,9 +1177,9 @@ export default function ProductsPage() {
                                 type="button"
                                 onClick={() => handleSync(mp)}
                                 disabled={syncingMp === mp || creating}
-                                className="text-xs text-green-600 hover:underline disabled:opacity-40"
+                                className="text-xs px-2 py-1 rounded border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40"
                               >
-                                {syncingMp === mp ? 'Senkronize…' : creating ? 'Önce Kaydedin' : 'Sync'}
+                                {syncingMp === mp ? 'Senkronize…' : 'Sync'}
                               </button>
                             )}
                             {mp !== 'Kendi Sitem' && (
