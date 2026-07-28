@@ -433,6 +433,7 @@ export async function createSyncWorker() {
 
           const { _skip, reason, ...mpProduct } = rawMapped;
 
+          let shouldCreate = false;
           if (existingListing?.externalId) {
             const isTrendyol = mp === 'trendyol';
             const isBatchId = isTrendyol && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(existingListing.externalId);
@@ -443,24 +444,31 @@ export async function createSyncWorker() {
                 const batchResult = await client.getBatchRequestResult!(existingListing.externalId);
                 if (batchResult?.status === 'COMPLETED' && Array.isArray(batchResult.items)) {
                   const successItem = batchResult.items.find((i: any) => i.status === 'SUCCESS');
-                  realProductId = successItem?.requestItem?.productId || successItem?.productId || '';
+                  const failedItem = batchResult.items.find((i: any) => i.status === 'FAILED');
+                  if (failedItem?.failureReasons?.length) {
+                    await existingListing.destroy();
+                    shouldCreate = true;
+                  } else {
+                    realProductId = successItem?.requestItem?.productId || successItem?.productId || '';
+                  }
                 }
               } catch {}
-              if (realProductId) {
-                await existingListing.update({ externalId: realProductId });
+              if (!shouldCreate) {
+                if (realProductId) {
+                  await existingListing.update({ externalId: realProductId });
+                }
+                try {
+                  await client.updatePriceAndInventory!([{
+                    barcode: mpProduct.barcode || product.sku,
+                    quantity: mpProduct.quantity ?? 0,
+                    salePrice: mpProduct.salePrice ?? 0,
+                  }]);
+                } catch (err: any) {
+                  logger.warn({ err, productId }, 'Trendyol price/inventory update failed');
+                }
+                await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
+                results[mp] = { success: true, action: 'updated' };
               }
-              // Use barcode-based price-and-inventory update
-              try {
-                await client.updatePriceAndInventory!([{
-                  barcode: mpProduct.barcode || product.sku,
-                  quantity: mpProduct.quantity ?? 0,
-                  salePrice: mpProduct.salePrice ?? 0,
-                }]);
-              } catch (err: any) {
-                logger.warn({ err, productId }, 'Trendyol price/inventory update failed');
-              }
-              await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
-              results[mp] = { success: true, action: 'updated' };
             } else {
               await client.updateProduct(existingListing.externalId, mpProduct);
               if (mpProduct.salePrice > 0) {
@@ -473,6 +481,10 @@ export async function createSyncWorker() {
               results[mp] = { success: true, action: 'updated' };
             }
           } else {
+            shouldCreate = true;
+          }
+
+          if (shouldCreate) {
             const listingResult = await client.createProduct(mpProduct);
 
             const isTrendyol = mp === 'trendyol';
@@ -488,8 +500,23 @@ export async function createSyncWorker() {
                     const batchResult = await client.getBatchRequestResult!(batchId);
                     if (batchResult?.status === 'COMPLETED' && Array.isArray(batchResult.items)) {
                       const successItem = batchResult.items.find((i: any) => i.status === 'SUCCESS');
-                      externalId = successItem?.requestItem?.productId || successItem?.productId || batchId;
-                      if (externalId !== batchId) break;
+                      const failedItem = batchResult.items.find((i: any) => i.status === 'FAILED');
+                      if (failedItem?.failureReasons?.length) {
+                        await ProductMarketplaceListing.upsert({
+                          productId: product.id,
+                          storeId,
+                          platform: mp,
+                          externalId: null,
+                          status: 'failed',
+                          lastError: failedItem.failureReasons.join('; '),
+                          lastSyncedAt: new Date(),
+                        } as any);
+                        results[mp] = { success: false, reason: `Batch create failed: ${failedItem.failureReasons.join('; ')}` };
+                        externalId = 'failed';
+                        break;
+                      }
+                      externalId = successItem?.requestItem?.productId || successItem?.productId || '';
+                      if (externalId) break;
                     }
                   } catch {}
                 }
@@ -509,15 +536,18 @@ export async function createSyncWorker() {
               externalId = listingResult.result.batchRequestId.toString();
             }
 
-            await ProductMarketplaceListing.create({
-              productId: product.id,
-              storeId,
-              platform: mp,
-              externalId,
-              status: externalId ? 'active' : 'pending',
-              lastSyncedAt: new Date(),
-            } as any);
-            results[mp] = { success: true, action: 'created', externalId };
+            if (externalId !== 'failed') {
+              await ProductMarketplaceListing.upsert({
+                productId: product.id,
+                storeId,
+                platform: mp,
+                externalId,
+                status: externalId ? 'active' : 'pending',
+                lastError: null,
+                lastSyncedAt: new Date(),
+              } as any);
+              results[mp] = { success: true, action: 'created', externalId };
+            }
           }
 
           await logIntegration(storeId, mp, `sync-product/${productId}`, 'POST', true, { trigger }, {}, undefined);
