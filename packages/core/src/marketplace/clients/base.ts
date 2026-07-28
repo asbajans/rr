@@ -22,6 +22,8 @@ export interface MarketplaceClient {
   getOrder(orderId: string): Promise<any>;
   getBrands?(search?: string): Promise<{ id: number; name: string }[]>;
   getCategoryAttributes?(categoryId: number): Promise<any[]>;
+  getBatchRequestResult?(batchRequestId: string): Promise<any>;
+  updatePriceAndInventory?(items: Array<{ barcode: string; quantity: number; salePrice: number; listPrice?: number }>): Promise<any>;
 }
 
 export abstract class BaseMarketplaceClient implements MarketplaceClient {

@@ -115,6 +115,26 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     }
   }
 
+  async getBatchRequestResult(batchRequestId: string): Promise<any> {
+    const path = `/sellers/${this.config.supplierId}/products/batch-requests/${batchRequestId}`;
+    return this.request<any>({ method: 'GET', url: path });
+  }
+
+  async updatePriceAndInventory(items: Array<{ barcode: string; quantity: number; salePrice: number; listPrice?: number }>): Promise<any> {
+    const url = `/sellers/${this.config.supplierId}/products/price-and-inventory`;
+    const orderClient = axios.create({
+      baseURL: 'https://apigw.trendyol.com/integration/inventory',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': this.config.supplierId,
+        'Authorization': `Basic ${Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64')}`,
+      },
+      timeout: 30000,
+    });
+    const response = await orderClient.post(url, { items });
+    return response.data;
+  }
+
   async getBrands(search?: string): Promise<{ id: number; name: string }[]> {
     try {
       const path = `/brands`;

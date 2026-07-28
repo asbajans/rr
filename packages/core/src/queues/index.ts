@@ -434,26 +434,69 @@ export async function createSyncWorker() {
           const { _skip, reason, ...mpProduct } = rawMapped;
 
           if (existingListing?.externalId) {
-            await client.updateProduct(existingListing.externalId, mpProduct);
-            if (mpProduct.salePrice > 0) {
-              await client.updatePrice(existingListing.externalId, mpProduct.salePrice);
+            const isTrendyol = mp === 'trendyol';
+            const isBatchId = isTrendyol && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(existingListing.externalId);
+
+            if (isBatchId) {
+              let realProductId = '';
+              try {
+                const batchResult = await client.getBatchRequestResult!(existingListing.externalId);
+                if (batchResult?.status === 'COMPLETED' && Array.isArray(batchResult.items)) {
+                  const successItem = batchResult.items.find((i: any) => i.status === 'SUCCESS');
+                  realProductId = successItem?.requestItem?.productId || successItem?.productId || '';
+                }
+              } catch {}
+              if (realProductId) {
+                await existingListing.update({ externalId: realProductId });
+              }
+              // Use barcode-based price-and-inventory update
+              try {
+                await client.updatePriceAndInventory!([{
+                  barcode: mpProduct.barcode || product.sku,
+                  quantity: mpProduct.quantity ?? 0,
+                  salePrice: mpProduct.salePrice ?? 0,
+                }]);
+              } catch (err: any) {
+                logger.warn({ err, productId }, 'Trendyol price/inventory update failed');
+              }
+              await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
+              results[mp] = { success: true, action: 'updated' };
+            } else {
+              await client.updateProduct(existingListing.externalId, mpProduct);
+              if (mpProduct.salePrice > 0) {
+                await client.updatePrice(existingListing.externalId, mpProduct.salePrice);
+              }
+              if (mpProduct.quantity != null) {
+                await client.updateStock(existingListing.externalId, mpProduct.quantity);
+              }
+              await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
+              results[mp] = { success: true, action: 'updated' };
             }
-            if (mpProduct.quantity != null) {
-              await client.updateStock(existingListing.externalId, mpProduct.quantity);
-            }
-            await existingListing.update({ status: 'active', lastSyncedAt: new Date(), lastError: null });
-            results[mp] = { success: true, action: 'updated' };
           } else {
             const listingResult = await client.createProduct(mpProduct);
 
-            const isN11 = mp === 'n11';
             const isTrendyol = mp === 'trendyol';
+            const isN11 = mp === 'n11';
 
             let externalId = '';
-            if (isN11) {
+            if (isTrendyol) {
+              const batchId = listingResult?.batchRequestId ? String(listingResult.batchRequestId) : '';
+              if (batchId) {
+                for (let i = 0; i < 5; i++) {
+                  await new Promise(r => setTimeout(r, 2000));
+                  try {
+                    const batchResult = await client.getBatchRequestResult!(batchId);
+                    if (batchResult?.status === 'COMPLETED' && Array.isArray(batchResult.items)) {
+                      const successItem = batchResult.items.find((i: any) => i.status === 'SUCCESS');
+                      externalId = successItem?.requestItem?.productId || successItem?.productId || batchId;
+                      if (externalId !== batchId) break;
+                    }
+                  } catch {}
+                }
+                if (!externalId) externalId = batchId;
+              }
+            } else if (isN11) {
               externalId = product.sku;
-            } else if (isTrendyol && typeof listingResult === 'object') {
-              externalId = listingResult?.batchRequestId ? String(listingResult.batchRequestId) : '';
             } else if (typeof listingResult === 'string') {
               externalId = listingResult;
             } else if (listingResult?.batchRequestId) {
