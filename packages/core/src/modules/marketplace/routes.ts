@@ -390,6 +390,7 @@ marketplaceRoutes.get('/:marketplace/categories/:categoryId/attributes', authMid
     }
 
     const attributes = await client.getCategoryAttributes(Number(categoryId));
+    logger.info({ marketplace, categoryId, count: attributes?.length, sample: attributes?.[0] }, 'Category attributes fetched');
     res.json({ attributes });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get category attributes error');

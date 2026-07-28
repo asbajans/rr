@@ -447,16 +447,22 @@ export default function ProductsPage() {
     }
   }
 
-  function setAttrValue(mp: string, attributeId: number, attributeValueId: number) {
+  function setAttrValue(mp: string, attributeId: number, value: number | string) {
     const md = product?.marketplace_data[mp] ?? {}
     const current = (md.attributes ?? []) as any[]
     const idx = current.findIndex((a: any) => a.attributeId === attributeId)
+    const entry: any = { attributeId }
+    if (typeof value === 'string') {
+      entry.customValue = value
+    } else {
+      entry.attributeValueId = value
+    }
     let next: any[]
     if (idx >= 0) {
       next = [...current]
-      next[idx] = { attributeId, attributeValueId }
+      next[idx] = entry
     } else {
-      next = [...current, { attributeId, attributeValueId }]
+      next = [...current, entry]
     }
     updateMd(mp, { attributes: next })
   }
@@ -1279,7 +1285,11 @@ export default function ProductsPage() {
                         </div>
                         {mp !== 'Kendi Sitem' && md.category_id && (() => {
                           const key = `${mp}-${md.category_id}`
-                          const attrs = categoryAttrs[key]
+                          const rawAttrs = categoryAttrs[key] ?? []
+                          const attrs = rawAttrs.filter((a: any) => {
+                            const aid = a.attribute?.id ?? a.attributeId
+                            return aid != null
+                          })
                           const loading = loadingAttrs[key]
                           if (loading) return <p className="text-xs text-gray-400 mt-2">Özellikler yükleniyor…</p>
                           if (!attrs || attrs.length === 0) return null
@@ -1288,18 +1298,20 @@ export default function ProductsPage() {
                               <p className="text-xs font-medium text-gray-500">Kategori Özellikleri</p>
                               <div className="grid grid-cols-2 gap-2">
                                 {attrs.map((attr: any) => {
-                                  const current = (md.attributes ?? []).find((a: any) => a.attributeId === attr.attributeId)
+                                  const aid = attr.attribute?.id ?? attr.attributeId
+                                  const aname = attr.attribute?.name ?? attr.name ?? `Attribute #${aid}`
+                                  const current = (md.attributes ?? []).find((a: any) => a.attributeId === aid)
                                   const hasValues = Array.isArray(attr.attributeValues) && attr.attributeValues.length > 0
                                   return (
-                                    <div key={attr.attributeId}>
+                                    <div key={aid}>
                                       <label className="block text-xs text-gray-500 mb-1">
-                                        {attr.name}
+                                        {aname}
                                         {attr.required && <span className="text-red-500 ml-0.5">*</span>}
                                       </label>
                                       {hasValues ? (
                                         <select
                                           value={current?.attributeValueId ?? ''}
-                                          onChange={(e) => setAttrValue(mp, attr.attributeId, Number(e.target.value))}
+                                          onChange={(e) => setAttrValue(mp, aid, Number(e.target.value))}
                                           className="w-full border rounded px-2 py-1.5 text-sm"
                                         >
                                           <option value="">Seçin</option>
@@ -1307,15 +1319,15 @@ export default function ProductsPage() {
                                             <option key={v.id} value={v.id}>{v.name}</option>
                                           ))}
                                         </select>
-                                      ) : (
+                                      ) : attr.allowCustom ? (
                                         <input
                                           type="text"
-                                          value={current?.attributeValueId ?? ''}
-                                          onChange={(e) => setAttrValue(mp, attr.attributeId, Number(e.target.value) || 0)}
+                                          value={current?.customValue ?? (current?.attributeValueId ? String(current.attributeValueId) : '')}
+                                          onChange={(e) => setAttrValue(mp, aid, e.target.value)}
                                           className="w-full border rounded px-2 py-1.5 text-sm"
-                                          placeholder={`${attr.name} değeri`}
+                                          placeholder={`${aname} değeri girin`}
                                         />
-                                      )}
+                                      ) : null}
                                     </div>
                                   )
                                 })}
