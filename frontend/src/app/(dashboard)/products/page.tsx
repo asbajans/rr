@@ -113,6 +113,10 @@ export default function ProductsPage() {
   const [syncingMp, setSyncingMp] = useState<string | null>(null)
   const [syncingPid, setSyncingPid] = useState<string | null>(null)
 
+  // marketplace category attributes
+  const [categoryAttrs, setCategoryAttrs] = useState<Record<string, any[]>>({})
+  const [loadingAttrs, setLoadingAttrs] = useState<Record<string, boolean>>({})
+
   async function handleUploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     setUploading(true)
@@ -290,6 +294,7 @@ export default function ProductsPage() {
         brand_id,
         on_sale: m === 'Kendi Sitem' ? product.status === 1 : !!md.on_sale,
         status: m === 'Kendi Sitem' ? product.status : (md.on_sale ? 1 : 0),
+        attributes: md.attributes ?? [],
       }
     })
 
@@ -425,6 +430,35 @@ export default function ProductsPage() {
     } finally {
       setSyncingMp(null)
     }
+  }
+
+  async function loadCategoryAttrs(mp: string, categoryId: string) {
+    if (!categoryId) return
+    const key = `${mp}-${categoryId}`
+    if (categoryAttrs[key]) return
+    setLoadingAttrs((prev) => ({ ...prev, [key]: true }))
+    try {
+      const res = await api.getMarketplaceCategoryAttributes(mp, categoryId)
+      setCategoryAttrs((prev) => ({ ...prev, [key]: res.attributes ?? [] }))
+    } catch {
+      setCategoryAttrs((prev) => ({ ...prev, [key]: [] }))
+    } finally {
+      setLoadingAttrs((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
+  function setAttrValue(mp: string, attributeId: number, attributeValueId: number) {
+    const md = product?.marketplace_data[mp] ?? {}
+    const current = (md.attributes ?? []) as any[]
+    const idx = current.findIndex((a: any) => a.attributeId === attributeId)
+    let next: any[]
+    if (idx >= 0) {
+      next = [...current]
+      next[idx] = { attributeId, attributeValueId }
+    } else {
+      next = [...current, { attributeId, attributeValueId }]
+    }
+    updateMd(mp, { attributes: next })
   }
 
   async function handleDelete() {
@@ -1205,7 +1239,9 @@ export default function ProductsPage() {
                               value={md.category ?? ''}
                               onChange={(e) => {
                                 const match = catOpts.find((o) => o.name === e.target.value)
-                                updateMd(mp, { category: e.target.value, category_id: match?.id ?? md.category_id ?? '' })
+                                const cid = match?.id ?? md.category_id ?? ''
+                                updateMd(mp, { category: e.target.value, category_id: cid })
+                                if (cid && mp !== 'Kendi Sitem') loadCategoryAttrs(mp, cid)
                               }}
                               className="w-full border rounded px-2 py-1.5 text-sm"
                               placeholder={mp === 'Kendi Sitem' ? 'Kategori seçin' : 'Kategori seçin'}
@@ -1238,8 +1274,55 @@ export default function ProductsPage() {
                                 </option>
                               ))}
                             </datalist>
+                            {md.brand_id && <p className="text-xs text-gray-400 mt-1">ID: {md.brand_id}</p>}
                           </div>
                         </div>
+                        {mp !== 'Kendi Sitem' && md.category_id && (() => {
+                          const key = `${mp}-${md.category_id}`
+                          const attrs = categoryAttrs[key]
+                          const loading = loadingAttrs[key]
+                          if (loading) return <p className="text-xs text-gray-400 mt-2">Özellikler yükleniyor…</p>
+                          if (!attrs || attrs.length === 0) return null
+                          return (
+                            <div className="mt-2 pt-2 border-t space-y-2">
+                              <p className="text-xs font-medium text-gray-500">Kategori Özellikleri</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {attrs.map((attr: any) => {
+                                  const current = (md.attributes ?? []).find((a: any) => a.attributeId === attr.attributeId)
+                                  const hasValues = Array.isArray(attr.attributeValues) && attr.attributeValues.length > 0
+                                  return (
+                                    <div key={attr.attributeId}>
+                                      <label className="block text-xs text-gray-500 mb-1">
+                                        {attr.name}
+                                        {attr.required && <span className="text-red-500 ml-0.5">*</span>}
+                                      </label>
+                                      {hasValues ? (
+                                        <select
+                                          value={current?.attributeValueId ?? ''}
+                                          onChange={(e) => setAttrValue(mp, attr.attributeId, Number(e.target.value))}
+                                          className="w-full border rounded px-2 py-1.5 text-sm"
+                                        >
+                                          <option value="">Seçin</option>
+                                          {attr.attributeValues.map((v: any) => (
+                                            <option key={v.id} value={v.id}>{v.name}</option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          value={current?.attributeValueId ?? ''}
+                                          onChange={(e) => setAttrValue(mp, attr.attributeId, Number(e.target.value) || 0)}
+                                          className="w-full border rounded px-2 py-1.5 text-sm"
+                                          placeholder={`${attr.name} değeri`}
+                                        />
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })}
