@@ -33,7 +33,7 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
 
   const attrs = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => {
     if (a.customValue) {
-      return { attributeId: a.attributeId, customValue: a.customValue };
+      return { attributeId: a.attributeId, customAttributeValue: a.customValue };
     }
     if (a.attributeId && a.attributeValueId) {
       return { attributeId: a.attributeId, attributeValueId: a.attributeValueId };

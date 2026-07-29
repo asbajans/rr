@@ -485,7 +485,19 @@ export async function createSyncWorker() {
           }
 
           if (shouldCreate) {
-            const listingResult = await client.createProduct(mpProduct);
+            let listingResult: any;
+            try {
+              listingResult = await client.createProduct(mpProduct);
+            } catch (err: any) {
+              const errBody = err.response?.data;
+              if (errBody?.errors?.[0]?.key === 'batchRequest.recurring.product.create.not.allowed') {
+                try {
+                  const { listPrice, salePrice, quantity, currencyType, cargoCompanyId, ...unapprovedPayload } = mpProduct;
+                  listingResult = await (client as any).updateUnapprovedProduct(unapprovedPayload);
+                } catch {}
+              }
+              if (!listingResult) throw err;
+            }
 
             const isTrendyol = mp === 'trendyol';
             const isN11 = mp === 'n11';
