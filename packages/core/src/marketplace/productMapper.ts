@@ -32,8 +32,9 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
   const images = Array.isArray(product.images) ? product.images.map((u: any) => typeof u === 'string' ? { url: u } : u) : [];
 
   const attrs = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => {
-    if (a.customValue) {
-      return { attributeId: a.attributeId, customAttributeValue: a.customValue };
+    const customVal = a.customValue || a.customAttributeValue;
+    if (customVal) {
+      return { attributeId: a.attributeId, customAttributeValue: customVal };
     }
     if (a.attributeId && a.attributeValueId) {
       return { attributeId: a.attributeId, attributeValueId: a.attributeValueId };
