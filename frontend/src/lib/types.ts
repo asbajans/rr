@@ -379,8 +379,11 @@ export type DropshippingOrderDetail = DropshippingOrder & {
   tax: string
   tracking_number: string | null
   tracking_company: string | null
+  payment_method?: string | null
+  payment_status?: string | null
   note: string | null
   parent_order_id?: number | null
+  parent_order?: { id: number; storeId: number; orderNumber: string; marketplaceOrderId: string; status: string; totalAmount: number; currency: string } | null
   sub_orders?: DropshippingOrderDetail[]
   invoice_url?: string | null
   label_url?: string | null

@@ -77,6 +77,18 @@ export class DropshippingOrder extends Model {
   declare items: object;
 
   @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare customerName: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare customerEmail: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(50))
+  declare customerPhone: string;
+
+  @AllowNull(true)
   @Column(DataType.TEXT)
   declare note: string;
 

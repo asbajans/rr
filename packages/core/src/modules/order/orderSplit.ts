@@ -68,12 +68,20 @@ export async function createSplitOrder(
   shippingAddress: any,
   payload: any,
   marketplaceOrderNumber?: string,
+  customerName?: string,
+  customerEmail?: string,
+  customerPhone?: string,
 ): Promise<{ mainOrder: DropshippingOrder; subOrders: DropshippingOrder[] }> {
   const { itemsByStore } = await detectVendors(items);
 
   // The main store's items are keyed by 0 (no vendor)
   const mainItems = itemsByStore.get(0)?.items || [];
   const mainTotal = itemsByStore.get(0)?.totalAmount || totalAmount;
+
+  const addr = shippingAddress || payload?.shipping_address || payload?.address || {};
+  const fullName = customerName || payload?.customerName || payload?.customer_name || addr?.name || addr?.fullName || addr?.full_name;
+  const email = customerEmail || payload?.customerEmail || payload?.customer_email || addr?.email;
+  const phone = customerPhone || payload?.customerPhone || payload?.customer_phone || addr?.phone || addr?.phoneNumber;
 
   // Create main order for the receiving store
   const mainOrder = await DropshippingOrder.create({
@@ -85,8 +93,16 @@ export async function createSplitOrder(
     status: 'pending',
     totalAmount: mainTotal,
     currency: currency || 'TRY',
-    shippingAddress: shippingAddress || payload?.shipping_address || payload?.address,
+    shippingAddress: {
+      ...(typeof addr === 'object' ? addr : {}),
+      name: fullName,
+      email,
+      phone,
+    },
     items: mainItems,
+    customerName: fullName,
+    customerEmail: email,
+    customerPhone: phone,
   });
 
   await OrderStatusHistory.create({
@@ -105,14 +121,17 @@ export async function createSplitOrder(
       storeId: vendorStoreId,
       orderNumber: `${orderNumber}-S${subOrders.length + 1}`,
       marketplace,
-      marketplaceOrderId: `${marketplaceOrderId}-S${subOrders.length + 1}`,
+      marketplaceOrderId,
       marketplaceOrderNumber: marketplaceOrderNumber || payload?.order_number,
       parentOrderId: mainOrder.id,
       status: 'pending',
       totalAmount: vendorData.totalAmount,
       currency: currency || 'TRY',
-      shippingAddress: shippingAddress || payload?.shipping_address || payload?.address,
+      shippingAddress: addr,
       items: vendorData.items,
+      customerName: fullName,
+      customerEmail: email,
+      customerPhone: phone,
     });
 
     await OrderStatusHistory.create({

@@ -105,26 +105,29 @@ function mapPage(p: any): any {
 function mapOrder(o: any): any {
   if (!o) return o
   const address = o.shippingAddress || o.shipping_address
+  const addressStr = typeof address === 'object'
+    ? [address.fullAddress || address.addressLine1, address.addressLine2, address.district, address.city, address.state, address.country].filter(Boolean).join(', ')
+    : (address || '')
   return {
     ...o,
     id: Number(o.id),
+    created_at: o.createdAt ?? o.created_at,
     grand_total: o.totalAmount ?? o.grand_total,
-    shipping_address: typeof address === 'object' ?
-      [address.addressLine1, address.addressLine2, address.city, address.state, address.country].filter(Boolean).join(', ')
-      : (address || ''),
-    customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || address.firstName + ' ' + address.lastName || '') : ''),
-    customer_email: o.customerEmail || (typeof address === 'object' ? (address.email || '') : ''),
-    customer_phone: o.customerPhone || (typeof address === 'object' ? (address.phone || address.phoneNumber || '') : ''),
-    external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
     subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
     shipping: o.shipping ?? 0,
     tax: o.tax ?? 0,
     items: o.items ?? [],
+    shipping_address: addressStr,
+    customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || address.firstName + ' ' + address.lastName || '') : ''),
+    customer_email: o.customerEmail || (typeof address === 'object' ? (address.email || '') : ''),
+    customer_phone: o.customerPhone || (typeof address === 'object' ? (address.phone || address.phoneNumber || '') : ''),
+    external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
     tracking_number: o.trackingNumber ?? o.tracking_number,
     tracking_company: o.carrier ?? o.tracking_company,
     payment_method: o.paymentMethod ?? o.payment_method,
     payment_status: o.paymentStatus ?? o.payment_status,
     parent_order_id: o.parentOrderId ?? o.parent_order_id,
+    parent_order: o.parentOrder ?? o.parent_order,
     sub_orders: (o.subOrders || []).map((s: any) => ({ ...s, id: Number(s.id) })),
     invoice_url: o.invoiceUrl ?? o.invoice_url,
     label_url: o.labelUrl ?? o.label_url,

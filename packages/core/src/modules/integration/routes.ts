@@ -84,6 +84,9 @@ integrationRoutes.post('/webhook/order', [
       shippingAddress,
       payload,
       payload.marketplaceOrderNumber || payload.order_number,
+      payload.customerName || payload.customer_name,
+      payload.customerEmail || payload.customer_email,
+      payload.customerPhone || payload.customer_phone,
     );
 
     logger.info(`Webhook order created: ${mainOrder.id} from ${marketplace}${subOrders.length > 0 ? ` with ${subOrders.length} sub-order(s)` : ''}`);

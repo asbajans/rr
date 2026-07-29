@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { DropshippingOrderDetail } from '@/lib/types'
-import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock, ThumbsUp, Barcode } from 'lucide-react'
+import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock, ThumbsUp, Barcode, ChevronDown, ChevronUp } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: 'Beklemede', icon: <Clock className="h-5 w-5" />, color: 'bg-yellow-100 text-yellow-700' },
@@ -43,6 +43,8 @@ export default function OrderDetailPage() {
   const [labelZpl, setLabelZpl] = useState<string | null>(null)
   const [cargoCompany, setCargoCompany] = useState<string | null>(null)
   const [labelLoading, setLabelLoading] = useState(false)
+  const [showRawPayload, setShowRawPayload] = useState(false)
+  const [rawData, setRawData] = useState<any>(null)
 
   useEffect(() => {
     if (!id || !user) return
@@ -52,6 +54,7 @@ export default function OrderDetailPage() {
         setLabelUrl(r.order.label_url || null)
         setLabelZpl(r.order.label_zpl || null)
         setCargoCompany(r.order.cargo_company || null)
+        setRawData(r.order)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -139,6 +142,11 @@ export default function OrderDetailPage() {
 
   const config = STATUS_CONFIG[order.status]
   const nextStatuses = STATUS_FLOW[order.status] || []
+  const isTrendyol = order.marketplace === 'trendyol'
+  const isSubOrder = !!order.parent_order_id
+
+  const labelField = (label: string, value: any) =>
+    value ? <div className="flex justify-between"><span className="text-zinc-500">{label}</span><span className="text-zinc-700 text-right max-w-[60%] break-all">{String(value)}</span></div> : null
 
   return (
     <div>
@@ -147,36 +155,51 @@ export default function OrderDetailPage() {
       </Link>
 
       {order.parent_order_id && (
+        <div className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+          <span className="font-semibold">B2B Tedarikçi Alt Siparişi</span> — Bu sipariş,
+          <Link href={`/orders/${order.parent_order_id}`} className="font-medium underline mx-1">#{order.parent_order_id}</Link>
+          numaralı ana siparişe ait tedarikçi alt siparişidir.
+          Durum, ana siparişten otomatik güncellenir.
+        </div>
+      )}
+
+      {order.parent_order && (
         <div className="mt-2 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-700">
-          Bu sipariş, <Link href={`/orders/${order.parent_order_id}`} className="font-medium underline">#{order.parent_order_id}</Link> numaralı ana siparişin alt siparişidir
+          Ana Sipariş: <Link href={`/orders/${order.parent_order.id}`} className="font-medium underline">#{order.parent_order.id}</Link>
+          {' '}({STATUS_CONFIG[order.parent_order.status]?.label || order.parent_order.status})
         </div>
       )}
 
       {message && (
-        <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{message}</div>
+        <div className={`mt-4 rounded-lg p-3 text-sm ${message.includes('başarısız') || message.includes('hatası') || message.includes('alamıyor') || message.includes('bulunamadı') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{message}</div>
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left - Order Info */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Status */}
+          {/* Status + Header */}
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <div className="flex items-center gap-3">
               <div className={`flex h-12 w-12 items-center justify-center rounded-full ${config.color}`}>
                 {config.icon}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-bold text-zinc-900">
                   {order.external_id || `#${order.id}`}
                 </h2>
-                <span className={`inline-block mt-1 rounded px-2 py-0.5 text-xs font-medium ${config.color}`}>
-                  {config.label}
-                </span>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${config.color}`}>
+                    {config.label}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {order.created_at ? new Date(order.created_at).toLocaleString('tr-TR') : '—'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Trendyol: İşleme Al */}
-            {order.marketplace === 'trendyol' && order.status === 'pending' && (
+            {/* Trendyol: İşleme Al - only main orders, NOT sub-orders (B2B supplier) */}
+            {isTrendyol && order.status === 'pending' && !isSubOrder && (
               <div className="mt-6 border-t border-zinc-100 pt-4">
                 <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Trendyol Sipariş İşlemleri</p>
                 {cargoCompany && (
@@ -196,40 +219,47 @@ export default function OrderDetailPage() {
               </div>
             )}
 
-            {/* Trendyol: işleme alındıktan sonra bilgi */}
-            {order.marketplace === 'trendyol' && order.status !== 'pending' && (
-              <div className="mt-6 border-t border-zinc-100 pt-4">
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Trendyol Sipariş İşlemleri</p>
-                {cargoCompany && (
-                  <p className="mt-2 text-xs text-zinc-500">Kargo: <span className="font-medium text-zinc-700">{cargoCompany}</span></p>
+            {/* Trendyol: label download for everyone (main + sub-orders) */}
+            {isTrendyol && (
+            <div className="mt-6 border-t border-zinc-100 pt-4">
+              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                {isSubOrder ? 'Kargo Etiketi' : 'Trendyol Sipariş İşlemleri'}
+              </p>
+              {cargoCompany && (
+                <p className="mt-2 text-xs text-zinc-500">Kargo: <span className="font-medium text-zinc-700">{cargoCompany}</span></p>
+              )}
+              {isSubOrder && order.status === 'pending' && (
+                <p className="mt-2 text-xs text-amber-600">Bu B2B tedarikçi alt siparişidir. İşleme alma işlemi ana sipariş sahibi tarafından yapılır. Etiketi yine de indirebilirsiniz.</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {labelZpl ? (
+                  <button onClick={downloadLabel}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                    <Barcode className="h-4 w-4" /> Kargo Etiketini İndir (ZPL)
+                  </button>
+                ) : labelUrl ? (
+                  <a href={labelUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                    <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
+                  </a>
+                ) : (
+                  <button onClick={downloadLabel} disabled={labelLoading}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
+                    <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
+                  </button>
                 )}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {labelZpl ? (
-                    <button onClick={downloadLabel}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-                      <Barcode className="h-4 w-4" /> Kargo Etiketini İndir (ZPL)
-                    </button>
-                  ) : labelUrl ? (
-                    <a href={labelUrl} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-                      <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
-                    </a>
-                  ) : (
-                    <button onClick={downloadLabel} disabled={labelLoading}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
-                      <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
-                    </button>
-                  )}
-                  {cargoCompany && !/TEX|Aras/i.test(cargoCompany) && (
-                    <p className="mt-2 text-xs text-amber-600">Kargo firması ({cargoCompany}) için etiket Trendyol üzerinden alınamaz. Lütfen kargo firmasından temin ediniz.</p>
-                  )}
-                </div>
-                <p className="mt-2 text-xs text-zinc-400">Sipariş durumu Trendyol tarafından otomatik güncellenir. Kargo takibi için Trendyol panelini kullanın.</p>
+                {cargoCompany && !/TEX|Aras/i.test(cargoCompany) && (
+                  <p className="mt-2 w-full text-xs text-amber-600">Kargo firması ({cargoCompany}) için etiket Trendyol üzerinden alınamaz. Lütfen kargo firmasından temin ediniz.</p>
+                )}
               </div>
+              {!isSubOrder && (
+                <p className="mt-2 text-xs text-zinc-400">Sipariş durumu Trendyol tarafından otomatik güncellenir. Kargo takibi için Trendyol panelini kullanın.</p>
+              )}
+            </div>
             )}
 
             {/* Non-Trendyol: status flow */}
-            {order.marketplace !== 'trendyol' && nextStatuses.length > 0 && (
+            {!isTrendyol && nextStatuses.length > 0 && (
               <div className="mt-6 border-t border-zinc-100 pt-4">
                 <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Durum Güncelle</p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -264,8 +294,8 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Tracking (sadece storefront ve non-Trendyol) */}
-          {order.marketplace !== 'trendyol' && (
+          {/* Non-Trendyol: Tracking section */}
+          {!isTrendyol && (
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-semibold text-zinc-900">Kargo Takibi</h3>
             {order.tracking_number ? (
@@ -350,38 +380,73 @@ export default function OrderDetailPage() {
           )}
         </div>
 
-        {/* Right - Customer Info */}
+        {/* Right - Customer & Details */}
         <div className="space-y-6">
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-semibold text-zinc-900">Müşteri</h3>
-            <div className="mt-3 space-y-2 text-sm">
-              <p className="text-zinc-700">{order.customer_name}</p>
-              <p className="text-zinc-500">{order.customer_email}</p>
-              <p className="text-zinc-500">{order.customer_phone}</p>
-            </div>
+            {order.customer_name ? (
+              <div className="mt-3 space-y-2 text-sm">
+                <p className="text-zinc-700 font-medium">{order.customer_name}</p>
+                {order.customer_email && <p className="text-zinc-500">{order.customer_email}</p>}
+                {order.customer_phone && <p className="text-zinc-500">{order.customer_phone}</p>}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-zinc-400">Müşteri bilgisi bulunamadı</p>
+            )}
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-semibold text-zinc-900">Teslimat</h3>
-            <p className="mt-2 text-sm text-zinc-600">{order.shipping_address || '—'}</p>
+            <p className="mt-2 text-sm text-zinc-600 whitespace-pre-wrap">{order.shipping_address || '—'}</p>
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
-            <h3 className="text-sm font-semibold text-zinc-900">Ödeme</h3>
+            <h3 className="text-sm font-semibold text-zinc-900">Sipariş Detayları</h3>
             <div className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">Pazaryeri</span><span className="text-zinc-700">{order.marketplace}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Ara Toplam</span><span className="text-zinc-700">{parseFloat(order.subtotal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Kargo</span><span className="text-zinc-700">{parseFloat(order.shipping).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Vergi</span><span className="text-zinc-700">{parseFloat(order.tax).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</span></div>
-              <div className="flex justify-between border-t border-zinc-200 pt-2 font-semibold"><span className="text-zinc-900">Toplam</span><span className="text-zinc-900">{parseFloat(order.grand_total).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Tarih</span><span className="text-zinc-700">{new Date(order.created_at).toLocaleDateString('tr-TR')}</span></div>
+              {labelField('Pazaryeri', order.marketplace)}
+              {labelField('Sipariş No', order.external_id)}
+              {labelField('Sipariş ID', `#${order.id}`)}
+              {labelField('Durum', STATUS_CONFIG[order.status]?.label)}
+              {labelField('Ödeme Yöntemi', order.payment_method)}
+              {labelField('Ödeme Durumu', order.payment_status)}
+              {cargoCompany && labelField('Kargo Firması', cargoCompany)}
+              {order.tracking_number && labelField('Kargo Takip', order.tracking_number)}
+              {order.tracking_company && labelField('Kargo Şirketi', order.tracking_company)}
+              <div className="border-t border-zinc-100 pt-2 mt-2">
+                {labelField('Ara Toplam', `${parseFloat(order.subtotal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${order.currency}`)}
+                {labelField('Kargo', `${parseFloat(order.shipping).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${order.currency}`)}
+                {labelField('Vergi', `${parseFloat(order.tax).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${order.currency}`)}
+                <div className="flex justify-between border-t border-zinc-200 pt-2 mt-2 font-semibold">
+                  <span className="text-zinc-900">Toplam</span>
+                  <span className="text-zinc-900">{parseFloat(order.grand_total).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</span>
+                </div>
+              </div>
+              <div className="border-t border-zinc-100 pt-2 mt-2">
+                {labelField('Oluşturulma', order.created_at ? new Date(order.created_at).toLocaleString('tr-TR') : null)}
+              </div>
             </div>
           </div>
 
           {order.note && (
             <div className="rounded-xl border border-zinc-200 bg-white p-6">
               <h3 className="text-sm font-semibold text-zinc-900">Not</h3>
-              <p className="mt-2 text-sm text-zinc-600">{order.note}</p>
+              <p className="mt-2 text-sm text-zinc-600 whitespace-pre-wrap">{order.note}</p>
+            </div>
+          )}
+
+          {/* Raw Data Toggle */}
+          {rawData && (
+            <div className="rounded-xl border border-zinc-200 bg-white p-6">
+              <button onClick={() => setShowRawPayload(!showRawPayload)}
+                className="flex w-full items-center justify-between text-sm font-semibold text-zinc-900">
+                Ham Veri
+                {showRawPayload ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {showRawPayload && (
+                <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600">
+                  {JSON.stringify(rawData, null, 2)}
+                </pre>
+              )}
             </div>
           )}
         </div>

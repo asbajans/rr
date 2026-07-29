@@ -110,7 +110,14 @@ orderRoutes.get('/:id', authMiddleware, requireStore, [
       include: [{ model: OrderStatusHistory, as: 'statusHistory', order: [['createdAt', 'ASC']] }],
     });
 
-    res.json({ order: { ...order.toJSON(), subOrders } });
+    let parentOrder = null;
+    if (order.parentOrderId) {
+      parentOrder = await DropshippingOrder.findByPk(order.parentOrderId, {
+        attributes: ['id', 'storeId', 'orderNumber', 'marketplaceOrderId', 'status', 'totalAmount', 'currency'],
+      });
+    }
+
+    res.json({ order: { ...order.toJSON(), subOrders, parentOrder } });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get order error');
     res.status(500).json({ error: 'Internal server error' });
@@ -153,24 +160,44 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
 
     logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
 
-    if (order.marketplace === 'trendyol') {
-      if (status === 'processing' && oldStatus === 'pending') {
+    // Propagate status to sub-orders if this is a main order
+    if (!order.parentOrderId) {
+      const subOrders = await DropshippingOrder.findAll({ where: { parentOrderId: order.id } });
+      for (const sub of subOrders) {
+        if (sub.status !== status) {
+          const subOld = sub.status;
+          await sub.update({ status });
+          await OrderStatusHistory.create({
+            dropshippingOrderId: sub.id,
+            fromStatus: subOld,
+            toStatus: status,
+            note: `Auto-propagated from parent order ${order.id}: ${subOld} -> ${status}`,
+          });
+        }
+      }
+    }
+
+    // Only push to marketplace for main orders, never for sub-orders (B2B)
+    if (!order.parentOrderId) {
+      if (order.marketplace === 'trendyol') {
+        if (status === 'processing' && oldStatus === 'pending') {
+          notifyIntegrationService({
+            action: 'approve',
+            storeId: store.id,
+            marketplace: order.marketplace,
+            externalId: order.marketplaceOrderId,
+            value: status,
+          });
+        }
+      } else if (order.marketplace !== 'storefront') {
         notifyIntegrationService({
-          action: 'approve',
+          action: 'status',
           storeId: store.id,
           marketplace: order.marketplace,
           externalId: order.marketplaceOrderId,
           value: status,
         });
       }
-    } else if (order.marketplace !== 'storefront') {
-      notifyIntegrationService({
-        action: 'status',
-        storeId: store.id,
-        marketplace: order.marketplace,
-        externalId: order.marketplaceOrderId,
-        value: status,
-      });
     }
 
     res.json({ order });
@@ -289,14 +316,27 @@ orderRoutes.get('/:id/label', authMiddleware, requireStore, [
     const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
+    // For B2B sub-orders, use the parent order's store + marketplaceOrderId
+    let targetStoreId = store.id;
+    let marketplaceOrderId = order.marketplaceOrderId;
+    if (order.parentOrderId) {
+      const parent = await DropshippingOrder.findByPk(order.parentOrderId, {
+        attributes: ['storeId', 'marketplaceOrderId'],
+      });
+      if (parent) {
+        targetStoreId = parent.storeId;
+        marketplaceOrderId = parent.marketplaceOrderId;
+      }
+    }
+
     if (order.marketplace === 'trendyol') {
       const integration = await MarketplaceIntegration.findOne({
-        where: { storeId: store.id, marketplace: 'trendyol', isActive: true },
+        where: { storeId: targetStoreId, marketplace: 'trendyol', isActive: true },
       });
       if (integration) {
         const mpConfig = getMarketplaceConfig('trendyol' as MarketplaceType, integration);
         const client = createMarketplaceClient('trendyol' as MarketplaceType, mpConfig) as any;
-        const label = await (client as any).getOrderLabel(order.marketplaceOrderId);
+        const label = await (client as any).getOrderLabel(marketplaceOrderId);
         if (label) {
           const updateData: any = {};
           if (label.labelUrl) updateData.labelUrl = label.labelUrl;
