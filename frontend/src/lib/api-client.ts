@@ -758,7 +758,7 @@ class ApiClient {
   }
 
   async importOrders(marketplace: string, options?: { startDate?: string; endDate?: string; status?: string; maxPages?: number }) {
-    return this.post<{ imported: number; orders: any[] }>(`/api/admin/integrations/${marketplace}/import-orders`, options || {})
+    return this.post<{ imported: number; orders: any[] }>(`/api/admin/integration/${marketplace}/import-orders`, options || {})
   }
 
   // Integration Webhooks
