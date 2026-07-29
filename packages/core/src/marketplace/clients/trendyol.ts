@@ -166,26 +166,34 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     }
   }
 
-  async getOrders(params: { startDate?: string; endDate?: string; page?: number; size?: number } = {}): Promise<any[]> {
+  async getOrders(params: { startDate?: string; endDate?: string; page?: number; size?: number; status?: string; orderByField?: string; orderByDirection?: string } = {}): Promise<any[]> {
     const url = `/sellers/${this.config.supplierId}/orders`;
-    const data = await this.request<any>({ method: 'GET', url, params });
-    return data.content || [];
+    const data = await this.orderRequest<any>({ method: 'GET', url, params });
+    return data.shipmentPackages || data.content || [];
   }
 
   async getOrder(orderId: string): Promise<any> {
     const url = `/sellers/${this.config.supplierId}/orders/${orderId}`;
-    return this.request<any>({ method: 'GET', url });
+    return this.orderRequest<any>({ method: 'GET', url });
+  }
+
+  async cancelOrder(orderId: string, reason: string = 'OUT_OF_STOCK'): Promise<any> {
+    return this.orderRequest<any>({
+      method: 'PUT',
+      url: `/sellers/${this.config.supplierId}/orders/${orderId}/cancel`,
+      data: { cancelReason: reason },
+    });
   }
 
   async updateOrderStatus(orderId: string, status: string): Promise<any> {
-    const url = `/sellers/${this.config.supplierId}/orders/${orderId}`;
-    const data: Record<string, any> = {};
     if (status === 'approved' || status === 'Picking') {
       return this.orderRequest<any>({ method: 'PUT', url: `/sellers/${this.config.supplierId}/orders/${orderId}/approve`, data: {} });
     } else if (status === 'shipped' || status === 'Invoiced') {
       return this.orderRequest<any>({ method: 'PUT', url: `/sellers/${this.config.supplierId}/orders/${orderId}/invoice`, data: {} });
+    } else if (status === 'Cancelled' || status === 'cancelled') {
+      return this.cancelOrder(orderId);
     }
-    return this.orderRequest<any>({ method: 'PUT', url, data: { status } });
+    return this.orderRequest<any>({ method: 'PUT', url: `/sellers/${this.config.supplierId}/orders/${orderId}`, data: { status } });
   }
 
   async updateTracking(orderId: string, trackingNumber: string, carrier: string): Promise<any> {

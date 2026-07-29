@@ -958,6 +958,303 @@ Product create'te her zaman tetiklenir (eğer `marketplaces` array'i doluysa).
 
 ---
 
+# Trendyol Integrasyonu (V2 API)
+
+## Genel Bilgi
+
+| Bilgi | Değer |
+|-------|-------|
+| Supplier ID | 384219 |
+| API Base (Product) | `https://apigw.trendyol.com/integration/product` |
+| API Base (Order) | `https://apigw.trendyol.com/integration/order` |
+| API Base (Inventory) | `https://apigw.trendyol.com/integration/inventory` |
+| Auth | HTTP Basic Auth (`apiKey:apiSecret` Base64) |
+| V1 Kapanış | 10 Ağustos 2026 — V1 product servisleri kapanıyor |
+| Rate Limit (Product) | 60 req/min |
+| Rate Limit (Order) | 600 req/min |
+| Attribute Formatı (V2) | `attributeValueIds: [1,2,3]` (multi-value) + `customAttributeValue` (custom text) |
+
+## Authentication
+
+Trendyol, HTTP Basic Auth kullanır. `apiKey:apiSecret` → Base64 → `Authorization: Basic <base64>`.
+
+```typescript
+'Authorization': `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')}`
+'User-Agent': supplierId  // zorunlu!
+'Content-Type': 'application/json'
+```
+
+## Client Mimarisi (`packages/core/src/marketplace/clients/trendyol.ts`)
+
+TrendyolClient extends BaseMarketplaceClient. Üç farklı Axios instance kullanır:
+
+| Instance | Base URL | Kullanım |
+|----------|----------|----------|
+| `this.client` (inherited) | `/integration/product` | Product CRUD, kategori, marka, batch |
+| `this.orderClient` | `/integration/order` | Sipariş listeleme, approve, ship, invoice, cancel |
+| `updatePriceAndInventory` | `/integration/inventory` | Stok+fiyat toplu güncelleme |
+
+**ÖNEMLİ**: `getOrders()` ve `getOrder()` METOTLARI `orderClient` KULLANMALIDIR. Product client kullanılırsa 404/hatalı URL oluşur.
+
+### TrendyolClient Metotları
+
+#### Product Metotları
+| Metot | Endpoint | Açıklama |
+|-------|----------|----------|
+| `getCategories()` | `GET /product-categories` | Kategori ağacı döndürür |
+| `getCategoryAttributes(categoryId)` | `GET /product-categories/{id}/attributes` | Kategori attribute'ları (V2) |
+| `getBrands(search?)` | `GET /brands?name=&size=1000` | Marka listesi |
+| `getProducts({page, size})` | `GET /sellers/{id}/products/approved` | Onaylı ürünleri getir |
+| `getApprovedProductsStockAndPrice({page, size})` | `GET /sellers/{id}/products/approved/inventory-and-price` | Onaylı ürünlerin stok+fiyatı |
+| `getProductByBarcode(barcode)` | `GET /sellers/{id}/product/{barcode}` | Barkod ile ürün sorgula |
+| `createProduct(product)` | `POST /sellers/{id}/v2/products` | **V2** ürün oluşturma (async, batchRequestId döner) |
+| `updateProduct(productId, product)` | `PUT /sellers/{id}/products/{productId}` | Onaylı ürün güncelleme |
+| `updateUnapprovedProduct(product)` | `POST /sellers/{id}/products/unapproved-bulk-update` | Onaysız ürün güncelleme |
+| `updatePriceAndInventory(items)` | `POST /sellers/{id}/products/price-and-inventory` | Toplu stok+fiyat güncelleme |
+| `updatePrice(productId, price)` | `POST /sellers/{id}/products/{productId}/price` | Tek ürün fiyat güncelleme |
+| `updateStock(productId, quantity)` | `PUT /sellers/{id}/products/{productId}/stock` | Tek ürün stok güncelleme |
+| `getBatchRequestResult(batchId)` | `GET /sellers/{id}/products/batch-requests/{batchId}` | Async batch sonucu sorgula |
+
+#### Order Metotları
+| Metot | Endpoint | Açıklama |
+|-------|----------|----------|
+| `getOrders({startDate, endDate, page, size, status, orderByField, orderByDirection})` | `GET /sellers/{id}/orders` | Sipariş paketlerini listele |
+| `getOrder(orderId)` | `GET /sellers/{id}/orders/{orderId}` | Tek sipariş detayı |
+| `updateOrderStatus(orderId, status)` | `PUT /sellers/{id}/orders/{orderId}/{action}` | Onayla/faturala/iptal et |
+| `cancelOrder(orderId, reason)` | `PUT /sellers/{id}/orders/{orderId}/cancel` | Sipariş iptal |
+| `updateTracking(orderId, trackingNumber, carrier)` | `PUT /sellers/{id}/orders/{orderId}/ship` | Kargo bilgisi gir |
+
+## Product Sync Flow (`packages/core/src/queues/index.ts`)
+
+### Push (Rahatio → Trendyol)
+
+```
+Frontend "Sync" butonu / Product create/update
+    → api-client.syncProduct()
+    → POST /api/admin/products/:id/sync
+    → BullMQ (product-sync queue)
+    → Sync Worker
+        ├─ existingListing?.externalId var mı?
+        │   ├─ EVET: batchRequestId mi? (UUID formatı)
+        │   │   ├─ EVET: Poll batch result
+        │   │   │   ├─ COMPLETED + SUCCESS → real productId al, listing'i güncelle
+        │   │   │   ├─ COMPLETED + FAILED → listing destroy, shouldCreate=true
+        │   │   │   └─ IN_PROGRESS / items=[] → batchRequestId saklanır, bir sonraki sync'te tekrar poll
+        │   │   └─ HAYIR (real productId): updateProduct() + updatePrice() + updateStock()
+        │   └─ YOK: shouldCreate = true
+        ├─ shouldCreate = true:
+        │   └─ createProduct (V2) → batchRequestId
+        │       └─ catch "recurring.create.not.allowed":
+        │           └─ strip {listPrice, salePrice, quantity, currencyType}
+        │           └─ updateUnapprovedProduct() (fallback)
+        └─ Batch polling (5 kez, 2sn aralık):
+            ├─ SUCCESS → real productId
+            ├─ FAILED → listing status='failed'
+            └─ timeout/IN_PROGRESS → batchRequestId externalId olarak kalır
+```
+
+**ÖNEMLİ**: External ID stratejisi:
+- Başarılı create → gerçek Trendyol product ID (numeric)
+- Batch hala işleniyor → batchRequestId (UUID)
+- Hata durumunda listing destroy edilir, bir sonraki sync'te tekrar dener
+
+### Import (Trendyol → Rahatio)
+
+```
+Frontend "Import Products" butonu
+    → POST /api/admin/integrations/:mp/import
+    → BullMQ (marketplace-import queue)
+    → Import Worker
+        ├─ getProducts(page) → onaylı ürünler
+        ├─ getApprovedProductsStockAndPrice(page) → stok+fiyat (merge edilir)
+        ├─ normalizeMarketplaceProduct() → Product.upsert
+        └─ ProductMarketplaceListing.upsert (externalId = barcode/stockCode)
+```
+
+### Product Mapper (`packages/core/src/marketplace/productMapper.ts`)
+
+`mapProductForTrendyol(product, integration)` → Trendyol V2 formatı:
+
+```json
+{
+  "barcode": "SKU-123",             // = product.sku
+  "title": "Ürün Adı",              // = product.title
+  "productMainId": "SKU-123",       // = product.sku
+  "brandId": 1976661,               // marketplaceConfig.trendyol.brandId
+  "categoryId": 900,                // marketplaceConfig.trendyol.categoryId
+  "quantity": 10,                   // = product.quantity
+  "stockCode": "SKU-123",           // = product.sku
+  "dimensionalWeight": 1,           // marketplaceConfig.trendyol.dimensionalWeight
+  "description": "...",
+  "currencyType": "TRY",
+  "listPrice": 300,
+  "salePrice": 300,
+  "vatRate": 10,                    // marketplaceConfig.trendyol.vatRate
+  "shipmentAddressId": 12345,       // SADECE >0 ise gönderilir
+  "returningAddressId": 12345,      // SADECE >0 ise gönderilir (v2 adı: returningAddressId)
+  "images": [{ "url": "..." }],
+  "attributes": [
+    { "attributeId": 338, "attributeValueId": 76662 },
+    { "attributeId": 346, "customAttributeValue": "Siyah" }
+  ]
+}
+```
+
+**Attribute formatı (V2)**:
+- `customValue` → `customAttributeValue` olarak gönderilir
+- Girişte hem `customValue` hem `customAttributeValue` okunur
+- `attributeValueIds: [1,2,3]` formatı henüz desteklenmiyor (TODO)
+
+**Skip koşulları**:
+- `categoryId` yok → `{ _skip: true, reason: 'Trendyol kategorisi atanmamış' }`
+- `brandId` yok → `{ _skip: true, reason: 'Trendyol marka ID atanmamış' }`
+
+## Sipariş Yönetimi (Order Flow)
+
+### Trendyol Sipariş Durumları
+
+```
+Created → Picking → Invoiced → Shipped → Delivered
+                                ↘ Cancelled
+```
+
+| # | Durum | Anlamı | Bizim Aksiyon |
+|---|-------|--------|---------------|
+| 1 | Created | Sipariş oluştu, ödeme onaylandı | approve (Picking'e çek) |
+| 2 | Picking | Hazırlanıyor | Hazırla, kargola |
+| 3 | Invoiced | Fatura kesildi | ship (kargo no gir) |
+| 4 | Shipped | Kargoda | Takip et |
+| 5 | Delivered | Teslim edildi | - |
+| 6 | Cancelled | İptal edildi | Stokları geri aç |
+
+### Trendyol API Sipariş Listeleme
+
+```
+GET /sellers/{supplierId}/orders
+  ?status=Created           // Durum filtresi
+  &startDate=1717000000000  // Timestamp (ms) - max 1 ay geri
+  &endDate=1717000000000    // Timestamp (ms)
+  &page=0                   // 0-indexed
+  &size=50                  // Max 200
+  &orderByField=PackageLastModifiedDate
+  &orderByDirection=DESC
+  &orderNumber=             // Belirli bir sipariş no
+```
+
+**Yanıt**: `{ shipmentPackages: [ { id, status, lines: [], orderNumber, ... } ] }`
+
+### Sipariş İşlem Akışı (Bizim Sistem)
+
+```
+TRENDYOL API                     │  RAHATIO SİSTEMİ
+                                 │
+  GET /orders?status=Created     →  Order Import Worker (periodic)
+    → shipmentPackages[]         →  DropshippingOrder.create (storeId, marketplaceOrderId)
+                                 │
+  Seller approves                →  PUT /api/admin/orders/:id/status → status=processing
+    → notifyIntegrationService   →  TrendyolClient.updateOrderStatus(orderId, 'Picking')
+    → PUT /orders/{id}/approve   →  Trendyol: Created → Picking
+                                 │
+  Seller ships                   →  PUT /api/admin/orders/:id/status → status=shipped
+    → PUT /api/admin/orders/:id/tracking
+    → notifyIntegrationService   →  TrendyolClient.updateTracking(orderId, trackingNo, carrier)
+    → PUT /orders/{id}/ship      →  Trendyol: Picking → Invoiced/Shipped
+                                 │
+  Seller cancels                 →  PUT /api/admin/orders/:id/status → status=cancelled
+    → notifyIntegrationService   →  TrendyolClient.cancelOrder(orderId, reason)
+    → PUT /orders/{id}/cancel    →  Trendyol: Cancelled
+```
+
+### Order Routes (`packages/core/src/modules/order/routes.ts`)
+
+| Metot | Path | Açıklama |
+|-------|------|----------|
+| GET | `/api/admin/orders` | Liste (pagination, status/marketplace filtresi) |
+| POST | `/api/admin/orders` | Manuel sipariş oluşturma (split by vendor) |
+| GET | `/api/admin/orders/:id` | Detay + status history + subOrders |
+| PUT | `/api/admin/orders/:id/status` | Durum güncelle (pending→confirmed→processing→shipped→delivered→cancelled) |
+| PUT | `/api/admin/orders/:id/tracking` | Kargo no + firma gir |
+| POST | `/api/admin/orders/bulk-status` | Toplu durum güncelleme |
+| GET | `/api/admin/orders/:id/history` | Status history |
+| DELETE | `/api/admin/orders/:id` | Sil |
+
+### DropshippingOrder Model
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| id | int (PK) | |
+| storeId | int (FK) | Multi-tenant |
+| parentOrderId | int? | Sub-order için parent |
+| orderNumber | string | ORD-{timestamp} |
+| marketplace | string | trendyol, n11, storefront vb. |
+| marketplaceOrderId | string | Trendyol shipmentPackage ID |
+| marketplaceOrderNumber | string | Trendyol orderNumber |
+| status | string | pending→confirmed→processing→shipped→delivered→cancelled→returned |
+| paymentMethod | string | stripe, bank_transfer, vb. |
+| paymentStatus | string | pending, awaiting, paid, failed, refunded |
+| totalAmount | float | |
+| currency | string | TRY, USD |
+| shippingAddress | JSON | { fullName, phone, city, district, address, zipCode } |
+| items | JSON[] | [{ sku, name, quantity, price, image }] |
+| trackingNumber | string | Kargo takip no |
+| carrier | string | Kargo firması |
+| notes | text | |
+
+## Webhook & Trendyol
+
+Trendyol, webhook ile sipariş durum değişikliklerini bildirebilir (CREATED, SHIPPED vb.). Henüz Trendyol webhook aboneliği eklenmedi.
+
+### Mevcut Webhook Endpoint'leri (Core'daki integration routes)
+
+```
+POST /api/admin/integrations/webhook/order   → DropshippingOrder.create
+POST /api/admin/integrations/webhook/stock   → Product.quantity update
+POST /api/admin/integrations/webhook/price   → Product.priceTRY update
+```
+
+### Trendyol Webhook API (Henüz implemente edilmedi)
+
+| Metot | Endpoint | Açıklama |
+|-------|----------|----------|
+| POST | `/sellers/{id}/webhooks` | Webhook oluştur |
+| GET | `/sellers/{id}/webhooks` | Webhook'ları listele |
+| PUT | `/sellers/{id}/webhooks/{id}` | Webhook güncelle |
+| DELETE | `/sellers/{id}/webhooks/{id}` | Webhook sil |
+| PUT | `/sellers/{id}/webhooks/{id}/activate` | Aktif et |
+| PUT | `/sellers/{id}/webhooks/{id}/deactivate` | Pasif et |
+
+## Known Issues & Çözümler
+
+| # | Sorun | Çözüm | Durum |
+|---|-------|-------|-------|
+| 1 | `shipmentAddressId:0` → "Adres bulunamadı" | Mapper'da `if (shipmentAddressId)` ile koşullu gönder | ✅ Düzeltildi |
+| 2 | `returnAddressId` → V2'de `returningAddressId` | Mapper'da field adı düzeltildi | ✅ Düzeltildi |
+| 3 | `cargoCompanyId` V2'de geçersiz | Mapper'dan çıkarıldı | ✅ Düzeltildi |
+| 4 | `getOrders()` product baseURL kullanıyor | `this.orderRequest` kullanacak şekilde düzeltildi | ✅ Düzeltildi |
+| 5 | `getOrder()` product baseURL kullanıyor | `this.orderRequest` kullanacak şekilde düzeltildi | ✅ Düzeltildi |
+| 6 | Batch polling'de `items: []` race condition | externalId=batchId olarak kalır, sonraki sync'te poll tekrar dener | ⚠️ Accept edildi |
+| 7 | "recurring.create.not.allowed" hatası | Fallback: updateUnapprovedProduct (price/stock alanları strip edilir) | ✅ Çözüldü |
+| 8 | Pazarama "Token bulunamadı" | Trendyol ile ilgili değil | ⏳ Bekliyor |
+| 9 | Stok import = 0 | `getApprovedProductsStockAndPrice` eklendi, import worker'da merge | ✅ Düzeltildi |
+| 10 | V2 attrs: `customValue` → `customAttributeValue` | Mapper output'ta değiştirildi, input'ta ikisi de okunur | ✅ Düzeltildi |
+| 11 | Trendyol webhook yönetimi | TrendyolClient'e webhook CRUD metotları eklenmedi | ⏳ Yapılacak |
+| 12 | Order import (periodic fetch) | Manuel sync var, otomatik periyodik yok | ⏳ Yapılacak |
+
+## Yeni Marketplace Ekleme (Trendyol referans alınarak)
+
+Her yeni marketplace için aynı pattern uygulanır. Trendyol'da olduğu gibi:
+
+1. **Client**: `packages/core/src/marketplace/clients/<mp>.ts` → TrendyolClient pattern'ini kopyala
+2. **Mapper**: `packages/core/src/marketplace/productMapper.ts` → `mapProductFor<MP>()`
+3. **Factory**: `packages/core/src/marketplace/clients/index.ts` → createMarketplaceClient + getMarketplaceConfig
+4. **Sync Worker**: `packages/core/src/queues/index.ts` → externalId stratejisi + batch varsa polling
+5. **Frontend**: `marketplaceOptions` array'ine ekle + kategori/marka yükleme
+6. **Order**: Varsa order endpoint'leri (getOrders, getOrder, updateOrderStatus, updateTracking)
+
+**ÖNEMLİ**: Trendyol dosyalarına (`trendyol.ts`, `productMapper.ts`'deki trendyol kısmı, `queues/index.ts`'deki trendyol kısımları) **dokunulmaz**. Yeni marketplace kendi client/mapper dosyasında implemente edilir, factory'ye eklenir.
+
+---
+
 ## Onay ve Başlangıç
 
 Bu plan onaylanırsa **Phase 0** ile başlarız (Monorepo scaffold + Core scaffold + Docker Compose).

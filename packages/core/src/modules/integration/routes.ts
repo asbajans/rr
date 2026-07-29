@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
-import { body, query, validationResult } from 'express-validator';
+import { body, query, param, validationResult } from 'express-validator';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { Product } from '../../models/Product.model.js';
 import { ProductMarketplaceListing } from '../../models/ProductMarketplaceListing.model.js';
+import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { Store } from '../../models/Store.model.js';
 import { IntegrationLog } from '../../models/LogModels.js';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { createSplitOrder } from '../order/orderSplit.js';
+import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
 import { Op } from 'sequelize';
 import { logger } from '../../utils/logger.js';
 
@@ -169,6 +171,115 @@ integrationRoutes.get('/logs', authMiddleware, requireStore, [
     res.json({ logs: rows, total: count });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Integration logs error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireStore, [
+  param('marketplace').isIn(['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy']),
+  body('startDate').optional().isString(),
+  body('endDate').optional().isString(),
+  body('status').optional().isString(),
+  body('maxPages').optional().isInt({ min: 1, max: 20 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { marketplace } = req.params;
+    const { startDate, endDate, status, maxPages: maxPagesBody } = req.body;
+    const maxPages = maxPagesBody || 5;
+
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace, isActive: true },
+    });
+    if (!integration) {
+      return res.status(400).json({ error: `${marketplace} entegrasyonu aktif değil` });
+    }
+
+    const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
+    const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
+
+    const imported: any[] = [];
+    let hasMore = true;
+    let page = 0;
+
+    const params: any = { size: 100 };
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    if (status) params.status = status;
+
+    while (hasMore && page < maxPages) {
+      params.page = page;
+      const packages = await client.getOrders(params);
+      if (!packages || packages.length === 0) break;
+
+      for (const pkg of packages) {
+        const marketplaceOrderId = String(pkg.id);
+        const existing = await DropshippingOrder.findOne({
+          where: { storeId: store.id, marketplaceOrderId, marketplace },
+        });
+        if (existing) continue;
+
+        const lines = pkg.lines || pkg.items || [];
+        const items = lines.map((l: any) => ({
+          sku: l.barcode || l.sku || '',
+          name: l.productName || l.title || l.name || '',
+          quantity: l.quantity || 1,
+          price: parseFloat(l.salePrice || l.price || 0),
+          image: l.imageUrl || '',
+        }));
+
+        const totalAmount = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+
+        const address = pkg.address || pkg.shippingAddress || {};
+        const shippingAddress = {
+          fullName: address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '',
+          phone: address.phone || address.phoneNumber || pkg.phone || '',
+          city: address.city || pkg.city || '',
+          district: address.district || pkg.district || '',
+          address: address.address || address.line || pkg.address || '',
+          zipCode: address.zipCode || '',
+        };
+
+        const orderNumber = pkg.orderNumber ? `TY-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
+        const statusMap: Record<string, string> = {
+          Created: 'pending', Picking: 'processing', Invoiced: 'processing',
+          Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
+          UnDelivered: 'cancelled', Returned: 'returned',
+        };
+
+        const order = await DropshippingOrder.create({
+          storeId: store.id,
+          orderNumber,
+          marketplace,
+          marketplaceOrderId,
+          marketplaceOrderNumber: String(pkg.orderNumber || ''),
+          totalAmount,
+          currency: 'TRY',
+          status: statusMap[pkg.status] || 'pending',
+          shippingAddress,
+          items,
+          paymentMethod: 'marketplace',
+          paymentStatus: pkg.status === 'Cancelled' ? 'failed' : 'paid',
+        } as any);
+
+        await OrderStatusHistory.create({
+          dropshippingOrderId: order.id,
+          fromStatus: 'none',
+          toStatus: order.status,
+          note: `Imported from ${marketplace}`,
+        });
+
+        imported.push({ id: order.id, orderNumber, status: order.status, marketplaceOrderId });
+      }
+
+      page++;
+      hasMore = packages.length >= 100;
+    }
+
+    logger.info({ marketplace, storeId: store.id, imported: imported.length }, 'Orders imported from marketplace');
+    res.json({ imported: imported.length, orders: imported });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Import orders error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

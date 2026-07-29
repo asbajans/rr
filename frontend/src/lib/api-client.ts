@@ -757,6 +757,10 @@ class ApiClient {
     return this.post<{ updated: number }>(`/api/admin/orders/bulk-status`, { ids, status, note })
   }
 
+  async importOrders(marketplace: string, options?: { startDate?: string; endDate?: string; status?: string; maxPages?: number }) {
+    return this.post<{ imported: number; orders: any[] }>(`/api/admin/integrations/${marketplace}/import-orders`, options || {})
+  }
+
   // Integration Webhooks
   webhookOrder(marketplace: string, payload: any) {
     return this.post<{ order: any; created: boolean }>(`/api/admin/integration/webhook/order`, { marketplace, payload })

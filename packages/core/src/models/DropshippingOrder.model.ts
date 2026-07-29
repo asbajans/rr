@@ -15,6 +15,7 @@ import {
   Index,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
+import { OrderStatusHistory } from './OrderStatusHistory.model.js';
 
 @Table({
   tableName: 'dropshipping_orders',
@@ -116,4 +117,7 @@ export class DropshippingOrder extends Model {
 
   @HasMany(() => DropshippingOrder, 'parentOrderId')
   declare subOrders: DropshippingOrder[];
+
+  @HasMany(() => OrderStatusHistory, { foreignKey: 'dropshippingOrderId', as: 'statusHistory' })
+  declare statusHistory: OrderStatusHistory[];
 }

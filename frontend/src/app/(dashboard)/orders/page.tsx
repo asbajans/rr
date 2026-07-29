@@ -41,6 +41,8 @@ export default function OrdersPage() {
   const [stats, setStats] = useState<{ status: string; label: string; color: string; count: number }[]>([])
   const [activeFilter, setActiveFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [importing, setImporting] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!user) return
@@ -58,14 +60,35 @@ export default function OrdersPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [user, activeFilter])
+  }, [user, activeFilter, reloadKey])
 
   if (!user) return null
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-zinc-900">Siparişler</h1>
-      <p className="mt-1 text-sm text-zinc-600">Tüm siparişlerini görüntüle ve yönet.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900">Siparişler</h1>
+          <p className="mt-1 text-sm text-zinc-600">Tüm siparişlerini görüntüle ve yönet.</p>
+        </div>
+        <button onClick={async () => {
+          const mp = prompt('Pazaryeri (trendyol / n11 / hepsiburada / pazarama / amazon / etsy):', 'trendyol')
+          if (!mp) return
+          setImporting(true)
+          try {
+            const r = await api.importOrders(mp, { maxPages: 5 })
+            alert(`${r.imported} sipariş içe aktarıldı`)
+            setReloadKey(k => k + 1)
+          } catch (e: any) {
+            alert(e.message || 'Hata')
+          } finally {
+            setImporting(false)
+          }
+        }} disabled={importing}
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+          {importing ? 'İçe aktarılıyor...' : 'Siparişleri İçe Aktar'}
+        </button>
+      </div>
 
       {/* Stats */}
       {stats.length > 0 && (
