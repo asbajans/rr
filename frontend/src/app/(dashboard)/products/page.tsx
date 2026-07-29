@@ -239,6 +239,13 @@ export default function ProductsPage() {
     })
     setCreating(false)
     setModalOpen(true)
+    if (p.marketplaces && p.marketplace_data) {
+      Object.entries(p.marketplace_data).forEach(([mp, md]: [string, any]) => {
+        if (md?.category_id && mp !== 'Kendi Sitem') {
+          loadCategoryAttrs(mp, md.category_id)
+        }
+      })
+    }
     if (product?.id) {
       api.getB2bSettings(product.id).then((b) => {
         const setting = (b && 'is_b2b_enabled' in b ? b : null) as { is_b2b_enabled?: boolean; b2b_discount?: number | null; b2b_price?: number | null } | null

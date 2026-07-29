@@ -113,7 +113,26 @@ export async function createImportWorker() {
           const products = result.products || [];
           hasMore = result.hasMore;
 
+          const stockMap = new Map<string, { quantity: number; salePrice: number }>();
+          if (marketplace === 'trendyol' && typeof (client as any).getApprovedProductsStockAndPrice === 'function') {
+            try {
+              const stockResult = await (client as any).getApprovedProductsStockAndPrice({ page, size: 50 });
+              for (const item of (stockResult.items || [])) {
+                if (item.barcode) {
+                  stockMap.set(item.barcode, { quantity: item.quantity ?? 0, salePrice: item.salePrice ?? 0 });
+                }
+              }
+            } catch {}
+          }
+
           for (const raw of products) {
+            if (stockMap.size && raw.barcode) {
+              const stockInfo = stockMap.get(raw.barcode);
+              if (stockInfo) {
+                raw.quantity = stockInfo.quantity;
+                if (stockInfo.salePrice > 0) raw.salePrice = stockInfo.salePrice;
+              }
+            }
             let mapped: any;
             try {
               mapped = mapMarketplaceProduct(marketplace, raw, storeId);

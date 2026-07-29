@@ -117,6 +117,16 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     return data;
   }
 
+  async getApprovedProductsStockAndPrice(params: { page?: number; size?: number } = {}): Promise<{ items: any[]; hasMore: boolean }> {
+    const { page = 0, size = 50 } = params;
+    const data = await this.request<any>({
+      method: 'GET',
+      url: `/sellers/${this.config.supplierId}/products/approved/inventory-and-price`,
+      params: { page, size },
+    });
+    return { items: data.content || [], hasMore: data.last ? false : true };
+  }
+
   async getCategoryAttributes(categoryId: number): Promise<any[]> {
     try {
       const path = `/product-categories/${categoryId}/attributes`;
