@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { DropshippingOrderDetail } from '@/lib/types'
-import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock } from 'lucide-react'
+import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock, ThumbsUp, Barcode } from 'lucide-react'
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: 'Beklemede', icon: <Clock className="h-5 w-5" />, color: 'bg-yellow-100 text-yellow-700' },
@@ -39,11 +39,20 @@ export default function OrderDetailPage() {
   const [trackingCompany, setTrackingCompany] = useState('')
   const [showTracking, setShowTracking] = useState(false)
   const [message, setMessage] = useState('')
+  const [labelUrl, setLabelUrl] = useState<string | null>(null)
+  const [labelZpl, setLabelZpl] = useState<string | null>(null)
+  const [cargoCompany, setCargoCompany] = useState<string | null>(null)
+  const [labelLoading, setLabelLoading] = useState(false)
 
   useEffect(() => {
     if (!id || !user) return
     api.getOrder(parseInt(id))
-      .then(r => setOrder(r.order))
+      .then(r => {
+        setOrder(r.order)
+        setLabelUrl(r.order.label_url || null)
+        setLabelZpl(r.order.label_zpl || null)
+        setCargoCompany(r.order.cargo_company || null)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [id, user])
@@ -60,6 +69,51 @@ export default function OrderDetailPage() {
       setMessage(err.message || 'Güncellenemedi')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  async function approveTrendyolOrder() {
+    setUpdating(true)
+    setMessage('')
+    try {
+      const updated = await api.approveTrendyolOrder(parseInt(id))
+      setOrder(updated.order)
+      setMessage('Sipariş işleme alındı')
+    } catch (err: any) {
+      setMessage(err.message || 'Onaylanamadı')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  async function downloadLabel() {
+    setLabelLoading(true)
+    try {
+      const result = await api.getOrderLabel(parseInt(id))
+      if (result.cargoCompany) setCargoCompany(result.cargoCompany)
+      if (result.labelZpl) {
+        setLabelZpl(result.labelZpl)
+        const blob = new Blob([result.labelZpl], { type: 'text/plain' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `label-${order?.external_id || id}.zpl`
+        a.click()
+        window.URL.revokeObjectURL(url)
+        setMessage('Kargo etiketi (ZPL) indiriliyor')
+      } else if (result.labelUrl) {
+        setLabelUrl(result.labelUrl)
+        window.open(result.labelUrl, '_blank')
+        setMessage('Kargo etiketi açıldı')
+      } else if (result.cargoCompany && !/TEX|Aras/i.test(result.cargoCompany)) {
+        setMessage(`Kargo firması (${result.cargoCompany}) için etiket Trendyol üzerinden alınamıyor. Kargo firmasından temin ediniz.`)
+      } else {
+        setMessage('Etiket bulunamadı. Önce siparişi işleme almayı deneyin.')
+      }
+    } catch (err: any) {
+      setMessage(err.message || 'Etiket alınamadı')
+    } finally {
+      setLabelLoading(false)
     }
   }
 
@@ -121,7 +175,61 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {nextStatuses.length > 0 && (
+            {/* Trendyol: İşleme Al */}
+            {order.marketplace === 'trendyol' && order.status === 'pending' && (
+              <div className="mt-6 border-t border-zinc-100 pt-4">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Trendyol Sipariş İşlemleri</p>
+                {cargoCompany && (
+                  <p className="mt-2 text-xs text-zinc-500">Kargo: <span className="font-medium text-zinc-700">{cargoCompany}</span></p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button onClick={approveTrendyolOrder} disabled={updating}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                    <ThumbsUp className="h-4 w-4" /> İşleme Al
+                  </button>
+                  <button onClick={downloadLabel} disabled={labelLoading}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
+                    <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-zinc-400">Siparişi işleme aldıktan sonra kargo takibi Trendyol ve kargo şirketi arasında otomatik güncellenir.</p>
+              </div>
+            )}
+
+            {/* Trendyol: işleme alındıktan sonra bilgi */}
+            {order.marketplace === 'trendyol' && order.status !== 'pending' && (
+              <div className="mt-6 border-t border-zinc-100 pt-4">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Trendyol Sipariş İşlemleri</p>
+                {cargoCompany && (
+                  <p className="mt-2 text-xs text-zinc-500">Kargo: <span className="font-medium text-zinc-700">{cargoCompany}</span></p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {labelZpl ? (
+                    <button onClick={downloadLabel}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                      <Barcode className="h-4 w-4" /> Kargo Etiketini İndir (ZPL)
+                    </button>
+                  ) : labelUrl ? (
+                    <a href={labelUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                      <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
+                    </a>
+                  ) : (
+                    <button onClick={downloadLabel} disabled={labelLoading}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
+                      <Barcode className="h-4 w-4" /> Kargo Etiketini İndir
+                    </button>
+                  )}
+                  {cargoCompany && !/TEX|Aras/i.test(cargoCompany) && (
+                    <p className="mt-2 text-xs text-amber-600">Kargo firması ({cargoCompany}) için etiket Trendyol üzerinden alınamaz. Lütfen kargo firmasından temin ediniz.</p>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-zinc-400">Sipariş durumu Trendyol tarafından otomatik güncellenir. Kargo takibi için Trendyol panelini kullanın.</p>
+              </div>
+            )}
+
+            {/* Non-Trendyol: status flow */}
+            {order.marketplace !== 'trendyol' && nextStatuses.length > 0 && (
               <div className="mt-6 border-t border-zinc-100 pt-4">
                 <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Durum Güncelle</p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -156,7 +264,8 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Tracking */}
+          {/* Tracking (sadece storefront ve non-Trendyol) */}
+          {order.marketplace !== 'trendyol' && (
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-semibold text-zinc-900">Kargo Takibi</h3>
             {order.tracking_number ? (
@@ -185,7 +294,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             )}
-          </div>
+          </div>)}
 
           {/* Status History */}
           {order.status_history && order.status_history.length > 0 && (

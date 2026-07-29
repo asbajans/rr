@@ -140,8 +140,10 @@ webhookRoutes.post('/order-updated', async (req: Request, res: Response) => {
   try {
     const { action, storeId, marketplace, externalId, value, lineIds } = req.body;
 
-    if (action === 'status') {
-      await orderPushQueue.add('push-status', { action: 'status', storeId, marketplace, externalId, value, lineIds });
+    if (action === 'approve') {
+      await orderPushQueue.add('push-status', { action: 'status', storeId, marketplace, externalId, value });
+      await orderNotifyQueue.add('notify-status', { type: 'status_changed', storeId, marketplace, orderId: externalId, newStatus: value });
+    } else if (action === 'status') {
       await orderNotifyQueue.add('notify-status', { type: 'status_changed', storeId, marketplace, orderId: externalId, newStatus: value });
     } else if (action === 'tracking') {
       await orderPushQueue.add('push-tracking', { action: 'tracking', storeId, marketplace, externalId, value });

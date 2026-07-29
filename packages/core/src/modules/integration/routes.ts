@@ -12,6 +12,7 @@ import { createSplitOrder } from '../order/orderSplit.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
 import { Op } from 'sequelize';
 import { logger } from '../../utils/logger.js';
+import { config } from '../../config/env.js';
 
 export const integrationRoutes: Router = Router();
 
@@ -28,6 +29,10 @@ integrationRoutes.post('/webhook/order', [
   body('marketplace').isIn(['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy']),
   body('payload').isObject(),
 ], validate, async (req: Request, res: Response) => {
+  const internalKey = req.headers['x-internal-key'] as string;
+  if (internalKey !== config.apiKey.internalKey) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const { marketplace, payload, storeId: topLevelStoreId } = req.body;
     const storeId = payload?.storeId || topLevelStoreId;
@@ -46,18 +51,32 @@ integrationRoutes.post('/webhook/order', [
 
     const marketplaceOrderId = payload.marketplaceOrderId || payload.id?.toString() || payload.orderId?.toString() || `${marketplace}_${Date.now()}`;
     const orderNumber = payload.orderNumber || payload.order_id || marketplaceOrderId || `ORD-${Date.now()}`;
-    const existing = await DropshippingOrder.findOne({
-      where: { marketplaceOrderId, marketplace },
-    });
-
-    if (existing) {
-      return res.json({ order: existing, created: false });
-    }
 
     const items = payload.items || payload.products || [];
     const totalAmount = payload.totalAmount || items.reduce((sum: number, item: any) => sum + ((item.price || item.unitPrice || 0) * (item.quantity || 1)), 0);
 
     const shippingAddress = payload.shippingAddress || payload.shipping_address || payload.address || {};
+    const payloadStatus = payload.status || 'pending';
+
+    const existing = await DropshippingOrder.findOne({
+      where: { marketplaceOrderId, marketplace },
+    });
+
+    if (existing) {
+      if (existing.status !== payloadStatus) {
+        const oldStatus = existing.status;
+        await existing.update({ status: payloadStatus, items, shippingAddress, totalAmount });
+        await OrderStatusHistory.create({
+          dropshippingOrderId: existing.id,
+          fromStatus: oldStatus,
+          toStatus: payloadStatus,
+          note: `Status synced from ${marketplace} webhook: ${oldStatus} -> ${payloadStatus}`,
+        });
+        logger.info(`Webhook order ${existing.id} status updated: ${oldStatus} -> ${payloadStatus}`);
+      }
+      return res.json({ order: existing, created: false });
+    }
+
     const { mainOrder, subOrders } = await createSplitOrder(
       store.id, marketplace, marketplaceOrderId,
       items, totalAmount, orderNumber,
@@ -217,7 +236,6 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
         const existing = await DropshippingOrder.findOne({
           where: { storeId: store.id, marketplaceOrderId, marketplace },
         });
-        if (existing) continue;
 
         const lines = pkg.lines || pkg.items || [];
         const items = lines.map((l: any) => ({
@@ -246,6 +264,22 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
           UnDelivered: 'cancelled', Returned: 'returned',
         };
+        const newStatus = statusMap[pkg.status] || 'pending';
+
+        if (existing) {
+          if (existing.status !== newStatus) {
+            const oldStatus = existing.status;
+            await existing.update({ status: newStatus, items, shippingAddress, totalAmount });
+            await OrderStatusHistory.create({
+              dropshippingOrderId: existing.id,
+              fromStatus: oldStatus,
+              toStatus: newStatus,
+              note: `Status synced from ${marketplace}: ${oldStatus} -> ${newStatus}`,
+            });
+            imported.push({ id: existing.id, orderNumber: existing.orderNumber, status: newStatus, marketplaceOrderId, updated: true });
+          }
+          continue;
+        }
 
         const order = await DropshippingOrder.create({
           storeId: store.id,
@@ -255,7 +289,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           marketplaceOrderNumber: String(pkg.orderNumber || ''),
           totalAmount,
           currency: 'TRY',
-          status: statusMap[pkg.status] || 'pending',
+          status: newStatus,
           shippingAddress,
           items,
           paymentMethod: 'marketplace',
@@ -269,7 +303,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           note: `Imported from ${marketplace}`,
         });
 
-        imported.push({ id: order.id, orderNumber, status: order.status, marketplaceOrderId });
+        imported.push({ id: order.id, orderNumber, status: order.status, marketplaceOrderId, updated: false });
       }
 
       page++;

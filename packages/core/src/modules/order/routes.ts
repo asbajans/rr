@@ -4,10 +4,12 @@ import { body, param, query, validationResult } from 'express-validator';
 import axios from 'axios';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
+import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { createSplitOrder } from './orderSplit.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/env.js';
+import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
 
 const INTEGRATION_SERVICE_URL = process.env.INTEGRATION_SERVICE_URL || 'http://localhost:3002';
 
@@ -151,7 +153,17 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
 
     logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
 
-    if (order.marketplace !== 'storefront') {
+    if (order.marketplace === 'trendyol') {
+      if (status === 'processing' && oldStatus === 'pending') {
+        notifyIntegrationService({
+          action: 'approve',
+          storeId: store.id,
+          marketplace: order.marketplace,
+          externalId: order.marketplaceOrderId,
+          value: status,
+        });
+      }
+    } else if (order.marketplace !== 'storefront') {
       notifyIntegrationService({
         action: 'status',
         storeId: store.id,
@@ -194,7 +206,7 @@ orderRoutes.put('/:id/tracking', authMiddleware, requireRole('owner', 'admin'), 
       note: `Tracking added: ${carrier} - ${trackingNumber}`,
     });
 
-    if (order.marketplace !== 'storefront') {
+    if (order.marketplace !== 'storefront' && order.marketplace !== 'trendyol') {
       notifyIntegrationService({
         action: 'tracking',
         storeId: store.id,
@@ -265,6 +277,48 @@ orderRoutes.post('/bulk-status', authMiddleware, requireRole('owner', 'admin'), 
     res.json({ success: true, updated: orders.length });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Bulk order status error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+orderRoutes.get('/:id/label', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.marketplace === 'trendyol') {
+      const integration = await MarketplaceIntegration.findOne({
+        where: { storeId: store.id, marketplace: 'trendyol', isActive: true },
+      });
+      if (integration) {
+        const mpConfig = getMarketplaceConfig('trendyol' as MarketplaceType, integration);
+        const client = createMarketplaceClient('trendyol' as MarketplaceType, mpConfig) as any;
+        const label = await (client as any).getOrderLabel(order.marketplaceOrderId);
+        if (label) {
+          const updateData: any = {};
+          if (label.labelUrl) updateData.labelUrl = label.labelUrl;
+          if (label.labelZpl) updateData.labelZpl = label.labelZpl;
+          if (label.cargoCompany) updateData.cargoCompany = label.cargoCompany;
+          if (Object.keys(updateData).length > 0) await order.update(updateData);
+          return res.json({
+            labelUrl: label.labelUrl || null,
+            labelZpl: label.labelZpl || null,
+            cargoCompany: label.cargoCompany || null,
+          });
+        }
+      }
+    }
+
+    res.json({
+      labelUrl: order.get('labelUrl') || null,
+      labelZpl: order.get('labelZpl') || null,
+      cargoCompany: order.get('cargoCompany') || null,
+    });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get order label error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

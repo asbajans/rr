@@ -89,6 +89,22 @@ export class DropshippingOrder extends Model {
   declare carrier: string;
 
   @AllowNull(true)
+  @Column(DataType.STRING(500))
+  declare invoiceUrl: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(500))
+  declare labelUrl: string;
+
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare labelZpl: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(100))
+  declare cargoCompany: string;
+
+  @AllowNull(true)
   @Column(DataType.STRING(50))
   declare paymentMethod: string;
 

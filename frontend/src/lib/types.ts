@@ -382,6 +382,10 @@ export type DropshippingOrderDetail = DropshippingOrder & {
   note: string | null
   parent_order_id?: number | null
   sub_orders?: DropshippingOrderDetail[]
+  invoice_url?: string | null
+  label_url?: string | null
+  label_zpl?: string | null
+  cargo_company?: string | null
   status_history: {
     id: number
     from_status: string | null

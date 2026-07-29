@@ -126,6 +126,10 @@ function mapOrder(o: any): any {
     payment_status: o.paymentStatus ?? o.payment_status,
     parent_order_id: o.parentOrderId ?? o.parent_order_id,
     sub_orders: (o.subOrders || []).map((s: any) => ({ ...s, id: Number(s.id) })),
+    invoice_url: o.invoiceUrl ?? o.invoice_url,
+    label_url: o.labelUrl ?? o.label_url,
+    label_zpl: o.labelZpl ?? o.label_zpl,
+    cargo_company: o.cargoCompany ?? o.cargo_company,
   }
 }
 
@@ -747,6 +751,14 @@ class ApiClient {
 
   updateOrderTracking(id: number, trackingNumber: string, carrier?: string) {
     return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/tracking`, { trackingNumber, carrier })
+  }
+
+  async approveTrendyolOrder(id: number) {
+    return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/status`, { status: 'processing', note: 'Trendyol order approved' })
+  }
+
+  async getOrderLabel(id: number) {
+    return this.get<{ labelUrl: string | null; labelZpl: string | null; cargoCompany: string | null }>(`/api/admin/orders/${id}/label`)
   }
 
   getOrderHistory(id: number) {

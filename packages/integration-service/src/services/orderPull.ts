@@ -51,12 +51,13 @@ export async function pullOrdersForIntegration(
       for (const raw of rawOrders) {
         try {
           const normalized = mapMarketplaceOrder(integration.marketplace, raw);
-          const response = await CORE_CLIENT.post('/api/admin/integration/webhook/order', {
+          const payload = {
             marketplace: integration.marketplace,
             storeId: integration.storeId,
             payload: {
               marketplaceOrderId: normalized.marketplaceOrderId,
               marketplaceOrderNumber: normalized.marketplaceOrderNumber,
+              status: normalized.status,
               items: normalized.items.map((i) => ({
                 sku: i.sku,
                 name: i.name,
@@ -76,9 +77,10 @@ export async function pullOrdersForIntegration(
               createdAt: normalized.createdAt,
               rawPayload: normalized.rawPayload,
             },
-          });
+          };
+          const response = await CORE_CLIENT.post('/api/admin/integration/webhook/order', payload);
           if (response.data?.created === false) {
-            logger.debug({ marketplace: integration.marketplace, orderId: normalized.marketplaceOrderId }, 'Order already exists, skipping');
+            imported++;
           } else {
             imported++;
             await orderNotifyQueue.add('notify-new-order', {

@@ -43,12 +43,25 @@ export async function pushOrderStatus(
     }
 
     const client = createMarketplaceClient(marketplace, integration.config);
+
+    if (marketplace === 'trendyol') {
+      await client.approveOrder(externalId);
+      await CORE_CLIENT.post('/api/admin/integration/logs', {
+        marketplace,
+        storeId,
+        action: 'approve_order',
+        endpoint: `trendyol/order/approve`,
+        isSuccess: true,
+        requestPayload: { externalId },
+        responsePayload: { success: true },
+      });
+      return { success: true };
+    }
+
     const mpStatus = INTERNAL_STATUS_TO_MARKETPLACE[marketplace]?.[newStatus] || newStatus;
 
     if (marketplace === 'n11' && lineIds && lineIds.length > 0) {
       await client.updateOrderStatus(lineIds, mpStatus);
-    } else if (marketplace === 'trendyol') {
-      await client.updateOrderStatus(externalId, mpStatus);
     } else if (marketplace === 'hepsiburada') {
       const headers = { Authorization: `Basic ${Buffer.from(`${integration.config.username}:${integration.config.password}`).toString('base64')}` };
       await axios.put(

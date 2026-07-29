@@ -40,22 +40,40 @@ export class TrendyolClient {
     return data.content || [];
   }
 
+  async getOrdersV2(params: any = {}): Promise<{ content: any[]; last: boolean; totalElements: number }> {
+    const { data } = await this.orderClient.get(`/sellers/${this.supplierId}/v2/orders`, { params });
+    return { content: data.content || [], last: data.last !== false, totalElements: data.totalElements || 0 };
+  }
+
   async getOrder(orderId: string): Promise<any> {
     const { data } = await this.orderClient.get(`/sellers/${this.supplierId}/orders/${orderId}`);
     return data;
   }
 
+  async getOrderByPackageId(packageId: string): Promise<any> {
+    const { data } = await this.orderClient.get(`/sellers/${this.supplierId}/shipment-packages/${packageId}`);
+    return data;
+  }
+
+  async updatePackageStatus(packageId: string, status: string, lines: Array<{ lineId: number; quantity: number }>): Promise<any> {
+    const { data } = await this.orderClient.put(`/sellers/${this.supplierId}/shipment-packages/${packageId}`, { status, lines });
+    return data;
+  }
+
+  async approveOrder(packageId: string): Promise<any> {
+    const pkg = await this.getOrderByPackageId(packageId);
+    const lines = (pkg?.lines || []).map((line: any) => ({
+      lineId: line.id,
+      quantity: line.quantity || 1,
+    }));
+    return this.updatePackageStatus(packageId, 'Picking', lines);
+  }
+
   async updateOrderStatus(orderId: string, status: string): Promise<any> {
     if (status === 'approved' || status === 'Picking') {
-      const { data } = await this.orderClient.put(`/sellers/${this.supplierId}/orders/${orderId}/approve`);
-      return data;
+      return this.approveOrder(orderId);
     }
-    if (status === 'shipped' || status === 'Invoiced') {
-      const { data } = await this.orderClient.put(`/sellers/${this.supplierId}/orders/${orderId}/invoice`);
-      return data;
-    }
-    const { data } = await this.orderClient.put(`/sellers/${this.supplierId}/orders/${orderId}`, { status });
-    return data;
+    throw new Error(`Trendyol does not support manual status change to '${status}'. Use approveOrder for Picking.`);
   }
 
   async updateTracking(orderId: string, trackingNumber: string, carrier: string): Promise<any> {
@@ -64,6 +82,44 @@ export class TrendyolClient {
       cargoCompany: carrier,
     });
     return data;
+  }
+
+  async createCommonLabel(packageIds: string[]): Promise<any> {
+    const { data } = await this.orderClient.post(`/sellers/${this.supplierId}/common-labels`, { packageIds });
+    return data;
+  }
+
+  async getCommonLabel(eccode: string): Promise<string> {
+    const response = await this.orderClient.get(`/sellers/${this.supplierId}/common-labels/${eccode}`, {
+      responseType: 'text',
+    });
+    return response.data;
+  }
+
+  async getOrderLabel(packageId: string): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
+    try {
+      const data = await this.getOrderByPackageId(packageId);
+      const cargoCompany = data?.cargoCompany || data?.cargoCompanyName || '';
+      const isTexAras = /TEX|Aras/i.test(cargoCompany);
+
+      if (isTexAras) {
+        try {
+          const labelResult = await this.createCommonLabel([packageId]);
+          const eccode = labelResult?.eccode;
+          if (eccode) {
+            const zpl = await this.getCommonLabel(eccode);
+            if (zpl) return { labelZpl: zpl, cargoCompany };
+          }
+        } catch {}
+      }
+
+      const labelUrl = data?.shipmentLabel || data?.labelUrl || data?.invoiceUrl;
+      if (labelUrl) return { labelUrl, cargoCompany };
+
+      return { cargoCompany };
+    } catch {
+      return null;
+    }
   }
 }
 
