@@ -53,11 +53,10 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
   const categoryId = Number(rawCategoryId);
   if (!categoryId) return { _skip: true, reason: 'Trendyol kategori ID geçersiz' };
 
-  const cargoCompanyId = Number(entry.cargoCompanyId || intConfig.cargoCompanyId || 0);
   const shipmentAddressId = Number(entry.shipmentAddressId || intConfig.shipmentAddressId || 0);
-  const returnAddressId = Number(entry.returnAddressId || intConfig.returnAddressId || 0);
+  const returningAddressId = Number(entry.returnAddressId || entry.returningAddressId || intConfig.returnAddressId || intConfig.returningAddressId || 0);
 
-  return {
+  const result: Record<string, any> = {
     barcode: product.sku || '',
     title: product.title,
     productMainId: product.sku,
@@ -71,12 +70,14 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
     listPrice: Number(price),
     salePrice: Number(price),
     vatRate: Number(entry.vatRate ?? intConfig.vatRate ?? 10),
-    cargoCompanyId,
-    shipmentAddressId,
-    returnAddressId,
     images,
     attributes: attrs,
   };
+
+  if (shipmentAddressId) result.shipmentAddressId = shipmentAddressId;
+  if (returningAddressId) result.returningAddressId = returningAddressId;
+
+  return result;
 }
 
 export function mapProductForN11(product: any, integration: any): Record<string, any> {

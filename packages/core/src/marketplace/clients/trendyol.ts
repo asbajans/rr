@@ -21,9 +21,8 @@ interface TrendyolProduct {
   listPrice: number;
   salePrice: number;
   vatRate: number;
-  cargoCompanyId: number;
-  shipmentAddressId: number;
-  returnAddressId: number;
+  shipmentAddressId?: number;
+  returningAddressId?: number;
   images: Array<{ url: string }>;
   attributes: Array<{ attributeId: number; attributeValueId: number }>;
 }
