@@ -13,6 +13,7 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   private authClient: AxiosInstance;
   private bearerToken: string | null = null;
   private tokenExpiry: number = 0;
+  private useApiKeyAuth: boolean = false;
 
   constructor(config: PazaramaConfig) {
     super('https://isortagimapi.pazarama.com');
@@ -26,31 +27,39 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   }
 
   private async ensureToken(): Promise<string> {
+    if (this.useApiKeyAuth) return '';
     if (this.bearerToken && Date.now() < this.tokenExpiry) return this.bearerToken;
 
-    const response = await this.authClient.post('', new URLSearchParams({
-      grant_type: 'client_credentials',
-      scope: 'merchantgatewayapi.fullaccess',
-    }), {
-      auth: { username: this.config.clientId, password: this.config.clientSecret },
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+    try {
+      const response = await this.authClient.post('', new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'merchantgatewayapi.fullaccess',
+      }), {
+        auth: { username: this.config.clientId, password: this.config.clientSecret },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
 
-    const body = response.data;
+      const body = response.data;
 
-    // Pazarama wraps OAuth2 response in { success, data: { accessToken, expiresIn } }
-    if (body?.success === true && body?.data?.accessToken) {
-      this.bearerToken = body.data.accessToken;
-      this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
-    } else if (body?.access_token) {
-      // Standard OAuth2 fallback
-      this.bearerToken = body.access_token;
-      this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
-    } else {
-      throw new Error('Pazarama auth failed: unexpected response format');
+      if (body?.success === true && body?.data?.accessToken) {
+        this.bearerToken = body.data.accessToken;
+        this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
+      } else if (body?.access_token) {
+        this.bearerToken = body.access_token;
+        this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
+      } else {
+        throw new Error('unexpected response format');
+      }
+
+      return this.bearerToken!;
+    } catch (err: any) {
+      if (err?.response?.status === 400 || err?.response?.status === 401) {
+        logger.warn('[pazarama] OAuth2 failed, falling back to API key header auth');
+        this.useApiKeyAuth = true;
+        return '';
+      }
+      throw err;
     }
-
-    return this.bearerToken!;
   }
 
   private async requestWithAuth<T>(method: string, path: string, opts?: {
@@ -61,7 +70,13 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     const headers: Record<string, string> = {};
     if (!opts?.noAuth) {
       const token = await this.ensureToken();
-      headers['Authorization'] = `Bearer ${token}`;
+      if (this.useApiKeyAuth) {
+        headers['clientId'] = this.config.clientId;
+        headers['clientSecret'] = this.config.clientSecret;
+        headers['apiKey'] = this.config.apiKey;
+      } else if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     const response = await this.client.request<T>({
