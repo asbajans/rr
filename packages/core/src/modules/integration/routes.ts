@@ -234,7 +234,28 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
       const packages = await client.getOrders(params);
       if (!packages || packages.length === 0) break;
 
-      for (const pkg of packages) {
+      for (let pkg of packages) {
+        // Pazarama-specific normalization: map raw API fields to common format
+        if (marketplace === 'pazarama') {
+          const c = pkg.customer || {};
+          const sa = pkg.shippingAddress || {};
+          pkg = {
+            ...pkg,
+            id: pkg.id || pkg.orderId,
+            lines: pkg.items || pkg.lines || pkg.orderItems || [],
+            customerfullName: c.name || c.fullName || '',
+            gsm: c.phone || c.gsm || '',
+            customerEmail: c.email || '',
+            address: sa.address || sa.line || pkg.address || '',
+            city: sa.city || pkg.city || '',
+            district: sa.district || pkg.district || '',
+            neighborhood: sa.neighborhood || '',
+            cargoTrackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || pkg.cargoTrackingCode || '',
+            cargoProviderName: pkg.cargoProviderName || pkg.carrier || pkg.cargoCompany || '',
+            orderNumber: pkg.orderNumber || '',
+          };
+        }
+
         const marketplaceOrderId = String(pkg.id);
         const existing = await DropshippingOrder.findOne({
           where: { storeId: store.id, marketplaceOrderId, marketplace },
@@ -242,10 +263,10 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
 
         const lines = pkg.lines || pkg.items || [];
         const items = lines.map((l: any) => ({
-          sku: l.barcode || l.sku || l.stockCode || '',
+          sku: l.barcode || l.sku || l.stockCode || l.productCode || '',
           name: l.productName || l.title || l.name || '',
           quantity: l.quantity || 1,
-          price: parseFloat(l.salePrice || l.price || 0),
+          price: parseFloat(l.salePrice || l.price || l.unitPrice || 0),
           image: l.imageUrl || '',
           variantAttributes: l.variantAttributes || [],
           orderLineId: l.orderLineId || l.id,
@@ -267,12 +288,15 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           zipCode: address.zipCode || address.postalCode || '',
         };
 
-        const orderNumber = pkg.orderNumber ? `TY-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
+        const orderNumber = pkg.orderNumber ? `PZ-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
         const statusMap: Record<string, string> = {
           Created: 'pending', Picking: 'processing', Invoiced: 'processing',
           Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
           UnDelivered: 'cancelled', Returned: 'returned',
           UnPacked: 'processing', UnSupplied: 'cancelled',
+          siparis_alindi: 'pending', hazirlaniyor: 'processing',
+          kargoya_verildi: 'shipped', teslim_edildi: 'delivered',
+          iptal_edildi: 'cancelled', iade_edildi: 'returned',
         };
         const newStatus = statusMap[pkg.status] || 'pending';
 
@@ -308,7 +332,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
           carrier: pkg.cargoProviderName || pkg.carrier || '',
           paymentMethod: 'marketplace',
-          paymentStatus: pkg.status === 'Cancelled' ? 'failed' : 'paid',
+          paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
         } as any);
 
         await OrderStatusHistory.create({
