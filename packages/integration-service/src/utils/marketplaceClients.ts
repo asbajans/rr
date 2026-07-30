@@ -192,31 +192,58 @@ export class HepsiburadaClient {
 
 export class PazaramaClient {
   private client: AxiosInstance;
+  private authClient: AxiosInstance;
   private config: { clientId: string; clientSecret: string; apiKey: string };
+  private bearerToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor(config: { clientId: string; clientSecret: string; apiKey: string }) {
     this.config = config;
-    this.client = createAxios('https://api.pazarama.com');
+    this.client = createAxios('https://isortagimapi.pazarama.com');
+    this.authClient = axios.create({ baseURL: 'https://isortagimgiris.pazarama.com/connect/token', timeout: 15000 });
+  }
+
+  private async ensureToken(): Promise<string> {
+    if (this.bearerToken && Date.now() < this.tokenExpiry) return this.bearerToken;
+    const res = await this.authClient.post('', new URLSearchParams({
+      grant_type: 'client_credentials',
+      scope: 'merchantgatewayapi.fullaccess',
+    }), {
+      auth: { username: this.config.clientId, password: this.config.clientSecret },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    const body = res.data;
+    if (body?.success === true && body?.data?.accessToken) {
+      this.bearerToken = body.data.accessToken;
+      this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
+    } else if (body?.access_token) {
+      this.bearerToken = body.access_token;
+      this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
+    } else throw new Error('Pazarama auth failed');
+    return this.bearerToken!;
   }
 
   private async authHeaders(): Promise<Record<string, string>> {
-    return {
-      clientId: this.config.clientId,
-      clientSecret: this.config.clientSecret,
-      apiKey: this.config.apiKey,
-    };
+    const token = await this.ensureToken();
+    return { Authorization: `Bearer ${token}` };
   }
 
   async getOrders(params: any = {}): Promise<any[]> {
     const headers = await this.authHeaders();
-    const { data } = await this.client.get('/order/getOrders', { params, headers });
+    const body = {
+      StartDate: params.startDate || new Date(Date.now() - 30 * 86400000).toISOString(),
+      EndDate: params.endDate || new Date().toISOString(),
+      Page: params.page != null ? params.page + 1 : 1,
+      Size: Math.min(params.size || 100, 100),
+    };
+    const { data } = await this.client.post('/order/getOrdersForApi', body, { headers });
     return data?.data || [];
   }
 
   async getOrder(orderId: string): Promise<any> {
     const headers = await this.authHeaders();
     const { data } = await this.client.get(`/order/getOrder/${orderId}`, { headers });
-    return data;
+    return data?.data || data;
   }
 }
 

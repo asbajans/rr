@@ -65,7 +65,7 @@ function getExternalId(mp: string, raw: any): string {
   switch (mp) {
     case 'trendyol': return raw.barcode || raw.stockCode || '';
     case 'hepsiburada': return raw.merchantSku || raw.barcode || '';
-    case 'pazarama': return raw.barcode || raw.sku || '';
+    case 'pazarama': return raw.code || raw.Code || raw.barcode || raw.sku || '';
     case 'n11': return raw.stockCode || raw.n11ProductId?.toString() || '';
     case 'amazon': return raw.asin || raw.sellerSKU || raw.sku || '';
     case 'etsy': return raw.listing_id?.toString() || raw.sku || '';
@@ -520,6 +520,7 @@ export async function createSyncWorker() {
 
             const isTrendyol = mp === 'trendyol';
             const isN11 = mp === 'n11';
+            const isPazarama = mp === 'pazarama';
 
             let externalId = '';
             if (isTrendyol) {
@@ -552,6 +553,38 @@ export async function createSyncWorker() {
                   } catch {}
                 }
                 if (!externalId) externalId = batchId;
+              }
+            } else if (isPazarama) {
+              // Pazarama product create returns batchRequestId in data
+              const batchId = listingResult?.data?.batchRequestId
+                || listingResult?.batchRequestId
+                || listingResult?.batchId
+                || '';
+              if (batchId) {
+                for (let i = 0; i < 5; i++) {
+                  await new Promise(r => setTimeout(r, 2000));
+                  try {
+                    const batchResult = await (client as any).getProductBatchResult(batchId);
+                    const batchData = batchResult?.data || batchResult;
+                    if (batchData?.status === 'completed' || batchData?.status === 'success') {
+                      externalId = batchData.code || product.sku;
+                      break;
+                    } else if (batchData?.status === 'failed') {
+                      await ProductMarketplaceListing.upsert({
+                        productId: product.id, storeId, platform: mp,
+                        externalId: null, status: 'failed',
+                        lastError: batchData.message || 'Pazarama batch failed',
+                        lastSyncedAt: new Date(),
+                      } as any);
+                      results[mp] = { success: false, reason: `Pazarama batch failed: ${batchData.message}` };
+                      externalId = 'failed';
+                      break;
+                    }
+                  } catch {}
+                }
+                if (!externalId) externalId = batchId;
+              } else {
+                externalId = product.sku;
               }
             } else if (isN11) {
               externalId = product.sku;

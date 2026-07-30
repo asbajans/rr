@@ -210,7 +210,7 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
             logger.error({ err: n11Err.message, orderId: order.id }, 'Failed to approve N11 order');
           }
         }
-      } else if (order.marketplace !== 'storefront') {
+      } else if (order.marketplace !== 'storefront' && order.marketplace !== 'pazarama') {
         notifyIntegrationService({
           action: 'status',
           storeId: store.id,

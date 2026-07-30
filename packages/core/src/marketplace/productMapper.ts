@@ -157,22 +157,37 @@ export function mapProductForHepsiburada(product: any, integration: any): Record
 export function mapProductForPazarama(product: any, integration: any): Record<string, any> {
   const entry = getMarketplaceEntry(product, 'pazarama');
   const price = product.priceTRY ?? product.priceUSD ?? 0;
-  const images = Array.isArray(product.images) ? product.images.map((u: any) => typeof u === 'string' ? u : (u.url || u)).filter(Boolean) : [];
+  const images = Array.isArray(product.images) ? product.images.map((u: any) => {
+    const url = typeof u === 'string' ? u : (u.url || u);
+    if (!url) return null;
+    return { imageurl: url.replace(/^http:\/\//i, 'https://') };
+  }).filter((i: any) => i?.imageurl) : [];
+
+  const attrs: any[] = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => ({
+    attributeId: Number(a.attributeId || a.id),
+    attributeValueId: a.attributeValueId || a.valueId || null,
+  })).filter((a: any) => a.attributeId) : [];
+
+  const validVat = [0, 1, 10, 20];
+  const vatRate = validVat.includes(Number(entry.vatRate ?? 10)) ? Number(entry.vatRate ?? 10) : 10;
 
   return {
-    barcode: product.sku,
-    productName: product.title,
-    description: product.description || '',
-    categoryId: Number(entry.categoryId || entry.category_id || 0),
-    salePrice: Number(price),
-    listPrice: Number(price),
-    quantity: Number(product.quantity ?? 0),
+    Name: product.title,
+    DisplayName: product.title,
+    Description: product.description || '',
+    BrandId: Number(entry.brandId || entry.brand_id || 0),
+    Desi: Number(entry.desi || entry.dimensionalWeight || 1),
+    Code: product.sku,
+    GroupCode: entry.groupCode || product.mainSku || product.sku,
+    StockCount: Number(product.quantity ?? 0),
+    VatRate: vatRate,
+    ListPrice: Number(price),
+    SalePrice: Number(price),
+    CategoryId: Number(entry.categoryId || entry.category_id || 0),
+    images,
+    attributes: attrs,
     cargoCompanyId: Number(entry.cargoCompanyId || 0),
     dispatchDuration: Number(entry.dispatchDuration ?? 3),
-    vatRate: Number(entry.vatRate ?? 10),
-    images,
-    attributes: entry.attributes || [],
-    brand: entry.brand || '',
   };
 }
 

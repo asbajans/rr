@@ -705,10 +705,24 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [ ] recommend (cross-sell / up-sell önerileri)
 
 #### Sipariş & Diğer
-- [ ] Dropshipping Order (create, status, tracking, history, split by vendor)
-- [ ] Express Checkout (address, payment methods, cart)
-- [ ] XML Feed (import wizard, mapping, auto-sync)
-- [ ] Store Location, Payment Methods, Shipping
+- [x] Dropshipping Order (create, status, tracking, history, split by vendor)
+- [x] Express Checkout (address, payment methods, cart)
+- [x] XML Feed (import wizard, mapping, auto-sync)
+- [x] Store Location, Payment Methods, Shipping
+
+### Order Page & N11/Pazarama Integration ✅ TAMAMLANDI
+- [x] Order list page full rewrite with marketplace tabs (Tüm Siparişler, Trendyol, N11, HB, Pazarama, Amazon, Etsy), per-tab import, import-all button
+- [x] Import-all endpoint: `POST /api/admin/integration/import-all` + frontend `importAllOrders()`
+- [x] Customer name display fix: `customerName`/`customerEmail`/`customerPhone` columns now properly populated on order import; backfill SQL for existing orders
+- [x] N11 order integration complete: field mapping (`customerfullName`, `gsm`, `stockCode`, `orderLineId`, cargo fields, `UnPacked`/`UnSupplied` statuses), approve flow with lineIds
+- [x] N11 product sync fixes: `getExternalId` uses `stockCode`; mapper sends `status`, HTTPS images, validated `vatRate`, `maxPurchaseQuantity`; create uses `ensureHttps`+`validateVatRate`; update only sends allowed fields
+- [x] Pazarama client full rewrite (`packages/core/src/marketplace/clients/pazarama.ts`): OAuth2 auth with `{success, data: {accessToken}}` flow; `getBrands()`, `getCategoryWithAttributes()`, `getCities()`, `getSellerDeliveries()`, `getProductBatchResult()`, `updatePrices()`, `updateStocks()`; product create/update with PascalCase fields + `images[].imageurl` + `attributes[].attributeId/valueId`; order list via `POST /order/getOrdersForApi`
+- [x] Pazarama product mapper updated: PascalCase fields (`Name`, `DisplayName`, `BrandId`, `Code`, `StockCount`, `CategoryId`, `ListPrice`, `SalePrice`, `Desi`); HTTPS images; validated attribute/vat formats
+- [x] Pazarama batch polling in `queues/index.ts`: 5-retry loop calling `getProductBatchResult`; externalId from `result.code` or `product.sku`
+- [x] Order detail page (`[id]/page.tsx`): fully enriched (date, customer, payment, ZPL/cargo check, B2B badge, parent link, split info, raw data toggle)
+- [x] Trendyol approve flow: `updatePackageStatus()` via `PUT /shipment-packages/{packageId}` instead of deprecated approve endpoint; ZPL label flow via `createCommonLabel`+`getCommonLabel`
+- [x] B2B sub-order handling: sub-orders use parent's `marketplaceOrderId` (not synthetic); labels via parent store's integration; only main order pushes to marketplace; status propagates parent→subs
+- [x] Integration-service PazaramaClient updated: correct `https://isortagimapi.pazarama.com` base URL, OAuth2 auth with token caching, order list via `POST /order/getOrdersForApi`
 
 ### Phase 12 — Frontend & Mobile Entegrasyon (1 hafta)
 - [ ] Frontend: Tüm sayfalar yeni API'ye bağla
@@ -881,12 +895,33 @@ mapProductForHepsiburada(product, integration) → {
 ### Pazarama
 ```
 mapProductForPazarama(product, integration) → {
-  barcode, productName, description, categoryId,
-  salePrice, listPrice, quantity, cargoCompanyId,
-  dispatchDuration: 3, vatRate: 10, images,
-  attributes, brand
+  Name, DisplayName, Description, BrandId, Code,
+  StockCount, VatRate, ListPrice, SalePrice, CategoryId,
+  Desi, GroupCode, images: [{ imageurl }],
+  attributes: [{ attributeId, attributeValueId }]
 }
 ```
+
+| Alan | Kaynak | Zorunlu |
+|------|--------|---------|
+| `BrandId` | `entry.brandId` | ✅ |
+| `CategoryId` | `entry.categoryId` | ✅ |
+| `StockCount` | `product.quantity` | ✅ |
+| `images[].imageurl` | `imageUrl` → `ensureHttps()` | ✅ |
+| `attributes[].attributeId/attributeValueId` | `entry.attributes` | Opsiyonel |
+| `VatRate` | `entry.vatRate` | ✅ (validated via `validateVatRate()`) |
+
+`BrandId` veya `CategoryId` yoksa → `{ _skip: true, reason: '...' }`.
+
+**Pazarama Product API**:
+- **Base**: `https://isortagimapi.pazarama.com`
+- **Create**: `POST /product/CreateProduct` (async, returns `batchRequestId`)
+- **Update**: `POST /product/UpdateProductAndStockByCode` (sync)
+- **Batch result**: `GET /product/getProductBatchResult?BatchRequestId=...`
+- **Auth**: OAuth2 via `POST https://isortagimgiris.pazarama.com/connect/token` with `grant_type=client_credentials`; response `{success: true, data: {accessToken, expiresIn}}`
+- **Pricing/Stock update**: `POST /product/updatePrices` and `POST /product/updateStocks`
+- **Order list**: `POST /order/getOrdersForApi` with `{StartDate, EndDate, Page, Size}`
+- **No order status push**: Pazarama does not support order status/tracking push via API
 
 ### Amazon
 ```
@@ -1234,11 +1269,13 @@ POST /api/admin/integrations/webhook/price   → Product.priceTRY update
 | 5 | `getOrder()` product baseURL kullanıyor | `this.orderRequest` kullanacak şekilde düzeltildi | ✅ Düzeltildi |
 | 6 | Batch polling'de `items: []` race condition | externalId=batchId olarak kalır, sonraki sync'te poll tekrar dener | ⚠️ Accept edildi |
 | 7 | "recurring.create.not.allowed" hatası | Fallback: updateUnapprovedProduct (price/stock alanları strip edilir) | ✅ Çözüldü |
-| 8 | Pazarama "Token bulunamadı" | Trendyol ile ilgili değil | ⏳ Bekliyor |
+| 8 | Pazarama "Token bulunamadı" | Pazarama auth OAuth2 ile düzeltildi (`success.data.accessToken`) | ✅ Düzeltildi |
 | 9 | Stok import = 0 | `getApprovedProductsStockAndPrice` eklendi, import worker'da merge | ✅ Düzeltildi |
 | 10 | V2 attrs: `customValue` → `customAttributeValue` | Mapper output'ta değiştirildi, input'ta ikisi de okunur | ✅ Düzeltildi |
 | 11 | Trendyol webhook yönetimi | TrendyolClient'e webhook CRUD metotları eklenmedi | ⏳ Yapılacak |
 | 12 | Order import (periodic fetch) | Manuel sync var, otomatik periyodik yok | ⏳ Yapılacak |
+| 13 | N11 ZPL label yok | N11'de ZPL/etiket API'si yok; sadece takip no + kargo firması girilir | ⚠️ Accept edildi |
+| 14 | Pazarama order status push yok | Pazarama order status/tracking push API'sini desteklemiyor | ⚠️ Accept edildi |
 
 ## Yeni Marketplace Ekleme (Trendyol referans alınarak)
 
