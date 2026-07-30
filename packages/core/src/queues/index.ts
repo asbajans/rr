@@ -126,41 +126,8 @@ export async function createImportWorker() {
           }
 
           if (marketplace === 'pazarama' && products.length > 0) {
-            const states = [...new Set(products.map((p: any) => p.state))];
-            const pStatuses = [...new Set(products.map((p: any) => p.productStatus))];
-            const sample = products[0];
-            logger.info({ states, pStatuses, total: products.length }, '[pazarama] product batch stats');
-
-            // Fetch product details (images, attributes, state) in parallel
-            const codes = products.map((p: any) => p.code).filter(Boolean);
-            if (codes.length > 0) {
-              const chunkSize = 5;
-              const detailsMap = new Map<string, any>();
-              for (let i = 0; i < codes.length; i += chunkSize) {
-                const chunk = codes.slice(i, i + chunkSize);
-                const results = await Promise.allSettled(
-                  chunk.map((code: string) => (client as any).getProductDetail(code))
-                );
-                for (let j = 0; j < chunk.length; j++) {
-                  const r = results[j];
-                  if (r.status === 'fulfilled' && r.value) {
-                    detailsMap.set(chunk[j], r.value);
-                  } else if (r.status === 'rejected') {
-                    logger.warn({ code: chunk[j], err: r.reason?.message || r.reason }, '[pazarama] getProductDetail failed');
-                  }
-                }
-              }
-              for (const raw of products) {
-                const detail = detailsMap.get(raw.code);
-                if (detail) {
-                  if (detail.images) raw.images = detail.images;
-                  if (detail.attributes) raw.attributes = detail.attributes;
-                  if (detail.state != null) raw.state = detail.state;
-                  if (detail.stockCount != null) raw.stockCount = detail.stockCount;
-                }
-              }
-              logger.info({ fetched: detailsMap.size, total: codes.length, hasImages: products.some((p: any) => p.images != null) }, '[pazarama] product details fetched');
-            }
+            const hasImages = products.some((p: any) => p.images != null);
+            logger.info({ total: products.length, hasImages, sampleKeys: Object.keys(products[0]) }, '[pazarama] product batch');
           }
 
           for (const raw of products) {

@@ -11,7 +11,6 @@ export interface PazaramaConfig {
 export class PazaramaClient extends BaseMarketplaceClient implements MarketplaceClient {
   private config: PazaramaConfig;
   private authClient: AxiosInstance;
-  private integrationClient: AxiosInstance;
   private bearerToken: string | null = null;
   private tokenExpiry: number = 0;
   private useApiKeyAuth: boolean = false;
@@ -22,10 +21,6 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     this.config = config;
     this.authClient = axios.create({
       baseURL: 'https://isortagimgiris.pazarama.com/connect/token',
-      timeout: 30000,
-    });
-    this.integrationClient = axios.create({
-      baseURL: 'https://isortagim.pazarama.com/auth/integration',
       timeout: 30000,
     });
     this.client.defaults.timeout = 60000;
@@ -285,21 +280,6 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     return this.requestWithAuth<any>('GET', '/product/getProductBatchResult', {
       query: { BatchRequestId: batchRequestId },
     });
-  }
-
-  // ─── Product Detail ──────────────────────────────────────
-
-  async getProductDetail(code: string): Promise<any> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const token = await this.ensureToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (this.useApiKeyAuth) {
-      headers['clientId'] = this.config.clientId;
-      headers['clientSecret'] = this.config.clientSecret;
-      headers['apiKey'] = this.config.apiKey;
-    }
-    const response = await this.integrationClient.post<any>('/tek-urun-filtreleme', { Code: code }, { headers });
-    return response.data?.data || response.data;
   }
 
   // ─── Orders ──────────────────────────────────────────────

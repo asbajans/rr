@@ -132,7 +132,7 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
   const description = resolveValue(root, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || resolveValue(variant, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || '';
   const quantity = resolveQuantity(raw);
   const images = normalizeImages((Array.isArray(root?.images) || Array.isArray(root?.imageUrls) || Array.isArray(root?.image) || Array.isArray(root?.Images)) ? root.images ?? root.imageUrls ?? root.image ?? root.Images : variant?.images ?? variant?.imageUrls ?? variant?.image ?? variant?.Images);
-  const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'state', 'productStatus', 'productStatusName']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'state', 'productStatus', 'productStatusName']);
+  const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']);
   const normalizedStatus = typeof statusValue === 'boolean'
     ? statusValue
     : typeof statusValue === 'number'
