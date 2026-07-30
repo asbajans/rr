@@ -776,6 +776,10 @@ class ApiClient {
     return this.post<{ imported: number; orders: any[] }>(`/api/admin/integration/${marketplace}/import-orders`, options || {})
   }
 
+  async importAllOrders(options?: { maxPages?: number }) {
+    return this.post<{ imported: number; results: { marketplace: string; imported: number }[] }>(`/api/admin/integration/import-all`, options || {})
+  }
+
   // Integration Webhooks
   webhookOrder(marketplace: string, payload: any) {
     return this.post<{ order: any; created: boolean }>(`/api/admin/integration/webhook/order`, { marketplace, payload })

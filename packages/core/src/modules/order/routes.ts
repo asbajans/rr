@@ -189,6 +189,27 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
             value: status,
           });
         }
+      } else if (order.marketplace === 'n11') {
+        if (status === 'processing' && oldStatus === 'pending') {
+          try {
+            const integration = await MarketplaceIntegration.findOne({
+              where: { storeId: store.id, marketplace: 'n11', isActive: true },
+            });
+            if (integration) {
+              const mpConfig = getMarketplaceConfig('n11', integration);
+              const n11Client = createMarketplaceClient('n11', mpConfig);
+              const lineIds: number[] = ((order.items as any[]) || [])
+                .map((item: any) => item.orderLineId)
+                .filter((id: any) => id != null);
+              if (lineIds.length > 0) {
+                await (n11Client as any).updateOrderStatus(lineIds, 'Picking');
+                logger.info(`N11 order ${order.id} approved with ${lineIds.length} line(s)`);
+              }
+            }
+          } catch (n11Err: any) {
+            logger.error({ err: n11Err.message, orderId: order.id }, 'Failed to approve N11 order');
+          }
+        }
       } else if (order.marketplace !== 'storefront') {
         notifyIntegrationService({
           action: 'status',

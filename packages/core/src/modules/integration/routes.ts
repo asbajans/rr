@@ -242,23 +242,29 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
 
         const lines = pkg.lines || pkg.items || [];
         const items = lines.map((l: any) => ({
-          sku: l.barcode || l.sku || '',
+          sku: l.barcode || l.sku || l.stockCode || '',
           name: l.productName || l.title || l.name || '',
           quantity: l.quantity || 1,
           price: parseFloat(l.salePrice || l.price || 0),
           image: l.imageUrl || '',
+          variantAttributes: l.variantAttributes || [],
+          orderLineId: l.orderLineId || l.id,
         }));
 
         const totalAmount = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
 
         const address = pkg.address || pkg.shippingAddress || {};
+        const fullName = pkg.customerfullName || address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
+        const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || pkg.phone || '';
+        const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
         const shippingAddress = {
-          fullName: address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '',
-          phone: address.phone || address.phoneNumber || pkg.phone || '',
+          fullName, phone,
+          email: customerEmail,
           city: address.city || pkg.city || '',
           district: address.district || pkg.district || '',
+          neighborhood: address.neighborhood || pkg.neighborhood || '',
           address: address.address || address.line || pkg.address || '',
-          zipCode: address.zipCode || '',
+          zipCode: address.zipCode || address.postalCode || '',
         };
 
         const orderNumber = pkg.orderNumber ? `TY-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
@@ -266,13 +272,14 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           Created: 'pending', Picking: 'processing', Invoiced: 'processing',
           Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
           UnDelivered: 'cancelled', Returned: 'returned',
+          UnPacked: 'processing', UnSupplied: 'cancelled',
         };
         const newStatus = statusMap[pkg.status] || 'pending';
 
         if (existing) {
           if (existing.status !== newStatus) {
             const oldStatus = existing.status;
-            await existing.update({ status: newStatus, items, shippingAddress, totalAmount });
+            await existing.update({ status: newStatus, items, shippingAddress, totalAmount, customerName: fullName, customerEmail, customerPhone: phone, trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '', carrier: pkg.cargoProviderName || pkg.carrier || '' });
             await OrderStatusHistory.create({
               dropshippingOrderId: existing.id,
               fromStatus: oldStatus,
@@ -295,6 +302,11 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           status: newStatus,
           shippingAddress,
           items,
+          customerName: fullName,
+          customerEmail,
+          customerPhone: phone,
+          trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
+          carrier: pkg.cargoProviderName || pkg.carrier || '',
           paymentMethod: 'marketplace',
           paymentStatus: pkg.status === 'Cancelled' ? 'failed' : 'paid',
         } as any);
@@ -317,6 +329,112 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
     res.json({ imported: imported.length, orders: imported });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Import orders error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+integrationRoutes.post('/import-all', authMiddleware, requireStore, [
+  body('maxPages').optional().isInt({ min: 1, max: 20 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const maxPages = req.body.maxPages || 3;
+
+    const integrations = await MarketplaceIntegration.findAll({
+      where: { storeId: store.id, isActive: true },
+    });
+
+    const results: { marketplace: string; imported: number }[] = [];
+
+    for (const integration of integrations) {
+      try {
+        const mpConfig = getMarketplaceConfig(integration.marketplace as MarketplaceType, integration);
+        const client = createMarketplaceClient(integration.marketplace as MarketplaceType, mpConfig);
+
+        let imported = 0;
+        let hasMore = true;
+        let page = 0;
+
+        while (hasMore && page < maxPages) {
+          const packages = await client.getOrders({ page, size: 100 });
+          if (!packages || packages.length === 0) break;
+
+          for (const pkg of packages) {
+            const marketplaceOrderId = String(pkg.id);
+            const existing = await DropshippingOrder.findOne({
+              where: { storeId: store.id, marketplaceOrderId, marketplace: integration.marketplace },
+            });
+            if (existing) continue;
+
+            const lines = pkg.lines || pkg.items || [];
+            const items = lines.map((l: any) => ({
+              sku: l.barcode || l.sku || l.stockCode || '',
+              name: l.productName || l.title || l.name || '',
+              quantity: l.quantity || 1,
+              price: parseFloat(l.salePrice || l.price || 0),
+              image: l.imageUrl || '',
+            }));
+
+            const totalAmount = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+            const address = pkg.address || pkg.shippingAddress || {};
+            const fullName = pkg.customerfullName || address.fullName || address.name || '';
+            const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || '';
+            const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
+
+            const statusMap: Record<string, string> = {
+              Created: 'pending', Picking: 'processing', Invoiced: 'processing',
+              Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
+              UnDelivered: 'cancelled', Returned: 'returned',
+              UnPacked: 'processing', UnSupplied: 'cancelled',
+            };
+            const newStatus = statusMap[pkg.shipmentPackageStatus || pkg.status] || 'pending';
+            const orderNumber = pkg.orderNumber ? `${integration.marketplace.toUpperCase().slice(0, 2)}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
+
+            await DropshippingOrder.create({
+              storeId: store.id,
+              orderNumber,
+              marketplace: integration.marketplace,
+              marketplaceOrderId,
+              marketplaceOrderNumber: String(pkg.orderNumber || ''),
+              totalAmount,
+              currency: 'TRY',
+              status: newStatus,
+              shippingAddress: {
+                fullName, phone, email: customerEmail,
+                city: address.city || pkg.city || '',
+                district: address.district || pkg.district || '',
+                address: address.address || address.line || pkg.address || '',
+                zipCode: address.zipCode || address.postalCode || '',
+              },
+              items,
+              customerName: fullName,
+              customerEmail,
+              customerPhone: phone,
+              trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
+              carrier: pkg.cargoProviderName || pkg.carrier || '',
+              paymentMethod: 'marketplace',
+              paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
+            } as any);
+
+            imported++;
+          }
+
+          page++;
+          hasMore = packages.length >= 100;
+        }
+
+        results.push({ marketplace: integration.marketplace, imported });
+        logger.info({ marketplace: integration.marketplace, storeId: store.id, imported }, 'Import-all orders from marketplace');
+      } catch (mpErr) {
+        logger.warn({ marketplace: integration.marketplace, err: mpErr }, 'Import-all failed for marketplace');
+        results.push({ marketplace: integration.marketplace, imported: 0 });
+      }
+    }
+
+    const totalImported = results.reduce((s, r) => s + r.imported, 0);
+    res.json({ imported: totalImported, results });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Import-all orders error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

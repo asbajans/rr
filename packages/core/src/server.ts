@@ -131,6 +131,9 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "customerName" VARCHAR(200)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "customerEmail" VARCHAR(200)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "customerPhone" VARCHAR(50)`);
+    await sequelize.query(`UPDATE dropshipping_orders SET "customerName" = "shippingAddress"->>'fullName' WHERE "customerName" IS NULL AND "shippingAddress"->>'fullName' IS NOT NULL`);
+    await sequelize.query(`UPDATE dropshipping_orders SET "customerEmail" = "shippingAddress"->>'email' WHERE "customerEmail" IS NULL AND "shippingAddress"->>'email' IS NOT NULL`);
+    await sequelize.query(`UPDATE dropshipping_orders SET "customerPhone" = "shippingAddress"->>'phone' WHERE "customerPhone" IS NULL AND "shippingAddress"->>'phone' IS NOT NULL`);
   } catch (e) {
     // Ignore
   }
