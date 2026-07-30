@@ -143,7 +143,11 @@ export async function createImportWorker() {
                 );
                 for (let j = 0; j < chunk.length; j++) {
                   const r = results[j];
-                  if (r.status === 'fulfilled' && r.value) detailsMap.set(chunk[j], r.value);
+                  if (r.status === 'fulfilled' && r.value) {
+                    detailsMap.set(chunk[j], r.value);
+                  } else if (r.status === 'rejected') {
+                    logger.warn({ code: chunk[j], err: r.reason?.message || r.reason }, '[pazarama] getProductDetail failed');
+                  }
                 }
               }
               for (const raw of products) {
@@ -152,9 +156,10 @@ export async function createImportWorker() {
                   if (detail.images) raw.images = detail.images;
                   if (detail.attributes) raw.attributes = detail.attributes;
                   if (detail.state != null) raw.state = detail.state;
+                  if (detail.stockCount != null) raw.stockCount = detail.stockCount;
                 }
               }
-              logger.info({ fetched: detailsMap.size, total: codes.length }, '[pazarama] product details fetched');
+              logger.info({ fetched: detailsMap.size, total: codes.length, hasImages: products.some((p: any) => p.images != null) }, '[pazarama] product details fetched');
             }
           }
 
