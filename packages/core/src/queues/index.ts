@@ -125,7 +125,21 @@ export async function createImportWorker() {
             } catch {}
           }
 
+          if (marketplace === 'pazarama' && products.length > 0) {
+            logger.info({ sample: products[0], keys: Object.keys(products[0]) }, '[pazarama] product API sample');
+          }
+
           for (const raw of products) {
+            if (marketplace === 'pazarama') {
+              if (raw.code && !raw.barcode) raw.barcode = raw.code;
+              if (raw.Code && !raw.barcode) raw.barcode = raw.Code;
+              if (raw.stockCount != null && raw.quantity == null) raw.quantity = raw.stockCount;
+              if (raw.StockCount != null && raw.quantity == null) raw.quantity = raw.StockCount;
+              if (raw.salePrice != null && raw.listPrice == null) raw.listPrice = raw.salePrice;
+              if (raw.SalePrice != null && raw.listPrice == null) raw.listPrice = raw.SalePrice;
+              if (raw.Images && Array.isArray(raw.Images) && !raw.images) raw.images = raw.Images;
+              if (raw.ListPrice != null && raw.listPrice == null) raw.listPrice = raw.ListPrice;
+            }
             if (stockMap.size && raw.barcode) {
               const stockInfo = stockMap.get(raw.barcode);
               if (stockInfo) {

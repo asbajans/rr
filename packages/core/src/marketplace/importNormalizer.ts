@@ -3,13 +3,20 @@ type MarketplaceRawProduct = Record<string, any>;
 function normalizeImages(raw: any): string[] {
   if (Array.isArray(raw)) {
     return raw
-      .map((item: any) => (typeof item === 'string' ? item : item?.url || item?.url_fullxfull || item?.url_570xN || item?.imageUrl || item?.src || ''))
+      .map((item: any) => (typeof item === 'string' ? item : item?.url || item?.imageUrl || item?.imageurl || item?.url_fullxfull || item?.url_570xN || item?.src || ''))
+      .filter(Boolean);
+  }
+
+  if (raw?.Images && Array.isArray(raw.Images) && !raw?.images) {
+    const arr = raw.Images;
+    return arr
+      .map((item: any) => (typeof item === 'string' ? item : item?.url || item?.imageUrl || item?.imageurl || item?.url_fullxfull || item?.url_570xN || item?.src || ''))
       .filter(Boolean);
   }
 
   if (Array.isArray(raw?.images)) {
     return raw.images
-      .map((item: any) => (typeof item === 'string' ? item : item?.url || item?.url_fullxfull || item?.url_570xN || item?.imageUrl || item?.src || ''))
+      .map((item: any) => (typeof item === 'string' ? item : item?.url || item?.imageUrl || item?.imageurl || item?.url_fullxfull || item?.url_570xN || item?.src || ''))
       .filter(Boolean);
   }
 
@@ -102,8 +109,8 @@ function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD
 function resolveQuantity(raw: MarketplaceRawProduct): number {
   const { root, variant } = getVariantPayload(raw);
   const candidates = [
-    resolveValue(root, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity', 'inventory']),
-    resolveValue(variant, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity', 'inventory']),
+    resolveValue(root, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'stockCount', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity', 'inventory', 'stockCount', 'StockCount']),
+    resolveValue(variant, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'stockCount', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity', 'inventory', 'stockCount', 'StockCount']),
   ];
 
   for (const candidate of candidates) {
@@ -119,12 +126,12 @@ function resolveQuantity(raw: MarketplaceRawProduct): number {
 export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProduct, storeId: number) {
   const { root, variant } = getVariantPayload(raw);
   const title = resolveValue(root, ['title', 'name', 'productName', 'label']) || resolveValue(variant, ['title', 'name', 'productName', 'label']) || 'Imported Product';
-  const sku = resolveValue(root, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id', 'productSellerCode', 'sellerSKU'])
-    || resolveValue(variant, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id', 'productSellerCode', 'sellerSKU'])
+  const sku = resolveValue(root, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id', 'productSellerCode', 'sellerSKU', 'code'])
+    || resolveValue(variant, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id', 'productSellerCode', 'sellerSKU', 'code'])
     || `imp-${Date.now()}`;
   const description = resolveValue(root, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || resolveValue(variant, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || '';
   const quantity = resolveQuantity(raw);
-  const images = normalizeImages((Array.isArray(root?.images) || Array.isArray(root?.imageUrls) || Array.isArray(root?.image)) ? root.images ?? root.imageUrls ?? root.image : variant?.images ?? variant?.imageUrls ?? variant?.image);
+  const images = normalizeImages((Array.isArray(root?.images) || Array.isArray(root?.imageUrls) || Array.isArray(root?.image) || Array.isArray(root?.Images)) ? root.images ?? root.imageUrls ?? root.image ?? root.Images : variant?.images ?? variant?.imageUrls ?? variant?.image ?? variant?.Images);
   const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']);
   const normalizedStatus = typeof statusValue === 'boolean'
     ? statusValue
