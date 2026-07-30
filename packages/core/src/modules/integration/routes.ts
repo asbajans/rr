@@ -25,6 +25,17 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
+function statusForPazarama(os: any): string {
+  const n = Number(os);
+  if (isNaN(n)) return String(os ?? '').toLowerCase();
+  if (n <= 1) return 'pending';
+  if (n <= 3) return 'processing';
+  if (n <= 5) return 'shipped';
+  if (n <= 7) return 'delivered';
+  if (n <= 9) return 'cancelled';
+  return 'returned';
+}
+
 integrationRoutes.post('/webhook/order', [
   body('marketplace').isIn(['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy']),
   body('payload').isObject(),
@@ -235,24 +246,25 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
       if (!packages || packages.length === 0) break;
 
       for (let pkg of packages) {
-        // Pazarama-specific normalization: map raw API fields to common format
         if (marketplace === 'pazarama') {
-          const c = pkg.customer || {};
-          const sa = pkg.shippingAddress || {};
+          const sa = pkg.shipmentAddress || {};
           pkg = {
             ...pkg,
-            id: pkg.id || pkg.orderId,
-            lines: pkg.items || pkg.lines || pkg.orderItems || [],
-            customerfullName: c.name || c.fullName || '',
-            gsm: c.phone || c.gsm || '',
-            customerEmail: c.email || '',
-            address: sa.address || sa.line || pkg.address || '',
-            city: sa.city || pkg.city || '',
-            district: sa.district || pkg.district || '',
-            neighborhood: sa.neighborhood || '',
+            id: pkg.orderId,
+            lines: pkg.items || [],
+            customerfullName: pkg.customerName || sa.nameSurname || '',
+            gsm: sa.phoneNumber || '',
+            customerEmail: pkg.customerEmail || sa.customerEmail || '',
+            address: sa.addressDetail || sa.displayAddressText || '',
+            city: sa.cityName || '',
+            district: sa.districtName || '',
+            neighborhood: sa.neighborhoodName || '',
+            zipCode: sa.postalCode || '',
             cargoTrackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || pkg.cargoTrackingCode || '',
             cargoProviderName: pkg.cargoProviderName || pkg.carrier || pkg.cargoCompany || '',
-            orderNumber: pkg.orderNumber || '',
+            orderNumber: String(pkg.orderNumber ?? ''),
+            totalAmount: Number(pkg.orderAmount ?? 0),
+            status: statusForPazarama(pkg.orderStatus),
           };
         }
 
@@ -272,7 +284,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           orderLineId: l.orderLineId || l.id,
         }));
 
-        const totalAmount = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+        const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
 
         const address = pkg.address || pkg.shippingAddress || {};
         const fullName = pkg.customerfullName || address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
@@ -285,10 +297,11 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           district: address.district || pkg.district || '',
           neighborhood: address.neighborhood || pkg.neighborhood || '',
           address: address.address || address.line || pkg.address || '',
-          zipCode: address.zipCode || address.postalCode || '',
+          zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
         };
 
-        const orderNumber = pkg.orderNumber ? `PZ-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
+        const prefix = marketplace === 'pazarama' ? 'PZ' : marketplace === 'trendyol' ? 'TY' : marketplace.slice(0, 2).toUpperCase();
+        const orderNumber = pkg.orderNumber ? `${prefix}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
         const statusMap: Record<string, string> = {
           Created: 'pending', Picking: 'processing', Invoiced: 'processing',
           Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
@@ -298,7 +311,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           kargoya_verildi: 'shipped', teslim_edildi: 'delivered',
           iptal_edildi: 'cancelled', iade_edildi: 'returned',
         };
-        const newStatus = statusMap[pkg.status] || 'pending';
+        const newStatus = pkg.status ? (statusMap[pkg.status] || String(pkg.status).toLowerCase()) : 'pending';
 
         if (existing) {
           if (existing.status !== newStatus) {
@@ -383,25 +396,48 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
           const packages = await client.getOrders({ page, size: 100 });
           if (!packages || packages.length === 0) break;
 
-          for (const pkg of packages) {
+          for (let pkg of packages) {
+            const mp = integration.marketplace;
+            if (mp === 'pazarama') {
+              const sa = pkg.shipmentAddress || {};
+              pkg = {
+                ...pkg,
+                id: pkg.orderId,
+                lines: pkg.items || [],
+                customerfullName: pkg.customerName || sa.nameSurname || '',
+                gsm: sa.phoneNumber || '',
+                customerEmail: pkg.customerEmail || sa.customerEmail || '',
+                address: sa.addressDetail || sa.displayAddressText || '',
+                city: sa.cityName || '',
+                district: sa.districtName || '',
+                neighborhood: sa.neighborhoodName || '',
+                zipCode: sa.postalCode || '',
+                cargoTrackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || pkg.cargoTrackingCode || '',
+                cargoProviderName: pkg.cargoProviderName || pkg.carrier || pkg.cargoCompany || '',
+                orderNumber: String(pkg.orderNumber ?? ''),
+                totalAmount: Number(pkg.orderAmount ?? 0),
+                status: statusForPazarama(pkg.orderStatus),
+              };
+            }
+
             const marketplaceOrderId = String(pkg.id);
             const existing = await DropshippingOrder.findOne({
-              where: { storeId: store.id, marketplaceOrderId, marketplace: integration.marketplace },
+              where: { storeId: store.id, marketplaceOrderId, marketplace: mp },
             });
             if (existing) continue;
 
             const lines = pkg.lines || pkg.items || [];
             const items = lines.map((l: any) => ({
-              sku: l.barcode || l.sku || l.stockCode || '',
+              sku: l.barcode || l.sku || l.stockCode || l.productCode || '',
               name: l.productName || l.title || l.name || '',
               quantity: l.quantity || 1,
-              price: parseFloat(l.salePrice || l.price || 0),
+              price: parseFloat(l.salePrice || l.price || l.unitPrice || 0),
               image: l.imageUrl || '',
             }));
 
-            const totalAmount = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+            const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
             const address = pkg.address || pkg.shippingAddress || {};
-            const fullName = pkg.customerfullName || address.fullName || address.name || '';
+            const fullName = pkg.customerfullName || address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
             const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || '';
             const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
 
@@ -410,14 +446,18 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
               Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
               UnDelivered: 'cancelled', Returned: 'returned',
               UnPacked: 'processing', UnSupplied: 'cancelled',
+              siparis_alindi: 'pending', hazirlaniyor: 'processing',
+              kargoya_verildi: 'shipped', teslim_edildi: 'delivered',
+              iptal_edildi: 'cancelled', iade_edildi: 'returned',
             };
-            const newStatus = statusMap[pkg.shipmentPackageStatus || pkg.status] || 'pending';
-            const orderNumber = pkg.orderNumber ? `${integration.marketplace.toUpperCase().slice(0, 2)}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
+            const newStatus = pkg.status ? (statusMap[pkg.status] || statusMap[pkg.shipmentPackageStatus || pkg.status] || String(pkg.status).toLowerCase()) : 'pending';
+            const prefix = mp === 'pazarama' ? 'PZ' : mp === 'trendyol' ? 'TY' : mp.slice(0, 2).toUpperCase();
+            const orderNumber = pkg.orderNumber ? `${prefix}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
 
             await DropshippingOrder.create({
               storeId: store.id,
               orderNumber,
-              marketplace: integration.marketplace,
+              marketplace: mp,
               marketplaceOrderId,
               marketplaceOrderNumber: String(pkg.orderNumber || ''),
               totalAmount,
@@ -427,8 +467,9 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
                 fullName, phone, email: customerEmail,
                 city: address.city || pkg.city || '',
                 district: address.district || pkg.district || '',
+                neighborhood: address.neighborhood || pkg.neighborhood || '',
                 address: address.address || address.line || pkg.address || '',
-                zipCode: address.zipCode || address.postalCode || '',
+                zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
               },
               items,
               customerName: fullName,
