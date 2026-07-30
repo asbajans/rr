@@ -19,6 +19,19 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
+function mapPlanBody(body: any): any {
+  const mapped: any = { ...body };
+  if ('product_limit' in body && !('productLimit' in body)) mapped.productLimit = body.product_limit;
+  if ('store_limit' in body && !('storeLimit' in body)) mapped.storeLimit = body.store_limit;
+  if ('ai_credits' in body && !('aiCredits' in body)) mapped.aiCredits = body.ai_credits;
+  if ('is_active' in body && !('isActive' in body)) mapped.isActive = body.is_active;
+  delete mapped.product_limit;
+  delete mapped.store_limit;
+  delete mapped.ai_credits;
+  delete mapped.is_active;
+  return mapped;
+}
+
 // Auth runs for all requests (sets req.user, req.store)
 router.use(authMiddleware);
 
@@ -185,6 +198,20 @@ router.post('/users/:id/assign-plan', superAdminOnly, [
 
 
 /**
+ * GET /api/admin/plans
+ * List all plans (admin view — includes inactive)
+ */
+router.get('/plans', superAdminOnly, async (_req: Request, res: Response) => {
+  try {
+    const plans = await Plan.findAll({ order: [['price', 'ASC']] });
+    res.json({ plans: serializePlans(plans) });
+  } catch (error) {
+    logger.error({ err: error }, 'Get all plans error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/admin/plans
  * Create a new plan
  */
@@ -195,20 +222,42 @@ router.post('/plans', superAdminOnly, [
   body('currency').optional().isString().isLength({ min: 3, max: 3 }),
   body('description').optional().isString(),
   body('productLimit').optional().isInt({ min: -1 }),
+  body('product_limit').optional().isInt({ min: -1 }),
   body('storeLimit').optional().isInt({ min: 1 }),
+  body('store_limit').optional().isInt({ min: 1 }),
   body('aiCredits').optional().isInt({ min: -1 }),
+  body('ai_credits').optional().isInt({ min: -1 }),
   body('modules').optional().isObject(),
   body('isActive').optional().isBoolean(),
+  body('is_active').optional().isBoolean(),
   body('stripePriceId').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
-    const plan = await Plan.create(req.body);
+    const body = mapPlanBody(req.body);
+    const plan = await Plan.create(body);
     res.status(201).json({ plan: serializePlan(plan) });
   } catch (error: any) {
     if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ error: 'Plan name or slug already exists' });
     }
     logger.error({ err: error }, 'Create plan error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/plans/:id
+ * Get a single plan
+ */
+router.get('/plans/:id', superAdminOnly, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const plan = await Plan.findByPk(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+    res.json({ plan: serializePlan(plan) });
+  } catch (error) {
+    logger.error({ err: error }, 'Get plan error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -223,11 +272,16 @@ router.put('/plans/:id', superAdminOnly, [
   body('slug').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
   body('price').optional().isFloat({ min: 0 }),
   body('currency').optional().isString().isLength({ min: 3, max: 3 }),
+  body('description').optional().isString(),
   body('productLimit').optional().isInt({ min: -1 }),
+  body('product_limit').optional().isInt({ min: -1 }),
   body('storeLimit').optional().isInt({ min: 1 }),
+  body('store_limit').optional().isInt({ min: 1 }),
   body('aiCredits').optional().isInt({ min: -1 }),
-  body('features').optional().isObject(),
+  body('ai_credits').optional().isInt({ min: -1 }),
+  body('modules').optional().isObject(),
   body('isActive').optional().isBoolean(),
+  body('is_active').optional().isBoolean(),
   body('stripePriceId').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
@@ -235,7 +289,8 @@ router.put('/plans/:id', superAdminOnly, [
     if (!plan) {
       return res.status(404).json({ error: 'Plan not found' });
     }
-    await plan.update(req.body);
+    const body = mapPlanBody(req.body);
+    await plan.update(body);
     res.json({ plan: serializePlan(plan) });
   } catch (error: any) {
     if (error.name === 'SequelizeUniqueConstraintError') {

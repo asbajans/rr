@@ -4,6 +4,19 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { Plan } from '@/lib/types'
 
+const MODULE_LABELS: Record<string, string> = {
+  ai_product_create: 'AI Ürün Oluşturma',
+  ai_image_generate: 'AI Görsel Üretme',
+  b2b: 'B2B / Beatby',
+  marketplace: 'Pazaryeri Entegrasyonu',
+  xml_feed: 'XML Feed',
+  variations: 'Varyasyonlar',
+  blog: 'Blog',
+  custom_domain: 'Özel Domain',
+  shipping: 'Kargo Yönetimi',
+  static_pages: 'Statik Sayfalar',
+}
+
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,6 +52,13 @@ export default function PricingPage() {
                 <li className="text-sm text-zinc-600">✓ {plan.ai_credits === -1 ? 'Sınırsız' : (plan.ai_credits ?? 0).toLocaleString('tr-TR')} AI kredisi</li>
                 <li className="text-sm text-zinc-600">✓ {plan.store_limit ?? 1} mağaza</li>
                 {plan.description && <li className="text-sm text-zinc-500">{plan.description}</li>}
+                {plan.modules && Object.entries(plan.modules).filter(([, v]) => v.enabled).map(([k, v]) => (
+                  <li key={k} className="text-sm text-indigo-600">
+                    ✓ {MODULE_LABELS[k] || k}
+                    {'credit_cost' in v ? ` (${v.credit_cost} kredi)` : ''}
+                    {'limit' in v ? ` (${v.limit} adet)` : ''}
+                  </li>
+                ))}
               </ul>
               <Link href="/register"
                 className={`mt-8 block rounded-lg px-4 py-2 text-center text-sm font-semibold ${i === 1 ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-zinc-300 text-zinc-900 hover:bg-zinc-50'}`}>
