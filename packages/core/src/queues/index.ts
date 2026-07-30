@@ -126,7 +126,10 @@ export async function createImportWorker() {
           }
 
           if (marketplace === 'pazarama' && products.length > 0) {
-            logger.info({ sample: products[0], keys: Object.keys(products[0]) }, '[pazarama] product API sample');
+            const states = [...new Set(products.map((p: any) => p.state))];
+            const pStatuses = [...new Set(products.map((p: any) => p.productStatus))];
+            const sample = products[0];
+            logger.info({ sample, keys: Object.keys(sample), states, pStatuses, total: products.length, hasImages: products.some((p: any) => p.images != null) }, '[pazarama] product API sample');
           }
 
           for (const raw of products) {
@@ -172,6 +175,14 @@ export async function createImportWorker() {
               if (raw.brandId != null) mpEntry.brand_id = String(raw.brandId);
               if (mpCatId != null) mpEntry.category_id = String(mpCatId);
               if (Array.isArray(raw.attributes)) mpEntry.attributes = raw.attributes;
+
+              // Pazarama: store brandName and categoryName in marketplaceConfig
+              if (marketplace === 'pazarama') {
+                if (raw.brandName && !mpEntry.brand) mpEntry.brand = raw.brandName;
+                if (raw.categoryName && !mpEntry.category) mpEntry.category = raw.categoryName;
+                if (raw.stockCode) mpEntry.stockCode = raw.stockCode;
+                if (raw.displayName) mpEntry.displayName = raw.displayName;
+              }
 
               // Extract brand from N11 attributes array
               if (marketplace === 'n11' && Array.isArray(raw.attributes)) {
