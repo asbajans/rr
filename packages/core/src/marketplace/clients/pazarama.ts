@@ -169,12 +169,20 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
       Size: Math.min(params.size || params.Size || 250, 250),
     };
     if (params.code) query.Code = params.code;
-    if (params.approved != null) query.Approved = params.approved;
+    if (params.approved == null) query.Approved = true;
+    else query.Approved = params.approved;
 
     const data = await this.requestWithAuth<any>('GET', '/product/products', { query });
     const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
     const totalPages = data?.totalPages || 0;
     const currentPage = query.Page || 1;
+
+    if (items.length === 0 && query.Approved === true) {
+      query.Approved = false;
+      const data2 = await this.requestWithAuth<any>('GET', '/product/products', { query });
+      const items2 = Array.isArray(data2?.data) ? data2.data : Array.isArray(data2) ? data2 : [];
+      items.push(...items2);
+    }
 
     return {
       products: items,

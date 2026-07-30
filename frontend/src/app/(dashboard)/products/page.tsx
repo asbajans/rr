@@ -1292,7 +1292,7 @@ export default function ProductsPage() {
                         </div>
                         {mp !== 'Kendi Sitem' && md.category_id && (() => {
                           const key = `${mp}-${md.category_id}`
-                          const rawAttrs = categoryAttrs[key] ?? []
+                          const rawAttrs = Array.isArray(categoryAttrs[key]) ? categoryAttrs[key] : []
                           const attrs = rawAttrs.filter((a: any) => {
                             const aid = a.attribute?.id ?? a.attributeId
                             return aid != null

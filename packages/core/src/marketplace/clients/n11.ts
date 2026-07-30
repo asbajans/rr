@@ -50,12 +50,17 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
     return this.flattenTree(list, 0);
   }
 
-  async getCategoryAttributes(categoryId: number): Promise<any> {
-    return this.request<any>({
+  async getCategoryAttributes(categoryId: number): Promise<any[]> {
+    const data = await this.request<any>({
       method: 'GET',
       url: `/cdn/category/${categoryId}/attribute`,
       headers: authHeaders(this.config),
     });
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.attribute)) return data.attribute;
+    if (Array.isArray(data?.attributeList)) return data.attributeList;
+    if (Array.isArray(data?.attributes)) return data.attributes;
+    return [];
   }
 
   private flattenTree(nodes: any[], parentId: number, level: number = 0): any[] {
