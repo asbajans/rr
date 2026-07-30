@@ -142,8 +142,8 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
 
   // ─── Brands ──────────────────────────────────────────────
 
-  async getBrands(search?: string): Promise<{ id: number; name: string }[]> {
-    const all: { id: number; name: string }[] = [];
+  async getBrands(search?: string): Promise<{ id: number | string; name: string }[]> {
+    const all: { id: number | string; name: string }[] = [];
     let page = 1;
     let hasMore = true;
     while (hasMore && page <= 20) {
@@ -154,7 +154,8 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
       const items = data?.data || [];
       if (!Array.isArray(items) || items.length === 0) break;
       for (const b of items) {
-        const id = Number(b.id ?? b.brandId ?? b.marketplaceBrandId ?? 0);
+        const rawId = b.id ?? b.brandId ?? b.marketplaceBrandId ?? '';
+        const id = rawId ? String(rawId) : 0;
         const name = b.name ?? b.brandName ?? '';
         if (name) all.push({ id, name });
       }

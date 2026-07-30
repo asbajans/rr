@@ -20,7 +20,7 @@ export interface MarketplaceClient {
   updateStock(productId: string, quantity: number): Promise<any>;
   getOrders(params?: any): Promise<any[]>;
   getOrder(orderId: string): Promise<any>;
-  getBrands?(search?: string): Promise<{ id: number; name: string }[]>;
+  getBrands?(search?: string): Promise<{ id: number | string; name: string }[]>;
   getCategoryAttributes?(categoryId: number): Promise<any[]>;
   getBatchRequestResult?(batchRequestId: string): Promise<any>;
   updatePriceAndInventory?(items: Array<{ barcode: string; quantity: number; salePrice: number; listPrice?: number }>): Promise<any>;
