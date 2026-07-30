@@ -245,33 +245,39 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
       const packages = await client.getOrders(params);
       if (!packages || packages.length === 0) break;
 
-      for (let pkg of packages) {
+      for (const rawPkg of packages) {
+        let pkg = rawPkg;
+
         if (marketplace === 'pazarama') {
-          const sa = pkg.shipmentAddress || {};
-          const cargo = pkg.cargo || pkg.shipment || {};
+          const rawItems: any[] = rawPkg.items || [];
+          const firstCargo = rawItems[0]?.cargo || {};
+          const sa = rawPkg.shipmentAddress || {};
           pkg = {
-            ...pkg,
-            id: pkg.orderId,
-            lines: pkg.items || [],
-            customerfullName: pkg.customerName || sa.nameSurname || '',
+            ...rawPkg,
+            id: rawPkg.orderId,
+            lines: rawItems.map((item: any) => ({
+              sku: item.product?.code || item.product?.stockCode || '',
+              name: item.product?.name || '',
+              quantity: Number(item.quantity || 1),
+              price: Number(item.salePrice?.value || item.totalPrice?.value || (item.salePrice?.valueInt / 100) || 0),
+              image: item.product?.imageURL || item.product?.imageUrl || '',
+              variantAttributes: item.product?.variantOptionDisplay ? [item.product.variantOptionDisplay] : [],
+              orderLineId: item.orderItemId,
+            })),
+            customerfullName: rawPkg.customerName || sa.nameSurname || '',
             gsm: sa.phoneNumber || '',
-            customerEmail: pkg.customerEmail || sa.customerEmail || '',
+            customerEmail: rawPkg.customerEmail || sa.customerEmail || '',
             address: sa.addressDetail || sa.displayAddressText || '',
             city: sa.cityName || '',
             district: sa.districtName || '',
             neighborhood: sa.neighborhoodName || '',
             zipCode: sa.postalCode || '',
-            cargoTrackingNumber: pkg.trackingNumber || cargo.trackingNumber || cargo.cargoTrackingNumber || cargo.trackingCode || cargo.cargoTrackingCode || pkg.cargoTrackingCode || '',
-            cargoProviderName: pkg.carrier || cargo.carrier || cargo.cargoProvider || cargo.cargoCompany || pkg.cargoCompany || cargo.cargoProviderName || '',
-            orderNumber: String(pkg.orderNumber ?? ''),
-            totalAmount: Number(pkg.orderAmount ?? 0),
-            status: statusForPazarama(pkg.orderStatus),
+            cargoTrackingNumber: firstCargo.trackingNumber || rawItems[0]?.shipmentCode || '',
+            cargoProviderName: firstCargo.companyName || '',
+            orderNumber: String(rawPkg.orderNumber ?? ''),
+            totalAmount: Number(rawPkg.orderAmount ?? 0),
+            status: statusForPazarama(rawPkg.orderStatus),
           };
-          // Log first item's keys for debugging
-          if (Array.isArray(pkg.items) && pkg.items.length > 0) {
-            const first = pkg.items[0];
-            logger.info({ itemKeys: Object.keys(first), sampleItem: first }, '[pazarama] order item structure');
-          }
         }
 
         const marketplaceOrderId = String(pkg.id);
@@ -281,7 +287,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
 
         const lines = pkg.lines || pkg.items || [];
         const items = lines.map((l: any) => ({
-          sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || '',
+          sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || l.sku || '',
           name: l.productName || l.title || l.name || l.productTitle || l.itemName || '',
           quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
           price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0),
@@ -320,15 +326,26 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
         const newStatus = pkg.status ? (statusMap[pkg.status] || String(pkg.status).toLowerCase()) : 'pending';
 
         if (existing) {
-          if (existing.status !== newStatus) {
-            const oldStatus = existing.status;
-            await existing.update({ status: newStatus, items, shippingAddress, totalAmount, customerName: fullName, customerEmail, customerPhone: phone, trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '', carrier: pkg.cargoProviderName || pkg.carrier || '' });
-            await OrderStatusHistory.create({
-              dropshippingOrderId: existing.id,
-              fromStatus: oldStatus,
-              toStatus: newStatus,
-              note: `Status synced from ${marketplace}: ${oldStatus} -> ${newStatus}`,
-            });
+          const changed: Record<string, any> = {};
+          if (existing.status !== newStatus) changed.status = newStatus;
+          if (JSON.stringify(existing.items || []) !== JSON.stringify(items)) changed.items = items;
+          if (JSON.stringify(existing.shippingAddress || {}) !== JSON.stringify(shippingAddress)) changed.shippingAddress = shippingAddress;
+          if (existing.totalAmount !== totalAmount) changed.totalAmount = totalAmount;
+          if (existing.customerName !== fullName) changed.customerName = fullName;
+          if (existing.customerEmail !== customerEmail) changed.customerEmail = customerEmail;
+          if (existing.customerPhone !== phone) changed.customerPhone = phone;
+          if (existing.trackingNumber !== (pkg.cargoTrackingNumber || '')) changed.trackingNumber = pkg.cargoTrackingNumber || '';
+          if (existing.carrier !== (pkg.cargoProviderName || '')) changed.carrier = pkg.cargoProviderName || '';
+          if (Object.keys(changed).length > 0) {
+            await existing.update(changed);
+            if (changed.status) {
+              await OrderStatusHistory.create({
+                dropshippingOrderId: existing.id,
+                fromStatus: existing.status === newStatus ? existing.status : existing.status,
+                toStatus: newStatus,
+                note: `Status synced from ${marketplace}: ${existing.status} -> ${newStatus}`,
+              });
+            }
             imported.push({ id: existing.id, orderNumber: existing.orderNumber, status: newStatus, marketplaceOrderId, updated: true });
           }
           continue;
@@ -402,28 +419,39 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
           const packages = await client.getOrders({ page, size: 100 });
           if (!packages || packages.length === 0) break;
 
-          for (let pkg of packages) {
+          for (const rawPkg of packages) {
+            let pkg = rawPkg;
             const mp = integration.marketplace;
+
             if (mp === 'pazarama') {
-              const sa = pkg.shipmentAddress || {};
-              const cargo = pkg.cargo || pkg.shipment || {};
+              const rawItems: any[] = rawPkg.items || [];
+              const firstCargo = rawItems[0]?.cargo || {};
+              const sa = rawPkg.shipmentAddress || {};
               pkg = {
-                ...pkg,
-                id: pkg.orderId,
-                lines: pkg.items || [],
-                customerfullName: pkg.customerName || sa.nameSurname || '',
+                ...rawPkg,
+                id: rawPkg.orderId,
+                lines: rawItems.map((item: any) => ({
+                  sku: item.product?.code || item.product?.stockCode || '',
+                  name: item.product?.name || '',
+                  quantity: Number(item.quantity || 1),
+                  price: Number(item.salePrice?.value || item.totalPrice?.value || (item.salePrice?.valueInt / 100) || 0),
+                  image: item.product?.imageURL || item.product?.imageUrl || '',
+                  variantAttributes: item.product?.variantOptionDisplay ? [item.product.variantOptionDisplay] : [],
+                  orderLineId: item.orderItemId,
+                })),
+                customerfullName: rawPkg.customerName || sa.nameSurname || '',
                 gsm: sa.phoneNumber || '',
-                customerEmail: pkg.customerEmail || sa.customerEmail || '',
+                customerEmail: rawPkg.customerEmail || sa.customerEmail || '',
                 address: sa.addressDetail || sa.displayAddressText || '',
                 city: sa.cityName || '',
                 district: sa.districtName || '',
                 neighborhood: sa.neighborhoodName || '',
                 zipCode: sa.postalCode || '',
-                cargoTrackingNumber: pkg.trackingNumber || cargo.trackingNumber || cargo.cargoTrackingNumber || cargo.trackingCode || cargo.cargoTrackingCode || pkg.cargoTrackingCode || '',
-                cargoProviderName: pkg.carrier || cargo.carrier || cargo.cargoProvider || cargo.cargoCompany || pkg.cargoCompany || cargo.cargoProviderName || '',
-                orderNumber: String(pkg.orderNumber ?? ''),
-                totalAmount: Number(pkg.orderAmount ?? 0),
-                status: statusForPazarama(pkg.orderStatus),
+                cargoTrackingNumber: firstCargo.trackingNumber || rawItems[0]?.shipmentCode || '',
+                cargoProviderName: firstCargo.companyName || '',
+                orderNumber: String(rawPkg.orderNumber ?? ''),
+                totalAmount: Number(rawPkg.orderAmount ?? 0),
+                status: statusForPazarama(rawPkg.orderStatus),
               };
             }
 
@@ -431,7 +459,6 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
             const existing = await DropshippingOrder.findOne({
               where: { storeId: store.id, marketplaceOrderId, marketplace: mp },
             });
-            if (existing) continue;
 
             const lines = pkg.lines || pkg.items || [];
             const items = lines.map((l: any) => ({
@@ -440,6 +467,8 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
               quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
               price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0),
               image: l.imageUrl || l.productImageUrl || l.image || '',
+              variantAttributes: l.variantAttributes || [],
+              orderLineId: l.orderLineId || l.orderItemId || l.id,
             }));
 
             const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
@@ -447,6 +476,14 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
             const fullName = pkg.customerfullName || address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
             const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || '';
             const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
+            const shippingAddress = {
+              fullName, phone, email: customerEmail,
+              city: address.city || pkg.city || '',
+              district: address.district || pkg.district || '',
+              neighborhood: address.neighborhood || pkg.neighborhood || '',
+              address: address.address || address.line || pkg.address || '',
+              zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
+            };
 
             const statusMap: Record<string, string> = {
               Created: 'pending', Picking: 'processing', Invoiced: 'processing',
@@ -461,6 +498,24 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
             const prefix = mp === 'pazarama' ? 'PZ' : mp === 'trendyol' ? 'TY' : mp.slice(0, 2).toUpperCase();
             const orderNumber = pkg.orderNumber ? `${prefix}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
 
+            if (existing) {
+              const changed: Record<string, any> = {};
+              if (existing.status !== newStatus) changed.status = newStatus;
+              if (JSON.stringify(existing.items || []) !== JSON.stringify(items)) changed.items = items;
+              if (JSON.stringify(existing.shippingAddress || {}) !== JSON.stringify(shippingAddress)) changed.shippingAddress = shippingAddress;
+              if (existing.totalAmount !== totalAmount) changed.totalAmount = totalAmount;
+              if (existing.customerName !== fullName) changed.customerName = fullName;
+              if (existing.customerEmail !== customerEmail) changed.customerEmail = customerEmail;
+              if (existing.customerPhone !== phone) changed.customerPhone = phone;
+              if (existing.trackingNumber !== (pkg.cargoTrackingNumber || '')) changed.trackingNumber = pkg.cargoTrackingNumber || '';
+              if (existing.carrier !== (pkg.cargoProviderName || '')) changed.carrier = pkg.cargoProviderName || '';
+              if (Object.keys(changed).length > 0) {
+                await existing.update(changed);
+                imported++;
+              }
+              continue;
+            }
+
             await DropshippingOrder.create({
               storeId: store.id,
               orderNumber,
@@ -470,14 +525,7 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
               totalAmount,
               currency: 'TRY',
               status: newStatus,
-              shippingAddress: {
-                fullName, phone, email: customerEmail,
-                city: address.city || pkg.city || '',
-                district: address.district || pkg.district || '',
-                neighborhood: address.neighborhood || pkg.neighborhood || '',
-                address: address.address || address.line || pkg.address || '',
-                zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
-              },
+              shippingAddress,
               items,
               customerName: fullName,
               customerEmail,
