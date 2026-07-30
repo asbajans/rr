@@ -164,21 +164,21 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   // ─── Products ────────────────────────────────────────────
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
-    const body: Record<string, any> = {
+    const query: Record<string, any> = {
       Page: params.page != null ? params.page + 1 : 1,
       Size: Math.min(params.size || params.Size || 250, 250),
     };
-    if (params.code) body.Code = params.code;
-    if (params.approved != null) body.Approved = params.approved;
+    if (params.code) query.Code = params.code;
+    if (params.approved != null) query.Approved = params.approved;
 
-    const data = await this.requestWithAuth<any>('POST', '/product/getProducts', { body });
+    const data = await this.requestWithAuth<any>('GET', '/product/products', { query });
     const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-    const totalPages = data?.totalPages || data?.pageCount || 1;
-    const currentPage = body.Page || 1;
+    const totalPages = data?.totalPages || 0;
+    const currentPage = query.Page || 1;
 
     return {
       products: items,
-      hasMore: items.length > 0 && currentPage < totalPages,
+      hasMore: data?.hasNextPage === true || (items.length > 0 && currentPage < totalPages),
     };
   }
 

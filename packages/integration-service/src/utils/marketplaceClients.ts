@@ -205,22 +205,59 @@ export class PazaramaClient {
 
   private async ensureToken(): Promise<string> {
     if (this.bearerToken && Date.now() < this.tokenExpiry) return this.bearerToken;
-    const res = await this.authClient.post('', new URLSearchParams({
-      grant_type: 'client_credentials',
-      scope: 'merchantgatewayapi.fullaccess',
-    }), {
-      auth: { username: this.config.clientId, password: this.config.clientSecret },
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-    const body = res.data;
-    if (body?.success === true && body?.data?.accessToken) {
-      this.bearerToken = body.data.accessToken;
-      this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
-    } else if (body?.access_token) {
-      this.bearerToken = body.access_token;
-      this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
-    } else throw new Error('Pazarama auth failed');
-    return this.bearerToken!;
+
+    const tryBasic = async (): Promise<any> => {
+      const res = await this.authClient.post<any>('', new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'merchantgatewayapi.fullaccess',
+      }), {
+        auth: { username: this.config.clientId, password: this.config.clientSecret },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      return res.data;
+    };
+
+    const tryBodyAuth = async (): Promise<any> => {
+      const res = await this.authClient.post<any>('', new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'merchantgatewayapi.fullaccess',
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+      }), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      return res.data;
+    };
+
+    const tryApiKey = async (): Promise<any> => {
+      const res = await this.authClient.post<any>('', new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'merchantgatewayapi.fullaccess',
+        client_id: this.config.apiKey,
+        client_secret: this.config.clientSecret,
+      }), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      return res.data;
+    };
+
+    for (const attempt of [tryBasic, tryBodyAuth, tryApiKey]) {
+      try {
+        const body = await attempt();
+        if (body?.success === true && body?.data?.accessToken) {
+          this.bearerToken = body.data.accessToken;
+          this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
+          return this.bearerToken!;
+        }
+        if (body?.access_token) {
+          this.bearerToken = body.access_token;
+          this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
+          return this.bearerToken!;
+        }
+      } catch {}
+    }
+
+    throw new Error('Pazarama auth failed: all 3 OAuth2 methods rejected');
   }
 
   private async authHeaders(): Promise<Record<string, string>> {
