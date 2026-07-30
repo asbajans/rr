@@ -80,16 +80,16 @@ export default function SuperPlansPage() {
     try {
       const data: any = {
         name: form.name,
-        slug: form.slug,
-        description: form.description || null,
         price: parseFloat(form.price),
-        currency: form.currency,
-        ai_credits: parseInt(form.ai_credits),
-        product_limit: parseInt(form.product_limit),
-        store_limit: parseInt(form.store_limit),
+        product_limit: Math.round(parseInt(form.product_limit || '0')),
+        store_limit: Math.round(parseInt(form.store_limit || '1')),
+        ai_credits: Math.round(parseInt(form.ai_credits || '0')),
         is_active: form.is_active,
         modules: form.modules,
       }
+      if (form.slug) data.slug = form.slug
+      if (form.description) data.description = form.description
+      if (form.currency) data.currency = form.currency
       if (editingId) {
         await api.updateAdminPlan(editingId, data)
         setMessage('Plan güncellendi')

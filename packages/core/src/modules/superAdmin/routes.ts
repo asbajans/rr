@@ -20,15 +20,22 @@ const validate = (req: Request, res: Response, next: Function) => {
 };
 
 function mapPlanBody(body: any): any {
-  const mapped: any = { ...body };
+  const mapped: any = {};
+  if (body.name !== undefined) mapped.name = body.name;
+  if (body.slug) mapped.slug = body.slug;
+  if (body.description) mapped.description = body.description;
+  if (body.price !== undefined) mapped.price = body.price;
+  if (body.currency) mapped.currency = body.currency;
   if ('product_limit' in body && !('productLimit' in body)) mapped.productLimit = body.product_limit;
+  else if (body.productLimit !== undefined) mapped.productLimit = body.productLimit;
   if ('store_limit' in body && !('storeLimit' in body)) mapped.storeLimit = body.store_limit;
+  else if (body.storeLimit !== undefined) mapped.storeLimit = body.storeLimit;
   if ('ai_credits' in body && !('aiCredits' in body)) mapped.aiCredits = body.ai_credits;
+  else if (body.aiCredits !== undefined) mapped.aiCredits = body.aiCredits;
+  if (body.modules !== undefined) mapped.modules = body.modules;
   if ('is_active' in body && !('isActive' in body)) mapped.isActive = body.is_active;
-  delete mapped.product_limit;
-  delete mapped.store_limit;
-  delete mapped.ai_credits;
-  delete mapped.is_active;
+  else if (body.isActive !== undefined) mapped.isActive = body.isActive;
+  if (body.stripePriceId !== undefined) mapped.stripePriceId = body.stripePriceId;
   return mapped;
 }
 
@@ -268,21 +275,21 @@ router.get('/plans/:id', superAdminOnly, [
  */
 router.put('/plans/:id', superAdminOnly, [
   param('id').isInt(),
-  body('name').optional().isString().isLength({ min: 2, max: 100 }),
-  body('slug').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
-  body('price').optional().isFloat({ min: 0 }),
-  body('currency').optional().isString().isLength({ min: 3, max: 3 }),
-  body('description').optional().isString(),
-  body('productLimit').optional().isInt({ min: -1 }),
-  body('product_limit').optional().isInt({ min: -1 }),
-  body('storeLimit').optional().isInt({ min: 1 }),
-  body('store_limit').optional().isInt({ min: 1 }),
-  body('aiCredits').optional().isInt({ min: -1 }),
-  body('ai_credits').optional().isInt({ min: -1 }),
-  body('modules').optional().isObject(),
-  body('isActive').optional().isBoolean(),
-  body('is_active').optional().isBoolean(),
-  body('stripePriceId').optional().isString(),
+  body('name').optional({ values: 'falsy' }).isString().isLength({ min: 2, max: 100 }),
+  body('slug').optional({ values: 'falsy' }).isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
+  body('price').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+  body('currency').optional({ values: 'falsy' }).isString().isLength({ min: 3, max: 3 }),
+  body('description').optional({ values: 'falsy' }).isString(),
+  body('productLimit').optional({ values: 'falsy' }).isInt({ min: -1 }),
+  body('product_limit').optional({ values: 'falsy' }).isInt({ min: -1 }),
+  body('storeLimit').optional({ values: 'falsy' }).isInt({ min: 1 }),
+  body('store_limit').optional({ values: 'falsy' }).isInt({ min: 1 }),
+  body('aiCredits').optional({ values: 'falsy' }).isInt({ min: -1 }),
+  body('ai_credits').optional({ values: 'falsy' }).isInt({ min: -1 }),
+  body('modules').optional({ values: 'falsy' }).isObject(),
+  body('isActive').optional({ values: 'falsy' }).isBoolean(),
+  body('is_active').optional({ values: 'falsy' }).isBoolean(),
+  body('stripePriceId').optional({ values: 'falsy' }).isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const plan = await Plan.findByPk(req.params.id);
