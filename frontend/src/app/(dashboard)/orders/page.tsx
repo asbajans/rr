@@ -48,6 +48,13 @@ interface DropshippingOrder {
   created_at: string
 }
 
+interface ImportStatus {
+  state: 'importing' | 'success' | 'error'
+  marketplace: string
+  message: string
+  detail?: string
+}
+
 export default function OrdersPage() {
   const { user } = useAuth()
   const [orders, setOrders] = useState<DropshippingOrder[]>([])
@@ -55,6 +62,7 @@ export default function OrdersPage() {
   const [activeFilter, setActiveFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState<string | null>(null)
+  const [importStatus, setImportStatus] = useState<ImportStatus | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -74,12 +82,30 @@ export default function OrdersPage() {
     const maxPages = prompt('Maksimum sayfa sayısı (1-20):', '5')
     if (!maxPages) return
     setImporting(marketplace)
+    setImportStatus({
+      state: 'importing',
+      marketplace,
+      message: `${TAB_LABELS[marketplace] || marketplace} siparişleri içe aktarılıyor...`,
+    })
     try {
       const r = await api.importOrders(marketplace, { maxPages: parseInt(maxPages) || 5 })
-      alert(`${r.imported} sipariş içe aktarıldı`)
+      const label = TAB_LABELS[marketplace] || marketplace
+      setImportStatus({
+        state: 'success',
+        marketplace,
+        message: `${r.imported} sipariş içe aktarıldı`,
+        detail: r.orders.filter((o: any) => o.updated).length > 0
+          ? `${r.orders.filter((o: any) => o.updated).length} tanesi güncellendi`
+          : undefined,
+      })
       setReloadKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || 'Hata')
+      setImportStatus({
+        state: 'error',
+        marketplace,
+        message: 'İçe aktarma hatası',
+        detail: e?.response?.data?.message || e.message || 'Bilinmeyen hata',
+      })
     } finally {
       setImporting(null)
     }
@@ -89,13 +115,33 @@ export default function OrdersPage() {
     const maxPages = prompt('Maksimum sayfa sayısı (1-20):', '3')
     if (!maxPages) return
     setImporting('all')
+    setImportStatus({
+      state: 'importing',
+      marketplace: 'all',
+      message: 'Tüm pazaryerlerinden siparişler içe aktarılıyor...',
+    })
     try {
       const r = await api.importAllOrders({ maxPages: parseInt(maxPages) || 3 })
-      const details = r.results.filter(r => r.imported > 0).map(r => `${r.marketplace}: ${r.imported}`).join(', ')
-      alert(`Toplam ${r.imported} sipariş içe aktarıldı${details ? ` (${details})` : ''}`)
+      const details = r.results.filter((r: any) => r.imported > 0).map((r: any) => `${TAB_LABELS[r.marketplace] || r.marketplace}: ${r.imported}`).join(', ')
+      const failed = r.results.filter((r: any) => r.error)
+      let detail = details ? `(${details})` : undefined
+      if (failed.length > 0) {
+        detail = (detail ? detail + ' ' : '') + `Başarısız: ${failed.map((r: any) => TAB_LABELS[r.marketplace] || r.marketplace).join(', ')}`
+      }
+      setImportStatus({
+        state: 'success',
+        marketplace: 'all',
+        message: `Toplam ${r.imported} sipariş içe aktarıldı`,
+        detail,
+      })
       setReloadKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || 'Hata')
+      setImportStatus({
+        state: 'error',
+        marketplace: 'all',
+        message: 'Toplu içe aktarma hatası',
+        detail: e?.response?.data?.message || e.message || 'Bilinmeyen hata',
+      })
     } finally {
       setImporting(null)
     }
@@ -134,6 +180,39 @@ export default function OrdersPage() {
           </button>
         ))}
       </div>
+
+      {/* Import Status Banner */}
+      {importStatus && (
+        <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+          importStatus.state === 'importing'
+            ? 'border-blue-200 bg-blue-50 text-blue-800'
+            : importStatus.state === 'success'
+            ? 'border-green-200 bg-green-50 text-green-800'
+            : 'border-red-200 bg-red-50 text-red-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {importStatus.state === 'importing' && (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {importStatus.state === 'success' && (
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              )}
+              {importStatus.state === 'error' && (
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+              )}
+              <span className="font-medium">{importStatus.message}</span>
+            </div>
+            <button onClick={() => setImportStatus(null)} className="text-current opacity-60 hover:opacity-100">&times;</button>
+          </div>
+          {importStatus.detail && (
+            <p className="mt-1 text-xs opacity-80">{importStatus.detail}</p>
+          )}
+        </div>
+      )}
 
       {/* Import Bar */}
       <div className="mt-4 flex items-center gap-2">

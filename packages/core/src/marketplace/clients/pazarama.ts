@@ -30,36 +30,66 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     if (this.useApiKeyAuth) return '';
     if (this.bearerToken && Date.now() < this.tokenExpiry) return this.bearerToken;
 
-    try {
-      const response = await this.authClient.post('', new URLSearchParams({
+    const tryBasic = async (): Promise<any> => {
+      const res = await this.authClient.post<any>('', new URLSearchParams({
         grant_type: 'client_credentials',
         scope: 'merchantgatewayapi.fullaccess',
       }), {
         auth: { username: this.config.clientId, password: this.config.clientSecret },
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
+      return res.data;
+    };
 
-      const body = response.data;
+    const tryBodyAuth = async (): Promise<any> => {
+      const res = await this.authClient.post<any>('', new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'merchantgatewayapi.fullaccess',
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+      }), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      return res.data;
+    };
 
-      if (body?.success === true && body?.data?.accessToken) {
-        this.bearerToken = body.data.accessToken;
-        this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
-      } else if (body?.access_token) {
-        this.bearerToken = body.access_token;
-        this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
-      } else {
-        throw new Error('unexpected response format');
+    const tryApiKey = async (): Promise<any> => {
+      const res = await this.authClient.post<any>('', new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'merchantgatewayapi.fullaccess',
+        client_id: this.config.apiKey,
+        client_secret: this.config.clientSecret,
+      }), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      return res.data;
+    };
+
+    let lastErr: any;
+
+    for (const attempt of [tryBasic, tryBodyAuth, tryApiKey]) {
+      try {
+        const body = await attempt();
+        if (body?.success === true && body?.data?.accessToken) {
+          this.bearerToken = body.data.accessToken;
+          this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
+          return this.bearerToken!;
+        }
+        if (body?.access_token) {
+          this.bearerToken = body.access_token;
+          this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
+          return this.bearerToken!;
+        }
+        lastErr = new Error('unexpected response format: ' + JSON.stringify(body));
+      } catch (err: any) {
+        lastErr = err;
+        if (err?.response?.status !== 400 && err?.response?.status !== 401) throw err;
       }
-
-      return this.bearerToken!;
-    } catch (err: any) {
-      if (err?.response?.status === 400 || err?.response?.status === 401) {
-        logger.warn('[pazarama] OAuth2 failed, falling back to API key header auth');
-        this.useApiKeyAuth = true;
-        return '';
-      }
-      throw err;
     }
+
+    logger.warn('[pazarama] OAuth2 all 3 attempts failed, falling back to API key header auth');
+    this.useApiKeyAuth = true;
+    return '';
   }
 
   private async requestWithAuth<T>(method: string, path: string, opts?: {
@@ -134,20 +164,20 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   // ─── Products ────────────────────────────────────────────
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
-    const query: Record<string, any> = {};
-    if (params.page != null) query.Page = params.page + 1;
-    if (params.size != null) query.Size = Math.min(params.size, 250);
-    else query.Size = 100;
-    if (params.code) query.Code = params.code;
-    if (params.approved != null) query.Approved = params.approved;
+    const body: Record<string, any> = {
+      Page: params.page != null ? params.page + 1 : 1,
+      Size: Math.min(params.size || params.Size || 250, 250),
+    };
+    if (params.code) body.Code = params.code;
+    if (params.approved != null) body.Approved = params.approved;
 
-    const data = await this.requestWithAuth<any>('GET', '/product/getProducts', { query });
-    const items = data?.data || [];
+    const data = await this.requestWithAuth<any>('POST', '/product/getProducts', { body });
+    const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
     const totalPages = data?.totalPages || data?.pageCount || 1;
-    const currentPage = query.Page || 1;
+    const currentPage = body.Page || 1;
 
     return {
-      products: Array.isArray(items) ? items : [],
+      products: items,
       hasMore: items.length > 0 && currentPage < totalPages,
     };
   }
@@ -179,7 +209,7 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
         : [],
     };
 
-    return this.requestWithAuth<any>('POST', '/product/create', { body: payload });
+    return this.requestWithAuth<any>('POST', '/product/CreateProduct', { body: payload });
   }
 
   async updateProduct(productId: string, product: any): Promise<any> {
@@ -199,7 +229,7 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
 
     if (Object.keys(payload).length === 0) return { skipped: true };
 
-    return this.requestWithAuth<any>('PUT', `/product/update/${productId}`, { body: payload });
+    return this.requestWithAuth<any>('POST', '/product/UpdateProductAndStockByCode', { body: payload });
   }
 
   async updatePrice(externalId: string, price: number): Promise<any> {
