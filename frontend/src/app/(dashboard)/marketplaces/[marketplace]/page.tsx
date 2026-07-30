@@ -88,7 +88,7 @@ export default function MarketplaceDetailPage() {
     setImportStatus({ state: 'importing', message: `${MARKETPLACE_LABELS[mp] || mp} ürünleri içe aktarılıyor...` })
     try {
       const res = await api.importIntegrationProducts(mp)
-      let jobId = res.jobId
+      const jobId = res.jobId
       if (!jobId) {
         setImportStatus({ state: 'error', message: 'İçe aktarma başlatılamadı', detail: 'Sunucudan iş kimliği alınamadı.' })
         return
