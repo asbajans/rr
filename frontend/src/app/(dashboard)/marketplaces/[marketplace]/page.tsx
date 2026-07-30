@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import type { Brand } from '@/lib/types'
@@ -46,8 +46,10 @@ export default function MarketplaceDetailPage() {
   const [syncing, setSyncing] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [importing, setImporting] = useState(false)
+  const [importStatus, setImportStatus] = useState<{ state: 'importing' | 'success' | 'error'; message: string; detail?: string } | null>(null)
   const [configForm, setConfigForm] = useState<Record<string, string>>({})
   const [savingConfig, setSavingConfig] = useState(false)
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -65,7 +67,7 @@ export default function MarketplaceDetailPage() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [mp])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); return () => { if (pollingRef.current) clearInterval(pollingRef.current) } }, [load])
 
   async function handleSync() {
     setSyncing('brands')
@@ -83,12 +85,50 @@ export default function MarketplaceDetailPage() {
 
   async function handleImport() {
     setImporting(true)
-    setMessage('')
+    setImportStatus({ state: 'importing', message: `${MARKETPLACE_LABELS[mp] || mp} ürünleri içe aktarılıyor...` })
     try {
       const res = await api.importIntegrationProducts(mp)
-      setMessage(`${MARKETPLACE_LABELS[mp] || mp}: içe aktarma başlatıldı (Job: ${res.jobId})`)
+      let jobId = res.jobId
+      if (!jobId) {
+        setImportStatus({ state: 'error', message: 'İçe aktarma başlatılamadı', detail: 'Sunucudan iş kimliği alınamadı.' })
+        return
+      }
+      const started = Date.now()
+      const poll = async () => {
+        try {
+          const status = await api.getImportJobStatus(mp, jobId)
+          if (status.state === 'completed') {
+            const r = status.result || {}
+            const imported = r.imported ?? r.total ?? 0
+            const updated = r.updated ?? 0
+            const failed = r.failed ?? 0
+            setImportStatus({
+              state: 'success',
+              message: `İçe aktarma tamamlandı: ${imported} ürün işlendi`,
+              detail: [
+                updated > 0 ? `${updated} güncellendi` : '',
+                failed > 0 ? `${failed} başarısız` : '',
+              ].filter(Boolean).join(', ') || undefined,
+            })
+            if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null }
+          } else if (status.state === 'failed') {
+            setImportStatus({ state: 'error', message: 'İçe aktarma hatası', detail: status.failedReason || 'Bilinmeyen hata' })
+            if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null }
+          } else if (Date.now() - started > 20 * 60 * 1000) {
+            setImportStatus({ state: 'error', message: 'İçe aktarma zaman aşımına uğradı', detail: '20 dakika aşıldı' })
+            if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null }
+          } else {
+            const pct = status.progress ? Math.round(status.progress * 100) : undefined
+            setImportStatus({ state: 'importing', message: `${MARKETPLACE_LABELS[mp] || mp} ürünleri içe aktarılıyor...`, detail: pct ? `%${pct}` : undefined })
+          }
+        } catch {
+          // polling error — ignore, retry on next tick
+        }
+      }
+      pollingRef.current = setInterval(poll, 3000)
+      await poll()
     } catch (err: any) {
-      setMessage(err.message || 'İçe aktarma hatası')
+      setImportStatus({ state: 'error', message: 'İçe aktarma başlatılamadı', detail: err?.response?.data?.message || err.message || 'Bilinmeyen hata' })
     } finally {
       setImporting(false)
     }
@@ -170,7 +210,39 @@ export default function MarketplaceDetailPage() {
         </div>
       </div>
 
-      {message && (
+      {importStatus && (
+        <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+          importStatus.state === 'importing'
+            ? 'border-blue-200 bg-blue-50 text-blue-800'
+            : importStatus.state === 'success'
+            ? 'border-green-200 bg-green-50 text-green-800'
+            : 'border-red-200 bg-red-50 text-red-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {importStatus.state === 'importing' && (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {importStatus.state === 'success' && (
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              )}
+              {importStatus.state === 'error' && (
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+              )}
+              <span className="font-medium">{importStatus.message}</span>
+            </div>
+            <button onClick={() => setImportStatus(null)} className="text-current opacity-60 hover:opacity-100">&times;</button>
+          </div>
+          {importStatus.detail && (
+            <p className="mt-1 text-xs opacity-80">{importStatus.detail}</p>
+          )}
+        </div>
+      )}
+
+      {message && !importStatus && (
         <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700 whitespace-pre-wrap">{message}</div>
       )}
 
