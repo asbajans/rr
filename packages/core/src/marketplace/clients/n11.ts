@@ -122,16 +122,17 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
     const sku: Record<string, any> = {
       title: product.title,
       description: product.description ?? '',
-      categoryId: product.categoryId,
+      categoryId: Number(product.categoryId),
       currencyType: product.currencyType ?? 'TL',
       productMainId: product.productMainId ?? product.sku ?? `p_${Date.now()}`,
       preparingDay: product.preparingDay ?? 3,
-      shipmentTemplate: product.shipmentTemplate ?? '1',
+      shipmentTemplate: String(product.shipmentTemplate || '1'),
       stockCode: product.sku ?? product.stockCode ?? '',
       quantity: product.quantity ?? 0,
+      maxPurchaseQuantity: product.maxPurchaseQuantity ?? 5,
       images: Array.isArray(product.images) ? product.images.map((u: any) => {
-        if (typeof u === 'string') return { url: u, order: 0 };
-        if (u.url) return { url: u.url, order: u.order ?? 0 };
+        if (typeof u === 'string') return { url: this.ensureHttps(u), order: 0 };
+        if (u.url) return { url: this.ensureHttps(u.url), order: u.order ?? 0 };
         return null;
       }).filter(Boolean) : [],
       attributes: Array.isArray(product.attributes) ? product.attributes.map((a: any) => ({
@@ -139,12 +140,10 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
         valueId: a.valueId ?? null,
         customValue: a.customValue ?? null,
       })) : [],
-      salePrice: product.salePrice ?? product.price ?? 0,
-      listPrice: product.listPrice ?? product.price ?? 0,
-      vatRate: product.vatRate ?? 10,
+      salePrice: Number(product.salePrice ?? product.price ?? 0),
+      listPrice: Number(product.listPrice ?? product.price ?? 0),
+      vatRate: this.validateVatRate(product.vatRate ?? 10),
     };
-    if (product.barcode) sku.barcode = product.barcode;
-    if (product.maxPurchaseQuantity != null) sku.maxPurchaseQuantity = product.maxPurchaseQuantity;
 
     return this.request<any>({
       method: 'POST',
@@ -152,6 +151,16 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
       data: { payload: { integrator: 'Rahatio', skus: [sku] } },
       headers: { 'Content-Type': 'application/json', ...authHeaders(this.config) },
     });
+  }
+
+  private ensureHttps(url: string): string {
+    if (!url) return url;
+    return url.replace(/^http:\/\//i, 'https://');
+  }
+
+  private validateVatRate(rate: number): number {
+    const valid = [0, 1, 10, 20];
+    return valid.includes(rate) ? rate : 10;
   }
 
   // ─── Update Product Info (async) ──────────────────────────
@@ -187,7 +196,11 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
   }
 
   async updatePriceStock(stockCode: string, fields: Record<string, any>): Promise<any> {
-    const sku: Record<string, any> = { stockCode, ...fields };
+    const sku: Record<string, any> = { stockCode };
+    if (fields.salePrice != null) sku.salePrice = fields.salePrice;
+    if (fields.listPrice != null) sku.listPrice = fields.listPrice;
+    if (fields.quantity != null) sku.quantity = fields.quantity;
+    if (fields.currencyType) sku.currencyType = fields.currencyType;
     return this.request<any>({
       method: 'POST',
       url: '/ms/product/tasks/price-stock-update',

@@ -66,7 +66,7 @@ function getExternalId(mp: string, raw: any): string {
     case 'trendyol': return raw.barcode || raw.stockCode || '';
     case 'hepsiburada': return raw.merchantSku || raw.barcode || '';
     case 'pazarama': return raw.barcode || raw.sku || '';
-    case 'n11': return raw.productCode || raw.id?.toString() || '';
+    case 'n11': return raw.stockCode || raw.n11ProductId?.toString() || '';
     case 'amazon': return raw.asin || raw.sellerSKU || raw.sku || '';
     case 'etsy': return raw.listing_id?.toString() || raw.sku || '';
     default: return '';

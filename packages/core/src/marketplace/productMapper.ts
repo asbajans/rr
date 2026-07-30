@@ -85,12 +85,14 @@ export function mapProductForN11(product: any, integration: any): Record<string,
   const price = product.priceTRY ?? product.priceUSD ?? 0;
   const images = Array.isArray(product.images) ? product.images.map((u: any) => {
     const url = typeof u === 'string' ? u : (u.url || u);
-    return { url, order: 0 };
-  }).filter((i: any) => i.url) : [];
+    if (!url) return null;
+    return { url: url.replace(/^http:\/\//i, 'https://'), order: 0 };
+  }).filter((i: any) => i?.url) : [];
 
   const attrs: any[] = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => ({
-    id: a.id || a.attributeId,
-    valueId: a.valueId || a.attributeValueId,
+    id: Number(a.id || a.attributeId),
+    valueId: a.valueId || a.attributeValueId || null,
+    customValue: a.customValue || null,
   })).filter((a: any) => a.id) : [];
 
   const brandName = entry.brand || '';
@@ -102,6 +104,9 @@ export function mapProductForN11(product: any, integration: any): Record<string,
   const categoryId = entry.categoryId || entry.category_id;
   if (!categoryId) return { _skip: true, reason: 'N11 category not mapped' };
 
+  const validVat = [0, 1, 10, 20];
+  const vatRate = validVat.includes(Number(entry.vatRate ?? 10)) ? Number(entry.vatRate ?? 10) : 10;
+
   return {
     title: product.title,
     description: product.description || '',
@@ -112,13 +117,13 @@ export function mapProductForN11(product: any, integration: any): Record<string,
     shipmentTemplate: String(entry.shipmentTemplate || '1'),
     stockCode: product.sku,
     quantity: Number(product.quantity ?? 0),
-    barcode: product.sku,
     images,
     attributes: attrs,
     salePrice: Number(price),
     listPrice: Number(price),
-    vatRate: Number(entry.vatRate ?? 10),
-    maxPurchaseQuantity: entry.maxPurchaseQuantity || null,
+    vatRate,
+    maxPurchaseQuantity: entry.maxPurchaseQuantity ?? 5,
+    status: product.isActive === false ? 'Suspended' : 'Active',
   };
 }
 
