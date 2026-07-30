@@ -248,6 +248,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
       for (let pkg of packages) {
         if (marketplace === 'pazarama') {
           const sa = pkg.shipmentAddress || {};
+          const cargo = pkg.cargo || pkg.shipment || {};
           pkg = {
             ...pkg,
             id: pkg.orderId,
@@ -260,12 +261,17 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
             district: sa.districtName || '',
             neighborhood: sa.neighborhoodName || '',
             zipCode: sa.postalCode || '',
-            cargoTrackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || pkg.cargoTrackingCode || '',
-            cargoProviderName: pkg.cargoProviderName || pkg.carrier || pkg.cargoCompany || '',
+            cargoTrackingNumber: pkg.trackingNumber || cargo.trackingNumber || cargo.cargoTrackingNumber || cargo.trackingCode || cargo.cargoTrackingCode || pkg.cargoTrackingCode || '',
+            cargoProviderName: pkg.carrier || cargo.carrier || cargo.cargoProvider || cargo.cargoCompany || pkg.cargoCompany || cargo.cargoProviderName || '',
             orderNumber: String(pkg.orderNumber ?? ''),
             totalAmount: Number(pkg.orderAmount ?? 0),
             status: statusForPazarama(pkg.orderStatus),
           };
+          // Log first item's keys for debugging
+          if (Array.isArray(pkg.items) && pkg.items.length > 0) {
+            const first = pkg.items[0];
+            logger.info({ itemKeys: Object.keys(first), sampleItem: first }, '[pazarama] order item structure');
+          }
         }
 
         const marketplaceOrderId = String(pkg.id);
@@ -275,13 +281,13 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
 
         const lines = pkg.lines || pkg.items || [];
         const items = lines.map((l: any) => ({
-          sku: l.barcode || l.sku || l.stockCode || l.productCode || '',
-          name: l.productName || l.title || l.name || '',
-          quantity: l.quantity || 1,
-          price: parseFloat(l.salePrice || l.price || l.unitPrice || 0),
-          image: l.imageUrl || '',
+          sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || '',
+          name: l.productName || l.title || l.name || l.productTitle || l.itemName || '',
+          quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
+          price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0),
+          image: l.imageUrl || l.productImageUrl || l.image || '',
           variantAttributes: l.variantAttributes || [],
-          orderLineId: l.orderLineId || l.id,
+          orderLineId: l.orderLineId || l.orderItemId || l.id,
         }));
 
         const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
@@ -400,6 +406,7 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
             const mp = integration.marketplace;
             if (mp === 'pazarama') {
               const sa = pkg.shipmentAddress || {};
+              const cargo = pkg.cargo || pkg.shipment || {};
               pkg = {
                 ...pkg,
                 id: pkg.orderId,
@@ -412,8 +419,8 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
                 district: sa.districtName || '',
                 neighborhood: sa.neighborhoodName || '',
                 zipCode: sa.postalCode || '',
-                cargoTrackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || pkg.cargoTrackingCode || '',
-                cargoProviderName: pkg.cargoProviderName || pkg.carrier || pkg.cargoCompany || '',
+                cargoTrackingNumber: pkg.trackingNumber || cargo.trackingNumber || cargo.cargoTrackingNumber || cargo.trackingCode || cargo.cargoTrackingCode || pkg.cargoTrackingCode || '',
+                cargoProviderName: pkg.carrier || cargo.carrier || cargo.cargoProvider || cargo.cargoCompany || pkg.cargoCompany || cargo.cargoProviderName || '',
                 orderNumber: String(pkg.orderNumber ?? ''),
                 totalAmount: Number(pkg.orderAmount ?? 0),
                 status: statusForPazarama(pkg.orderStatus),
@@ -428,11 +435,11 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
 
             const lines = pkg.lines || pkg.items || [];
             const items = lines.map((l: any) => ({
-              sku: l.barcode || l.sku || l.stockCode || l.productCode || '',
-              name: l.productName || l.title || l.name || '',
-              quantity: l.quantity || 1,
-              price: parseFloat(l.salePrice || l.price || l.unitPrice || 0),
-              image: l.imageUrl || '',
+              sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || '',
+              name: l.productName || l.title || l.name || l.productTitle || l.itemName || '',
+              quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
+              price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0),
+              image: l.imageUrl || l.productImageUrl || l.image || '',
             }));
 
             const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
