@@ -578,7 +578,18 @@ export async function createSyncWorker() {
                 if (!externalId) externalId = batchId;
               }
             } else if (isPazarama) {
-              // Pazarama product create returns batchRequestId in data
+              // Pazarama product create returns batchRequestId in data; business errors come as 200 with success:false
+              if (listingResult && listingResult.success === false) {
+                const bizMsg = listingResult.userMessage || listingResult.message || 'Pazarama create rejected';
+                await ProductMarketplaceListing.upsert({
+                  productId: product.id, storeId, platform: mp,
+                  externalId: null, status: 'failed',
+                  lastError: String(bizMsg).slice(0, 2000),
+                  lastSyncedAt: new Date(),
+                } as any);
+                results[mp] = { success: false, reason: bizMsg };
+                externalId = 'failed';
+              } else {
               const batchId = listingResult?.data?.batchRequestId
                 || listingResult?.batchRequestId
                 || listingResult?.batchId
@@ -608,6 +619,7 @@ export async function createSyncWorker() {
                 if (!externalId) externalId = batchId;
               } else {
                 externalId = product.sku;
+              }
               }
             } else if (isN11) {
               externalId = product.sku;

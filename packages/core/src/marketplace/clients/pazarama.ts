@@ -204,13 +204,13 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
 
   async createProduct(product: any): Promise<any> {
     const payload = this.buildProductPayload(product);
-    return this.requestWithAuth<any>('POST', '/product/create', { body: payload });
+    return this.requestWithAuth<any>('POST', '/product/create', { body: { products: [payload] } });
   }
 
   async updateProduct(productId: string, product: any): Promise<any> {
     const payload = this.buildProductPayload(product);
     if (Object.keys(payload).length === 0) return { skipped: true };
-    return this.requestWithAuth<any>('POST', '/product/create', { body: payload });
+    return this.requestWithAuth<any>('POST', '/product/create', { body: { products: [payload] } });
   }
 
   async updatePrice(externalId: string, price: number): Promise<any> {
