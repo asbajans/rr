@@ -47,26 +47,24 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
         }}
       />
-      {b2bEnabled && (
-        <>
-          <Tabs.Screen
-            name="b2b/index"
-            options={{
-              title: t('b2bDiscover'),
-              tabBarLabel: t('b2bDiscoverTab'),
-              tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
-            }}
-          />
-          <Tabs.Screen
-            name="b2b/requests"
-            options={{
-              title: t('b2bRequests'),
-              tabBarLabel: t('b2bRequests'),
-              tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
-            }}
-          />
-        </>
-      )}
+      <Tabs.Screen
+        name="b2b/index"
+        options={{
+          href: b2bEnabled ? undefined : null,
+          title: t('b2bDiscover'),
+          tabBarLabel: t('b2bDiscoverTab'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="b2b/requests"
+        options={{
+          href: b2bEnabled ? undefined : null,
+          title: t('b2bRequests'),
+          tabBarLabel: t('b2bRequests'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="billing"
         options={{
