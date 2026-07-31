@@ -7,7 +7,8 @@ import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
-import type { Product, MarketplaceCategory, Category, MarketplaceEntry } from '../../src/shared/types'
+import SearchablePicker, { PickerOption } from '../../src/shared/SearchablePicker'
+import type { Product, MarketplaceCategory, Category, Brand, MarketplaceEntry } from '../../src/shared/types'
 
 const MARKETPLACE_OPTIONS = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'Pazaryeri Yok']
 
@@ -41,6 +42,7 @@ export default function ProductsScreen() {
 
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
   const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
 
   // modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -83,13 +85,22 @@ export default function ProductsScreen() {
     return opts
   }
 
-  function brandsFor(mp: string): string[] {
+  function brandsFor(mp: string): PickerOption[] {
+    const opts = brands
+      .filter((b) => {
+        if (b.isActive === false) return false
+        if (mp === 'Kendi Sitem') return !b.marketplace || b.marketplace === 'Kendi Sitem'
+        return b.marketplace === mp && !!b.marketplaceBrandId
+      })
+      .map((b) => ({ id: b.marketplaceBrandId ?? String(b.id), name: b.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+    if (opts.length > 0) return opts
     const set = new Set<string>()
     products.forEach((pr) => {
       const md = pr.marketplace_data?.[mp]
       if (md?.brand) set.add(md.brand)
     })
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'))
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr')).map((name) => ({ id: name, name }))
   }
 
   async function load() {
@@ -128,6 +139,10 @@ export default function ProductsScreen() {
       try {
         const res = await api.getCategoriesFlat()
         setCategoriesFlat(res.data ?? [])
+      } catch {}
+      try {
+        const res = await api.getBrands()
+        setBrands(res ?? [])
       } catch {}
     })()
   }, [])
@@ -463,7 +478,7 @@ function ProductModal({
   categoriesFlat: Category[]
   marketplaceTrees: Record<string, MarketplaceCategory[]>
   catOptionsFor: (mp: string) => { id: string; name: string }[]
-  brandsFor: (mp: string) => string[]
+  brandsFor: (mp: string) => { id: string; name: string }[]
   onClose: () => void
   onSaved: () => void
   t: (k: string) => string
@@ -472,6 +487,7 @@ function ProductModal({
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
+  const [picker, setPicker] = useState<{ mp: string; field: 'category' | 'brand' } | null>(null)
 
   function updateMd(mp: string, patch: Partial<MarketplaceEntry>) {
     setP((prev) => ({ ...prev, marketplace_data: { ...prev.marketplace_data, [mp]: { ...(prev.marketplace_data[mp] ?? {}), ...patch } } }))
@@ -547,6 +563,7 @@ function ProductModal({
           category: md.category ?? '',
           category_id: md.category_id ?? '',
           brand: md.brand ?? '',
+          brand_id: md.brand_id ?? '',
           on_sale: m === 'Kendi Sitem' ? p.status : !!md.on_sale,
           status: m === 'Kendi Sitem' ? (p.status ? 1 : 0) : (md.on_sale ? 1 : 0),
         }
@@ -683,8 +700,6 @@ function ProductModal({
               <Text style={styles.mpDetailTitle}>{t('marketplaceDetails')}</Text>
               {p.marketplaces.map((mp) => {
                 const md = p.marketplace_data[mp] ?? {}
-                const catOpts = catOptionsFor(mp)
-                const brOpts = brandsFor(mp)
                 return (
                   <View key={mp} style={styles.mpItem}>
                     <View style={styles.mpItemHead}>
@@ -704,24 +719,19 @@ function ProductModal({
                     <View style={styles.row}>
                       <View style={styles.half}>
                         <Text style={styles.label}>{t('marketplaceCategory')}</Text>
-                        <TextInput
-                          style={styles.input}
-                          value={md.category ?? ''}
-                          onChangeText={(v) => {
-                            const match = catOpts.find((o) => o.name === v)
-                            updateMd(mp, { category: v, category_id: match?.id ?? md.category_id ?? '' })
-                          }}
-                          placeholder={t('marketplaceCategory')}
-                        />
+                        <TouchableOpacity style={styles.input} onPress={() => setPicker({ mp, field: 'category' })}>
+                          <Text numberOfLines={1} style={md.category ? styles.pickerValue : styles.pickerPlaceholder}>
+                            {md.category || t('selectCategory')}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                       <View style={styles.half}>
                         <Text style={styles.label}>{t('marketplaceBrand')}</Text>
-                        <TextInput
-                          style={styles.input}
-                          value={md.brand ?? ''}
-                          onChangeText={(v) => updateMd(mp, { brand: v })}
-                          placeholder={t('marketplaceBrand')}
-                        />
+                        <TouchableOpacity style={styles.input} onPress={() => setPicker({ mp, field: 'brand' })}>
+                          <Text numberOfLines={1} style={md.brand ? styles.pickerValue : styles.pickerPlaceholder}>
+                            {md.brand || t('selectBrand')}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -757,6 +767,26 @@ function ProductModal({
           </View>
         </View>
       </ScrollView>
+
+      <SearchablePicker
+        visible={picker !== null}
+        title={picker?.field === 'category' ? t('marketplaceCategory') : t('marketplaceBrand')}
+        options={
+          picker?.field === 'category'
+            ? (picker ? catOptionsFor(picker.mp) : [])
+            : (picker ? brandsFor(picker.mp) : [])
+        }
+        onSelect={(opt) => {
+          if (!picker) return
+          if (picker.field === 'category') {
+            updateMd(picker.mp, { category: opt ? opt.name : '', category_id: opt ? opt.id : '' })
+          } else {
+            updateMd(picker.mp, { brand: opt ? opt.name : '', brand_id: opt ? opt.id : '' })
+          }
+          setPicker(null)
+        }}
+        onClose={() => setPicker(null)}
+      />
     </Modal>
   )
 }
@@ -837,6 +867,8 @@ const styles = StyleSheet.create({
   aiBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   linkBtn: { fontSize: 12, color: '#000', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: '#fafafa' },
+  pickerValue: { fontSize: 15, color: '#333' },
+  pickerPlaceholder: { fontSize: 15, color: '#999' },
   textArea: { height: 90, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },

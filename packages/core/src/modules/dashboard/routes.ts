@@ -67,6 +67,13 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
     }
 
     res.json({
+      store: {
+        id: store.id,
+        name: store.name,
+        siteCode: store.siteCode,
+        domain: store.domain,
+        email: store.email,
+      },
       totalProducts,
       activeProducts,
       totalOrders,

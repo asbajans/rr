@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
+import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -214,7 +214,16 @@ class ApiClient {
     const r = await this.get<any>('/api/admin/dashboard')
     return {
       user: r.user || null,
-      store: r.store || null,
+      store: r.store
+        ? {
+            id: r.store.id,
+            name: r.store.name,
+            site_code: r.store.siteCode ?? r.store.site_code ?? '',
+            domain: r.store.domain ?? null,
+            email: r.store.email ?? null,
+            is_active: r.store.isActive ?? r.store.is_active ?? true,
+          }
+        : null,
       plan: r.plan || null,
       subscription: r.subscription || null,
       stats: {
@@ -473,6 +482,13 @@ class ApiClient {
 
   getMarketplaceTrees() {
     return this.get<{ trees: Record<string, MarketplaceCategory[]> }>('/api/admin/integrations/marketplace-trees')
+  }
+
+  getBrands(filters?: { marketplace?: string; search?: string }) {
+    const params: Record<string, string> = {}
+    if (filters?.marketplace) params.marketplace = filters.marketplace
+    if (filters?.search) params.search = filters.search
+    return this.get<{ brands: Brand[] }>('/api/admin/brands', { params }).then(r => r.brands)
   }
 
   async getCategoriesFlat() {

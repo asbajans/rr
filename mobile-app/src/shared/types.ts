@@ -99,6 +99,7 @@ export type MarketplaceEntry = {
   category?: string
   category_id?: string
   brand?: string
+  brand_id?: string
   on_sale?: boolean
   status?: number
   error?: string
@@ -119,6 +120,14 @@ export type Category = {
   path?: string
   slug?: string
   parent_id?: number | string | null
+}
+
+export type Brand = {
+  id: number
+  name: string
+  marketplace?: string | null
+  marketplaceBrandId?: string | null
+  isActive?: boolean
 }
 
 export type DashboardData = {

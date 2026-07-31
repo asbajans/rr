@@ -6,7 +6,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../../src/shared/i18n'
 import { api } from '../../../src/shared/api-client'
-import type { ProductDetail, MarketplaceEntry } from '../../../src/shared/types'
+import SearchablePicker from '../../../src/shared/SearchablePicker'
+import type { ProductDetail, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '../../../src/shared/types'
 
 export default function ProductDetailScreen() {
   const router = useRouter()
@@ -31,6 +32,61 @@ export default function ProductDetailScreen() {
   const [b2bEnabled, setB2bEnabled] = useState(false)
   const [b2bDiscount, setB2bDiscount] = useState('')
   const [b2bPrice, setB2bPrice] = useState('')
+
+  const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
+  const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [picker, setPicker] = useState<{ mp: string; field: 'category' | 'brand' } | null>(null)
+
+  function catOptionsFor(mp: string): { id: string; name: string }[] {
+    if (mp === 'Kendi Sitem') {
+      return (categoriesFlat ?? []).map((c) => ({ id: String(c.id), name: c.path || c.name }))
+    }
+    const tree = marketplaceTrees[mp] ?? []
+    const opts: { id: string; name: string }[] = []
+    const walk = (nodes: MarketplaceCategory[], prefix: string) => {
+      nodes.forEach((n) => {
+        const name = prefix ? `${prefix} / ${n.name}` : n.name
+        opts.push({ id: String(n.marketplace_category_id ?? n.id), name })
+        if (n.children?.length) walk(n.children, name)
+      })
+    }
+    walk(tree, '')
+    return opts
+  }
+
+  function brandsFor(mp: string): { id: string; name: string }[] {
+    const opts = brands
+      .filter((b) => {
+        if (b.isActive === false) return false
+        if (mp === 'Kendi Sitem') return !b.marketplace || b.marketplace === 'Kendi Sitem'
+        return b.marketplace === mp && !!b.marketplaceBrandId
+      })
+      .map((b) => ({ id: b.marketplaceBrandId ?? String(b.id), name: b.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+    if (opts.length > 0) return opts
+    const md = marketplaceData[mp]
+    return md?.brand ? [{ id: md.brand_id ?? md.brand, name: md.brand }] : []
+  }
+
+  useEffect(() => {
+    const token = api.getToken()
+    if (!token) return
+    ;(async () => {
+      try {
+        const res = await api.getMarketplaceTrees()
+        setMarketplaceTrees(res.trees ?? {})
+      } catch {}
+      try {
+        const res = await api.getCategoriesFlat()
+        setCategoriesFlat(res.data ?? [])
+      } catch {}
+      try {
+        const res = await api.getBrands()
+        setBrands(res ?? [])
+      } catch {}
+    })()
+  }, [])
 
   async function load() {
     try {
@@ -69,6 +125,7 @@ export default function ProductDetailScreen() {
           category: md.category ?? '',
           category_id: md.category_id ?? '',
           brand: md.brand ?? '',
+          brand_id: md.brand_id ?? '',
           on_sale: m === 'Kendi Sitem' ? status : !!md.on_sale,
           status: m === 'Kendi Sitem' ? (status ? 1 : 0) : (md.on_sale ? 1 : 0),
         }
@@ -337,11 +394,19 @@ export default function ProductDetailScreen() {
                 <View style={styles.row}>
                   <View style={styles.half}>
                     <Text style={styles.label}>{t('marketplaceCategory')}</Text>
-                    <TextInput style={styles.input} value={md.category ?? ''} onChangeText={(v) => updateMd(m, { category: v })} />
+                    <TouchableOpacity style={styles.input} onPress={() => setPicker({ mp: m, field: 'category' })}>
+                      <Text numberOfLines={1} style={md.category ? styles.pickerValue : styles.pickerPlaceholder}>
+                        {md.category || t('selectCategory')}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                   <View style={styles.half}>
                     <Text style={styles.label}>{t('marketplaceBrand')}</Text>
-                    <TextInput style={styles.input} value={md.brand ?? ''} onChangeText={(v) => updateMd(m, { brand: v })} />
+                    <TouchableOpacity style={styles.input} onPress={() => setPicker({ mp: m, field: 'brand' })}>
+                      <Text numberOfLines={1} style={md.brand ? styles.pickerValue : styles.pickerPlaceholder}>
+                        {md.brand || t('selectBrand')}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
                 {md.error ? <Text style={styles.syncError}>{md.error}</Text> : null}
@@ -373,6 +438,26 @@ export default function ProductDetailScreen() {
           </View>
         )}
       </View>
+
+      <SearchablePicker
+        visible={picker !== null}
+        title={picker?.field === 'category' ? t('marketplaceCategory') : t('marketplaceBrand')}
+        options={
+          picker?.field === 'category'
+            ? (picker ? catOptionsFor(picker.mp) : [])
+            : (picker ? brandsFor(picker.mp) : [])
+        }
+        onSelect={(opt) => {
+          if (!picker) return
+          if (picker.field === 'category') {
+            updateMd(picker.mp, { category: opt ? opt.name : '', category_id: opt ? opt.id : '' })
+          } else {
+            updateMd(picker.mp, { brand: opt ? opt.name : '', brand_id: opt ? opt.id : '' })
+          }
+          setPicker(null)
+        }}
+        onClose={() => setPicker(null)}
+      />
     </ScrollView>
   )
 }
@@ -400,6 +485,8 @@ const styles = StyleSheet.create({
   aiBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   linkBtn: { fontSize: 12, color: '#000', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: '#fafafa' },
+  pickerValue: { fontSize: 15, color: '#333' },
+  pickerPlaceholder: { fontSize: 15, color: '#999' },
   textArea: { height: 90, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
