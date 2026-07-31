@@ -915,9 +915,10 @@ mapProductForPazarama(product, integration) → {
 
 **Pazarama Product API**:
 - **Base**: `https://isortagimapi.pazarama.com`
-- **Create**: `POST /product/CreateProduct` (async, returns `batchRequestId`)
-- **Update**: `POST /product/UpdateProductAndStockByCode` (sync)
+- **Create**: `POST /product/create` (async, returns `batchRequestId`)
+- **Update**: `POST /product/create` (upsert by Code — ayrı update endpoint'i yok; PHP reference client `bluntk/pazarama` ile doğrulandı)
 - **Batch result**: `GET /product/getProductBatchResult?BatchRequestId=...`
+- **NOT**: `POST /product/CreateProduct` ve `POST /product/UpdateProductAndStockByCode` **404 döndürür** — kullanma
 - **Auth**: OAuth2 via `POST https://isortagimgiris.pazarama.com/connect/token` with `grant_type=client_credentials`; response `{success: true, data: {accessToken, expiresIn}}`
 - **Pricing/Stock update**: `POST /product/updatePrices` and `POST /product/updateStocks`
 - **Order list**: `POST /order/getOrdersForApi` with `{StartDate, EndDate, Page, Size}`

@@ -203,53 +203,14 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   }
 
   async createProduct(product: any): Promise<any> {
-    const payload: Record<string, any> = {
-      Name: product.Name || product.title || '',
-      DisplayName: product.DisplayName || product.displayName || product.title || '',
-      Description: product.Description || product.description || '',
-      BrandId: Number(product.BrandId || product.brandId || 0),
-      Desi: Number(product.Desi || product.desi || product.dimensionalWeight || 1),
-      Code: product.Code || product.code || product.sku || '',
-      GroupCode: product.GroupCode || product.groupCode || product.mainSku || '',
-      StockCount: Number(product.StockCount || product.stockCount || product.quantity || 0),
-      VatRate: this.validateVatRate(product.VatRate || product.vatRate || 10),
-      ListPrice: Number(product.ListPrice || product.listPrice || product.price || 0),
-      SalePrice: Number(product.SalePrice || product.salePrice || product.price || 0),
-      CategoryId: Number(product.CategoryId || product.categoryId || 0),
-      images: Array.isArray(product.images || product.Images)
-        ? (product.images || product.Images).map((u: any) => ({
-            imageurl: typeof u === 'string' ? this.ensureHttps(u) : this.ensureHttps(u.imageurl || u.url || ''),
-          })).filter((i: any) => i.imageurl)
-        : [],
-      attributes: Array.isArray(product.attributes || product.Attributes)
-        ? (product.attributes || product.Attributes).map((a: any) => ({
-            attributeId: Number(a.attributeId || a.id),
-            attributeValueId: a.attributeValueId || a.valueId || null,
-          })).filter((a: any) => a.attributeId)
-        : [],
-    };
-
-    return this.requestWithAuth<any>('POST', '/product/CreateProduct', { body: payload });
+    const payload = this.buildProductPayload(product);
+    return this.requestWithAuth<any>('POST', '/product/create', { body: payload });
   }
 
   async updateProduct(productId: string, product: any): Promise<any> {
-    const payload: Record<string, any> = {};
-
-    if (product.Name || product.title) payload.Name = product.Name || product.title;
-    if (product.DisplayName || product.displayName) payload.DisplayName = product.DisplayName || product.displayName;
-    if (product.Description || product.description) payload.Description = product.Description || product.description;
-    if (product.BrandId || product.brandId) payload.BrandId = Number(product.BrandId || product.brandId);
-    if (product.Desi || product.desi) payload.Desi = Number(product.Desi || product.desi);
-    if (product.StockCount || product.quantity) payload.StockCount = Number(product.StockCount || product.quantity);
-    if (product.VatRate || product.vatRate) payload.VatRate = this.validateVatRate(product.VatRate || product.vatRate);
-    if (product.ListPrice || product.listPrice) payload.ListPrice = Number(product.ListPrice || product.listPrice);
-    if (product.SalePrice || product.salePrice) payload.SalePrice = Number(product.SalePrice || product.salePrice);
-    if (product.CategoryId || product.categoryId) payload.CategoryId = Number(product.CategoryId || product.categoryId);
-    if (product.Code || product.code) payload.Code = product.Code || product.code;
-
+    const payload = this.buildProductPayload(product);
     if (Object.keys(payload).length === 0) return { skipped: true };
-
-    return this.requestWithAuth<any>('POST', '/product/UpdateProductAndStockByCode', { body: payload });
+    return this.requestWithAuth<any>('POST', '/product/create', { body: payload });
   }
 
   async updatePrice(externalId: string, price: number): Promise<any> {
@@ -302,6 +263,42 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   }
 
   // ─── Helpers ─────────────────────────────────────────────
+
+  private buildProductPayload(product: any): Record<string, any> {
+    const images = Array.isArray(product.images || product.Images)
+      ? (product.images || product.Images)
+          .map((u: any) => ({
+            imageurl: typeof u === 'string' ? this.ensureHttps(u) : this.ensureHttps(u.imageurl || u.url || ''),
+          }))
+          .filter((i: any) => i.imageurl)
+      : [];
+
+    const attributes = Array.isArray(product.attributes || product.Attributes)
+      ? (product.attributes || product.Attributes)
+          .map((a: any) => ({
+            attributeId: Number(a.attributeId || a.id),
+            attributeValueId: a.attributeValueId || a.valueId || null,
+          }))
+          .filter((a: any) => a.attributeId)
+      : [];
+
+    return {
+      Name: product.Name || product.title || '',
+      DisplayName: product.DisplayName || product.displayName || product.title || '',
+      Description: product.Description || product.description || '',
+      BrandId: Number(product.BrandId || product.brandId || 0),
+      Desi: Number(product.Desi || product.desi || product.dimensionalWeight || 1),
+      Code: product.Code || product.code || product.sku || '',
+      GroupCode: product.GroupCode || product.groupCode || product.mainSku || '',
+      StockCount: Number(product.StockCount || product.stockCount || product.quantity || 0),
+      VatRate: this.validateVatRate(product.VatRate || product.vatRate || 10),
+      ListPrice: Number(product.ListPrice || product.listPrice || product.price || 0),
+      SalePrice: Number(product.SalePrice || product.salePrice || product.price || 0),
+      CategoryId: Number(product.CategoryId || product.categoryId || 0),
+      images,
+      attributes,
+    };
+  }
 
   private validateVatRate(rate: number): number {
     const valid = [0, 1, 10, 20];
