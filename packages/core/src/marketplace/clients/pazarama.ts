@@ -287,7 +287,7 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
       Name: product.Name || product.title || '',
       DisplayName: product.DisplayName || product.displayName || product.title || '',
       Description: product.Description || product.description || '',
-      BrandId: Number(product.BrandId || product.brandId || 0),
+      BrandId: product.BrandId || product.brandId || '',
       Desi: Number(product.Desi || product.desi || product.dimensionalWeight || 1),
       Code: product.Code || product.code || product.sku || '',
       GroupCode: product.GroupCode || product.groupCode || product.mainSku || '',
@@ -295,7 +295,7 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
       VatRate: this.validateVatRate(product.VatRate || product.vatRate || 10),
       ListPrice: Number(product.ListPrice || product.listPrice || product.price || 0),
       SalePrice: Number(product.SalePrice || product.salePrice || product.price || 0),
-      CategoryId: Number(product.CategoryId || product.categoryId || 0),
+      CategoryId: product.CategoryId || product.categoryId || '',
       images,
       attributes,
     };
