@@ -882,6 +882,16 @@ mapProductForN11(product, integration) → {
 
 `categoryId` yoksa → `{ _skip: true, reason: 'N11 category not mapped' }`.
 
+**N11 UpdateProduct (Ürün Bilgisi Güncelleme) — sadece bu alanlar gönderilmeli:**
+```
+stockCode, status ('Active'/'Suspended'), preparingDay, shipmentTemplate,
+currencyType, productMainId (deleteProductMainId: true ile birlikte),
+maxPurchaseQuantity (deleteMaxPurchaseQuantity: true ile birlikte),
+description, vatRate
+```
+- `title` ve `categoryId` **CREATE-only alanlardır** — update'te gönderilirse task REJECT alır (n11 doc v9.0 §3.6).
+- Fiyat/stok (`price-stock-update`): `listPrice` ve `salePrice` **birlikte** gönderilmeli, `listPrice ≥ salePrice`, küsurat nokta ile 2 hane.
+
 ### Hepsiburada
 ```
 mapProductForHepsiburada(product, integration) → {
@@ -904,8 +914,8 @@ mapProductForPazarama(product, integration) → {
 
 | Alan | Kaynak | Zorunlu |
 |------|--------|---------|
-| `BrandId` | `entry.brandId` | ✅ |
-| `CategoryId` | `entry.categoryId` | ✅ |
+| `BrandId` | `entry.brandId` | ✅ (**GUID string** — sayısal ID değil; `0` gönderilirse `MER_30` hatası) |
+| `CategoryId` | `entry.categoryId` | ✅ (**GUID string** — kategori ağacı `id` GUID döndürür) |
 | `StockCount` | `product.quantity` | ✅ |
 | `images[].imageurl` | `imageUrl` → `ensureHttps()` | ✅ |
 | `attributes[].attributeId/attributeValueId` | `entry.attributes` | Opsiyonel |

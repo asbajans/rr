@@ -169,18 +169,27 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
   }
 
   // ─── Update Product Info (async) ──────────────────────────
+  // Per n11 doc (Ürün Bilgisi Güncelleme / UpdateProduct), supported fields are only:
+  // status, preparingDay, shipmentTemplate, currencyType, productMainId (+deleteProductMainId),
+  // maxPurchaseQuantity (+deleteMaxPurchaseQuantity), description, vatRate.
+  // title / categoryId are CREATE-only fields — sending them here may REJECT the task.
 
   async updateProduct(stockCode: string, product: any): Promise<any> {
     const sku: Record<string, any> = { stockCode };
-    if (product.title) sku.title = product.title;
-    if (product.description) sku.description = product.description;
-    if (product.categoryId) sku.categoryId = product.categoryId;
     if (product.status) sku.status = product.status;
+    if (product.description) sku.description = product.description;
     if (product.preparingDay != null) sku.preparingDay = product.preparingDay;
     if (product.shipmentTemplate) sku.shipmentTemplate = product.shipmentTemplate;
     if (product.vatRate != null) sku.vatRate = product.vatRate;
     if (product.currencyType) sku.currencyType = product.currencyType;
-    if (product.maxPurchaseQuantity != null) sku.maxPurchaseQuantity = product.maxPurchaseQuantity;
+    if (product.productMainId) {
+      sku.deleteProductMainId = true;
+      sku.productMainId = product.productMainId;
+    }
+    if (product.maxPurchaseQuantity != null) {
+      sku.deleteMaxPurchaseQuantity = true;
+      sku.maxPurchaseQuantity = product.maxPurchaseQuantity;
+    }
 
     return this.request<any>({
       method: 'POST',

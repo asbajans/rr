@@ -144,23 +144,24 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
 
   async getBrands(search?: string): Promise<{ id: number | string; name: string }[]> {
     const all: { id: number | string; name: string }[] = [];
+    const size = 100000;
     let page = 1;
-    let hasMore = true;
-    while (hasMore && page <= 20) {
+    while (page <= 5) {
+      const query: Record<string, any> = { Page: page, Size: size };
+      if (search) query.Name = search;
       const data = await this.requestWithAuth<any>('GET', '/brand/getBrands', {
-        query: { page, size: 100, name: search || '' },
+        query,
         noAuth: false,
       });
-      const items = data?.data || [];
-      if (!Array.isArray(items) || items.length === 0) break;
+      const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      if (items.length === 0) break;
       for (const b of items) {
         const rawId = b.id ?? b.brandId ?? b.marketplaceBrandId ?? '';
         const id = rawId ? String(rawId) : 0;
         const name = b.name ?? b.brandName ?? '';
         if (name) all.push({ id, name });
       }
-      const totalPages = data?.totalPages ?? 1;
-      hasMore = page < totalPages;
+      if (items.length < size) break;
       page++;
     }
     return all;

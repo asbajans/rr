@@ -164,18 +164,28 @@ export function mapProductForPazarama(product: any, integration: any): Record<st
   }).filter((i: any) => i?.imageurl) : [];
 
   const attrs: any[] = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => ({
-    attributeId: Number(a.attributeId || a.id),
+    attributeId: a.attributeId || a.id || null,
     attributeValueId: a.attributeValueId || a.valueId || null,
   })).filter((a: any) => a.attributeId) : [];
 
   const validVat = [0, 1, 10, 20];
   const vatRate = validVat.includes(Number(entry.vatRate ?? 10)) ? Number(entry.vatRate ?? 10) : 10;
 
+  const brandId = entry.brandId || entry.brand_id || '';
+  const categoryId = entry.categoryId || entry.category_id || '';
+
+  if (!categoryId) {
+    return { _skip: true, reason: 'Pazarama kategorisi atanmamış' };
+  }
+  if (!brandId) {
+    return { _skip: true, reason: 'Pazarama marka ID atanmamış' };
+  }
+
   return {
     Name: product.title,
     DisplayName: product.title,
     Description: product.description || '',
-    BrandId: Number(entry.brandId || entry.brand_id || 0),
+    BrandId: brandId,
     Desi: Number(entry.desi || entry.dimensionalWeight || 1),
     Code: product.sku,
     GroupCode: entry.groupCode || product.mainSku || product.sku,
@@ -183,11 +193,9 @@ export function mapProductForPazarama(product: any, integration: any): Record<st
     VatRate: vatRate,
     ListPrice: Number(price),
     SalePrice: Number(price),
-    CategoryId: Number(entry.categoryId || entry.category_id || 0),
+    CategoryId: categoryId,
     images,
     attributes: attrs,
-    cargoCompanyId: Number(entry.cargoCompanyId || 0),
-    dispatchDuration: Number(entry.dispatchDuration ?? 3),
   };
 }
 
