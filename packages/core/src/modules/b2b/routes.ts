@@ -98,14 +98,78 @@ b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requir
       storeId: store.id,
       productId,
       isB2BEnabled,
-      b2bDiscount: b2bDiscount || 0,
-      b2bPrice: b2bPrice || null,
+      b2bDiscount: b2bDiscount ?? 0,
+      b2bPrice: b2bPrice ?? null,
     }, { returning: true });
+
+    // Keep Product columns in sync so B2B discover + product list badges stay consistent
+    await product.update({
+      isB2BEnabled,
+      b2bDiscount: b2bDiscount ?? 0,
+      b2bPrice: b2bPrice ?? null,
+    });
 
     logger.info(`B2B setting updated for product ${productId}`);
     res.json({ setting });
   } catch (error) {
     logger.error({ err: error }, 'Update B2B setting error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+b2bRoutes.post('/bulk', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('ids').isArray({ min: 1 }).custom((ids: any[]) => ids.every((id: any) => Number.isInteger(id))),
+  body('isB2BEnabled').isBoolean(),
+  body('b2bDiscount').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
+  body('b2bPrice').optional({ nullable: true }).isFloat({ min: 0 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { ids, isB2BEnabled, b2bDiscount, b2bPrice } = req.body;
+
+    const products = await Product.findAll({ where: { id: ids, storeId: store.id } });
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'No matching products found' });
+    }
+
+    for (const product of products) {
+      await ProductB2bSetting.upsert({
+        storeId: store.id,
+        productId: product.id,
+        isB2BEnabled,
+        b2bDiscount: b2bDiscount ?? 0,
+        b2bPrice: b2bPrice ?? null,
+      });
+      await product.update({
+        isB2BEnabled,
+        b2bDiscount: b2bDiscount ?? 0,
+        b2bPrice: b2bPrice ?? null,
+      });
+    }
+
+    logger.info(`B2B bulk ${isB2BEnabled ? 'enabled' : 'disabled'} for ${products.length} products by store ${store.id}`);
+    res.json({ updated: products.length });
+  } catch (error) {
+    logger.error({ err: error }, 'B2B bulk update error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+b2bRoutes.get('/settings/:id', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const setting = await ProductB2bSetting.findOne({
+      where: { storeId: store.id, productId: req.params.id },
+      include: [{ model: Product, as: 'product', attributes: ['id', 'title', 'sku'] }],
+    });
+    if (!setting) {
+      return res.status(404).json({ error: 'B2B setting not found' });
+    }
+    res.json({ setting });
+  } catch (error) {
+    logger.error({ err: error }, 'Get B2B setting error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

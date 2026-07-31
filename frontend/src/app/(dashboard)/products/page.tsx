@@ -9,8 +9,7 @@ import { Sparkles, Camera } from 'lucide-react'
 interface Filters {
   marketplaces: string[]
   status: '' | '1' | '0'
-  priceMin: string
-  priceMax: string
+  search: string
 }
 
 interface ProductModalData {
@@ -53,7 +52,16 @@ export default function ProductsPage() {
   const [perPage, setPerPage] = useState<number | 'all'>(25)
   const [reloadKey, setReloadKey] = useState(0)
 
-  const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', priceMin: '', priceMax: '' })
+  const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', search: '' })
+  const [searchInput, setSearchInput] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPage(1)
+      setFilters((f) => (f.search === searchInput ? f : { ...f, search: searchInput }))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [searchInput])
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
   const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
@@ -107,6 +115,12 @@ export default function ProductsPage() {
   const [bulkAiOpen, setBulkAiOpen] = useState(false)
   const [bulkAiField, setBulkAiField] = useState<'title' | 'description' | 'all'>('description')
   const [uploading, setUploading] = useState(false)
+
+  // bulk B2B modal
+  const [bulkB2bOpen, setBulkB2bOpen] = useState(false)
+  const [bulkB2bDiscount, setBulkB2bDiscount] = useState<string>('')
+  const [bulkB2bPrice, setBulkB2bPrice] = useState<string>('')
+  const [bulkB2bRunning, setBulkB2bRunning] = useState(false)
 
   // per-marketplace verify
   const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
@@ -603,6 +617,23 @@ export default function ProductsPage() {
     }
   }
 
+  async function handleBulkB2b() {
+    if (selected.length === 0) return
+    setBulkB2bRunning(true)
+    try {
+      const discount = bulkB2bDiscount.trim() === '' ? null : Number(bulkB2bDiscount)
+      const price = bulkB2bPrice.trim() === '' ? null : Number(bulkB2bPrice)
+      await api.bulkSetB2b(selected.map(Number), { isB2BEnabled: true, b2bDiscount: discount, b2bPrice: price })
+      setBulkB2bOpen(false)
+      setSelected([])
+      setReloadKey((k) => k + 1)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setBulkB2bRunning(false)
+    }
+  }
+
   async function handleBulkAi() {
     if (selected.length === 0) return
     setBulkAiRunning(true)
@@ -685,24 +716,10 @@ export default function ProductsPage() {
 
       <div className="flex flex-wrap gap-3 mb-4">
         <input
-          placeholder="Min fiyat"
-          value={filters.priceMin}
-          onChange={(e) => {
-            setPage(1)
-            setFilters((f) => ({ ...f, priceMin: e.target.value }))
-          }}
-          className="w-28 border rounded px-2 py-1.5 text-sm"
-          type="number"
-        />
-        <input
-          placeholder="Max fiyat"
-          value={filters.priceMax}
-          onChange={(e) => {
-            setPage(1)
-            setFilters((f) => ({ ...f, priceMax: e.target.value }))
-          }}
-          className="w-28 border rounded px-2 py-1.5 text-sm"
-          type="number"
+          placeholder="Ürün adı, kod (SKU) ara..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="border rounded px-2 py-1.5 text-sm min-w-[220px]"
         />
         <select
           value={filters.status}
@@ -809,6 +826,12 @@ export default function ProductsPage() {
             >
               Toplu Yapay Zeka
             </button>
+            <button
+              onClick={() => setBulkB2bOpen(true)}
+              className="px-3 py-1.5 border border-emerald-300 text-emerald-700 rounded text-sm hover:bg-emerald-50"
+            >
+              Toplu B2B Aç
+            </button>
           </div>
         )}
       </div>
@@ -859,6 +882,19 @@ export default function ProductsPage() {
                       <span className="block max-w-[360px] truncate font-medium" title={p.label}>
                         {p.label}
                       </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {p.is_b2b_clone && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-violet-100 text-violet-700" title="B2B klonlanmış ürün">
+                            B2B Klon
+                          </span>
+                        )}
+                        {p.b2b_enabled && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700" title="Bu ürün B2B satışa açık">
+                            B2B Açık
+                            {p.b2b_discount ? ` %${p.b2b_discount}` : ''}
+                          </span>
+                        )}
+                      </div>
                       {p.media_url && (
                         <img src={p.media_url} alt="" className="mt-1 h-10 w-10 object-cover rounded" />
                       )}
@@ -1445,6 +1481,60 @@ export default function ProductsPage() {
                   className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm"
                 >
                   Başlat
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkB2bOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-[440px] max-w-full shadow-xl">
+            <h3 className="font-semibold text-lg mb-2">Toplu B2B'ye Aç</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {selected.length} ürün B2B satışa açılacak. İndirim ve/veya özel B2B fiyatı boş bırakılabilir.
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">B2B İndirim (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={bulkB2bDiscount}
+                  onChange={(e) => setBulkB2bDiscount(e.target.value)}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  placeholder="0"
+                  disabled={bulkB2bRunning}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">B2B Özel Fiyat (₺)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={bulkB2bPrice}
+                  onChange={(e) => setBulkB2bPrice(e.target.value)}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  placeholder="Boş = kendi fiyatı"
+                  disabled={bulkB2bRunning}
+                />
+              </div>
+            </div>
+            {bulkB2bRunning && <div className="mb-3 text-sm text-gray-700">Güncelleniyor…</div>}
+            <div className="flex justify-end gap-2">
+              {!bulkB2bRunning && (
+                <button onClick={() => setBulkB2bOpen(false)} className="px-3 py-1.5 border rounded text-sm">
+                  Kapat
+                </button>
+              )}
+              {!bulkB2bRunning && (
+                <button
+                  onClick={handleBulkB2b}
+                  className="px-3 py-1.5 bg-emerald-600 text-white rounded text-sm"
+                >
+                  B2B'ye Aç
                 </button>
               )}
             </div>

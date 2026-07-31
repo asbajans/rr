@@ -16,6 +16,18 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 
 ## Tamamlananlar
 
+### 8 Madde — Web + Mobile Eksiklikler (Ürün/Sipariş Arama, B2B, Merge) ✅
+- [x] **Ürün arama** — `product/routes.ts` `search` (title/sku iLike) + web & mobile products sayfalarına debounce'lu arama kutusu
+- [x] **Sipariş arama** — `order/routes.ts` `search` (orderNumber, marketplaceOrderId/Number, customerName/Email/Phone, trackingNumber, items::text) + web & mobile orders arama
+- [x] **Min/max fiyat filtresi kaldırıldı** — web & mobile products sayfalarından (backend parametreleri geriye dönük korundu)
+- [x] **B2B Ürünleri sekmesi** — backend `b2b=1` → `originalProductId NOT NULL` (sadece klonlar), `b2b=0` → kendi ürünleri
+- [x] **B2B rozeti** — product satırlarında "B2B Klon" (violet) + "B2B Açık %X" (emerald) etiketleri
+- [x] **Toplu B2B aç** — `POST /api/admin/b2b/bulk` (ids + isB2BEnabled + discount + price), Product kolonları da sync; web modal + mobile bulk buton
+- [x] **"Tümü" sayfa boyutu** — `limit=all` backend desteği (100 limiti atlanır) + api-client'ler
+- [x] **Çoklu pazaryeri filtresi** — `marketplaces` virgülle birleşik + JSONB `@>`/`literal` OR mantığı; "Pazaryeri Yok" → boş array
+- [x] **SKU Merge modülü** — `product/mergeRoutes.ts`: `GET /merge/duplicates` (GROUP BY sku) + `POST /merge` (transaction: varyant/listing/B2B setting/request/listed taşı, stok+birimler birleştir, sil); web `/products/merge` sayfası + nav linki
+- [x] **Build/typecheck** — core build ✅, frontend build ✅, mobile tsc ✅
+
 ### Phase 0 — Kritik Hata Düzeltmeleri ✅
 - B2B discover/listed/requests response shape fix (async unwrap + field mapping)
 - Store route prefix fix (`/store/` prefix kaldırıldı, frontend `api-client.ts`)
@@ -717,6 +729,7 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] N11 order integration complete: field mapping (`customerfullName`, `gsm`, `stockCode`, `orderLineId`, cargo fields, `UnPacked`/`UnSupplied` statuses), approve flow with lineIds
 - [x] N11 product sync fixes: `getExternalId` uses `stockCode`; mapper sends `status`, HTTPS images, validated `vatRate`, `maxPurchaseQuantity`; create uses `ensureHttps`+`validateVatRate`; update only sends allowed fields
 - [x] Pazarama client full rewrite (`packages/core/src/marketplace/clients/pazarama.ts`): OAuth2 auth with `{success, data: {accessToken}}` flow; `getBrands()`, `getCategoryWithAttributes()`, `getCities()`, `getSellerDeliveries()`, `getProductBatchResult()`, `updatePrices()`, `updateStocks()`; product create/update with PascalCase fields + `images[].imageurl` + `attributes[].attributeId/valueId`; order list via `POST /order/getOrdersForApi`
+- [x] **Pazarama product push (Tamamlandı)**: `POST /product/create` + `{ products: [...] }` array wrapper; `BrandId`/`CategoryId` **GUID string** olarak gönderilir (`Number()` ile `NaN → null` olan latent bug düzeltildi, `pazarama.ts:289`); mapper `_skip` guard (kategori/marka atanmamış ürün API'ye hiç gönderilmez); `getBrands` **PascalCase `Page`/`Size`** parametresi ile çekilir (lowercase gönderilince API default page=1/size=100 döndürüp sadece 100 marka geliyordu → `Size: 100000` tek istekte tümü)
 - [x] Pazarama product mapper updated: PascalCase fields (`Name`, `DisplayName`, `BrandId`, `Code`, `StockCount`, `CategoryId`, `ListPrice`, `SalePrice`, `Desi`); HTTPS images; validated attribute/vat formats
 - [x] Pazarama batch polling in `queues/index.ts`: 5-retry loop calling `getProductBatchResult`; externalId from `result.code` or `product.sku`
 - [x] Order detail page (`[id]/page.tsx`): fully enriched (date, customer, payment, ZPL/cargo check, B2B badge, parent link, split info, raw data toggle)
@@ -921,7 +934,8 @@ mapProductForPazarama(product, integration) → {
 | `attributes[].attributeId/attributeValueId` | `entry.attributes` | Opsiyonel |
 | `VatRate` | `entry.vatRate` | ✅ (validated via `validateVatRate()`) |
 
-`BrandId` veya `CategoryId` yoksa → `{ _skip: true, reason: '...' }`.
+`BrandId` veya `CategoryId` yoksa → `{ _skip: true, reason: '...' }` (ürün API'ye hiç gönderilmez).
+`buildProductPayload()` (`pazarama.ts`): `BrandId`/`CategoryId` `Number()` ile dönüştürülmez — **GUID string** olarak geçirilir (`Number(GUID)` → `NaN` → JSON'da `null` → `MER_30` 400 hatası).
 
 **Pazarama Product API**:
 - **Base**: `https://isortagimapi.pazarama.com`
@@ -1287,6 +1301,8 @@ POST /api/admin/integrations/webhook/price   → Product.priceTRY update
 | 12 | Order import (periodic fetch) | Manuel sync var, otomatik periyodik yok | ⏳ Yapılacak |
 | 13 | N11 ZPL label yok | N11'de ZPL/etiket API'si yok; sadece takip no + kargo firması girilir | ⚠️ Accept edildi |
 | 14 | Pazarama order status push yok | Pazarama order status/tracking push API'sini desteklemiyor | ⚠️ Accept edildi |
+| 15 | Pazarama sadece 100 marka çekiyor | `getBrands` lowercase `page/size` gönderiyordu (API yoksayıyor → default 100). PascalCase `Page`/`Size: 100000` ile tek istekte tümü | ✅ Düzeltildi |
+| 16 | Pazarama `BrandId:null` → 400 MER_30 | Mapper `_skip` guard (kategori/marka atanmamışsa API'ye hiç gönderme) + `buildProductPayload` `Number()` kaldırıldı (GUID string geçer) | ✅ Düzeltildi |
 
 ## Yeni Marketplace Ekleme (Trendyol referans alınarak)
 

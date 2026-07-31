@@ -60,6 +60,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<DropshippingOrder[]>([])
   const [tab, setTab] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState('')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState<string | null>(null)
   const [importStatus, setImportStatus] = useState<ImportStatus | null>(null)
@@ -68,11 +69,11 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    api.getOrders({ marketplace: tab || undefined, status: activeFilter || undefined })
+    api.getOrders({ marketplace: tab || undefined, status: activeFilter || undefined, search: search || undefined })
       .then(r => setOrders(r.orders))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [user, tab, activeFilter, reloadKey])
+  }, [user, tab, activeFilter, search, reloadKey])
 
   if (!user) return null
 
@@ -216,6 +217,12 @@ export default function OrdersPage() {
 
       {/* Import Bar */}
       <div className="mt-4 flex items-center gap-2">
+        <input
+          placeholder="Sipariş no, müşteri adı, takip no ara..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="min-w-[240px] rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+        />
         {tab ? (
           <button onClick={() => doImport(tab)} disabled={importing === tab}
             className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">

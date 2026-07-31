@@ -14,8 +14,7 @@ const MARKETPLACE_OPTIONS = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama
 type Filters = {
   marketplaces: string[]
   status: '' | '1' | '0'
-  priceMin: string
-  priceMax: string
+  search: string
 }
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -36,7 +35,8 @@ export default function ProductsScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', priceMin: '', priceMax: '' })
+  const [filters, setFilters] = useState<Filters>({ marketplaces: [], status: '', search: '' })
+  const [searchInput, setSearchInput] = useState('')
   const [b2bTab, setB2bTab] = useState<'' | '1' | '0'>('')
 
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
@@ -108,6 +108,14 @@ export default function ProductsScreen() {
   }
 
   useEffect(() => { load() }, [filters, page, perPage, b2bTab])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPage(1)
+      setFilters((f) => (f.search === searchInput ? f : { ...f, search: searchInput }))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [searchInput])
 
   useEffect(() => {
     const token = api.getToken()
@@ -199,18 +207,11 @@ export default function ProductsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersRow}>
         <TextInput
-          style={styles.fInput}
-          placeholder={t('priceMin')}
-          keyboardType="decimal-pad"
-          value={filters.priceMin}
-          onChangeText={(v) => { setPage(1); setFilters((f) => ({ ...f, priceMin: v })) }}
-        />
-        <TextInput
-          style={styles.fInput}
-          placeholder={t('priceMax')}
-          keyboardType="decimal-pad"
-          value={filters.priceMax}
-          onChangeText={(v) => { setPage(1); setFilters((f) => ({ ...f, priceMax: v })) }}
+          style={styles.searchInput}
+          placeholder={t('searchPlaceholder')}
+          value={searchInput}
+          onChangeText={setSearchInput}
+          returnKeyType="search"
         />
         <TouchableOpacity
           style={[styles.fSelect, filters.status === '' && styles.fSelectActive]}
@@ -332,6 +333,18 @@ export default function ProductsScreen() {
                     <Text style={styles.stock}>{item.stock ?? '-'}</Text>
                   </View>
                   <View style={styles.badges}>
+                    {item.is_b2b_clone && (
+                      <View style={[styles.mpBadge, { backgroundColor: '#f3e8ff' }]}>
+                        <Text style={[styles.mpBadgeText, { color: '#7c3aed' }]}>B2B Klon</Text>
+                      </View>
+                    )}
+                    {item.b2b_enabled && (
+                      <View style={[styles.mpBadge, { backgroundColor: '#d1fae5' }]}>
+                        <Text style={[styles.mpBadgeText, { color: '#047857' }]}>
+                          B2B Açık{item.b2b_discount ? ` %${item.b2b_discount}` : ''}
+                        </Text>
+                      </View>
+                    )}
                     {(item.marketplaces ?? []).map((m) => {
                       const sync = item.marketplace_sync?.[m]
                       const key = sync?.status ?? 'none'
@@ -742,6 +755,7 @@ const styles = StyleSheet.create({
   addBtn: { backgroundColor: '#000', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
   addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   filtersRow: { paddingHorizontal: 16, paddingBottom: 8 },
+  searchInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 10, fontSize: 13, backgroundColor: '#fff', marginRight: 8, minWidth: 200, height: 38, textAlignVertical: 'center', includeFontPadding: false },
   fInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 10, fontSize: 13, backgroundColor: '#fff', marginRight: 8, width: 90, height: 38, textAlignVertical: 'center', includeFontPadding: false },
   fSelect: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, backgroundColor: '#fff', marginRight: 8, height: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   fSelectActive: { backgroundColor: '#000', borderColor: '#000' },

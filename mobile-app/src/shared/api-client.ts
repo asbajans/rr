@@ -372,19 +372,22 @@ class ApiClient {
     status?: '' | '1' | '0'
     priceMin?: string | number
     priceMax?: string | number
+    search?: string
     page?: number
     perPage?: number | 'all'
     b2b?: '' | '1' | '0'
   }) {
     const params: Record<string, string> = {}
-    if (filters?.marketplaces?.length) params.marketplace = filters.marketplaces[0]
+    if (filters?.marketplaces?.length) params.marketplaces = filters.marketplaces.join(',')
     if (filters?.status === '1') params.status = 'active'
     else if (filters?.status === '0') params.status = 'inactive'
     if (filters?.b2b) params.b2b = filters.b2b
+    if (filters?.search) params.search = filters.search
     if (filters?.priceMin !== undefined && filters.priceMin !== '') params.priceMin = String(filters.priceMin)
     if (filters?.priceMax !== undefined && filters.priceMax !== '') params.priceMax = String(filters.priceMax)
     if (filters?.page) params.page = String(filters.page)
     if (filters?.perPage && filters.perPage !== 'all') params.limit = String(filters.perPage)
+    else if (filters?.perPage === 'all') params.limit = 'all'
     const r = await this.get<{ products: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
     return {
       data: (r.products || []).map(this.mapProduct),
@@ -529,11 +532,12 @@ class ApiClient {
   }
 
   // Dropshipping / Marketplace Orders (uses same /api/admin/orders endpoint)
-  async getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number }) {
+  async getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number; search?: string }) {
     const queryParams: Record<string, string> = {}
     if (params?.status) queryParams.status = params.status
     if (params?.marketplace) queryParams.marketplace = params.marketplace
     if (params?.page) queryParams.page = String(params.page)
+    if (params?.search) queryParams.search = params.search
     const r = await this.get<any>('/api/admin/orders', { params: Object.keys(queryParams).length ? queryParams : undefined })
     const ordersRaw = r.orders || r.data || []
     const pagination = r.pagination || {}

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
+import { sequelize } from '../../config/database.js';
 import { body, param, query, validationResult } from 'express-validator';
 import axios from 'axios';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
@@ -45,6 +46,19 @@ orderRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
     const where: any = { storeId: store.id };
     if (req.query.status) where.status = req.query.status;
     if (req.query.marketplace) where.marketplace = String(req.query.marketplace);
+    if (req.query.search) {
+      const term = `%${req.query.search}%`;
+      where[Op.or] = [
+        { orderNumber: { [Op.iLike]: term } },
+        { marketplaceOrderId: { [Op.iLike]: term } },
+        { marketplaceOrderNumber: { [Op.iLike]: term } },
+        { customerName: { [Op.iLike]: term } },
+        { customerEmail: { [Op.iLike]: term } },
+        { customerPhone: { [Op.iLike]: term } },
+        { trackingNumber: { [Op.iLike]: term } },
+        literal(`COALESCE("items"::text, '') ILIKE ${sequelize.escape(`%${req.query.search}%`)}`),
+      ];
+    }
 
     const { count, rows } = await DropshippingOrder.findAndCountAll({
       where,

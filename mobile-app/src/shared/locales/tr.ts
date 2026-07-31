@@ -83,6 +83,7 @@
   accountSection: 'Hesap',
   priceMin: 'Min Fiyat',
   priceMax: 'Max Fiyat',
+  searchPlaceholder: 'Ürün/sipariş ara...',
   all: 'Tümü',
   onSale: 'Satışta',
   notOnSale: 'Satışta Değil',

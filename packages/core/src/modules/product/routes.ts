@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { body, param, query, validationResult } from 'express-validator';
 import { Product } from '../../models/Product.model.js';
 import { Category } from '../../models/Category.model.js';
@@ -24,31 +24,61 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
   try {
     const store = (req as any).store;
     const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-    const offset = (page - 1) * limit;
+    const limitParam = req.query.limit as string;
+    const isAll = limitParam === 'all' || limitParam === '0';
+    const limit = isAll ? null : Math.min(parseInt(limitParam as string) || 20, 100);
+    const offset = limit ? (page - 1) * limit : null;
 
     const where: any = { storeId: store.id };
     if (req.query.status) where.isActive = req.query.status === 'active';
     if (req.query.categoryId) where.categoryId = req.query.categoryId;
-    if (req.query.marketplace) where.marketplaces = { [Op.contains]: [req.query.marketplace] };
+    if (req.query.search) {
+      const searchTerm = `%${req.query.search}%`;
+      where[Op.or] = [
+        { title: { [Op.iLike]: searchTerm } },
+        { sku: { [Op.iLike]: searchTerm } },
+      ];
+    }
+    if (req.query.b2b === '1') {
+      where.originalProductId = { [Op.not]: null };
+    } else if (req.query.b2b === '0') {
+      where.originalProductId = null;
+    }
+
+    // Multi-select marketplace filter: comma-separated. "Pazaryeri Yok" = no marketplaces assigned.
+    const marketplaceParam = (req.query.marketplaces || req.query.marketplace) as string | undefined;
+    if (marketplaceParam) {
+      const mps = String(marketplaceParam).split(',').map((s) => s.trim()).filter(Boolean);
+      const mpClause: any[] = [];
+      for (const mp of mps) {
+        if (mp === 'Pazaryeri Yok') {
+          mpClause.push({ marketplaces: null });
+          mpClause.push(literal(`jsonb_array_length(COALESCE("marketplaces", '[]'::jsonb)) = 0`));
+        } else {
+          mpClause.push({ marketplaces: { [Op.contains]: [mp] } });
+        }
+      }
+      if (mpClause.length === 1) where.marketplaces = mpClause[0].marketplaces;
+      else if (mpClause.length > 1) where[Op.or] = [...(where[Op.or] || []), ...mpClause];
+    }
     if (req.query.priceMin) where.priceTRY = { ...where.priceTRY, [Op.gte]: req.query.priceMin };
     if (req.query.priceMax) where.priceTRY = { ...where.priceTRY, [Op.lte]: req.query.priceMax };
-    if (req.query.search) where[Op.or] = [
-      { title: { [Op.iLike]: `%${req.query.search}%` } },
-      { sku: { [Op.iLike]: `%${req.query.search}%` } },
-    ];
 
-    const { count, rows } = await Product.findAndCountAll({
+    const options: any = {
       where,
-      limit,
-      offset,
       order: [['createdAt', 'DESC']],
       include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
-    });
+    };
+    if (limit && offset !== null) {
+      options.limit = limit;
+      options.offset = offset;
+    }
+
+    const { count, rows } = await Product.findAndCountAll(options);
 
     res.json({
       products: rows,
-      pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
+      pagination: { page, limit: limit || count, total: count, totalPages: limit ? Math.ceil(count / limit) : 1 },
     });
   } catch (error: unknown) {
     logger.error({ err: error }, 'List products error');

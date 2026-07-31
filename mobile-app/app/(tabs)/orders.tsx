@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
@@ -22,10 +22,11 @@ export default function OrdersScreen() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [search, setSearch] = useState('')
 
   async function load() {
     try {
-      const res = await api.getAdminDropshippingOrders()
+      const res = await api.getAdminDropshippingOrders({ search: search || undefined })
       setOrders(res.data)
       setTotal(res.total)
     } catch (e: any) {
@@ -35,7 +36,7 @@ export default function OrdersScreen() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [search])
 
   async function onRefresh() {
     setRefreshing(true)
@@ -63,6 +64,14 @@ export default function OrdersScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.title}>{t('orders')}</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder={t('searchPlaceholder')}
+              value={search}
+              onChangeText={setSearch}
+              returnKeyType="search"
+            />
+            <Text style={styles.count}>{total} {t('marketplaceOrders')}</Text>
           </View>
         }
         ListEmptyComponent={<Text style={styles.empty}>{t('noOrders')}</Text>}
@@ -95,6 +104,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: '700', marginTop: 4 },
+  searchInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, backgroundColor: '#fff', marginTop: 8 },
   count: { fontSize: 14, color: '#666' },
   empty: { textAlign: 'center', color: '#999', marginTop: 40 },
   list: { paddingHorizontal: 20, paddingBottom: 20 },

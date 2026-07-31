@@ -1097,15 +1097,29 @@ class ApiClient {
   }) {
     const params: Record<string, string> = {}
     if (filters?.page) params.page = String(filters.page)
-    if (filters?.perPage && filters.perPage !== 'all') params.limit = String(filters.perPage)
+    if (filters?.perPage === 'all') params.limit = 'all'
+    else if (filters?.perPage) params.limit = String(filters.perPage)
     if (filters?.status === '1') params.status = 'active'
     else if (filters?.status === '0') params.status = 'inactive'
-    if (filters?.marketplaces?.length) params.marketplace = filters.marketplaces[0]
+    if (filters?.marketplaces?.length) params.marketplaces = filters.marketplaces.join(',')
     if (filters?.priceMin) params.priceMin = filters.priceMin
     if (filters?.priceMax) params.priceMax = filters.priceMax
     if (filters?.search) params.search = filters.search
+    if (filters?.b2b) params.b2b = filters.b2b
     return this.get<{ products: import('./types').Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/products', { params })
       .then(r => ({ data: r.products.map(mapProduct), total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }))
+  }
+
+  bulkSetB2b(ids: number[], data: { isB2BEnabled: boolean; b2bDiscount?: number | null; b2bPrice?: number | null }) {
+    return this.post<{ updated: number }>('/api/admin/b2b/bulk', { ids, ...data })
+  }
+
+  getDuplicateProducts() {
+    return this.get<{ groups: { sku: string; count: number; products: import('./types').Product[] }[]; total: number }>('/api/admin/products/merge/duplicates')
+  }
+
+  mergeProducts(keepId: number, removeIds: number[]) {
+    return this.post<{ success: boolean; keepId: number; sku: string; removed: number; totalQuantity?: number; marketplaces?: string[] }>('/api/admin/products/merge', { keepId, removeIds })
   }
 
   createAdminProduct(data: Record<string, any>) {

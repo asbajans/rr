@@ -1,6 +1,7 @@
 import { authRoutes } from './modules/auth/routes.js';
 import { storeRoutes } from './modules/store/routes.js';
 import { productRoutes } from './modules/product/routes.js';
+import { mergeRoutes } from './modules/product/mergeRoutes.js';
 import { variantRoutes } from './modules/product/variantRoutes.js';
 import { categoryRoutes } from './modules/category/routes.js';
 import { variationRoutes } from './modules/variation/routes.js';
@@ -33,6 +34,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin', superAdminRoutes); // Super admin routes first (cross-store)
   app.use('/api/admin', superAdminAiRoutes); // Super admin AI routes
   app.use('/api/admin', storeRoutes); // Store-scoped routes
+  app.use('/api/admin/products', mergeRoutes); // must be before productRoutes (avoids /:id catch)
   app.use('/api/admin/products', productRoutes);
   app.use('/api/admin/variants', variantRoutes);
   app.use('/api/admin/categories', categoryRoutes);

@@ -83,6 +83,7 @@ export const en: Record<string, string> = {
   accountSection: 'Account',
   priceMin: 'Min Price',
   priceMax: 'Max Price',
+  searchPlaceholder: 'Search products/orders...',
   all: 'All',
   onSale: 'On Sale',
   notOnSale: 'Not On Sale',
