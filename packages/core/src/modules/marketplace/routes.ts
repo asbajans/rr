@@ -6,6 +6,7 @@ import { Setting } from '../../models/Setting.model.js';
 import { User } from '../../models/User.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { requireInternalKey } from '../../middleware/internalAuth.js';
+import { requireModule, assertMarketplaceQuota, assertProductQuota } from '../plan/access.js';
 import { logger } from '../../utils/logger.js';
 
 export const marketplaceRoutes: Router = Router();
@@ -83,9 +84,18 @@ async function getEtsyGlobalConfig(): Promise<{ clientId: string; clientSecret: 
   };
 }
 
-marketplaceRoutes.get('/etsy/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+marketplaceRoutes.get('/etsy/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
+    const existing = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace: 'etsy' },
+    });
+    if (!existing?.isActive) {
+      const quota = await assertMarketplaceQuota(store);
+      if (!quota.ok) {
+        return res.status(403).json({ error: 'PLAN_MARKETPLACE_LIMIT', limit: quota.limit, current: quota.current, message: 'Pazaryeri entegrasyon limitiniz doldu. Planınızı yükseltin.' });
+      }
+    }
     const globalCfg = await getEtsyGlobalConfig();
     if (!globalCfg.clientId) {
       return res.status(400).json({ error: 'Etsy Client ID not configured. Ask super admin to add it in Settings.' });
@@ -191,7 +201,7 @@ marketplaceRoutes.get('/:marketplace', authMiddleware, requireStore, [
   }
 });
 
-marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
   param('marketplace').isIn(MARKETPLACES),
   body('isActive').optional().isBoolean(),
   body('config').optional().isObject(),
@@ -204,6 +214,15 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
     const integration = await MarketplaceIntegration.findOne({
       where: { storeId: store.id, marketplace },
     });
+
+    const currentlyActive = integration?.isActive ?? false;
+    const willActivate = isActive !== undefined ? isActive : (integration?.isActive ?? true);
+    if (willActivate && !currentlyActive) {
+      const quota = await assertMarketplaceQuota(store);
+      if (!quota.ok) {
+        return res.status(403).json({ error: 'PLAN_MARKETPLACE_LIMIT', limit: quota.limit, current: quota.current, message: 'Pazaryeri entegrasyon limitiniz doldu. Planınızı yükseltin.' });
+      }
+    }
 
     if (integration) {
       await integration.update({
@@ -254,7 +273,7 @@ marketplaceRoutes.delete('/:marketplace', authMiddleware, requireRole('owner'), 
   }
 });
 
-marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
   param('marketplace').isIn(MARKETPLACES),
   body('maxPages').optional().isInt({ min: 1, max: 100 }),
 ], validate, async (req: Request, res: Response) => {
@@ -262,6 +281,15 @@ marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owne
     const store = (req as any).store;
     const { marketplace } = req.params;
     const { maxPages = 10 } = req.body;
+
+    const quota = await assertProductQuota(store);
+    if (!quota.ok) {
+      return res.status(403).json({ error: 'PLAN_PRODUCT_LIMIT', limit: quota.limit, current: quota.current, message: 'Ürün limitiniz doldu. Import engellendi. Planınızı yükseltin.' });
+    }
+    const mpQuota = await assertMarketplaceQuota(store);
+    if (!mpQuota.ok) {
+      return res.status(403).json({ error: 'PLAN_MARKETPLACE_LIMIT', limit: mpQuota.limit, current: mpQuota.current, message: 'Pazaryeri entegrasyon limitiniz doldu. Planınızı yükseltin.' });
+    }
 
     const integration = await MarketplaceIntegration.findOne({
       where: { storeId: store.id, marketplace, isActive: true },

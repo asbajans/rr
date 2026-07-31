@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Key, Plus, Trash2, Copy, Download, Globe, Server } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user } = useAuth()
-  const [store, setStore] = useState<Store | null>(null)
+  const { user, store, productLimit } = useAuth()
+  const [storeSettings, setStoreSettings] = useState<Store | null>(null)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
@@ -24,7 +24,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.getSettings()
-      .then((s) => { setStore(s); setName(s.name); setEmail(s.email ?? '') })
+      .then((s) => { setStoreSettings(s); setName(s.name); setEmail(s.email ?? '') })
       .catch(() => {})
   }, [])
 
@@ -43,7 +43,7 @@ export default function SettingsPage() {
     setMessage('')
     try {
       const updated = await api.updateSettings({ name, email })
-      setStore(updated)
+      setStoreSettings(updated)
       setMessage('Ayarlar kaydedildi.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Hata oluştu')
@@ -85,7 +85,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-zinc-900">Ayarlar</h1>
       <p className="mt-1 text-sm text-zinc-600">Mağaza ayarlarını yönet.</p>
       <div className="mt-8 space-y-8">
-        <div className="rounded-xl border border-zinc-200 p-6">
+          <div className="rounded-xl border border-zinc-200 p-6">
           <h2 className="text-lg font-semibold text-zinc-900">Profil</h2>
           <div className="mt-4 space-y-3 text-sm">
             <p><span className="font-medium text-zinc-900">Ad:</span> {user.name}</p>
@@ -95,6 +95,17 @@ export default function SettingsPage() {
         </div>
 
         {store && (
+          <div className="rounded-xl border border-zinc-200 p-6">
+            <h2 className="text-lg font-semibold text-zinc-900">Plan</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              <p><span className="font-medium text-zinc-900">Plan:</span> {store.plan?.name ?? '—'}</p>
+              <p><span className="font-medium text-zinc-900">Ürün Limiti:</span> {(store.plan?.product_limit ?? -1) < 0 ? 'Sınırsız' : store.plan?.product_limit ?? '-'}</p>
+              <p><span className="font-medium text-zinc-900">AI Kredisi / Ay:</span> {store.plan?.ai_credits ?? '-'}</p>
+            </div>
+          </div>
+        )}
+
+        {storeSettings && (
           <div className="rounded-xl border border-zinc-200 p-6">
             <h2 className="text-lg font-semibold text-zinc-900">Mağaza Ayarları</h2>
             <form onSubmit={handleSave} className="mt-4 space-y-4">
@@ -108,7 +119,7 @@ export default function SettingsPage() {
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
               </div>
-              <p className="text-xs text-zinc-400">Site Kodu: {store.site_code} | Domain: {store.domain ?? '-'}</p>
+              <p className="text-xs text-zinc-400">Site Kodu: {storeSettings.site_code} | Domain: {storeSettings.domain ?? '-'}</p>
               {message && <p className={`text-sm ${message.includes('kaydedildi') ? 'text-green-600' : 'text-red-600'}`}>{message}</p>}
               <Button type="submit" disabled={saving}>{saving ? 'Kaydediliyor...' : 'Kaydet'}</Button>
             </form>

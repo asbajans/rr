@@ -19,6 +19,21 @@ export type AuthResponse = {
   token: string
 }
 
+export type MeResponse = {
+  user: User
+  store?: StoreWithPlan
+}
+
+export type StoreWithPlan = {
+  id: number
+  name: string
+  site_code: string
+  domain: string | null
+  email: string | null
+  is_active: boolean
+  plan?: Plan | null
+}
+
 export type Store = {
   id: number
   name: string
@@ -41,6 +56,7 @@ export type Plan = {
   is_active: boolean
   created_at: string
   updated_at: string
+  modules?: Record<string, { enabled: boolean; credit_cost?: number; limit?: number } | boolean> | null
 }
 
 export type Product = {

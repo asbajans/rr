@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
+import { getPlanForStore, getModuleCreditCost } from '../plan/access.js';
 import { logger } from '../../utils/logger.js';
 import { AiProvider, AiModel, AiScenario, AiUsageLog } from '../../models/AiModels.js';
 
@@ -25,7 +26,7 @@ async function deductCredits(userId: number, storeId: number, amount: number, ac
   if (!user) return;
 
   const balanceBefore = user.aiCredits;
-  const balanceAfter = Math.max(0, balanceBefore - amount);
+  const balanceAfter = balanceBefore - amount;
 
   await CreditLog.create({
     userId,
@@ -126,7 +127,26 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
   const store = (req as any).store;
 
   const { provider, model, scenario, costCredits } = await resolveScenarioConfig(scenarioCode);
-  const credits = costCredits || defaultCredits;
+  let credits = costCredits || defaultCredits;
+
+  // Per-plan credit cost override (modules[key].credit_cost)
+  const plan = await getPlanForStore(store);
+  const moduleKey = scenarioCode === 'analyze-product' || scenarioCode === 'generate-description'
+    ? 'ai_product_create'
+    : scenarioCode === 'process-image' ? 'ai_image_generate' : null;
+  if (plan && moduleKey) {
+    const override = getModuleCreditCost(plan, moduleKey);
+    if (override != null) credits = override;
+  }
+
+  if ((user.aiCredits ?? 0) < credits) {
+    return res.status(402).json({
+      error: 'INSUFFICIENT_CREDITS',
+      credits: user.aiCredits ?? 0,
+      required: credits,
+      message: 'AI krediniz yetersiz. Kredi satın alın veya üst pakete geçin.',
+    });
+  }
 
   try {
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';

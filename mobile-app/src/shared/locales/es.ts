@@ -120,6 +120,7 @@ export const es: Record<string, string> = {
   bulkAi: 'IA masiva',
   bulkAiField: 'Campo a generar',
   productCreated: 'Producto creado',
+  productLimitReached: 'Has alcanzado el límite de productos de tu plan. Actualiza tu plan desde la pestaña Plan para añadir más.',
   uploadImageDesc: 'Subiendo imagen...',
   image: 'Imagen',
   aiEditPromptPlaceholder: 'p. ej. fondo blanco, foto profesional de producto',
@@ -178,6 +179,9 @@ export const es: Record<string, string> = {
   // AI Product Creator
   aiProductCreator: 'Creador de productos IA',
   aiAnalyzeProduct: 'Analizar producto con IA',
+  insufficientCredits: 'No tienes suficientes créditos IA. Visita la pestaña Plan para comprar más.',
+  moduleDisabled: 'Este módulo está deshabilitado en tu plan. Mejora tu plan para acceder.',
+  upgradePlan: 'Mejorar Plan',
   selectFromCamera: 'Tomar con la cámara',
   selectFromGallery: 'Elegir de la galería',
   takePhoto: 'Tomar foto',

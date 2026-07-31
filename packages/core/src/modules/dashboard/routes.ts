@@ -54,7 +54,7 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
 
     try {
       plan = await Plan.findByPk(store.planId, {
-        attributes: ['id', 'name', 'price', 'productLimit', 'aiCredits', 'features'],
+        attributes: ['id', 'name', 'slug', 'price', 'productLimit', 'aiCredits', 'storeLimit', 'features', 'modules'],
       });
 
       subscription = await Subscription.findOne({
@@ -87,10 +87,13 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
       plan: plan ? {
         id: plan.id,
         name: plan.name,
+        slug: plan.slug,
         price: plan.price,
         productLimit: plan.productLimit,
         aiCredits: plan.aiCredits,
+        storeLimit: plan.storeLimit,
         features: plan.features,
+        modules: plan.modules,
       } : null,
       subscription: subscription ? {
         id: subscription.id,

@@ -120,6 +120,7 @@ export const ru: Record<string, string> = {
   bulkAi: 'Массовый AI',
   bulkAiField: 'Поле для генерации',
   productCreated: 'Товар создан',
+  productLimitReached: 'Вы достигли лимита товаров в вашем тарифе. Перейдите на более высокий тариф во вкладке «Тариф», чтобы добавить больше.',
   uploadImageDesc: 'Загрузка изображения...',
   image: 'Изображение',
   aiEditPromptPlaceholder: 'напр. белый фон, профессиональное фото товара',
@@ -178,6 +179,9 @@ export const ru: Record<string, string> = {
   // AI Product Creator
   aiProductCreator: 'AI-создатель товаров',
   aiAnalyzeProduct: 'Проанализировать товар с помощью AI',
+  insufficientCredits: 'Недостаточно AI-кредитов. Перейдите во вкладку «Тариф», чтобы купить ещё.',
+  moduleDisabled: 'Этот модуль отключён в вашем тарифе. Перейдите на более высокий тариф для доступа.',
+  upgradePlan: 'Перейти на новый тариф',
   selectFromCamera: 'Снять на камеру',
   selectFromGallery: 'Выбрать из галереи',
   takePhoto: 'Сфотографировать',

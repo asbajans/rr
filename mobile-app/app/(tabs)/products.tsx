@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
+import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
 import SearchablePicker, { PickerOption } from '../../src/shared/SearchablePicker'
 import type { Product, MarketplaceCategory, Category, Brand, MarketplaceEntry } from '../../src/shared/types'
@@ -28,6 +29,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 export default function ProductsScreen() {
   const router = useRouter()
   const { t } = useI18n()
+  const { can, productLimit } = useAuth()
+  const b2bEnabled = can('b2b')
   const [products, setProducts] = useState<Product[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -216,17 +219,19 @@ export default function ProductsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.b2bTabs}>
-        <TouchableOpacity style={[styles.b2bTab, b2bTab === '' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('') }}>
-          <Text style={[styles.b2bTabText, b2bTab === '' && styles.b2bTabTextActive]}>{t('allProducts')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.b2bTab, b2bTab === '1' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('1') }}>
-          <Text style={[styles.b2bTabText, b2bTab === '1' && styles.b2bTabTextActive]}>{t('b2bProducts')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.b2bTab, b2bTab === '0' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('0') }}>
-          <Text style={[styles.b2bTabText, b2bTab === '0' && styles.b2bTabTextActive]}>{t('ownProducts')}</Text>
-        </TouchableOpacity>
-      </View>
+      {b2bEnabled && (
+        <View style={styles.b2bTabs}>
+          <TouchableOpacity style={[styles.b2bTab, b2bTab === '' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('') }}>
+            <Text style={[styles.b2bTabText, b2bTab === '' && styles.b2bTabTextActive]}>{t('allProducts')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.b2bTab, b2bTab === '1' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('1') }}>
+            <Text style={[styles.b2bTabText, b2bTab === '1' && styles.b2bTabTextActive]}>{t('b2bProducts')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.b2bTab, b2bTab === '0' && styles.b2bTabActive]} onPress={() => { setPage(1); setB2bTab('0') }}>
+            <Text style={[styles.b2bTabText, b2bTab === '0' && styles.b2bTabTextActive]}>{t('ownProducts')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersRow}>
         <TextInput
@@ -298,22 +303,26 @@ export default function ProductsScreen() {
         <View style={styles.bulkRow}>
           <Text style={styles.bulkCount}>{selected.length} {t('selectedCount')}</Text>
           <View style={styles.bulkActions}>
-            <TouchableOpacity style={styles.bulkB2bOpen} onPress={async () => {
-              try {
-                await api.bulkSetB2b(selected, true)
-                Alert.alert(t('success'), t('b2bBulkDone')); load()
-              } catch (e: any) { Alert.alert(t('error'), e.message) }
-            }}>
-              <Text style={styles.bulkB2bOpenText}>{t('b2bBulkOpen')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.bulkB2bClose} onPress={async () => {
-              try {
-                await api.bulkSetB2b(selected, false)
-                Alert.alert(t('success'), t('b2bBulkDone')); load()
-              } catch (e: any) { Alert.alert(t('error'), e.message) }
-            }}>
-              <Text style={styles.bulkB2bCloseText}>{t('b2bBulkClose')}</Text>
-            </TouchableOpacity>
+            {b2bEnabled && (
+              <>
+                <TouchableOpacity style={styles.bulkB2bOpen} onPress={async () => {
+                  try {
+                    await api.bulkSetB2b(selected, true)
+                    Alert.alert(t('success'), t('b2bBulkDone')); load()
+                  } catch (e: any) { Alert.alert(t('error'), e.message) }
+                }}>
+                  <Text style={styles.bulkB2bOpenText}>{t('b2bBulkOpen')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.bulkB2bClose} onPress={async () => {
+                  try {
+                    await api.bulkSetB2b(selected, false)
+                    Alert.alert(t('success'), t('b2bBulkDone')); load()
+                  } catch (e: any) { Alert.alert(t('error'), e.message) }
+                }}>
+                  <Text style={styles.bulkB2bCloseText}>{t('b2bBulkClose')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
             <TouchableOpacity style={styles.bulkDel} onPress={async () => {
               try {
                 await api.deleteAdminProductsBulk(selected)
@@ -405,6 +414,9 @@ export default function ProductsScreen() {
           marketplaceTrees={marketplaceTrees}
           catOptionsFor={catOptionsFor}
           brandsFor={brandsFor}
+          b2bEnabled={b2bEnabled}
+          productLimit={productLimit}
+          productCount={total}
           onClose={() => setModalOpen(false)}
           onSaved={() => { setModalOpen(false); load() }}
           t={t}
@@ -466,7 +478,7 @@ export default function ProductsScreen() {
 }
 
 function ProductModal({
-  product, creating, categoriesFlat, marketplaceTrees, catOptionsFor, brandsFor, onClose, onSaved, t,
+  product, creating, categoriesFlat, marketplaceTrees, catOptionsFor, brandsFor, b2bEnabled, productLimit, productCount, onClose, onSaved, t,
 }: {
   product: {
     id: string; code: string; label: string; price: string; stock: string; status: boolean
@@ -479,6 +491,9 @@ function ProductModal({
   marketplaceTrees: Record<string, MarketplaceCategory[]>
   catOptionsFor: (mp: string) => { id: string; name: string }[]
   brandsFor: (mp: string) => { id: string; name: string }[]
+  b2bEnabled: boolean
+  productLimit: number
+  productCount: number
   onClose: () => void
   onSaved: () => void
   t: (k: string) => string
@@ -582,20 +597,31 @@ function ProductModal({
       if (p.description.trim()) payload.description = p.description.trim()
 
       if (creating) {
+        if (productLimit >= 0 && productCount >= productLimit) {
+          Alert.alert(t('error'), t('productLimitReached'))
+          setSaving(false)
+          return
+        }
         const code = p.code.trim() || `PRD-${Date.now()}`
         const created = await api.createAdminProduct({ ...payload, code })
-        if (created?.id) {
+        if (created?.id && b2bEnabled) {
           await api.updateProductB2b({ product_id: created.id, is_b2b_enabled: !!p.b2b_enabled })
         }
         Alert.alert(t('success'), t('productCreated'))
       } else {
         await api.updateAdminProduct(p.id, payload)
-        await api.updateProductB2b({ product_id: p.id, is_b2b_enabled: !!p.b2b_enabled })
+        if (b2bEnabled) {
+          await api.updateProductB2b({ product_id: p.id, is_b2b_enabled: !!p.b2b_enabled })
+        }
         Alert.alert(t('success'), t('productUpdated'))
       }
       onSaved()
     } catch (e: any) {
-      Alert.alert(t('error'), e.message)
+      if (e?.code === 'PLAN_PRODUCT_LIMIT' || /product limit|ürün limit/i.test(e?.message || '')) {
+        Alert.alert(t('error'), t('productLimitReached'))
+      } else {
+        Alert.alert(t('error'), e.message)
+      }
     } finally {
       setSaving(false)
     }
@@ -745,10 +771,12 @@ function ProductModal({
             <Switch value={p.status} onValueChange={(v) => setP({ ...p, status: v })} />
           </View>
 
-          <View style={styles.switchRow}>
-            <Text style={styles.label}>{t('b2bEnabled')}</Text>
-            <Switch value={!!p.b2b_enabled} onValueChange={(v) => setP({ ...p, b2b_enabled: v })} />
-          </View>
+          {b2bEnabled && (
+            <View style={styles.switchRow}>
+              <Text style={styles.label}>{t('b2bEnabled')}</Text>
+              <Switch value={!!p.b2b_enabled} onValueChange={(v) => setP({ ...p, b2b_enabled: v })} />
+            </View>
+          )}
         </View>
 
         <View style={styles.modalActions}>

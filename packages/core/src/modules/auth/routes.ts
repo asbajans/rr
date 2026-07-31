@@ -8,6 +8,7 @@ import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { ApiKey } from '../../models/ApiKey.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
+import { serializePlan } from '../planSerializer.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
@@ -268,7 +269,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       currency: store.currency,
       is_active: store.isActive,
       theme: store.theme,
-      plan: store.plan ? { id: store.plan.id, name: store.plan.name, price: store.plan.price } : null,
+      plan: store.plan ? serializePlan(store.plan) : null,
       subscription: subscription ? {
         status: subscription.status,
         currentPeriodEnd: subscription.currentPeriodEnd,

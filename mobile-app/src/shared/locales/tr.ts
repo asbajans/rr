@@ -120,6 +120,7 @@
   bulkAi: 'Toplu Yapay Zeka',
   bulkAiField: 'Üretilecek alan',
   productCreated: 'Ürün oluşturuldu',
+  productLimitReached: 'Planınızdaki ürün limitine ulaştınız. Daha fazla ürün eklemek için Plan sekmesinden üst pakete geçin.',
   uploadImageDesc: 'Görsel yükleniyor...',
   image: 'Görsel',
   aiEditPromptPlaceholder: 'Örn: beyaz arka plan, profesyonel ürün fotoğrafı',
@@ -179,6 +180,9 @@
   // AI Product Creator
   aiProductCreator: 'AI Ürün Oluşturucu',
   aiAnalyzeProduct: 'AI ile Ürün Analiz Et',
+  insufficientCredits: 'Yeterli AI krediniz yok. Kredi satın almak için Plan sekmesini ziyaret edin.',
+  moduleDisabled: 'Bu modül planınızda kapalı. Planınızı yükselterek erişebilirsiniz.',
+  upgradePlan: 'Üst Pakete Geç',
   selectFromCamera: 'Kameradan Çek',
   selectFromGallery: 'Galeriden Seç',
   takePhoto: 'Fotoğraf Çek',

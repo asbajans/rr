@@ -7,6 +7,7 @@ import { ProductB2bSetting } from '../../models/ProductB2bSetting.model.js';
 import { B2BRequest, B2BListedProduct } from '../../models/B2BModels.js';
 import { Store } from '../../models/Store.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
+import { requireModule, assertProductQuota } from '../plan/access.js';
 import { logger } from '../../utils/logger.js';
 
 export const b2bRoutes: Router = Router();
@@ -20,7 +21,7 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-b2bRoutes.get('/discover', authMiddleware, requireStore, async (req: Request, res: Response) => {
+b2bRoutes.get('/discover', authMiddleware, requireStore, requireModule('b2b'), async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const page = parseInt(req.query.page as string) || 1;
@@ -67,7 +68,7 @@ b2bRoutes.get('/discover', authMiddleware, requireStore, async (req: Request, re
   }
 });
 
-b2bRoutes.get('/settings', authMiddleware, requireStore, async (req: Request, res: Response) => {
+b2bRoutes.get('/settings', authMiddleware, requireStore, requireModule('b2b'), async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const settings = await ProductB2bSetting.findAll({
@@ -81,7 +82,7 @@ b2bRoutes.get('/settings', authMiddleware, requireStore, async (req: Request, re
   }
 });
 
-b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('b2b'), [
   body('productId').isInt(),
   body('isB2BEnabled').isBoolean(),
   body('b2bDiscount').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
@@ -117,7 +118,7 @@ b2bRoutes.put('/settings', authMiddleware, requireRole('owner', 'admin'), requir
   }
 });
 
-b2bRoutes.post('/bulk', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+b2bRoutes.post('/bulk', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('b2b'), [
   body('ids').isArray({ min: 1 }).custom((ids: any[]) => ids.every((id: any) => Number.isInteger(id))),
   body('isB2BEnabled').isBoolean(),
   body('b2bDiscount').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
@@ -155,7 +156,7 @@ b2bRoutes.post('/bulk', authMiddleware, requireRole('owner', 'admin'), requireSt
   }
 });
 
-b2bRoutes.get('/settings/:id', authMiddleware, requireStore, [
+b2bRoutes.get('/settings/:id', authMiddleware, requireStore, requireModule('b2b'), [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {
   try {
@@ -174,7 +175,7 @@ b2bRoutes.get('/settings/:id', authMiddleware, requireStore, [
   }
 });
 
-b2bRoutes.get('/requests', authMiddleware, requireStore, async (req: Request, res: Response) => {
+b2bRoutes.get('/requests', authMiddleware, requireStore, requireModule('b2b'), async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const type = req.query.type as string || 'all';
@@ -205,7 +206,7 @@ b2bRoutes.get('/requests', authMiddleware, requireStore, async (req: Request, re
   }
 });
 
-b2bRoutes.post('/requests', authMiddleware, requireStore, [
+b2bRoutes.post('/requests', authMiddleware, requireStore, requireModule('b2b'), [
   body('productId').isInt(),
   body('variantId').optional({ values: 'null' }).isInt(),
   body('requestNote').optional({ values: 'null' }).isString(),
@@ -252,7 +253,7 @@ b2bRoutes.post('/requests', authMiddleware, requireStore, [
   }
 });
 
-b2bRoutes.put('/requests/:id', authMiddleware, requireStore, [
+b2bRoutes.put('/requests/:id', authMiddleware, requireStore, requireModule('b2b'), [
   param('id').isInt(),
   body('status').isIn(['approved', 'rejected']),
   body('profitMargin').optional({ values: 'null' }).isFloat({ min: 0, max: 100 }),
@@ -280,7 +281,7 @@ b2bRoutes.put('/requests/:id', authMiddleware, requireStore, [
   }
 });
 
-b2bRoutes.post('/requests/:id/clone', authMiddleware, requireStore, [
+b2bRoutes.post('/requests/:id/clone', authMiddleware, requireStore, requireModule('b2b'), [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {
   try {
@@ -294,6 +295,11 @@ b2bRoutes.post('/requests/:id/clone', authMiddleware, requireStore, [
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.requesterStoreId !== store.id) return res.status(403).json({ error: 'Not authorized' });
     if (request.status !== 'approved') return res.status(400).json({ error: 'Request must be approved first' });
+
+    const quota = await assertProductQuota(store);
+    if (!quota.ok) {
+      return res.status(403).json({ error: 'PLAN_PRODUCT_LIMIT', limit: quota.limit, current: quota.current, message: 'Ürün limitiniz doldu. Planınızı yükseltin.' });
+    }
 
     const product = await cloneProductForB2B(request, store, request.profitMargin);
 
@@ -374,7 +380,7 @@ async function cloneProductForB2B(request: any, targetStore: any, profitMargin: 
   return clonedProduct;
 }
 
-b2bRoutes.get('/listed', authMiddleware, requireStore, async (req: Request, res: Response) => {
+b2bRoutes.get('/listed', authMiddleware, requireStore, requireModule('b2b'), async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const page = parseInt(req.query.page as string) || 1;

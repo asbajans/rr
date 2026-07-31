@@ -6,6 +6,7 @@ import { Category } from '../../models/Category.model.js';
 import { ProductVariant } from '../../models/ProductVariant.model.js';
 import { Store } from '../../models/Store.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
+import { assertProductQuota, requireModule } from '../plan/access.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
@@ -118,6 +119,11 @@ productRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireSt
     const existing = await Product.findOne({ where: { storeId: store.id, sku: req.body.sku } });
     if (existing) {
       return res.status(409).json({ error: 'SKU already exists' });
+    }
+
+    const quota = await assertProductQuota(store);
+    if (!quota.ok) {
+      return res.status(403).json({ error: 'PLAN_PRODUCT_LIMIT', limit: quota.limit, current: quota.current, message: 'Ürün limitiniz doldu. Planınızı yükseltin.' });
     }
 
     const slug = req.body.title.toLowerCase()
@@ -311,7 +317,7 @@ productRoutes.post('/:id/verify', authMiddleware, requireRole('owner', 'admin'),
   }
 });
 
-productRoutes.post('/:id/sync', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+productRoutes.post('/:id/sync', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
   param('id').isInt(),
   body('marketplaces').optional().isArray(),
 ], validate, async (req: Request, res: Response) => {

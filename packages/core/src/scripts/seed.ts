@@ -70,7 +70,7 @@ async function seed() {
     const [plans] = await sequelize.query(`SELECT id FROM plans WHERE name = 'Free' LIMIT 1`);
     if (!plans.length) {
       await sequelize.query(`INSERT INTO plans (name, slug, price, "productLimit", "aiCredits", "storeLimit", currency, "isActive", modules)
-        VALUES ('Free', 'free', 0, 100, 1000, 1, 'TRY', true, '{"marketplace":true,"b2b":true,"ai_product_create":true}')`);
+        VALUES ('Free', 'free', 0, 100, 1000, 1, 'TRY', true, '{"marketplace":{"enabled":true},"b2b":{"enabled":true},"ai_product_create":{"enabled":true}}'::jsonb)`);
       console.log('Plan created: Free');
     } else {
       console.log('Plan already exists: Free');

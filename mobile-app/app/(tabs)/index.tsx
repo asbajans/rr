@@ -14,12 +14,14 @@ type StatCard = {
 }
 
 export default function DashboardScreen() {
-  const { user } = useAuth()
+  const { user, store } = useAuth()
   const { t, locale, setLocale } = useI18n()
   const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
+
+  const planLimit = store?.plan?.product_limit ?? -1
 
   async function load() {
     try {
@@ -68,6 +70,11 @@ export default function DashboardScreen() {
           <Text style={styles.planLabel}>{t('currentPlan')}</Text>
           <Text style={styles.planName}>{data?.plan ? data.plan.name : t('planFree')}</Text>
           <Text style={styles.planCredits}>{t('remainingCredits')}: {data?.stats.ai_credits ?? 0}</Text>
+          {planLimit >= 0 && (
+            <Text style={styles.planCredits}>
+              {t('productsLimit')}: {data?.stats.total_products ?? 0}/{planLimit}
+            </Text>
+          )}
         </View>
         <Ionicons name="wallet-outline" size={28} color="#000" />
       </TouchableOpacity>

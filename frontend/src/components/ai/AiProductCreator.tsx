@@ -2,8 +2,9 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
-import { Sparkles, Loader2, Check, ImageUp, Camera, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { Sparkles, Loader2, Check, ImageUp, Camera, X, CheckCircle, AlertCircle, Coins, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AiAnalysis {
@@ -32,7 +33,8 @@ interface AiProductCreatorProps {
 }
 
 export function AiProductCreator({ onSuccess, onClose, initialImage }: AiProductCreatorProps) {
-  const { user } = useAuth()
+  const { user, can, refreshMe } = useAuth()
+  const router = useRouter()
   const [step, setStep] = useState<'upload' | 'analyze' | 'form'>('upload')
   const [image, setImage] = useState<File | null>(initialImage ? null : null)
   const [imagePreview, setImagePreview] = useState<string | null>(initialImage || null)
@@ -41,6 +43,7 @@ export function AiProductCreator({ onSuccess, onClose, initialImage }: AiProduct
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [gate, setGate] = useState<'product' | 'credits' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [productForm, setProductForm] = useState<ProductForm>({
@@ -110,8 +113,10 @@ export function AiProductCreator({ onSuccess, onClose, initialImage }: AiProduct
         description: res.description,
       })
       setStep('form')
+      refreshMe()
     } catch (err: any) {
-      setError(err.message || 'Analiz başarısız')
+      if (err?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
+      else setError(err.message || 'Analiz başarısız')
     } finally {
       setAnalyzing(false)
     }
@@ -143,13 +148,32 @@ export function AiProductCreator({ onSuccess, onClose, initialImage }: AiProduct
         setSuccess('')
       }, 1500)
     } catch (err: any) {
-      setError(err.message || 'Ürün oluşturma başarısız')
+      if (err?.code === 'PLAN_PRODUCT_LIMIT') { setGate('product') }
+      else setError(err.message || 'Ürün oluşturma başarısız')
     } finally {
       setSaving(false)
     }
   }
 
   if (!user) return null
+
+  if (!can('ai_product_create')) {
+    return (
+      <div className="w-full max-w-2xl text-center py-8">
+        <div className="inline-flex items-center justify-center gap-3 rounded-xl bg-zinc-100 p-6">
+          <Sparkles className="h-8 w-8 text-zinc-400" />
+          <div className="text-left">
+            <h3 className="text-lg font-semibold text-zinc-900">AI Ürün Oluşturucu</h3>
+            <p className="text-sm text-zinc-500 mt-1">Bu modül planınızda kapalı. Planınızı yükselterek AI ile ürün oluşturabilirsiniz.</p>
+          </div>
+        </div>
+        <button onClick={() => router.push('/billing')}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+          Üst Pakete Geç <ArrowUpRight className="h-4 w-4" />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full max-w-2xl">
@@ -333,6 +357,33 @@ export function AiProductCreator({ onSuccess, onClose, initialImage }: AiProduct
                 </>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {gate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-[420px] max-w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-2">
+              {gate === 'credits' ? <Coins className="h-6 w-6 text-indigo-600" /> : <Sparkles className="h-6 w-6 text-indigo-600" />}
+              <h3 className="font-semibold text-lg">{gate === 'credits' ? 'AI Kredisi Yetersiz' : 'Ürün Limiti Doldu'}</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {gate === 'credits'
+                ? 'Devam etmek için yeterli AI krediniz yok. Kredi satın alın veya üst pakete geçin.'
+                : 'Planınızdaki ürün limitine ulaştınız. Daha fazla ürün eklemek için üst pakete geçin.'}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setGate(null)} className="px-4 py-1.5 border rounded text-sm">Vazgeç</button>
+              {gate === 'credits' && (
+                <button onClick={() => router.push('/credits')} className="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm flex items-center gap-1">
+                  Kredi Satın Al <ArrowUpRight className="h-4 w-4" />
+                </button>
+              )}
+              <button onClick={() => router.push('/billing')} className="px-4 py-1.5 bg-zinc-900 text-white rounded text-sm flex items-center gap-1">
+                Üst Pakete Geç <ArrowUpRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 export type AuthMeResponse = {
   user: User
-  store: Store & { plan?: { id: number; name: string; price: number } | null; subscription?: { status: string; trialEndsAt?: string; currentPeriodEnd?: string } | null }
+  store: Store & { plan?: Plan | null; subscription?: { status: string; trialEndsAt?: string; currentPeriodEnd?: string } | null }
 }
 
 export type StoreMeResponse = {

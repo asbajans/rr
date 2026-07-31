@@ -120,6 +120,7 @@ export const en: Record<string, string> = {
   bulkAi: 'Bulk AI',
   bulkAiField: 'Field to generate',
   productCreated: 'Product created',
+  productLimitReached: 'You have reached your plan\'s product limit. Upgrade from the Plan tab to add more products.',
   uploadImageDesc: 'Uploading image...',
   image: 'Image',
   aiEditPromptPlaceholder: 'e.g. white background, professional product photo',
@@ -178,6 +179,9 @@ export const en: Record<string, string> = {
   // AI Product Creator
   aiProductCreator: 'AI Product Creator',
   aiAnalyzeProduct: 'Analyze Product with AI',
+  insufficientCredits: 'You have insufficient AI credits. Visit the Plan tab to purchase more.',
+  moduleDisabled: 'This module is disabled in your plan. Upgrade to access it.',
+  upgradePlan: 'Upgrade Plan',
   selectFromCamera: 'Take Photo',
   selectFromGallery: 'Choose from Gallery',
   takePhoto: 'Take Photo',

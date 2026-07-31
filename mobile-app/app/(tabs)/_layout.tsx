@@ -4,8 +4,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { useI18n } from '../../src/shared/i18n'
 
 export default function TabLayout() {
-  const { user } = useAuth()
+  const { user, can } = useAuth()
   const { t } = useI18n()
+  const b2bEnabled = can('b2b')
 
   if (!user) {
     return <Redirect href="/(auth)/login" />
@@ -46,22 +47,26 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="b2b/index"
-        options={{
-          title: t('b2bDiscover'),
-          tabBarLabel: t('b2bDiscoverTab'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="b2b/requests"
-        options={{
-          title: t('b2bRequests'),
-          tabBarLabel: t('b2bRequests'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
-        }}
-      />
+      {b2bEnabled && (
+        <>
+          <Tabs.Screen
+            name="b2b/index"
+            options={{
+              title: t('b2bDiscover'),
+              tabBarLabel: t('b2bDiscoverTab'),
+              tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
+            }}
+          />
+          <Tabs.Screen
+            name="b2b/requests"
+            options={{
+              title: t('b2bRequests'),
+              tabBarLabel: t('b2bRequests'),
+              tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
+            }}
+          />
+        </>
+      )}
       <Tabs.Screen
         name="billing"
         options={{

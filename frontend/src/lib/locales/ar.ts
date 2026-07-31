@@ -39,6 +39,7 @@ export const ar: Record<string, string> = {
 
   billingTitle: 'الباقة',
   billingSubtitle: 'إدارة اشتراكك ورصيد الذكاء الاصطناعي.',
+  moduleComparison: 'مقارنة الوحدات',
   loading: 'جارٍ التحميل...',
   loadFailed: 'تعذر تحميل معلومات الفوترة',
   paymentFailed: 'تعذر بدء الدفع',

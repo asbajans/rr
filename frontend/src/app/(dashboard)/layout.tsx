@@ -8,6 +8,7 @@ import {
   Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban,
   MapPin, Truck, FileText, Camera, Palette, MenuIcon,
   FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2, GitMerge,
+  Coins,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
@@ -56,6 +57,7 @@ const navGroups = [
       { href: '/locations', labelKey: 'locations', icon: MapPin },
       { href: '/shipping', labelKey: 'shipping', icon: Truck },
       { href: '/ai', labelKey: 'ai', icon: Sparkles },
+      { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
       { href: '/settings', labelKey: 'settings', icon: Settings },
     ],
@@ -64,11 +66,19 @@ const navGroups = [
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { user, loading, logout } = useAuth()
+  const { user, loading, logout, can } = useAuth()
   const { t } = useI18n()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  const nav = navGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      if (item.href === '/b2b' || item.href === '/b2b/requests') return can('b2b')
+      return true
+    }),
+  }))
 
   useEffect(() => {
     if (!loading && !user) router.push('/login')
@@ -125,7 +135,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
             <div className="space-y-6">
-              {navGroups.map((group) => (
+              {nav.map((group) => (
                 <div key={group.labelKey}>
                   {!collapsed && (
                     <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{t(group.labelKey)}</p>

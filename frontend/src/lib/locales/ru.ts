@@ -39,6 +39,7 @@ export const ru: Record<string, string> = {
 
   billingTitle: 'План',
   billingSubtitle: 'Управление подпиской и AI-кредитами.',
+  moduleComparison: 'Сравнение модулей',
   loading: 'Загрузка...',
   loadFailed: 'Не удалось загрузить данные о подписке',
   paymentFailed: 'Не удалось начать оплату',

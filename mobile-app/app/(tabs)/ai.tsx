@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
+import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
 import type { Product } from '../../src/shared/types'
 import { Ionicons } from '@expo/vector-icons'
@@ -24,6 +25,8 @@ interface AiAnalysis {
 export default function AiScreen() {
   const router = useRouter()
   const { t } = useI18n()
+  const { can, refreshMe } = useAuth()
+  const aiEnabled = can('ai_product_create')
   const [tab, setTab] = useState<'analyze' | 'create'>('analyze')
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -98,6 +101,7 @@ export default function AiScreen() {
 
       const res = await api.analyzeProduct(formData)
       setAnalysis(res)
+      refreshMe()
       setProductForm({
         code: res.slug || res.title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 32),
         label: res.title,
@@ -106,7 +110,12 @@ export default function AiScreen() {
         description: res.description,
       })
     } catch (err: any) {
-      setError(err.message || t('analyzeFailed'))
+      if (err?.code === 'INSUFFICIENT_CREDITS') {
+        refreshMe()
+        Alert.alert(t('error'), t('insufficientCredits'))
+      } else {
+        setError(err.message || t('analyzeFailed'))
+      }
     } finally {
       setAnalyzing(false)
     }
@@ -131,10 +140,30 @@ export default function AiScreen() {
       setAnalysis(null)
       setImageUri(null)
     } catch (err: any) {
-      setError(err.message || t('createFailed'))
+      if (err?.code === 'PLAN_PRODUCT_LIMIT') {
+        Alert.alert(t('error'), t('productLimitReached'))
+      } else {
+        setError(err.message || t('createFailed'))
+      }
     } finally {
       setSaving(false)
     }
+  }
+
+  if (!aiEnabled) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Ionicons name="sparkles-outline" size={28} color="#10b981" />
+          <Text style={styles.headerTitle}>{t('aiTools')}</Text>
+        </View>
+        <Text style={styles.headerSubtitle}>{t('moduleDisabled')}</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('/billing')}>
+          <Ionicons name="arrow-up-circle-outline" size={22} color="#fff" />
+          <Text style={styles.saveBtnText}>{t('upgradePlan')}</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    )
   }
 
   if (tab === 'analyze') {

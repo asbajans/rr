@@ -9,6 +9,7 @@ import { ExternalFeed, FeedSyncLog } from '../models/ContentModels.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../marketplace/clients/index.js';
 import { mapProductForMarketplace } from '../marketplace/productMapper.js';
 import { normalizeMarketplaceProduct } from '../marketplace/importNormalizer.js';
+import { getPlanForStore, isModuleEnabled, getProductQuotaStatus } from '../modules/plan/access.js';
 import { logger } from '../utils/logger.js';
 import { Op } from 'sequelize';
 
@@ -86,6 +87,20 @@ export async function createImportWorker() {
       if (!integration) {
         logger.warn({ marketplace, storeId }, 'Integration not found or inactive');
         return { success: false, reason: 'Integration not found or inactive' };
+      }
+
+      const store = await Store.findByPk(storeId);
+      if (store) {
+        const plan = await getPlanForStore(store);
+        if (!isModuleEnabled(plan, 'marketplace')) {
+          logger.warn({ storeId }, 'Marketplace module disabled, import blocked');
+          return { success: false, reason: 'PLAN_MODULE_DISABLED:marketplace' };
+        }
+      }
+      const quota = await getProductQuotaStatus(storeId);
+      if (!quota.ok) {
+        logger.warn({ storeId, current: quota.current, limit: quota.limit }, 'Product quota reached, import blocked');
+        return { success: false, reason: `PLAN_PRODUCT_LIMIT:${quota.current}/${quota.limit}` };
       }
 
       const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
@@ -438,6 +453,15 @@ export async function createSyncWorker() {
       if (!product) {
         logger.warn({ productId, storeId }, 'Product not found for sync');
         return { success: false, reason: 'Product not found' };
+      }
+
+      const store = await Store.findByPk(storeId);
+      if (store) {
+        const plan = await getPlanForStore(store);
+        if (!isModuleEnabled(plan, 'marketplace')) {
+          logger.warn({ storeId, productId }, 'Marketplace module disabled, sync skipped');
+          return { success: false, productId, reason: 'PLAN_MODULE_DISABLED:marketplace' };
+        }
       }
 
       const targetMps = marketplaces || product.marketplaces || [];

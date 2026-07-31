@@ -39,6 +39,7 @@ export const tr: Record<string, string> = {
 
   billingTitle: 'Plan',
   billingSubtitle: 'Aboneliğini ve AI kredilerini yönet.',
+  moduleComparison: 'Modül Karşılaştırması',
   loading: 'Yükleniyor...',
   loadFailed: 'Plan bilgileri yüklenemedi',
   paymentFailed: 'Ödeme başlatılamadı',

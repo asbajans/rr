@@ -140,6 +140,35 @@ export const createApp = async (): Promise<Express> => {
 
   await sequelize.sync({ alter: false });
 
+  // Normalize plan.modules: default all-enabled for unconfigured plans, convert legacy boolean values
+  try {
+    await sequelize.query(
+      `UPDATE plans SET modules = '{"b2b":{"enabled":true},"marketplace":{"enabled":true},"ai_product_create":{"enabled":true},"ai_image_generate":{"enabled":true},"xml_feed":{"enabled":true},"variations":{"enabled":true},"blog":{"enabled":true},"custom_domain":{"enabled":true},"shipping":{"enabled":true},"static_pages":{"enabled":true}}'::jsonb
+       WHERE modules IS NULL OR modules = '{}'::jsonb`
+    );
+    const { Plan } = await import('./models/Plan.model.js');
+    const plans = await Plan.findAll();
+    for (const plan of plans) {
+      const modules = (plan as any).modules;
+      if (!modules || typeof modules !== 'object') continue;
+      const normalized: Record<string, any> = {};
+      let changed = false;
+      for (const [key, value] of Object.entries(modules)) {
+        if (value === true || value === false) {
+          normalized[key] = { enabled: value === true };
+          changed = true;
+        } else if (value && typeof value === 'object') {
+          normalized[key] = value;
+        }
+      }
+      if (changed) {
+        await (plan as any).update({ modules: normalized });
+      }
+    }
+  } catch (e) {
+    // Ignore if plans table/modules column not ready
+  }
+
   // Migrate existing admin user to superadmin role
   try {
     await sequelize.query(

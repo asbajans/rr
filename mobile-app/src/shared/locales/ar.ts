@@ -120,6 +120,7 @@ export const ar: Record<string, string> = {
   bulkAi: 'ذكاء اصطناعي جماعي',
   bulkAiField: 'الحقل المراد توليده',
   productCreated: 'تم إنشاء المنتج',
+  productLimitReached: 'لقد وصلت إلى الحد الأقصى للمنتجات في خطتك. قم بترقية خطتك من تبويب الخطة لإضافة المزيد.',
   uploadImageDesc: 'جارٍ رفع الصورة...',
   image: 'صورة',
   aiEditPromptPlaceholder: 'مثل: خلفية بيضاء، صورة منتج احترافية',
@@ -178,6 +179,9 @@ export const ar: Record<string, string> = {
   // AI Product Creator
   aiProductCreator: 'منشئ المنتجات بالذكاء الاصطناعي',
   aiAnalyzeProduct: 'تحليل المنتج بالذكاء الاصطناعي',
+  insufficientCredits: 'ليس لديك رصيد AI كافٍ. قم بزيارة تبويب الخطة لشراء المزيد.',
+  moduleDisabled: 'هذه الوحدة معطلة في خطتك. قم بترقية خطتك للوصول إليها.',
+  upgradePlan: 'ترقية الخطة',
   selectFromCamera: 'التقاط من الكاميرا',
   selectFromGallery: 'اختيار من المعرض',
   takePhoto: 'التقاط صورة',

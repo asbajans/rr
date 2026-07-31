@@ -39,7 +39,7 @@ export const es: Record<string, string> = {
 
   billingTitle: 'Plan',
   billingSubtitle: 'Gestiona tu suscripción y créditos IA.',
-  loading: 'Cargando...',
+  moduleComparison: 'Comparación de Módulos',  loading: 'Cargando...',
   loadFailed: 'No se pudieron cargar los datos de facturación',
   paymentFailed: 'No se pudo iniciar el pago',
   portalFailed: 'No se pudo abrir el portal',

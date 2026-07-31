@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
 import { api, API_BASE } from '@/lib/api-client'
-import { Sparkles, ImageUp, Loader2, Check } from 'lucide-react'
+import { Sparkles, ImageUp, Loader2, Check, Coins, ArrowUpRight } from 'lucide-react'
 
 interface AiAnalysis {
   title: string
@@ -17,12 +18,14 @@ interface AiAnalysis {
 }
 
 export default function AiPage() {
-  const { user } = useAuth()
+  const { user, can, refreshMe } = useAuth()
+  const router = useRouter()
   const [tab, setTab] = useState<'remove-bg' | 'creator'>('remove-bg')
   const [file, setFile] = useState<File | null>(null)
   const [processing, setProcessing] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [gate, setGate] = useState<'product' | 'credits' | null>(null)
 
   // Product creator
   const [creatorFile, setCreatorFile] = useState<string | null>(null)
@@ -65,8 +68,10 @@ export default function AiPage() {
         attempts++
       }
       setResult(imageUrl)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'İşlem başarısız')
+      refreshMe()
+    } catch (err: any) {
+      if (err?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
+      else setError(err instanceof Error ? err.message : 'İşlem başarısız')
     } finally {
       setProcessing(false)
     }
@@ -98,8 +103,10 @@ export default function AiPage() {
         stock: '10',
         description: res.description,
       })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analiz başarısız')
+      refreshMe()
+    } catch (err: any) {
+      if (err?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
+      else setError(err instanceof Error ? err.message : 'Analiz başarısız')
     } finally {
       setAnalyzing(false)
     }
@@ -123,8 +130,9 @@ export default function AiPage() {
       setAnalysis(null)
       setCreatorFile(null)
       setCreatorRawFile(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ürün oluşturma başarısız')
+    } catch (err: any) {
+      if (err?.code === 'PLAN_PRODUCT_LIMIT') { setGate('product') }
+      else setError(err instanceof Error ? err.message : 'Ürün oluşturma başarısız')
     } finally {
       setSaving(false)
     }
@@ -149,6 +157,15 @@ export default function AiPage() {
 
       {tab === 'remove-bg' && (
         <div className="mt-6 rounded-xl border border-zinc-700 bg-zinc-900 p-6">
+          {!can('ai_image_generate') ? (
+            <div className="text-center py-6">
+              <p className="text-sm text-zinc-400">Bu modül planınızda kapalı.</p>
+              <button onClick={() => router.push('/billing')} className="mt-3 inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-600">
+                Üst Pakete Geç <ArrowUpRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+          <>
           <div className="flex items-center gap-3">
             <ImageUp className="h-5 w-5 text-indigo-400" />
             <h2 className="text-lg font-semibold text-white">Arka Plan Temizleme</h2>
@@ -169,11 +186,22 @@ export default function AiPage() {
             </div>
           )}
           <p className="mt-4 text-xs text-zinc-500">Kalan kredi: {user.ai_credits}</p>
+          </>
+          )}
         </div>
       )}
 
       {tab === 'creator' && (
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {!can('ai_product_create') ? (
+            <div className="col-span-full rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-center">
+              <p className="text-sm text-zinc-400">Bu modül planınızda kapalı.</p>
+              <button onClick={() => router.push('/billing')} className="mt-3 inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-600">
+                Üst Pakete Geç <ArrowUpRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Upload + Analyze */}
           <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-6">
             <div className="flex items-center gap-3">
@@ -266,6 +294,35 @@ export default function AiPage() {
                 </button>
               </div>
             )}
+          </div>
+          </>
+          )}
+        </div>
+      )}
+
+      {gate && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-[420px] max-w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-2">
+              {gate === 'credits' ? <Coins className="h-6 w-6 text-indigo-400" /> : <Sparkles className="h-6 w-6 text-indigo-400" />}
+              <h3 className="font-semibold text-lg text-white">{gate === 'credits' ? 'AI Kredisi Yetersiz' : 'Ürün Limiti Doldu'}</h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-4">
+              {gate === 'credits'
+                ? 'Devam etmek için yeterli AI krediniz yok. Kredi satın alın veya üst pakete geçin.'
+                : 'Planınızdaki ürün limitine ulaştınız. Daha fazla ürün eklemek için üst pakete geçin.'}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setGate(null)} className="px-4 py-1.5 border border-zinc-600 rounded text-sm text-zinc-300">Vazgeç</button>
+              {gate === 'credits' && (
+                <button onClick={() => router.push('/credits')} className="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm flex items-center gap-1">
+                  Kredi Satın Al <ArrowUpRight className="h-4 w-4" />
+                </button>
+              )}
+              <button onClick={() => router.push('/billing')} className="px-4 py-1.5 bg-white text-black rounded text-sm flex items-center gap-1">
+                Üst Pakete Geç <ArrowUpRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

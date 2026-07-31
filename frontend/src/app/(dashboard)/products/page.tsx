@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
+import { useAuth } from '@/lib/auth'
 import { Product, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '@/lib/types'
-import { Sparkles, Camera } from 'lucide-react'
+import { Sparkles, Camera, Coins, ArrowUpRight, Package } from 'lucide-react'
 
 interface Filters {
   marketplaces: string[]
@@ -43,6 +44,8 @@ function firstMd(p?: Product): MarketplaceEntry | undefined {
 
 export default function ProductsPage() {
   const router = useRouter()
+  const { productLimit, can, refreshMe } = useAuth()
+  const [planGate, setPlanGate] = useState<null | { type: 'product' | 'credits'; current?: number; limit?: number; required?: number }>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -275,6 +278,10 @@ export default function ProductsPage() {
   }
 
   function openCreateModal() {
+    if (productLimit >= 0 && total >= productLimit) {
+      setPlanGate({ type: 'product', current: total, limit: productLimit })
+      return
+    }
     setProduct({
       id: '',
       code: '',
@@ -357,6 +364,8 @@ export default function ProductsPage() {
         setTimeout(() => setReloadKey((k) => k + 1), 8000)
       }
     } catch (e: any) {
+      if (e?.code === 'PLAN_PRODUCT_LIMIT') { setPlanGate({ type: 'product', current: e.data?.current, limit: e.data?.limit }); return }
+      if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); return }
       setError(e.message)
     }
   }
@@ -517,8 +526,10 @@ export default function ProductsPage() {
     try {
       const res = await api.generateProductDescription({ ...aiContext(), field: 'description' })
       if (res.description) setProduct({ ...product, description: res.description })
+      refreshMe()
     } catch (e: any) {
-      setError(e.message)
+      if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); refreshMe(); }
+      else setError(e.message)
     } finally {
       setAiBusy(false)
     }
@@ -530,8 +541,10 @@ export default function ProductsPage() {
     try {
       const res = await api.generateProductDescription({ ...aiContext(), field: 'title' })
       if (res.title) setProduct({ ...product, label: res.title })
+      refreshMe()
     } catch (e: any) {
-      setError(e.message)
+      if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); refreshMe(); }
+      else setError(e.message)
     } finally {
       setAiBusy(false)
     }
@@ -551,8 +564,10 @@ export default function ProductsPage() {
           ? { ...prev, description: d.description ?? prev.description, label: t.title ?? prev.label }
           : prev
       )
+      refreshMe()
     } catch (e: any) {
-      setError(e.message)
+      if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); refreshMe(); }
+      else setError(e.message)
     } finally {
       setAiBusy(false)
     }
@@ -603,7 +618,8 @@ export default function ProductsPage() {
         }
       }
     } catch (e: any) {
-      setError(e.message)
+      if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); refreshMe(); }
+      else setError(e.message)
     }
   }
 
@@ -681,6 +697,12 @@ export default function ProductsPage() {
         }
         await api.updateAdminProduct(id, patch)
       } catch (e: any) {
+        if (e?.code === 'INSUFFICIENT_CREDITS') {
+          setPlanGate({ type: 'credits', required: e.data?.required })
+          refreshMe()
+          setBulkAiError((err) => `${err}Kredi yetersiz, işlem durduruldu.\n`)
+          break
+        }
         setBulkAiError((err) => `${err}Ürün ${p?.label ?? id}: ${e.message}\n`)
       }
       setBulkAiDone(i + 1)
@@ -705,6 +727,23 @@ export default function ProductsPage() {
           <p className="text-sm text-gray-500 mt-1">
             {total} ürün bulundu · {activeCount} satışta · Sayfa {page} / {lastPage}
           </p>
+          {productLimit >= 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="h-1.5 w-48 rounded-full bg-gray-200 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${total >= productLimit ? 'bg-red-500' : total / productLimit > 0.8 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.min(100, (total / Math.max(1, productLimit)) * 100)}%` }}
+                />
+              </div>
+              <span className="text-xs text-gray-500">{total} / {productLimit} ürün</span>
+              {total >= productLimit && (
+                <button onClick={() => setPlanGate({ type: 'product', current: total, limit: productLimit })}
+                  className="text-xs font-medium text-indigo-600 hover:underline">
+                  Planını Yükselt
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -763,7 +802,7 @@ export default function ProductsPage() {
       <div className="flex gap-2 mb-3 border-b border-gray-200">
         {[
           { v: '', label: 'Tüm Ürünler' },
-          { v: '1', label: 'B2B Ürünleri' },
+          ...(can('b2b') ? [{ v: '1', label: 'B2B Ürünleri' }] : []),
           { v: '0', label: 'Kendi Ürünlerim' },
         ].map((t) => (
           <button
@@ -836,12 +875,14 @@ export default function ProductsPage() {
             >
               Toplu Yapay Zeka
             </button>
-            <button
-              onClick={() => setBulkB2bOpen(true)}
-              className="px-3 py-1.5 border border-emerald-300 text-emerald-700 rounded text-sm hover:bg-emerald-50"
-            >
-              Toplu B2B Aç
-            </button>
+            {can('b2b') && (
+              <button
+                onClick={() => setBulkB2bOpen(true)}
+                className="px-3 py-1.5 border border-emerald-300 text-emerald-700 rounded text-sm hover:bg-emerald-50"
+              >
+                Toplu B2B Aç
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1027,7 +1068,7 @@ export default function ProductsPage() {
                   Fotoğrafı AI ile düzenleyip kendi fiyatınızı/pazaryerlerinizi ayarlayabilirsiniz.
                 </div>
               )}
-              {!creating && !product.is_b2b_clone && (
+              {can('b2b') && !creating && !product.is_b2b_clone && (
                 <div className="flex items-center justify-between border rounded px-3 py-2">
                   <div>
                     <p className="text-sm font-medium text-zinc-800">B2B Satışa Aç</p>
@@ -1048,7 +1089,7 @@ export default function ProductsPage() {
                   </button>
                 </div>
               )}
-              {!creating && !product.is_b2b_clone && product.b2b_enabled && (
+              {can('b2b') && !creating && !product.is_b2b_clone && product.b2b_enabled && (
                 <div className="grid grid-cols-2 gap-3 border rounded px-3 py-2">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">B2B İndirim (%)</label>
@@ -1580,6 +1621,47 @@ export default function ProductsPage() {
                   B2B'ye Aç
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {planGate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-[440px] max-w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-2">
+              {planGate.type === 'credits' ? (
+                <Coins className="h-6 w-6 text-indigo-600" />
+              ) : (
+                <Package className="h-6 w-6 text-indigo-600" />
+              )}
+              <h3 className="font-semibold text-lg">
+                {planGate.type === 'credits' ? 'AI Kredisi Yetersiz' : 'Ürün Limiti Doldu'}
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {planGate.type === 'credits'
+                ? `İşlem için ${planGate.required ?? 'AI'} kredisi gerekli. Kredi satın alabilir veya üst pakete geçebilirsiniz.`
+                : `Planınızdaki ürün limitine ulaştınız (${planGate.current ?? ''} / ${planGate.limit ?? ''}). Daha fazla ürün eklemek için üst pakete geçin.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPlanGate(null)} className="px-4 py-1.5 border rounded text-sm">
+                Vazgeç
+              </button>
+              {planGate.type === 'credits' ? (
+                <button
+                  onClick={() => router.push('/credits')}
+                  className="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm flex items-center gap-1"
+                >
+                  Kredi Satın Al <ArrowUpRight className="h-4 w-4" />
+                </button>
+              ) : null}
+              <button
+                onClick={() => router.push('/billing')}
+                className="px-4 py-1.5 bg-zinc-900 text-white rounded text-sm flex items-center gap-1"
+              >
+                Üst Pakete Geç <ArrowUpRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>

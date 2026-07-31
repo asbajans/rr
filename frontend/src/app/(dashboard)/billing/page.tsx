@@ -19,6 +19,27 @@ const MODULE_KEYS: Record<string, string> = {
   credit_purchase: 'module_credit_purchase',
 }
 
+const MODULES: { key: string; label: string }[] = [
+  { key: 'b2b', label: 'B2B / Beatby' },
+  { key: 'marketplace', label: 'Pazaryeri Entegrasyonu' },
+  { key: 'ai_product_create', label: 'AI Ürün Oluşturma' },
+  { key: 'ai_image_generate', label: 'AI Görsel Üretme' },
+  { key: 'xml_feed', label: 'XML Feed' },
+  { key: 'variations', label: 'Varyasyonlar' },
+  { key: 'blog', label: 'Blog' },
+  { key: 'custom_domain', label: 'Özel Domain' },
+  { key: 'shipping', label: 'Kargo Yönetimi' },
+  { key: 'static_pages', label: 'Statik Sayfalar' },
+]
+
+function moduleEnabled(plan: Plan | null, key: string): boolean {
+  const modules = (plan?.modules as Record<string, any> | null) ?? null
+  if (!modules || !(key in modules)) return true
+  const v = modules[key]
+  if (typeof v === 'boolean') return v
+  return v?.enabled === true
+}
+
 export default function BillingPage() {
   const { user } = useAuth()
   const { t } = useI18n()
@@ -185,6 +206,43 @@ export default function BillingPage() {
               </div>
             </div>
           )}
+
+          <div className="mt-6 rounded-xl border border-zinc-200 p-6">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">{t('moduleComparison')}</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 text-left text-xs text-zinc-400">
+                    <th className="py-2 pr-4 font-medium">Modül</th>
+                    {plans.filter(p => p.is_active).map(plan => (
+                      <th key={plan.id} className="px-3 py-2 text-center font-medium">{plan.name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {MODULES.map(mod => (
+                    <tr key={mod.key} className="border-b border-zinc-100">
+                      <td className="py-2 pr-4 text-zinc-700">{mod.label}</td>
+                      {plans.filter(p => p.is_active).map(plan => {
+                        const enabled = moduleEnabled(plan, mod.key)
+                        const isCurrent = plan.id === currentPlan?.id
+                        return (
+                          <td key={plan.id} className="px-3 py-2 text-center">
+                            {enabled ? (
+                              <span className={`font-medium ${isCurrent ? 'text-green-600' : 'text-green-500'}`}>✓</span>
+                            ) : (
+                              <span className="text-zinc-300">—</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-zinc-400">Modül açık olmayan planlarda ilgili özellikler gizlenir ve API erişimi engellenir.</p>
+          </div>
 
           <div className="mt-8">
             <h2 className="text-lg font-semibold text-zinc-900">{t('availablePlans')}</h2>

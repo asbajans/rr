@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
+import type { AuthResponse, MeResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -69,13 +69,19 @@ class ApiClient {
 
     if (!res.ok) {
       let errorMsg: string
+      let errBody: any
       try {
         const error = await res.json()
+        errBody = error
         errorMsg = error.error || error.message || `HTTP ${res.status}`
       } catch {
         errorMsg = `HTTP ${res.status}`
       }
-      throw new Error(errorMsg)
+      const err = new Error(errorMsg) as Error & { code?: string; data?: any; status?: number }
+      err.code = errBody?.error
+      err.data = errBody
+      err.status = res.status
+      throw err
     }
 
     return res.json()
@@ -202,7 +208,7 @@ class ApiClient {
   }
 
   me() {
-    return this.get<User>('/api/auth/me')
+    return this.get<MeResponse>('/api/auth/me').then(r => ({ user: r.user, store: r.store }))
   }
 
   logout() {
