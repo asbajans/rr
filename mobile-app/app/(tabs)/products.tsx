@@ -9,7 +9,7 @@ import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import type { Product, MarketplaceCategory, Category, MarketplaceEntry } from '../../src/shared/types'
 
-const MARKETPLACE_OPTIONS = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'Pazaryeri Yok']
+const MARKETPLACE_OPTIONS = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'Pazaryeri Yok']
 
 type Filters = {
   marketplaces: string[]
@@ -611,6 +611,14 @@ function ProductModal({
 
           <Text style={styles.label}>{t('title')}</Text>
           <TextInput style={[styles.input, p.is_b2b_clone && !creating && styles.disabledInput]} value={p.label} editable={!(p.is_b2b_clone && !creating)} onChangeText={(v) => setP({ ...p, label: v })} />
+          <View style={styles.labelBtns}>
+            <TouchableOpacity style={styles.aiBtn} onPress={handleAiTitle} disabled={p.is_b2b_clone && !creating}>
+              <Text style={styles.aiBtnText}>{t('aiGenerateTitle')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.aiBtn} onPress={handleAiAll} disabled={p.is_b2b_clone && !creating}>
+              <Text style={styles.aiBtnText}>{t('aiGenerateAll')}</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.half}>
@@ -651,11 +659,9 @@ function ProductModal({
 
           <View style={styles.labelRow}>
             <Text style={styles.label}>{t('description')}</Text>
-            <View style={styles.labelBtns}>
-              <TouchableOpacity onPress={handleAiDesc}><Text style={styles.linkBtn}>{t('aiGenerateDesc')}</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleAiTitle}><Text style={styles.linkBtn}>{t('aiGenerateTitle')}</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleAiAll}><Text style={styles.linkBtn}>{t('aiGenerateAll')}</Text></TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.aiBtn} onPress={handleAiDesc}>
+              <Text style={styles.aiBtnText}>{t('aiGenerateDesc')}</Text>
+            </TouchableOpacity>
           </View>
           <TextInput style={[styles.input, styles.textArea]} value={p.description} onChangeText={(v) => setP({ ...p, description: v })} multiline numberOfLines={4} />
 
@@ -826,7 +832,9 @@ const styles = StyleSheet.create({
   form: { paddingHorizontal: 20 },
   label: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 4, marginTop: 12 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  labelBtns: { flexDirection: 'row', gap: 10 },
+  labelBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8 },
+  aiBtn: { backgroundColor: '#000', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginRight: 8 },
+  aiBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   linkBtn: { fontSize: 12, color: '#000', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: '#fafafa' },
   textArea: { height: 90, textAlignVertical: 'top' },

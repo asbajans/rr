@@ -115,6 +115,7 @@ export default function ProductsPage() {
   const [bulkAiOpen, setBulkAiOpen] = useState(false)
   const [bulkAiField, setBulkAiField] = useState<'title' | 'description' | 'all'>('description')
   const [uploading, setUploading] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
 
   // bulk B2B modal
   const [bulkB2bOpen, setBulkB2bOpen] = useState(false)
@@ -155,7 +156,7 @@ export default function ProductsPage() {
   const [bulkAiError, setBulkAiError] = useState('')
   const [b2bTab, setB2bTab] = useState<'0' | '1' | ''>('')
 
-  const marketplaceOptions = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'Pazaryeri Yok']
+  const marketplaceOptions = ['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'Pazaryeri Yok']
   const statusOptions: { value: '' | '1' | '0'; label: string }[] = [
     { value: '', label: 'Tümü' },
     { value: '1', label: 'Satışta' },
@@ -512,27 +513,34 @@ export default function ProductsPage() {
 
   async function handleAiDescription() {
     if (!product) return
+    setAiBusy(true)
     try {
       const res = await api.generateProductDescription({ ...aiContext(), field: 'description' })
       if (res.description) setProduct({ ...product, description: res.description })
     } catch (e: any) {
       setError(e.message)
+    } finally {
+      setAiBusy(false)
     }
   }
 
   async function handleAiTitle() {
     if (!product) return
+    setAiBusy(true)
     try {
       const res = await api.generateProductDescription({ ...aiContext(), field: 'title' })
       if (res.title) setProduct({ ...product, label: res.title })
     } catch (e: any) {
       setError(e.message)
+    } finally {
+      setAiBusy(false)
     }
   }
 
   async function handleAiAll() {
     if (!product) return
     const ctx = aiContext()
+    setAiBusy(true)
     try {
       const [d, t] = await Promise.all([
         api.generateProductDescription({ ...ctx, field: 'description' }),
@@ -545,6 +553,8 @@ export default function ProductsPage() {
       )
     } catch (e: any) {
       setError(e.message)
+    } finally {
+      setAiBusy(false)
     }
   }
 
@@ -840,20 +850,32 @@ export default function ProductsPage() {
       {loading && <div className="text-gray-500 text-sm">Yükleniyor…</div>}
 
       {!loading && (
-        <div className="overflow-x-auto border rounded">
-          <table className="min-w-full text-sm">
+        <div className="border rounded">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-8" />
+              <col className="w-24" />
+              <col />
+              <col className="w-[20%]" />
+              <col className="w-20" />
+              <col className="w-12" />
+              <col className="w-[14%]" />
+              <col className="w-[15%]" />
+              <col className="w-20" />
+              <col className="w-28" />
+            </colgroup>
             <thead className="bg-gray-50 text-left">
               <tr>
                 <th className="w-10 px-3 py-2">
                   <input type="checkbox" checked={selected.length === products.length && products.length > 0} onChange={toggleSelectAll} />
                 </th>
-                <th className="px-3 py-2 font-medium text-gray-600">Kod</th>
-                <th className="px-3 py-2 font-medium text-gray-600">Ürün Adı</th>
-                <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Kategori</th>
+                <th className="px-3 py-2 font-medium text-gray-600 truncate">Kod</th>
+                <th className="px-3 py-2 font-medium text-gray-600 truncate">Ürün Adı</th>
+                <th className="px-3 py-2 font-medium text-gray-600 truncate">Kategori</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Fiyat</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Stok</th>
-                <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Marka</th>
-                <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Pazaryerleri</th>
+                <th className="px-3 py-2 font-medium text-gray-600 truncate">Marka</th>
+                <th className="px-3 py-2 font-medium text-gray-600 truncate">Pazaryerleri</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Durum</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">İşlem</th>
               </tr>
@@ -874,12 +896,12 @@ export default function ProductsPage() {
                       <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleSelect(p.id)} />
                     </td>
                     <td className="px-3 py-2">
-                      <span className="block max-w-[150px] truncate text-gray-500" title={p.code}>
+                      <span className="block truncate text-gray-500" title={p.code}>
                         {p.code}
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <span className="block max-w-[360px] truncate font-medium" title={p.label}>
+                      <span className="block truncate font-medium" title={p.label}>
                         {p.label}
                       </span>
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -899,8 +921,10 @@ export default function ProductsPage() {
                         <img src={p.media_url} alt="" className="mt-1 h-10 w-10 object-cover rounded" />
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 max-w-[160px] truncate" title={p.category ?? md?.category ?? ''}>
-                      {p.category ?? md?.category ?? '-'}
+                    <td className="px-3 py-2">
+                      <span className="block truncate text-gray-500" title={p.category ?? md?.category ?? ''}>
+                        {p.category ?? md?.category ?? '-'}
+                      </span>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {p.price != null ? (
@@ -912,8 +936,12 @@ export default function ProductsPage() {
                       ) : '-'}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{p.stock ?? '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{p.brand ?? md?.brand ?? '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-3 py-2">
+                      <span className="block truncate" title={p.brand ?? md?.brand ?? '-'}>
+                        {p.brand ?? md?.brand ?? '-'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1">
                         {(p.marketplaces ?? []).map((m) => {
                           const sync = p.marketplace_sync?.[m]
@@ -1065,6 +1093,24 @@ export default function ProductsPage() {
                   onChange={(e) => setProduct({ ...product, label: e.target.value })}
                   className="w-full border rounded px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
                 />
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={handleAiTitle}
+                    disabled={product.is_b2b_clone || aiBusy}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-medium border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Yapay Zeka ile başlık oluştur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAiAll}
+                    disabled={product.is_b2b_clone || aiBusy}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Yapay Zeka ile tüm içeriği düzenle
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1161,17 +1207,14 @@ export default function ProductsPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs text-gray-500">Açıklama</label>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={handleAiDescription} className="text-xs text-indigo-600 hover:underline">
-                      Yapay Zeka ile açıklama oluştur
-                    </button>
-                    <button onClick={handleAiTitle} className="text-xs text-indigo-600 hover:underline">
-                      Yapay Zeka ile başlık oluştur
-                    </button>
-                    <button onClick={handleAiAll} className="text-xs text-indigo-600 hover:underline">
-                      Yapay Zeka ile tüm içeriği düzenle
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAiDescription}
+                    disabled={aiBusy}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-medium border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Yapay Zeka ile açıklama oluştur
+                  </button>
                 </div>
                 <textarea
                   value={product.description}

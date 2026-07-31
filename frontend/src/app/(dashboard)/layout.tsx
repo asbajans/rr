@@ -111,7 +111,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
             <div className="flex items-center gap-1">
-              {!collapsed && <LanguageSwitcher />}
               {mobileOpen && (
                 <button onClick={() => setMobileOpen(false)} className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 lg:hidden">
                   <X className="h-4 w-4" />
@@ -169,6 +168,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <LogOut className="h-4 w-4 shrink-0" />
               {!collapsed && <span>{t('logout')}</span>}
             </button>
+            {!collapsed && (
+              <div className="pt-1">
+                <LanguageSwitcher />
+              </div>
+            )}
           </div>
         </aside>
 

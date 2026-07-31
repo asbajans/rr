@@ -264,6 +264,15 @@ export default function ProductDetailScreen() {
         <Text style={styles.label}>{t('productTitle')}</Text>
         <TextInput style={styles.input} value={label} onChangeText={setLabel} />
 
+        <View style={styles.labelBtns}>
+          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('title')} disabled={saving}>
+            <Text style={styles.aiBtnText}>{t('aiGenerateTitle')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('all')} disabled={saving}>
+            <Text style={styles.aiBtnText}>{t('aiGenerateAll')}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.row}>
           <View style={styles.half}>
             <Text style={styles.label}>{t('price')}</Text>
@@ -282,16 +291,8 @@ export default function ProductDetailScreen() {
 
         <View style={styles.labelRow}>
           <Text style={styles.label}>{t('description')}</Text>
-        </View>
-        <View style={styles.labelBtns}>
           <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('description')} disabled={saving}>
             <Text style={styles.aiBtnText}>{t('aiGenerateDesc')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('title')} disabled={saving}>
-            <Text style={styles.aiBtnText}>{t('aiGenerateTitle')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.aiBtn} onPress={() => handleAi('all')} disabled={saving}>
-            <Text style={styles.aiBtnText}>{t('aiGenerateAll')}</Text>
           </TouchableOpacity>
         </View>
         <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} multiline numberOfLines={4} />
@@ -304,7 +305,7 @@ export default function ProductDetailScreen() {
       <View style={styles.card}>
         <Text style={styles.label}>{t('selectMarketplaces')}</Text>
         <View style={styles.chips}>
-          {['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon'].map((m) => (
+          {['Kendi Sitem', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy'].map((m) => (
             <TouchableOpacity key={m} style={[styles.chip, marketplaces.includes(m) && styles.chipActive]} onPress={() => toggleMp(m)}>
               <Text style={[styles.chipText, marketplaces.includes(m) && styles.chipTextActive]}>{m}</Text>
             </TouchableOpacity>

@@ -47,7 +47,6 @@ function SuperShell({ children }: { children: React.ReactNode }) {
             {!collapsed && <span className="text-sm font-semibold text-white truncate">{t('superAdmin')}</span>}
           </div>
           <div className="flex items-center gap-1">
-            {!collapsed && <LanguageSwitcher dark />}
             <button onClick={() => setCollapsed(c => !c)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300">
               {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             </button>
@@ -79,6 +78,11 @@ function SuperShell({ children }: { children: React.ReactNode }) {
             <LogOut className="h-4 w-4 shrink-0" />
             {!collapsed && <span>{t('logout')}</span>}
           </button>
+          {!collapsed && (
+            <div className="pt-1">
+              <LanguageSwitcher dark />
+            </div>
+          )}
         </div>
       </aside>
       <div className="flex-1 overflow-auto p-6">{children}</div>
