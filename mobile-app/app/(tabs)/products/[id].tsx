@@ -145,7 +145,7 @@ export default function ProductDetailScreen() {
     const url = images[index]?.trim()
     if (!url) { Alert.alert(t('error'), t('addImage')); return }
     setEditingImg(index)
-    setImgPrompt('beyaz arka plan, profesyonel ürün fotoğrafı')
+    setImgPrompt(t('aiEditPromptPlaceholder'))
   }
 
   async function runImageAiEdit(index: number) {
@@ -156,7 +156,7 @@ export default function ProductDetailScreen() {
       const md = Object.values(marketplaceData)[0]
       const res = await api.editProductImage({ image_urls: [url], prompt: imgPrompt, category: md?.category || undefined })
       const sid = res.sessionId
-      if (!sid) throw new Error('AI oturumu başlatılamadı')
+      if (!sid) throw new Error(t('aiSessionFailed'))
       let files: string[] = []
       for (let i = 0; i < 40; i++) {
         await new Promise((r) => setTimeout(r, 3000))

@@ -13,7 +13,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert(t('error'), `${t('email')} & ${t('password')} gerekli`)
+      Alert.alert(t('error'), `${t('email')} & ${t('password')} ${t('required')}`)
       return
     }
     setLoading(true)

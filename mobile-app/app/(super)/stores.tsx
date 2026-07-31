@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, TouchableOpacity } from 'react-native'
+import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import type { Store } from '../../src/shared/types'
 
 export default function SuperStoresScreen() {
+  const { t } = useI18n()
   const [stores, setStores] = useState<Store[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
@@ -12,7 +14,7 @@ export default function SuperStoresScreen() {
       const res = await api.getAdminStores()
       setStores(res.data)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     }
   }
 

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
+import { I18nProvider, LanguageSwitcher } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 
 export default function RegisterPage() {
@@ -27,8 +28,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
+    <I18nProvider>
+      <div className="relative flex min-h-[60vh] items-center justify-center px-4 py-12">
+        <div className="absolute right-4 top-4">
+          <LanguageSwitcher />
+        </div>
+        <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-zinc-900">Hesap Oluştur</h1>
         <p className="mt-1 text-sm text-zinc-600">Rahatio'ya hoş geldin.</p>
 
@@ -66,6 +71,7 @@ export default function RegisterPage() {
           <Link href="/login" className="font-medium text-zinc-900 hover:underline">Giriş Yap</Link>
         </p>
       </div>
-    </div>
+      </div>
+    </I18nProvider>
   )
 }

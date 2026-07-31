@@ -1,4 +1,38 @@
 import { Plan } from '../models/Plan.model.js';
+import { Subscription } from '../models/Subscription.model.js';
+
+export interface SubscriptionPublic {
+  id: number;
+  store_id: number;
+  plan_id: number;
+  stripe_id: string | null;
+  stripe_status: string | null;
+  payment_method: string;
+  quantity: number;
+  trial_ends_at: string | null;
+  ends_at: string | null;
+  renews_at: string | null;
+  status: string;
+  plan?: PlanPublic | null;
+}
+
+export function serializeSubscription(sub: Subscription): SubscriptionPublic {
+  const s = sub as any;
+  return {
+    id: Number(s.id),
+    store_id: Number(s.storeId ?? s.store_id),
+    plan_id: Number(s.planId ?? s.plan_id),
+    stripe_id: s.stripeSubscriptionId ?? s.stripe_id ?? null,
+    stripe_status: s.status ?? null,
+    payment_method: s.paymentMethod ?? s.payment_method ?? '',
+    quantity: s.quantity ?? 1,
+    trial_ends_at: s.trialEndsAt ? new Date(s.trialEndsAt).toISOString() : null,
+    ends_at: s.canceledAt ? new Date(s.canceledAt).toISOString() : null,
+    renews_at: s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toISOString() : null,
+    status: s.status ?? 'inactive',
+    plan: s.plan ? serializePlan(s.plan) : null,
+  };
+}
 
 export interface PlanPublic {
   id: number;

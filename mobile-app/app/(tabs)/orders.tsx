@@ -87,7 +87,7 @@ export default function OrdersScreen() {
               <View style={styles.cardRight}>
                 <Text style={styles.price}>{formatPrice(item.grand_total ?? 0, item.currency)}</Text>
                 <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                  <Text style={[styles.badgeText, { color: sc.color }]}>{item.status}</Text>
+                  <Text style={[styles.badgeText, { color: sc.color }]}>{item.status ? t('status_' + item.status) : ''}</Text>
                 </View>
               </View>
             </TouchableOpacity>

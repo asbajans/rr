@@ -206,11 +206,13 @@ router.post('/users/:id/assign-plan', superAdminOnly, [
 
 /**
  * GET /api/admin/plans
- * List all plans (admin view — includes inactive)
+ * List plans. Superadmin sees all (including inactive), store users see active only.
  */
-router.get('/plans', superAdminOnly, async (_req: Request, res: Response) => {
+router.get('/plans', async (req: Request, res: Response) => {
   try {
-    const plans = await Plan.findAll({ order: [['price', 'ASC']] });
+    const isSuper = (req as any).user?.role === 'superadmin';
+    const where = isSuper ? {} : { isActive: true };
+    const plans = await Plan.findAll({ where, order: [['price', 'ASC']] });
     res.json({ plans: serializePlans(plans) });
   } catch (error) {
     logger.error({ err: error }, 'Get all plans error');

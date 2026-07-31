@@ -15,7 +15,7 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     if (!name || !email || !password) {
-      Alert.alert(t('error'), `${t('name')}, ${t('email')} & ${t('password')} gerekli`)
+      Alert.alert(t('error'), `${t('name')}, ${t('email')} & ${t('password')} ${t('required')}`)
       return
     }
     setLoading(true)
@@ -47,7 +47,7 @@ export default function RegisterScreen() {
         </View>
 
         <TextInput style={styles.input} placeholder={t('name')} placeholderTextColor="#999" value={name} onChangeText={setName} autoCapitalize="words" />
-        <TextInput style={styles.input} placeholder={`${t('store')} (${t('optional' as any) || 'opsiyonel'})`} placeholderTextColor="#999" value={storeName} onChangeText={setStoreName} autoCapitalize="words" />
+        <TextInput style={styles.input} placeholder={`${t('store')} (${t('optional')})`} placeholderTextColor="#999" value={storeName} onChangeText={setStoreName} autoCapitalize="words" />
         <TextInput style={styles.input} placeholder={t('email')} placeholderTextColor="#999" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <TextInput style={styles.input} placeholder={t('password')} placeholderTextColor="#999" value={password} onChangeText={setPassword} secureTextEntry />
 

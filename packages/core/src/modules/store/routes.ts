@@ -5,6 +5,7 @@ import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
 import { User } from '../../models/User.model.js';
 import { ApiKey } from '../../models/ApiKey.model.js';
+import { CreditLog } from '../../models/CreditLog.model.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { authMiddleware, requireRole, requireStore, generateApiKey } from '../auth/middleware.js';
@@ -54,18 +55,15 @@ storeRoutes.get('/me', authMiddleware, requireStore, async (req: Request, res: R
     include: [{ model: Plan, as: 'plan' }],
   });
 
+  const { serializeSubscription } = await import('../planSerializer.js');
+
   res.json({
     store: {
       id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain,
       email: store.email, isActive: store.isActive, currency: store.currency,
       theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
     },
-    subscription: subscription ? {
-      id: subscription.id, status: subscription.status,
-      currentPeriodEnd: subscription.currentPeriodEnd,
-      trialEndsAt: subscription.trialEndsAt, canceledAt: subscription.canceledAt,
-      plan: subscription.plan,
-    } : null,
+    subscription: subscription ? serializeSubscription(subscription) : null,
   });
 });
 
@@ -145,21 +143,45 @@ storeRoutes.delete('/users/:id', authMiddleware, requireRole('owner'), requireSt
 });
 
 if (stripe) {
+  const CREDIT_PACKS = [
+    { credits: 50, price: 50 },
+    { credits: 200, price: 150 },
+    { credits: 500, price: 300 },
+  ];
+
+  const ensureCustomer = async (store: any): Promise<string> => {
+    let customerId = store.stripeAccountId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: store.email, metadata: { storeId: store.id } });
+      customerId = customer.id;
+      await store.update({ stripeAccountId: customerId });
+    }
+    return customerId;
+  };
+
   storeRoutes.post('/subscription/checkout', authMiddleware, requireRole('owner'), requireStore, [
-    body('planId').isInt(), body('successUrl').isURL(), body('cancelUrl').isURL(),
+    body('planId').optional().isInt(), body('plan_id').optional().isInt(),
+    body('successUrl').optional().isURL(), body('cancelUrl').optional().isURL(),
   ], validate, async (req: Request, res: Response) => {
     try {
       const store = (req as any).store;
-      const { planId, successUrl, cancelUrl } = req.body;
+      const planId = parseInt(req.body.planId ?? req.body.plan_id, 10);
       const plan = await Plan.findByPk(planId);
-      if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan' });
+      if (!plan) return res.status(400).json({ error: 'Invalid plan' });
 
-      let customerId = store.stripeAccountId;
-      if (!customerId) {
-        const customer = await stripe.customers.create({ email: store.email, metadata: { storeId: store.id } });
-        customerId = customer.id;
-        await store.update({ stripeAccountId: customerId });
+      const successUrl = req.body.successUrl || config.apiUrl;
+      const cancelUrl = req.body.cancelUrl || config.apiUrl;
+
+      if (!plan.stripePriceId || Number(plan.price) <= 0) {
+        await Subscription.upsert({
+          storeId: store.id, planId: plan.id,
+          status: 'active', currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+        await store.update({ planId: plan.id });
+        return res.json({ url: null });
       }
+
+      const customerId = await ensureCustomer(store);
 
       const session = await stripe.checkout.sessions.create({
         customer: customerId, payment_method_types: ['card'],
@@ -175,13 +197,13 @@ if (stripe) {
   });
 
   storeRoutes.post('/subscription/portal', authMiddleware, requireRole('owner'), requireStore, [
-    body('returnUrl').isURL(),
+    body('returnUrl').optional().isURL(),
   ], validate, async (req: Request, res: Response) => {
     try {
       const store = (req as any).store;
       if (!store.stripeAccountId) return res.status(400).json({ error: 'No Stripe customer' });
       const session = await stripe.billingPortal.sessions.create({
-        customer: store.stripeAccountId, return_url: req.body.returnUrl,
+        customer: store.stripeAccountId, return_url: req.body.returnUrl || config.apiUrl,
       });
       res.json({ url: session.url });
 } catch (error: unknown) {
@@ -189,6 +211,55 @@ if (stripe) {
     res.status(500).json({ error: 'Failed to create portal session' });
   }
 });
+
+  storeRoutes.post('/subscription/cancel', authMiddleware, requireRole('owner'), requireStore, async (req: Request, res: Response) => {
+    try {
+      const store = (req as any).store;
+      const sub = await Subscription.findOne({ where: { storeId: store.id }, order: [['createdAt', 'DESC']] });
+      if (!sub) return res.status(404).json({ error: 'No subscription found' });
+      if (sub.stripeSubscriptionId) {
+        await stripe.subscriptions.update(sub.stripeSubscriptionId, { cancel_at_period_end: true });
+      }
+      await sub.update({ status: 'canceled', canceledAt: new Date() });
+      res.json({ message: 'Subscription canceled' });
+    } catch (error: unknown) {
+      logger.error({ err: error }, 'Stripe cancel error');
+      res.status(500).json({ error: 'Failed to cancel subscription' });
+    }
+  });
+
+  storeRoutes.post('/subscription/purchase-credits', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+    body('credits').isInt({ min: 1 }),
+    body('successUrl').optional().isURL(), body('cancelUrl').optional().isURL(),
+  ], validate, async (req: Request, res: Response) => {
+    try {
+      const store = (req as any).store;
+      const credits = parseInt(req.body.credits, 10);
+      const pack = CREDIT_PACKS.find(p => p.credits === credits);
+      if (!pack) return res.status(400).json({ error: 'Invalid credit package' });
+
+      const customerId = await ensureCustomer(store);
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId, payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'try',
+            product_data: { name: `${credits} AI Kredisi` },
+            unit_amount: pack.price * 100,
+          },
+          quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: req.body.successUrl || config.apiUrl,
+        cancel_url: req.body.cancelUrl || config.apiUrl,
+        metadata: { storeId: String(store.id), action: 'credit_purchase', credits: String(credits) },
+      });
+      res.json({ url: session.url });
+    } catch (error: unknown) {
+      logger.error({ err: error }, 'Stripe credits checkout error');
+      res.status(500).json({ error: 'Failed to create credit checkout session' });
+    }
+  });
 
   storeRoutes.post('/webhook/stripe', async (req: Request, res: Response) => {
     const sig = req.headers['stripe-signature'] as string;
@@ -202,6 +273,23 @@ if (stripe) {
         case 'checkout.session.completed': {
           const session = event.data.object as Stripe.Checkout.Session;
           const storeId = session.metadata?.storeId;
+          if (session.metadata?.action === 'credit_purchase') {
+            const credits = parseInt(session.metadata.credits || '0', 10);
+            if (storeId && credits > 0) {
+              const owner = await User.findOne({ where: { storeId: parseInt(storeId), role: 'owner' } });
+              if (owner) {
+                const before = owner.aiCredits || 0;
+                const after = before + credits;
+                await owner.update({ aiCredits: after });
+                await CreditLog.create({
+                  userId: owner.id, storeId: parseInt(storeId),
+                  action: 'grant', module: 'credit_purchase',
+                  amount: credits, balanceBefore: before, balanceAfter: after,
+                });
+              }
+            }
+            break;
+          }
           const planId = session.metadata?.planId;
           if (storeId && planId) {
             await Subscription.upsert({

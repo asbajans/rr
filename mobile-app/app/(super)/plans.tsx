@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native'
+import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import type { Plan } from '../../src/shared/types'
 
 export default function SuperPlansScreen() {
+  const { t } = useI18n()
   const [plans, setPlans] = useState<Plan[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
@@ -12,7 +14,7 @@ export default function SuperPlansScreen() {
       const data = await api.getAdminPlans()
       setPlans(data)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     }
   }
 
@@ -38,8 +40,8 @@ export default function SuperPlansScreen() {
           <View style={styles.card}>
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.price}>{formatPrice(item.price, item.currency)}</Text>
-            <Text style={styles.detail}>{item.product_limit} products</Text>
-            <Text style={styles.detail}>{item.ai_credits} AI credits</Text>
+            <Text style={styles.detail}>{item.product_limit} {t('products')}</Text>
+            <Text style={styles.detail}>{item.ai_credits} {t('aiCredits')}</Text>
           </View>
         )}
         contentContainerStyle={styles.list}

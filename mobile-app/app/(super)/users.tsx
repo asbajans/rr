@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native'
+import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import type { User } from '../../src/shared/types'
 
 export default function SuperUsersScreen() {
+  const { t } = useI18n()
   const [users, setUsers] = useState<User[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
@@ -12,7 +14,7 @@ export default function SuperUsersScreen() {
       const res = await api.getAdminUsers()
       setUsers(res.data)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert(t('error'), e.message)
     }
   }
 
@@ -34,7 +36,7 @@ export default function SuperUsersScreen() {
           <View style={styles.card}>
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.email}>{item.email}</Text>
-            <Text style={styles.badge}>{item.is_admin ? 'Admin' : 'User'}</Text>
+            <Text style={styles.badge}>{item.is_admin ? t('admin') : t('user')}</Text>
           </View>
         )}
         contentContainerStyle={styles.list}

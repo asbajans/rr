@@ -678,19 +678,19 @@ class ApiClient {
   async getSubscription() {
     const r = await this.get<any>('/api/admin/me')
     const sub = r.subscription || null
-    const plan = r.store?.plan || r.plan || null
+    const plan = r.subscription?.plan || r.store?.plan || r.plan || null
     return {
       subscription: sub ? {
         id: sub.id ?? 0,
-        store_id: sub.storeId ?? 0,
-        plan_id: sub.planId ?? 0,
-        stripe_id: sub.stripeSubscriptionId ?? null,
-        stripe_status: sub.status ?? null,
-        payment_method: sub.paymentMethod ?? '',
+        store_id: sub.storeId ?? sub.store_id ?? 0,
+        plan_id: sub.planId ?? sub.plan_id ?? 0,
+        stripe_id: sub.stripeSubscriptionId ?? sub.stripe_id ?? null,
+        stripe_status: sub.stripeStatus ?? sub.stripe_status ?? null,
+        payment_method: sub.paymentMethod ?? sub.payment_method ?? '',
         quantity: sub.quantity ?? 1,
-        trial_ends_at: sub.trialEndsAt ?? null,
-        ends_at: sub.canceledAt ?? null,
-        renews_at: sub.currentPeriodEnd ?? null,
+        trial_ends_at: sub.trialEndsAt ?? sub.trial_ends_at ?? null,
+        ends_at: sub.canceledAt ?? sub.ends_at ?? null,
+        renews_at: sub.currentPeriodEnd ?? sub.renews_at ?? null,
         status: sub.status ?? 'inactive',
       } as Subscription : null,
       plan: plan ? {
@@ -711,7 +711,7 @@ class ApiClient {
   }
 
   createCheckoutSession(planId: number) {
-    return this.post<{ url: string }>('/api/admin/subscription/checkout', { plan_id: planId })
+    return this.post<{ url: string | null }>('/api/admin/subscription/checkout', { planId })
   }
 
   createPortalSession() {

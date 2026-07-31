@@ -46,7 +46,7 @@ export default function AiScreen() {
       : await ImagePicker.requestMediaLibraryPermissionsAsync()
 
     if (!permissionResult.granted) {
-      Alert.alert(t('error'), source === 'camera' ? 'Kamera izni gerekli' : 'Galeri izni gerekli')
+      Alert.alert(t('error'), source === 'camera' ? t('cameraPermission') : t('galleryPermission'))
       return
     }
 
@@ -67,7 +67,7 @@ export default function AiScreen() {
   async function takePhoto() {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync()
     if (!permissionResult.granted) {
-      Alert.alert(t('error'), 'Kamera izni gerekli')
+      Alert.alert(t('error'), t('cameraPermission'))
       return
     }
 
@@ -126,7 +126,7 @@ export default function AiScreen() {
         status: 1,
         description: productForm.description,
       })
-      setSuccess(`${t('productCreated')}! ID: ${res.id}`)
+      setSuccess(`${t('productCreated')}! ${t('id')}: ${res.id}`)
       setProductForm({ code: '', label: '', price: '', stock: '10', description: '' })
       setAnalysis(null)
       setImageUri(null)

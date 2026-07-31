@@ -16,6 +16,18 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 
 ## Tamamlananlar
 
+### i18n — Mobile Düzeltmeler + Web Dil Seçenekleri ✅
+- [x] **ar/ru/es locale dosyaları yeniden yazıldı** — bozuk `?`/U+FFFD karakterler temizlendi, 200+ anahtar 5 dilde tamamlandı (UTF-8, BOM yok)
+- [x] **Yeni i18n anahtarları** — `status_*` (pending/confirmed/processing/shipped/delivered/cancelled/returned), `prev`, `next`, `edit`, `required`, `cameraPermission`, `galleryPermission`, `id`, `admin`, `user`, `aiSessionFailed`, `b2bOpen`, `b2bCloneBadge` — 5 dile eklendi
+- [x] **Sipariş durumları artık çevriliyor** — `orders.tsx`, `orders/[id].tsx` (status badge + status history) ham İngilizce enum yerine `t('status_'+status)`
+- [x] **Hardcoded string'ler temizlendi** — login/register (`gerekli`, `opsiyonel`), super screen'ler (`'Error'`, Admin/User, `products`, `AI credits`), ai.tsx (kamera/galeri izni, `ID:`), settings.tsx (`Site Code/Domain/Email/AI Credits:`), b2b (`Ara...`, `Stok:`, `indirim`), product detail (AI prompt, `AI oturumu başlatılamadı`)
+- [x] **Stray bozuk `(tabs` dizini silindi** — `(tabs` + `)_layout.tsx` korrupt artefaktı kaldırıldı
+- [x] **Web i18n altyapısı** — `frontend/src/lib/i18n.tsx` (I18nProvider + useI18n + LanguageSwitcher, localStorage `app_locale`, tr/en/ar/ru/es) + `frontend/src/lib/locales/*.ts`
+- [x] **Web dil seçici** — dashboard sidebar + mobile header, super admin sidebar, login/register sayfalarına eklendi
+- [x] **Web nav + shell + Plan sayfası çevrildi** — nav grupları, "Super Admin"/"Çıkış Yap", billing (Plan) sayfası tamamen `t()` kapsamına alındı
+- [x] **Doğrulamalar** — core build ✅, frontend `npm run build` ✅, mobile `npx tsc --noEmit` ✅
+- [ ] Diğer web sayfaları (products/orders/settings vb.) kademeli olarak `t()`'ye taşınacak
+
 ### 8 Madde — Web + Mobile Eksiklikler (Ürün/Sipariş Arama, B2B, Merge) ✅
 - [x] **Ürün arama** — `product/routes.ts` `search` (title/sku iLike) + web & mobile products sayfalarına debounce'lu arama kutusu
 - [x] **Sipariş arama** — `order/routes.ts` `search` (orderNumber, marketplaceOrderId/Number, customerName/Email/Phone, trackingNumber, items::text) + web & mobile orders arama

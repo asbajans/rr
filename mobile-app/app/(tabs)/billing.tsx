@@ -43,7 +43,7 @@ export default function BillingScreen() {
 
   useEffect(() => { load() }, [])
 
-  async function openStripe(url: string, key: string) {
+  async function openStripe(url: string | null, key: string) {
     if (!url) return
     setBusy(key)
     try {

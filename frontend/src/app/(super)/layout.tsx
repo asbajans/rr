@@ -5,23 +5,25 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Store, Users, CreditCard, LogOut, FolderTree, Sparkles, Settings, Cpu, Gauge, Layers, Shield, ChevronLeft, ChevronRight } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/stores', label: 'Mağazalar', icon: Store },
-  { href: '/users', label: 'Kullanıcılar', icon: Users },
-  { href: '/plans', label: 'Planlar', icon: CreditCard },
-  { href: '/super/categories', label: 'Kategoriler', icon: FolderTree },
-  { href: '/super-ai', label: 'AI Yönetimi', icon: Sparkles },
-  { href: '/api-settings', label: 'API Ayarları', icon: Settings },
-  { href: '/ai-providers', label: 'AI Sağlayıcılar', icon: Cpu },
-  { href: '/ai-scenarios', label: 'AI Senaryoları', icon: Layers },
-  { href: '/ai-rate-limits', label: 'AI Rate Limits', icon: Gauge },
+  { href: '/stores', labelKey: 'superStores', icon: Store },
+  { href: '/users', labelKey: 'superUsers', icon: Users },
+  { href: '/plans', labelKey: 'superPlans', icon: CreditCard },
+  { href: '/super/categories', labelKey: 'superCategories', icon: FolderTree },
+  { href: '/super-ai', labelKey: 'superAi', icon: Sparkles },
+  { href: '/api-settings', labelKey: 'superApi', icon: Settings },
+  { href: '/ai-providers', labelKey: 'superProviders', icon: Cpu },
+  { href: '/ai-scenarios', labelKey: 'superScenarios', icon: Layers },
+  { href: '/ai-rate-limits', labelKey: 'superRateLimits', icon: Gauge },
 ]
 
 function SuperShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, loading, logout } = useAuth()
+  const { t } = useI18n()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -42,11 +44,14 @@ function SuperShell({ children }: { children: React.ReactNode }) {
             <div className="rounded-lg bg-white p-1 shrink-0">
               <img src="/logo.jpeg" alt="Rahatio" className="h-6 w-auto" />
             </div>
-            {!collapsed && <span className="text-sm font-semibold text-white truncate">Super Admin</span>}
+            {!collapsed && <span className="text-sm font-semibold text-white truncate">{t('superAdmin')}</span>}
           </div>
-          <button onClick={() => setCollapsed(c => !c)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300">
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center gap-1">
+            {!collapsed && <LanguageSwitcher dark />}
+            <button onClick={() => setCollapsed(c => !c)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300">
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-4 scrollbar-thin">
           <div className="space-y-0.5">
@@ -60,9 +65,9 @@ function SuperShell({ children }: { children: React.ReactNode }) {
                       ? 'bg-zinc-700 text-white'
                       : 'text-zinc-400 hover:bg-zinc-800 hover:text-white',
                   )}
-                  title={collapsed ? item.label : undefined}>
+                  title={collapsed ? t(item.labelKey) : undefined}>
                   <item.icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && <span className="truncate">{t(item.labelKey)}</span>}
                 </Link>
               )
             })}
@@ -72,7 +77,7 @@ function SuperShell({ children }: { children: React.ReactNode }) {
           <button onClick={logout}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-zinc-800 hover:text-white">
             <LogOut className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>Çıkış Yap</span>}
+            {!collapsed && <span>{t('logout')}</span>}
           </button>
         </div>
       </aside>
@@ -84,7 +89,9 @@ function SuperShell({ children }: { children: React.ReactNode }) {
 export default function SuperLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <SuperShell>{children}</SuperShell>
+      <I18nProvider>
+        <SuperShell>{children}</SuperShell>
+      </I18nProvider>
     </AuthProvider>
   )
 }

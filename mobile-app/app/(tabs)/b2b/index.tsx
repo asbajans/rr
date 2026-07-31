@@ -56,7 +56,7 @@ export default function B2bDiscoverScreen() {
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Ara..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChangeText={(v) => setSearch(v)}
         />
@@ -79,11 +79,11 @@ export default function B2bDiscoverScreen() {
                 <Text style={styles.code}>{item.code}{item.store_name ? ` · ${item.store_name}` : ''}</Text>
                 <View style={styles.meta}>
                   <Text style={styles.price}>{item.price != null ? `${item.price} ₺` : '-'}</Text>
-                  <Text style={styles.stock}>Stok: {item.stock}</Text>
+                  <Text style={styles.stock}>{t('stock')}: {item.stock}</Text>
                 </View>
                 {(item.b2b_discount != null || item.b2b_price != null) && (
                   <Text style={styles.b2bInfo}>
-                    {item.b2b_discount != null ? `%${item.b2b_discount} indirim` : ''}
+                    {item.b2b_discount != null ? `%${item.b2b_discount} ${t('discount')}` : ''}
                     {item.b2b_discount != null && item.b2b_price != null ? ' · ' : ''}
                     {item.b2b_price != null ? `${item.b2b_price} ₺` : ''}
                   </Text>

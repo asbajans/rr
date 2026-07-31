@@ -157,6 +157,14 @@ export default function ProductsScreen() {
     setModalOpen(true)
   }
 
+  function onAddProduct() {
+    Alert.alert(t('addProduct'), '', [
+      { text: t('addManual'), onPress: openCreate },
+      { text: t('addWithAi'), onPress: () => router.push('/ai') },
+      { text: t('cancel'), style: 'cancel' },
+    ])
+  }
+
   function openEdit(item: Product) {
     setP({
       id: item.id,
@@ -188,7 +196,7 @@ export default function ProductsScreen() {
           <Text style={styles.title}>{t('products')}</Text>
           <Text style={styles.subtitle}>{total} {t('totalProducts')} · {products.filter((x) => x.status === 1).length} {t('onSale')}</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={openCreate}>
+        <TouchableOpacity style={styles.addBtn} onPress={onAddProduct}>
           <Text style={styles.addBtnText}>+ {t('addProduct')}</Text>
         </TouchableOpacity>
       </View>
@@ -335,13 +343,13 @@ export default function ProductsScreen() {
                   <View style={styles.badges}>
                     {item.is_b2b_clone && (
                       <View style={[styles.mpBadge, { backgroundColor: '#f3e8ff' }]}>
-                        <Text style={[styles.mpBadgeText, { color: '#7c3aed' }]}>B2B Klon</Text>
+                        <Text style={[styles.mpBadgeText, { color: '#7c3aed' }]}>{t('b2bCloneBadge')}</Text>
                       </View>
                     )}
                     {item.b2b_enabled && (
                       <View style={[styles.mpBadge, { backgroundColor: '#d1fae5' }]}>
                         <Text style={[styles.mpBadgeText, { color: '#047857' }]}>
-                          B2B Açık{item.b2b_discount ? ` %${item.b2b_discount}` : ''}
+                          {t('b2bOpen')}{item.b2b_discount ? ` %${item.b2b_discount}` : ''}
                         </Text>
                       </View>
                     )}

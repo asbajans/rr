@@ -48,10 +48,10 @@ export default function SettingsScreen() {
           placeholder={t('storeName')}
         />
         {settings?.site_code && (
-          <Text style={styles.meta}>Site Code: {settings.site_code}</Text>
+          <Text style={styles.meta}>{t('siteCode')}: {settings.site_code}</Text>
         )}
         {settings?.domain && (
-          <Text style={styles.meta}>Domain: {settings.domain}</Text>
+          <Text style={styles.meta}>{t('domain')}: {settings.domain}</Text>
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={loading}>
@@ -61,8 +61,8 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('accountSection')}</Text>
-        <Text style={styles.meta}>Email: {user?.email}</Text>
-        <Text style={styles.meta}>AI Credits: {user?.ai_credits}</Text>
+        <Text style={styles.meta}>{t('email')}: {user?.email}</Text>
+        <Text style={styles.meta}>{t('aiCredits')}: {user?.ai_credits}</Text>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
           <Text style={styles.logoutBtnText}>{t('signOut')}</Text>

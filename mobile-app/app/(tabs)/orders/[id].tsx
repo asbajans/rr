@@ -72,7 +72,7 @@ export default function OrderDetailScreen() {
         <View style={styles.statusRow}>
           <Text style={styles.marketplace}>{order.marketplace}</Text>
           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-            <Text style={[styles.badgeText, { color: sc.color }]}>{order.status}</Text>
+            <Text style={[styles.badgeText, { color: sc.color }]}>{order.status ? t('status_' + order.status) : ''}</Text>
           </View>
         </View>
         <Text style={styles.total}>{formatPrice(order.grand_total ?? 0, order.currency)}</Text>
@@ -139,7 +139,7 @@ export default function OrderDetailScreen() {
             <View key={h.id} style={styles.historyRow}>
               <View style={[styles.dot, { backgroundColor: STATUS_COLORS[h.to_status ?? '']?.color ?? '#999' }]} />
               <View style={styles.historyBody}>
-                <Text style={styles.historyStatus}>{h.to_status}</Text>
+                <Text style={styles.historyStatus}>{h.to_status ? t('status_' + h.to_status) : ''}</Text>
                 {h.note ? <Text style={styles.meta}>{h.note}</Text> : null}
                 {h.created_at ? <Text style={styles.meta}>{formatDate(h.created_at)}</Text> : null}
               </View>
