@@ -31,6 +31,16 @@ export type LandingContent = {
     body: string
     popular: string
     perMonth: string
+    free: string
+    empty: string
+    limits: {
+      products: [string, string]
+      productsUnlimited: string
+      aiCredits: [string, string]
+      aiCreditsUnlimited: string
+      stores: [string, string]
+    }
+    modules: Record<string, string>
     plans: {
       name: string
       price: string
@@ -127,6 +137,27 @@ const en: LandingContent = {
     body: '14-day free trial. No card required. Cancel anytime.',
     popular: 'Most popular',
     perMonth: '/mo',
+    free: 'Free',
+    empty: 'No plans available yet.',
+    limits: {
+      products: ['product', 'products'],
+      productsUnlimited: 'Unlimited products',
+      aiCredits: ['AI credit', 'AI credits'],
+      aiCreditsUnlimited: 'Unlimited AI credits',
+      stores: ['store', 'stores'],
+    },
+    modules: {
+      ai_product_create: 'AI product creation',
+      ai_image_generate: 'AI image generation',
+      b2b: 'B2B wholesale',
+      marketplace: 'Marketplace integration',
+      xml_feed: 'XML feed',
+      variations: 'Variations',
+      blog: 'Blog',
+      custom_domain: 'Custom domain',
+      shipping: 'Shipping management',
+      static_pages: 'Static pages',
+    },
     plans: [
       {
         name: 'Starter',
@@ -276,6 +307,27 @@ const tr: LandingContent = {
     body: '14 gün ücretsiz deneme. Kart gerekmez. İstediğin an iptal et.',
     popular: 'En popüler',
     perMonth: '/ay',
+    free: 'Ücretsiz',
+    empty: 'Henüz plan bulunmuyor.',
+    limits: {
+      products: ['ürün', 'ürün'],
+      productsUnlimited: 'Sınırsız ürün',
+      aiCredits: ['AI kredisi', 'AI kredisi'],
+      aiCreditsUnlimited: 'Sınırsız AI kredisi',
+      stores: ['mağaza', 'mağaza'],
+    },
+    modules: {
+      ai_product_create: 'AI Ürün Oluşturma',
+      ai_image_generate: 'AI Görsel Üretme',
+      b2b: 'B2B Toptan',
+      marketplace: 'Pazaryeri Entegrasyonu',
+      xml_feed: 'XML Feed',
+      variations: 'Varyasyonlar',
+      blog: 'Blog',
+      custom_domain: 'Özel Domain',
+      shipping: 'Kargo Yönetimi',
+      static_pages: 'Statik Sayfalar',
+    },
     plans: [
       {
         name: 'Başlangıç',
@@ -425,6 +477,27 @@ const es: LandingContent = {
     body: '14 días de prueba gratis. Sin tarjeta. Cancela cuando quieras.',
     popular: 'Más popular',
     perMonth: '/mes',
+    free: 'Gratis',
+    empty: 'Aún no hay planes disponibles.',
+    limits: {
+      products: ['producto', 'productos'],
+      productsUnlimited: 'Productos ilimitados',
+      aiCredits: ['crédito de IA', 'créditos de IA'],
+      aiCreditsUnlimited: 'Créditos de IA ilimitados',
+      stores: ['tienda', 'tiendas'],
+    },
+    modules: {
+      ai_product_create: 'Creación de productos con IA',
+      ai_image_generate: 'Generación de imágenes con IA',
+      b2b: 'Mayorista B2B',
+      marketplace: 'Integración de marketplaces',
+      xml_feed: 'Feed XML',
+      variations: 'Variaciones',
+      blog: 'Blog',
+      custom_domain: 'Dominio personalizado',
+      shipping: 'Gestión de envíos',
+      static_pages: 'Páginas estáticas',
+    },
     plans: [
       {
         name: 'Starter',

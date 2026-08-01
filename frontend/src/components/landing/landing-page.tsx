@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { LANDING_CONTENT, LANDING_LANGS, type Lang, type LandingContent } from '@/lib/landing-content'
+import type { Plan } from '@/lib/types'
 import { LandingAiDemo } from '@/components/landing/landing-ai-demo'
 import { LandingMarquee } from '@/components/landing/landing-marquee'
 
@@ -272,54 +273,103 @@ function SolutionsSection({ t }: { t: LandingContent }) {
   )
 }
 
-function PricingSection({ t }: { t: LandingContent }) {
+const CURRENCY_SYMBOLS: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' }
+
+type PlanCardData = { name: string; price: string; body: string; points: string[]; cta: string }
+
+function limitText(count: number, singular: string, plural: string, unlimited: string): string {
+  if (count === -1) return unlimited
+  const n = count.toLocaleString('tr-TR')
+  return `${n} ${count === 1 ? singular : plural}`
+}
+
+function formatPlanPrice(plan: Plan, freeLabel: string): string {
+  const price = Number(plan.price ?? 0)
+  if (!(price > 0)) return freeLabel
+  const symbol = CURRENCY_SYMBOLS[(plan.currency ?? '').toUpperCase()] ?? plan.currency ?? ''
+  const formatted =
+    price % 1 === 0 ? price.toLocaleString('tr-TR') : price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${symbol}${formatted}`
+}
+
+function buildPlanPoints(plan: Plan, t: LandingContent): string[] {
+  const l = t.pricing.limits
+  const points = [
+    limitText(Number(plan.product_limit ?? 0), l.products[0], l.products[1], l.productsUnlimited),
+    limitText(Number(plan.ai_credits ?? 0), l.aiCredits[0], l.aiCredits[1], l.aiCreditsUnlimited),
+    limitText(Number(plan.store_limit ?? 1), l.stores[0], l.stores[1], l.stores[1]),
+  ]
+  if (plan.modules) {
+    for (const [key, mod] of Object.entries(plan.modules)) {
+      if (mod && mod.enabled && t.pricing.modules[key]) points.push(t.pricing.modules[key])
+    }
+  }
+  return points
+}
+
+function PricingSection({ t, initialPlans }: { t: LandingContent; initialPlans: Plan[] | null }) {
   const { user } = useAuth()
+
+  const cards: PlanCardData[] =
+    initialPlans && initialPlans.length > 0
+      ? initialPlans.map((p) => ({
+          name: p.name,
+          price: formatPlanPrice(p, t.pricing.free),
+          body: p.description || '',
+          points: buildPlanPoints(p, t),
+          cta: 'startFree',
+        }))
+      : []
+
+  const popularIndex = cards.length >= 3 ? Math.floor((cards.length - 1) / 2) : -1
+
   return (
     <section id="pricing" className="scroll-mt-16 border-y border-border/60 bg-surface/40 py-20">
       <div className="mx-auto max-w-6xl px-5">
         <h2 className="text-center text-3xl font-bold sm:text-4xl">{t.pricing.heading}</h2>
         <p className="mx-auto mt-3 max-w-lg text-center text-muted-foreground">{t.pricing.body}</p>
         <div className="mt-10 grid gap-4 lg:grid-cols-3">
-          {t.pricing.plans.map((plan, i) => {
-            const isPopular = i === 1
-            const showPerMonth = /\d/.test(plan.price)
-            const href =
-              plan.cta === 'startFree' ? (user ? '/billing' : '/register') : 'mailto:hello@rahatio.com.tr'
-            return (
-              <div
-                key={plan.name}
-                className={`flex flex-col rounded-2xl border p-7 ${
-                  isPopular ? 'border-primary/60 bg-card shadow-glow lg:-translate-y-3' : 'border-border bg-card/60'
-                }`}
-              >
-                {isPopular && (
-                  <span className="w-fit rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                    {t.pricing.popular}
-                  </span>
-                )}
-                <h3 className="mt-3 text-lg font-semibold">{plan.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{plan.body}</p>
-                <div className="mt-5 flex items-end gap-1">
-                  <span className="font-display text-4xl font-bold">{plan.price}</span>
-                  {showPerMonth && <span className="pb-1 text-sm text-muted-foreground">{t.pricing.perMonth}</span>}
-                </div>
-                <ul className="mt-6 flex-1 space-y-2 text-sm text-muted-foreground">
-                  {plan.points.map((p) => (
-                    <li key={p} className="flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary"></span>
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={href}
-                  className={`${isPopular ? HERO_BUTTON : OUTLINE_BUTTON} mt-7 h-10 w-full`}
+          {cards.length === 0 && (
+            <p className="col-span-full py-10 text-center text-sm text-muted-foreground">{t.pricing.empty}</p>
+          )}
+          {cards.length > 0 &&
+            cards.map((plan, i) => {
+              const isPopular = i === popularIndex
+              const showPerMonth = /\d/.test(plan.price)
+              const href =
+                plan.cta === 'startFree' ? (user ? '/billing' : '/register') : 'mailto:hello@rahatio.com.tr'
+              return (
+                <div
+                  key={`${plan.name}-${i}`}
+                  className={`flex flex-col rounded-2xl border p-7 ${
+                    isPopular ? 'border-primary/60 bg-card shadow-glow lg:-translate-y-3' : 'border-border bg-card/60'
+                  }`}
                 >
-                  {plan.cta === 'startFree' ? t.cta.startFree : t.cta.talkSales}
-                </Link>
-              </div>
-            )
-          })}
+                  {isPopular && (
+                    <span className="w-fit rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                      {t.pricing.popular}
+                    </span>
+                  )}
+                  <h3 className="mt-3 text-lg font-semibold">{plan.name}</h3>
+                  {plan.body && <p className="mt-1 text-sm text-muted-foreground">{plan.body}</p>}
+                  <div className="mt-5 flex items-end gap-1">
+                    <span className="font-display text-4xl font-bold">{plan.price}</span>
+                    {showPerMonth && <span className="pb-1 text-sm text-muted-foreground">{t.pricing.perMonth}</span>}
+                  </div>
+                  <ul className="mt-6 flex-1 space-y-2 text-sm text-muted-foreground">
+                    {plan.points.map((point) => (
+                      <li key={point} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary"></span>
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href={href} className={`${isPopular ? HERO_BUTTON : OUTLINE_BUTTON} mt-7 h-10 w-full`}>
+                    {plan.cta === 'startFree' ? t.cta.startFree : t.cta.talkSales}
+                  </Link>
+                </div>
+              )
+            })}
         </div>
       </div>
     </section>
@@ -365,7 +415,7 @@ function Footer({ t }: { t: LandingContent }) {
   )
 }
 
-export function LandingPage() {
+export function LandingPage({ initialPlans }: { initialPlans: Plan[] | null }) {
   const [lang, setLang] = useState<Lang>('en')
   const t = LANDING_CONTENT[lang]
 
@@ -379,7 +429,7 @@ export function LandingPage() {
         <FeaturesSection t={t} />
         <MarketsSection t={t} />
         <SolutionsSection t={t} />
-        <PricingSection t={t} />
+        <PricingSection t={t} initialPlans={initialPlans} />
         <FinalCta t={t} />
       </main>
       <Footer t={t} />
