@@ -16,6 +16,57 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 
 ## Tamamlananlar
 
+### Landing Page Rebuild (Dark, market-launch-ai.lovable.app klonu) ✅
+- [x] **`frontend/src/app/(marketing)/page.tsx` + `layout.tsx`** — dark tema landing (`/`); eski `(public)/page.tsx` silindi; auth flow'lar korunur (Panel/Giriş/Kayıt/Pricing)
+- [x] **`components/landing/landing-page.tsx`** — Header (EN/TR/ES dil switcher + auth linkleri), Hero, How it works, Features, Marketplaces, Solutions, Pricing, FinalCTA, Footer
+- [x] **`components/landing/landing-ai-demo.tsx`** — referansla birebir animasyonlu telefon mockup (2600ms step cycle, progress card, terminal ticker, marketplace chip'leri, corner-bracket focus frame)
+- [x] **`components/landing/landing-marquee.tsx`** — çift yönlü marquee şeritleri (40s, bir ters yönde)
+- [x] **`lib/landing-content.ts`** — EN/TR/ES kopyalar (başlangıç dili EN; referans TR idi, bilinçli sapma)
+- [x] **`globals.css`** — `.landing` scoped dark tokens (oklch, teal primary `oklch(78% .16 178)`, amber accent), grid-lines, text-gradient, bg-hero-glow, marquee/float/ticker-y/pulse-ring/scanline/fade-in keyframes + `prefers-reduced-motion` fallback
+- [x] **`layout.tsx`** — Space_Grotesk / DM_Sans / JetBrains_Mono font değişkenleri (`--font-display`, `--font-landing-sans`, `--font-landing-mono`)
+- [x] Pricing CTA: girişli → `/billing`, değilse → `/register`; Enterprise → `mailto:hello@rahatio.com.tr`
+- [x] **Doğrulamalar** — `npm run build` ✅ (42 route, 0 hata), prod sunucu testi `/`+`/login`+`/register`+`/pricing`+`/dashboard` 200 ✅, lint 0 error ✅, SSR HTML tüm bölümler render ediliyor ✅
+
+### Plan/Modül Yaptırım Sistemi + B2B Tab Placeholder Fix + EAS Deploy ✅
+Commitler: `09949ad "Limits+Plans Control"` (tüm sistem), `5b00cf0` (B2B tab fix)
+
+#### Faz A — Backend Yaptırım Çekirdeği (`packages/core`)
+- [x] **`src/modules/plan/access.ts`** — yaptırım yardımcıları:
+  - `enforceModuleAccess(store, module)`: zorunlu modüller `b2b`, `marketplace` (plana göre sayı limiti), `ai_product_create` (krediye göre); planda `modules` **yoksa/boşsa modül açık** sayılır; ihlalde 403 `MODULE_DISABLED` veya 402 `INSUFFICIENT_CREDITS`
+  - `enforceProductLimit(store)`: plan `productLimit` + mevcut ürün sayısı (kendi + B2B klonları `originalProductId NOT NULL` dahil); doluysa 403 `PLAN_PRODUCT_LIMIT`
+  - `enforceCredits(store, scenario)`: AI kredi bakiye kontrolü, 402 `INSUFFICIENT_CREDITS`
+- [x] **Marketplace import limiti** — `product/routes.ts` marketplace import'ta ürün limiti doluysa import engellenir (403)
+- [x] **AI kredi mantığı** — `Math.max(0,...)` kırpma kaldırıldı; talep öncesi bakiye kontrolü yapılır, yetersizse 402 `INSUFFICIENT_CREDITS` döner (artık 0'a kırpılıp başarılı görünmüyor)
+- [x] **`server.ts` başlangıç migration** — mevcut `modules` alanı normalize edilir: `NULL`/`{}` → tüm modüller açık; `boolean` → `{ enabled }` nesnesi
+- [x] **`me()` payload** — `auth/routes.ts:244-278` → `serializePlan()`: `store.plan` (plan + `modules` + `productLimit` + `aiCreditsPerMonth` + `aiCredits` dengesi) zarfı, web+mobil ortak tüketir
+
+#### Faz B — Web UI Gating (`frontend`)
+- [x] **`billing/page.tsx`** — 10 modüllü karşılaştırma tablosu (`moduleComparison` i18n anahtarları 5 dilde); modül adı/açıklama/plana göre ✓/✗
+- [x] **`settings/page.tsx`** — Plan kartı: plan adı, ürün limiti, AI kredisi/ay (auth `store.plan`); state `store` → `storeSettings` rename (çakışma fix)
+- [x] **`ai/page.tsx`** — per-tab modül gate (her AI sekmesi için), `INSUFFICIENT_CREDITS`/`PLAN_PRODUCT_LIMIT` catch + yönlendirme
+- [x] **`ai-creator/page.tsx`** — `ai_product_create` modül gate + modal
+- [x] **`components/ai/AiProductCreator.tsx`** — gate + modal + `refreshMe()` (limit aşılırsa bakiye güncellemesi)
+
+#### Faz C — Mobil Gating + Auth Cold-Start Fix (`mobile-app`)
+- [x] **`src/shared/auth.tsx:26` cold-start fix** — `me()` artık `{ user, store }` zarfını düzgün açar (önceden `store` içinde `user` arıyordu); context'e `store`, `refreshMe`, `can`, `productLimit` eklendi
+- [x] **`api-client.ts`** — `me()` → `MeResponse` tipi; hata zenginleştirme: `Error` üzerinde `code`/`data`/`status` taşınır (web ile aynı davranış)
+- [x] **`types.ts`** — `MeResponse`, `StoreWithPlan`, `Plan.modules` tipleri
+- [x] **`products.tsx`** — B2B tab stripi (Kendi/B2B), bulk B2B butonları, modal switch `b2bEnabled` ile; ürün limit pre-check + `PLAN_PRODUCT_LIMIT` catch
+- [x] **`ai.tsx`** — `ai_product_create` modül gate ekranı + `INSUFFICIENT_CREDITS` alert + `refreshMe()`
+- [x] **`index.tsx`** — plan kartında ürün kullanımı `toplam/limit` gösterimi
+- [x] **i18n** — `productLimitReached`, `insufficientCredits`, `moduleDisabled`, `upgradePlan` anahtarları 5 dilde (tr/en/ar/ru/es)
+- [x] **Doğrulamalar** — core build ✅, frontend `npm run build` ✅, mobil `npx tsc --noEmit` ✅
+
+#### B2B Tab Placeholder Fix (mobil) — commit `5b00cf0`
+- [x] **Kök neden** — `mobile-app/app/(tabs)/_layout.tsx`'te B2B sekmeleri `{b2bEnabled && <Tabs.Screen>}` ile **koşullu mount** ediliyordu. `b2b/index.tsx` + `b2b/requests.tsx` route dosyaları diskte durduğu için React Navigation bu ekranları **varsayılan (placeholder) seçeneklerle** tab bar'a otomatik ekliyordu → ikonsuz placeholder görünüyordu. Local testte b2b açık hesapla girildiği için fark edilmedi; APK'da b2b kapalı planlı hesapla göründü.
+- [x] **Çözüm** — Ekranlar **her zaman** `Tabs.Screen` olarak declare edilir, görünürlük `href: b2bEnabled ? undefined : null` ile; gizli ekranlar (`products/[id]`, `orders/[id]`) `href: null`. Modül açıkken ikonlar görünür, kapalıyken sekme tamamen gizli.
+- [x] Mobil `npx tsc --noEmit` ✅
+
+#### EAS Deploy (mobil)
+- [x] **1. build** (hatalı placeholder içeriyordu): `4811cfd6-18a4-4048-9ba3-3ee2a042f6fb`
+- [x] **2. build (fix sonrası):** `e79b24b3-ebed-42d3-b2d6-1dd66e70a63b` → https://expo.dev/accounts/ahmedsaidbuluts-team/projects/rahatio/builds/e79b24b3-ebed-42d3-b2d6-1dd66e70a63b (preview APK, internal)
+- [x] EAS yapılandırması: giriş `ahmedsaidbulut` (ahmedsaidbulut@gmail.com), proje sahibi `ahmedsaidbuluts-team`, projectId `6bb13aed-b1f2-482f-9327-86b5eb6c6315`, profil `preview` = APK/internal distribution, keystore `AO88p4Fg1e (default)`, `eas build --platform android --profile preview --non-interactive` komutuyla build alınır
+
 ### i18n — Mobile Düzeltmeler + Web Dil Seçenekleri ✅
 - [x] **ar/ru/es locale dosyaları yeniden yazıldı** — bozuk `?`/U+FFFD karakterler temizlendi, 200+ anahtar 5 dilde tamamlandı (UTF-8, BOM yok)
 - [x] **Yeni i18n anahtarları** — `status_*` (pending/confirmed/processing/shipped/delivered/cancelled/returned), `prev`, `next`, `edit`, `required`, `cameraPermission`, `galleryPermission`, `id`, `admin`, `user`, `aiSessionFailed`, `b2bOpen`, `b2bCloneBadge` — 5 dile eklendi
