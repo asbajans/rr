@@ -4,8 +4,25 @@ import { Product } from '../../models/Product.model.js';
 import { Category } from '../../models/Category.model.js';
 import { Store } from '../../models/Store.model.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
+import { config } from '../../config/index.js';
 
 export const publicProductRoutes: Router = Router();
+
+function toAbsoluteImage(img: unknown): unknown {
+  if (!img) return img;
+  const url = typeof img === 'string' ? img : (img as any)?.url;
+  if (!url) return img;
+  if (url.startsWith('http://') || url.startsWith('https://')) return img;
+  if (url.startsWith('/')) return `${config.apiUrl}${url}`;
+  return img;
+}
+
+function normalizeProductImages(p: any): any {
+  if (Array.isArray(p.images)) {
+    p.images = p.images.map((img: unknown) => toAbsoluteImage(img));
+  }
+  return p;
+}
 
 publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Response) => {
   try {
@@ -35,7 +52,7 @@ publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Respons
     });
 
     res.json({
-      products: rows,
+      products: rows.map((p: any) => normalizeProductImages(p)),
       pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     });
   } catch (error) {
@@ -58,7 +75,7 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
     });
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    res.json({ product });
+    res.json({ product: normalizeProductImages(product) });
   } catch (error) {
     console.error('Public product detail error:', error);
     res.status(500).json({ error: 'Internal server error' });

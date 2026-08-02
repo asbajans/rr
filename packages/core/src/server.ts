@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Express, Request, Response, NextFunction } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -183,6 +184,9 @@ export const createApp = async (): Promise<Express> => {
   setupAssociations();
 
   app.use(tenantMiddleware);
+
+  // Serve uploaded media files (images) at /uploads/...
+  app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '30d', fallthrough: true }));
 
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), version: config.version });

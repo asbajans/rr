@@ -5,8 +5,18 @@ import { Category } from '../../models/Category.model.js';
 import { Page, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
 import { StoreMenu } from '../../models/Menu.model.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
+import { config } from '../../config/index.js';
 
 export const publicStoreRoutes: Router = Router();
+
+function toAbsoluteImage(img: unknown): string | null {
+  if (!img) return null;
+  const url = typeof img === 'string' ? img : (img as any)?.url;
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${config.apiUrl}${url}`;
+  return url;
+}
 
 publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
   try {
@@ -37,9 +47,7 @@ publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
       products: products.map((p: any) => {
         const hasTRY = p.priceTRY !== null && p.priceTRY !== undefined;
         const hasUSD = p.priceUSD !== null && p.priceUSD !== undefined;
-        const firstImage = Array.isArray(p.images) && p.images.length > 0
-          ? (typeof p.images[0] === 'string' ? p.images[0] : p.images[0]?.url ?? null)
-          : null;
+        const firstImage = toAbsoluteImage(Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null);
         return {
           'product.id': String(p.id),
           'product.code': p.sku ?? '',

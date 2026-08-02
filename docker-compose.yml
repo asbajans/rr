@@ -9,6 +9,7 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  core_uploads:
 
 services:
   postgres:
@@ -78,6 +79,8 @@ services:
       - rahatio
     ports:
       - "3680:3000"
+    volumes:
+      - core_uploads:/app/uploads
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
