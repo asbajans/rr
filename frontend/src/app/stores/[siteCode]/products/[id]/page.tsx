@@ -30,18 +30,37 @@ export default function StoreProductDetailPage() {
 
   useEffect(() => {
     if (!product || !siteCode) return
-    // Fetch all products for AI recommendations
-    api.getStoreFront(siteCode).then(r => {
-      const allProducts = r.products || []
-      if (allProducts.length > 1) {
-        setLoadingRecs(true)
-        api.aiRecommend(product, allProducts, 'similar')
-          .then(res => setRecommendations(res.results.slice(0, 4)))
-          .catch(() => {})
-          .finally(() => setLoadingRecs(false))
-      }
-    }).catch(() => {})
+    setLoadingRecs(true)
+    api.getStoreFront(siteCode)
+      .then(r => {
+        const allProducts = r.products || []
+        if (allProducts.length > 1) {
+          setRecommendations(findSimilarProducts(product, allProducts))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingRecs(false))
   }, [product, siteCode])
+
+  function findSimilarProducts(target: StoreProduct, products: StoreProduct[], limit = 4): StoreProduct[] {
+    const words = String(target['product.label'] || '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2)
+    if (words.length === 0) return []
+    return products
+      .filter(p => p['product.id'] !== target['product.id'])
+      .map(p => {
+        const label = String(p['product.label'] || '').toLowerCase()
+        const score = words.reduce((acc, w) => acc + (label.includes(w) ? 1 : 0), 0)
+        return { p, score }
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(x => x.p)
+  }
 
   function handleAddToCart() {
     if (!product) return
