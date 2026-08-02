@@ -12,6 +12,8 @@ export default function SettingsPage() {
   const [storeSettings, setStoreSettings] = useState<Store | null>(null)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [siteCode, setSiteCode] = useState('')
+  const [siteStatus, setSiteStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -24,7 +26,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.getSettings()
-      .then((s) => { setStoreSettings(s); setName(s.name); setEmail(s.email ?? '') })
+      .then((s) => {
+        setStoreSettings(s)
+        setName(s.name)
+        setEmail(s.email ?? '')
+        setSiteCode(s.site_code ?? s.siteCode ?? '')
+      })
       .catch(() => {})
   }, [])
 
@@ -35,6 +42,31 @@ export default function SettingsPage() {
       .finally(() => setKeysLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!siteCode.trim()) {
+      setSiteStatus('idle')
+      return
+    }
+    const saved = storeSettings?.site_code ?? ''
+    const timer = setTimeout(() => {
+      const normalized = siteCode.trim().toLowerCase()
+      if (!/^[a-z0-9-]{2,50}$/.test(normalized)) {
+        setSiteStatus('invalid')
+        return
+      }
+      if (normalized === saved.toLowerCase()) {
+        setSiteStatus('available')
+        return
+      }
+      setSiteStatus('checking')
+      api.checkSiteCode(normalized)
+        .then((r) => setSiteStatus(r.available ? 'available' : 'taken'))
+        .catch(() => setSiteStatus('idle'))
+    }, 400)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteCode])
+
   if (!user) return null
 
   async function handleSave(e: React.FormEvent) {
@@ -42,11 +74,18 @@ export default function SettingsPage() {
     setSaving(true)
     setMessage('')
     try {
-      const updated = await api.updateSettings({ name, email })
+      const payload: any = { name, email }
+      const current = (storeSettings?.site_code ?? '').toLowerCase()
+      const next = siteCode.trim().toLowerCase()
+      if (next && next !== current) payload.siteCode = next
+      const updated = await api.updateSettings(payload)
       setStoreSettings(updated)
+      setSiteCode(updated.site_code ?? next)
       setMessage('Ayarlar kaydedildi.')
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Hata oluştu')
+      const anyErr = err as any
+      setMessage(anyErr?.message || 'Hata oluştu')
+      if (anyErr?.status === 409) setSiteStatus('taken')
     } finally {
       setSaving(false)
     }
@@ -120,22 +159,44 @@ export default function SettingsPage() {
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Mağaza Adresi</label>
+                <div className="mt-1 flex items-stretch rounded-lg border border-zinc-300 shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                  <span className="flex items-center whitespace-nowrap rounded-l-lg bg-zinc-100 px-3 text-sm text-zinc-500">rahatio.com.tr/stores/</span>
+                  <input
+                    type="text"
+                    value={siteCode}
+                    onChange={(e) => setSiteCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    placeholder="magaza-adin"
+                    maxLength={50}
+                    className="w-full rounded-r-lg px-3 py-2 text-sm focus:outline-none"
+                  />
+                </div>
+                <div className="mt-1 flex items-center gap-1 text-xs">
+                  {siteStatus === 'checking' && <span className="text-zinc-400">Kontrol ediliyor...</span>}
+                  {siteStatus === 'available' && <span className="text-green-600">✓ Bu adres kullanılabilir.</span>}
+                  {siteStatus === 'taken' && <span className="text-red-600">Bu adres başka bir mağaza tarafından kullanılıyor. Lütfen başka bir adres seçin.</span>}
+                  {siteStatus === 'invalid' && <span className="text-red-600">Sadece küçük harf, rakam ve tire (-) kullanın (2-50 karakter).</span>}
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 rounded-lg bg-zinc-50 p-3">
                 <Globe className="h-4 w-4 shrink-0 text-zinc-400" />
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-zinc-500">Mağaza Siten</p>
                   <a
-                    href={storeSettings.domain ? `https://${storeSettings.domain}` : `https://rahatio.com.tr/stores/${storeSettings.site_code}`}
+                    href={storeSettings.domain ? `https://${storeSettings.domain}` : `https://rahatio.com.tr/stores/${siteCode}`}
                     target="_blank" rel="noopener noreferrer"
                     className="block truncate text-sm text-indigo-600 hover:underline"
                   >
-                    {storeSettings.domain ?? `rahatio.com.tr/stores/${storeSettings.site_code}`}
+                    {storeSettings.domain ?? `rahatio.com.tr/stores/${siteCode}`}
                   </a>
                 </div>
               </div>
-              <p className="text-xs text-zinc-400">Site Kodu: {storeSettings.site_code}</p>
               {message && <p className={`text-sm ${message.includes('kaydedildi') ? 'text-green-600' : 'text-red-600'}`}>{message}</p>}
-              <Button type="submit" disabled={saving}>{saving ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+              <Button type="submit" disabled={saving || siteStatus === 'taken' || siteStatus === 'invalid'}>
+                {saving ? 'Kaydediliyor...' : 'Kaydet'}
+              </Button>
             </form>
           </div>
         )}

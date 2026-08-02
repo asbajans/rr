@@ -36,6 +36,7 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - [x] **Super admin Plans** — form'a "Site Yayınlama" select (`rahatio`/`vercel`/`custom`), plan kartında yayınlama gösterimi
 - [x] **Super admin Stores** — Site kodu yanında Plan adı + site linki (`rahatio.com.tr/stores/{siteCode}` veya `siteUrl`)
 - [x] **Owner görünümü** — Settings'te "Mağaza Siten" linki, Plan kartında yayınlama; Billing modül karşılaştırma tablosuna "Site Yayınlama" satırı eklendi
+- [x] **Site adresi ayarlama** — Settings'te `rahatio.com.tr/stores/{adres}` düzenlenebilir alan (slug, debounce'lu müsaitlik kontrolü: `GET /api/admin/me/check-site-code`); `PUT /api/admin/me` `siteCode` + benzersizlik kontrolü (başkası almışsa 409 → kullanıcı başka adrese yönlendirilir); `getSettings`/`updateSettings` normalize (camelCase→snake_case)
 - [x] **Doğrulamalar** — core build ✅, frontend `npm run build` ✅ (43 route, `/stores/[siteCode]` dynamic), lint 0 error ✅
 
 ### Plan/Modül Yaptırım Sistemi + B2B Tab Placeholder Fix + EAS Deploy ✅

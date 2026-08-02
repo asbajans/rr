@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
+import { body, query, validationResult } from 'express-validator';
+import { Op } from 'sequelize';
 import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
@@ -59,12 +60,26 @@ storeRoutes.get('/me', authMiddleware, requireStore, async (req: Request, res: R
 
   res.json({
     store: {
-      id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain,
+      id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain, siteUrl: store.siteUrl,
       email: store.email, isActive: store.isActive, currency: store.currency,
       theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
     },
     subscription: subscription ? serializeSubscription(subscription) : null,
   });
+});
+
+storeRoutes.get('/me/check-site-code', authMiddleware, requireStore, [
+  query('code').isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const code = (req.query.code as string).toLowerCase();
+    const existing = await Store.findOne({ where: { siteCode: code, id: { [Op.ne]: store.id } } });
+    res.json({ available: !existing });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Check site code error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 storeRoutes.put('/me', authMiddleware, requireRole('owner', 'admin'), requireStore, [
@@ -75,19 +90,36 @@ storeRoutes.put('/me', authMiddleware, requireRole('owner', 'admin'), requireSto
   body('theme').optional().isObject(),
   body('taxSettings').optional().isObject(),
   body('shippingSettings').optional().isObject(),
+  body('siteCode').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { name, domain, email, currency, theme, taxSettings, shippingSettings } = req.body;
+    const { name, domain, email, currency, theme, taxSettings, shippingSettings, siteCode } = req.body;
 
     if (domain && domain !== store.domain) {
       const existing = await Store.findOne({ where: { domain } });
       if (existing) return res.status(409).json({ error: 'Domain already taken' });
     }
 
-    await store.update({ name, domain, email, currency, theme, taxSettings, shippingSettings });
+    if (siteCode && siteCode.toLowerCase() !== String(store.siteCode).toLowerCase()) {
+      const normalized = siteCode.toLowerCase();
+      const existing = await Store.findOne({ where: { siteCode: normalized, id: { [Op.ne]: store.id } } });
+      if (existing) {
+        return res.status(409).json({ error: 'Bu site adresi başka bir mağaza tarafından kullanılıyor. Lütfen başka bir adres seçin.', message: 'Site address already taken' });
+      }
+      store.siteCode = normalized;
+    }
+
+    await store.update({ name, domain, email, currency, theme, taxSettings, shippingSettings, siteCode: store.siteCode });
     logger.info(`Store updated: ${store.id}`);
-    res.json({ message: 'Settings updated', store: { id: store.id, name: store.name, siteCode: store.siteCode } });
+    res.json({
+      message: 'Settings updated',
+      store: {
+        id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain, siteUrl: store.siteUrl,
+        email: store.email, isActive: store.isActive, currency: store.currency,
+        theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
+      },
+    });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update store error');
     res.status(500).json({ error: 'Internal server error' });

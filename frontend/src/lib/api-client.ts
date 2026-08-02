@@ -68,6 +68,18 @@ function toStoreProduct(p: any): any {
   }
 }
 
+function normalizeStore(s: any): any {
+  if (!s) return s
+  return {
+    ...s,
+    site_code: s.siteCode ?? s.site_code,
+    site_url: s.siteUrl ?? s.site_url ?? null,
+    is_active: s.isActive ?? s.is_active,
+    tax_settings: s.taxSettings ?? s.tax_settings,
+    shipping_settings: s.shippingSettings ?? s.shipping_settings,
+  }
+}
+
 function mapPaymentMethod(p: any): any {
   if (!p) return p
   return {
@@ -926,13 +938,17 @@ class ApiClient {
 
   // Settings
   async getSettings() {
-    const raw = await this.get<{ store: import('./types').Store }>(`/api/admin/me`)
-    return raw.store
+    const raw = await this.get<{ store: any }>(`/api/admin/me`)
+    return normalizeStore(raw.store)
   }
 
   async updateSettings(data: Partial<import('./types').Store>) {
-    const raw = await this.put<import('./types').Store>(`/api/admin/me`, data)
-    return raw
+    const raw = await this.put<any>(`/api/admin/me`, data)
+    return normalizeStore(raw.store ?? raw)
+  }
+
+  async checkSiteCode(code: string) {
+    return this.get<{ available: boolean }>(`/api/admin/me/check-site-code`, { params: { code } })
   }
 
   // Pages
