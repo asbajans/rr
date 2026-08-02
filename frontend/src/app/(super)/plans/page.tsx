@@ -27,13 +27,20 @@ interface PlanForm {
   ai_credits: string
   product_limit: string
   store_limit: string
+  hosting: 'rahatio' | 'vercel' | 'custom'
   is_active: boolean
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }>
 }
 
+const HOSTING_LABELS: Record<string, string> = {
+  rahatio: 'Rahatio (rahatio.com.tr/stores/{kod})',
+  vercel: 'Vercel (Slave)',
+  custom: 'Kendi Sunucu',
+}
+
 const defaultForm: PlanForm = {
   name: '', slug: '', description: '', price: '0', currency: 'TRY',
-  ai_credits: '10', product_limit: '100', store_limit: '1', is_active: true,
+  ai_credits: '10', product_limit: '100', store_limit: '1', hosting: 'rahatio', is_active: true,
   modules: {},
 }
 
@@ -67,6 +74,7 @@ export default function SuperPlansPage() {
       ai_credits: String(plan.ai_credits),
       product_limit: String(plan.product_limit),
       store_limit: String(plan.store_limit),
+      hosting: (plan.hosting ?? 'rahatio') as PlanForm['hosting'],
       is_active: plan.is_active,
       modules: plan.modules || {},
     })
@@ -85,6 +93,7 @@ export default function SuperPlansPage() {
         store_limit: Math.round(parseInt(form.store_limit || '1')),
         ai_credits: Math.round(parseInt(form.ai_credits || '0')),
         is_active: form.is_active,
+        hosting: form.hosting,
         modules: form.modules,
       }
       if (form.slug) data.slug = form.slug
@@ -171,6 +180,7 @@ export default function SuperPlansPage() {
               <p className="mt-2 text-sm text-zinc-300">{plan.description}</p>
               <p className="mt-3 text-2xl font-bold text-white">{(plan.price ?? 0).toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">₺/ay</span></p>
               <div className="mt-3 space-y-1 text-xs text-zinc-400">
+                <p>Yayınlama: <span className="text-zinc-300">{HOSTING_LABELS[plan.hosting] ?? plan.hosting}</span></p>
                 <p>AI Kredisi: {plan.ai_credits === -1 ? 'Sınırsız' : (plan.ai_credits ?? 0).toLocaleString('tr-TR')}</p>
                 <p>Ürün Limiti: {plan.product_limit === -1 ? 'Sınırsız' : (plan.product_limit ?? 0).toLocaleString('tr-TR')}</p>
                 {plan.modules && Object.entries(plan.modules).filter(([, v]) => v.enabled).map(([k]) => (
@@ -243,6 +253,21 @@ export default function SuperPlansPage() {
                   className="rounded border-zinc-600 bg-zinc-800" />
                 Aktif
               </label>
+
+              {/* Hosting */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400">Site Yayınlama</label>
+                <select
+                  value={form.hosting}
+                  onChange={e => setForm({ ...form, hosting: e.target.value as PlanForm['hosting'] })}
+                  className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="rahatio">Rahatio (rahatio.com.tr/stores/{'{kod}'})</option>
+                  <option value="vercel">Vercel (Slave)</option>
+                  <option value="custom">Kendi Sunucu</option>
+                </select>
+                <p className="mt-1 text-xs text-zinc-500">Rahatio hosting'de mağaza siteniz otomatik olarak bu domain altında yayınlanır.</p>
+              </div>
 
               {/* Modules */}
               <div>

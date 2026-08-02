@@ -93,7 +93,7 @@ export default function CheckoutPage() {
         <p className="mt-2 text-sm text-zinc-600">Sipariş No: <span className="font-mono font-medium">{orderId}</span></p>
         <p className="mt-1 text-sm text-zinc-500">Siparişiniz en kısa sürede hazırlanacaktır.</p>
         <button
-          onClick={() => router.push(`/store/${siteCode}`)}
+          onClick={() => router.push(`/stores/${siteCode}`)}
           className="mt-8 inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           <ArrowLeft className="h-4 w-4" /> Alışverişe Devam Et

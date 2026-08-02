@@ -45,6 +45,7 @@ export interface PlanPublic {
   product_limit: number;
   store_limit: number;
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null;
+  hosting: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -63,6 +64,7 @@ export function serializePlan(plan: Plan): PlanPublic {
     product_limit: p.productLimit ?? p.product_limit ?? 0,
     store_limit: p.storeLimit ?? p.store_limit ?? 1,
     modules: p.modules ?? null,
+    hosting: p.hosting ?? 'rahatio',
     is_active: p.isActive ?? p.is_active ?? true,
     created_at: p.createdAt ? new Date(p.createdAt).toISOString() : '',
     updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : '',

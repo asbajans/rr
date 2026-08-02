@@ -17,6 +17,8 @@ export default function StoreProductDetailPage() {
   const [error, setError] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
+  const [recommendations, setRecommendations] = useState<StoreProduct[]>([])
+  const [loadingRecs, setLoadingRecs] = useState(false)
 
   useEffect(() => {
     if (!siteCode || !id) return
@@ -25,6 +27,21 @@ export default function StoreProductDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [siteCode, id])
+
+  useEffect(() => {
+    if (!product || !siteCode) return
+    // Fetch all products for AI recommendations
+    api.getStoreFront(siteCode).then(r => {
+      const allProducts = r.products || []
+      if (allProducts.length > 1) {
+        setLoadingRecs(true)
+        api.aiRecommend(product, allProducts, 'similar')
+          .then(res => setRecommendations(res.results.slice(0, 4)))
+          .catch(() => {})
+          .finally(() => setLoadingRecs(false))
+      }
+    }).catch(() => {})
+  }, [product, siteCode])
 
   function handleAddToCart() {
     if (!product) return
@@ -52,36 +69,18 @@ export default function StoreProductDetailPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <p className="text-sm text-red-600">{error}</p>
-        <Link href={`/store/${siteCode}`} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
+        <Link href={`/stores/${siteCode}`} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
           Mağazaya Dön
         </Link>
       </div>
     )
   }
 
-  const [recommendations, setRecommendations] = useState<StoreProduct[]>([])
-  const [loadingRecs, setLoadingRecs] = useState(false)
-
-  useEffect(() => {
-    if (!product || !siteCode) return
-    // Fetch all products for AI recommendations
-    api.getStoreFront(siteCode).then(r => {
-      const allProducts = r.products || []
-      if (allProducts.length > 1) {
-        setLoadingRecs(true)
-        api.aiRecommend(product, allProducts, 'similar')
-          .then(res => setRecommendations(res.results.slice(0, 4)))
-          .catch(() => {})
-          .finally(() => setLoadingRecs(false))
-      }
-    }).catch(() => {})
-  }, [product, siteCode])
-
   if (!product) return null
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <Link href={`/store/${siteCode}`} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href={`/stores/${siteCode}`} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
         <ArrowLeft className="h-4 w-4" /> Mağazaya Dön
       </Link>
 
@@ -143,7 +142,7 @@ export default function StoreProductDetailPage() {
                 image: product.image ?? undefined,
                 quantity,
               })
-              router.push(`/store/${siteCode}/cart`)
+              router.push(`/stores/${siteCode}/cart`)
             }}
             className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
@@ -157,10 +156,11 @@ export default function StoreProductDetailPage() {
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-zinc-400" />
               <h2 className="text-lg font-semibold text-zinc-900">Benzer Ürünler</h2>
+              {loadingRecs && <span className="text-xs text-zinc-400">Yükleniyor...</span>}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
               {recommendations.map((p: any) => (
-                <Link key={p['product.id']} href={`/store/${siteCode}/products/${p['product.id']}`}
+                <Link key={p['product.id']} href={`/stores/${siteCode}/products/${p['product.id']}`}
                   className="group rounded-xl border border-zinc-200 p-3 transition-colors hover:border-zinc-300">
                   <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
                     {p.image ? (

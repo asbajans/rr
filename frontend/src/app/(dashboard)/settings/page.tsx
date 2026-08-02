@@ -99,6 +99,7 @@ export default function SettingsPage() {
             <h2 className="text-lg font-semibold text-zinc-900">Plan</h2>
             <div className="mt-4 space-y-3 text-sm">
               <p><span className="font-medium text-zinc-900">Plan:</span> {store.plan?.name ?? '—'}</p>
+              <p><span className="font-medium text-zinc-900">Yayınlama:</span> {store.plan?.hosting === 'vercel' ? 'Vercel (Slave)' : store.plan?.hosting === 'custom' ? 'Kendi Sunucu' : 'Rahatio Alan Adı'}</p>
               <p><span className="font-medium text-zinc-900">Ürün Limiti:</span> {(store.plan?.product_limit ?? -1) < 0 ? 'Sınırsız' : store.plan?.product_limit ?? '-'}</p>
               <p><span className="font-medium text-zinc-900">AI Kredisi / Ay:</span> {store.plan?.ai_credits ?? '-'}</p>
             </div>
@@ -119,7 +120,20 @@ export default function SettingsPage() {
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
               </div>
-              <p className="text-xs text-zinc-400">Site Kodu: {storeSettings.site_code} | Domain: {storeSettings.domain ?? '-'}</p>
+              <div className="flex items-center gap-2 rounded-lg bg-zinc-50 p-3">
+                <Globe className="h-4 w-4 shrink-0 text-zinc-400" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-zinc-500">Mağaza Siten</p>
+                  <a
+                    href={storeSettings.domain ? `https://${storeSettings.domain}` : `https://rahatio.com.tr/stores/${storeSettings.site_code}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="block truncate text-sm text-indigo-600 hover:underline"
+                  >
+                    {storeSettings.domain ?? `rahatio.com.tr/stores/${storeSettings.site_code}`}
+                  </a>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-400">Site Kodu: {storeSettings.site_code}</p>
               {message && <p className={`text-sm ${message.includes('kaydedildi') ? 'text-green-600' : 'text-red-600'}`}>{message}</p>}
               <Button type="submit" disabled={saving}>{saving ? 'Kaydediliyor...' : 'Kaydet'}</Button>
             </form>

@@ -33,7 +33,8 @@ export default function SuperStoresPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Mağaza</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Site Kodu</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Domain</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Plan</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Site</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Durum</th>
               </tr>
             </thead>
@@ -43,7 +44,17 @@ export default function SuperStoresPage() {
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{store.id}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-white">{store.name}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{store.site_code}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{store.domain ?? '-'}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{(store as any).plan?.name ?? '-'}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">
+                    <a
+                      href={(store as any).site_url ?? `https://rahatio.com.tr/stores/${store.site_code}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {(store as any).site_url ? 'Site' : `rahatio.com.tr/stores/${store.site_code}`}
+                    </a>
+                  </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${store.is_active ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>
                       {store.is_active ? 'Aktif' : 'Pasif'}

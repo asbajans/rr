@@ -51,6 +51,23 @@ function mapProduct(p: any): any {
   }
 }
 
+function toStoreProduct(p: any): any {
+  const m = mapProduct(p)
+  const firstImage = Array.isArray(m.images) && m.images.length > 0
+    ? (typeof m.images[0] === 'string' ? m.images[0] : m.images[0]?.url ?? null)
+    : null
+  return {
+    'product.id': String(m.id ?? ''),
+    'product.code': m.code ?? '',
+    'product.label': m.label ?? '',
+    'product.status': m.status ?? 0,
+    price: m.price ?? null,
+    currency: m.price_currency ?? null,
+    image: firstImage,
+    description: m.description ?? null,
+  }
+}
+
 function mapPaymentMethod(p: any): any {
   if (!p) return p
   return {
@@ -182,7 +199,14 @@ class ApiClient {
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: res.statusText }))
-      const err = new Error(error.error || error.message || `HTTP ${res.status}`) as Error & { code?: string; data?: any; status?: number }
+      let msg = error.error || error.message || `HTTP ${res.status}`
+      if (Array.isArray(error.errors) && error.errors.length) {
+        msg = error.errors
+          .map((e: any) => `${e.msg}${e.path ? ` (${e.path})` : ''}`)
+          .filter(Boolean)
+          .join(', ')
+      }
+      const err = new Error(msg) as Error & { code?: string; data?: any; status?: number }
       err.code = error.error
       err.data = error
       err.status = res.status
@@ -1046,8 +1070,27 @@ class ApiClient {
     return this.get<{ id: number; title: string; slug: string; meta_title: string | null; meta_description: string | null; created_at: string }[]>(`/api/store/platform/pages`, { params: { type } })
   }
 
-  getStoreFront(siteCode: string) {
-    return this.get<import('./types').StoreFrontData>(`/api/store/${siteCode}`)
+  async getStoreFront(siteCode: string) {
+    const r = await this.get<any>(`/api/store/${siteCode}`)
+    if (r && r.store && Array.isArray(r.products)) {
+      return r as import('./types').StoreFrontData
+    }
+    const flat = r ?? {}
+    const products = (flat.products ?? []).map(toStoreProduct)
+    return {
+      store: {
+        id: flat.id,
+        name: flat.name,
+        site_code: flat.siteCode ?? flat.site_code,
+        siteCode: flat.siteCode,
+        siteUrl: flat.siteUrl,
+        domain: flat.domain ?? null,
+        email: flat.email ?? null,
+        theme: flat.theme ?? null,
+      },
+      products,
+      total: flat.total ?? products.length,
+    } as import('./types').StoreFrontData
   }
 
   getAddresses(siteCode: string) {
@@ -1070,7 +1113,7 @@ class ApiClient {
 
   async getStoreProduct(siteCode: string, id: number | string) {
     const r = await this.get<{ product: import('./types').Product }>(`/api/store/${siteCode}/products/${id}`)
-    return mapProduct(r.product)
+    return toStoreProduct(r.product)
   }
 
   async getStoreCategories(siteCode: string) {
@@ -1080,6 +1123,18 @@ class ApiClient {
 
   getStoreLocations(siteCode: string) {
     return this.get<import('./types').StoreLocation[]>(`/api/store/${siteCode}/locations`)
+  }
+
+  getStoreMenus(siteCode: string) {
+    return this.get<{ menus: import('./types').StoreMenu[] }>(`/api/store/${siteCode}/menus`).then(r => r.menus)
+  }
+
+  getStorePages(siteCode: string) {
+    return this.get<{ pages: any[] }>(`/api/store/${siteCode}/pages`).then(r => (r.pages || []).map(mapPage))
+  }
+
+  getStorePage(siteCode: string, slug: string) {
+    return this.get<any>(`/api/store/${siteCode}/pages/${slug}`).then(r => mapPage(r.page ?? r))
   }
 
   getStorePaymentMethods(siteCode: string) {
@@ -1255,6 +1310,7 @@ class ApiClient {
       data: ((r as any).stores ?? r.data ?? []).map((s: any) => ({
         ...s,
         site_code: s.siteCode ?? s.site_code,
+        site_url: s.siteUrl ?? s.site_url ?? null,
         is_active: s.isActive ?? s.is_active,
         tax_settings: s.taxSettings ?? s.tax_settings,
         shipping_settings: s.shippingSettings ?? s.shipping_settings,

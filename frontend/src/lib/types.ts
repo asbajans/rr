@@ -85,6 +85,7 @@ export type Plan = {
   product_limit: number
   store_limit: number
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null
+  hosting: string
   is_active: boolean
   created_at: string
   updated_at: string
@@ -240,9 +241,12 @@ export type StoreFrontData = {
   store: {
     id: number
     name: string
-    site_code: string
+    site_code?: string
+    siteCode?: string
+    siteUrl?: string | null
     domain: string | null
     email: string | null
+    theme?: object | null
   }
   products: StoreProduct[]
   total: number

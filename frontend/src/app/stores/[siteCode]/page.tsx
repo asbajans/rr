@@ -115,7 +115,7 @@ export default function StoreFrontPage() {
           {products.map((product) => (
             <Link
               key={product['product.id']}
-              href={`/store/${siteCode}/products/${product['product.id']}`}
+              href={`/stores/${siteCode}/products/${product['product.id']}`}
               className="group rounded-xl border border-zinc-200 p-4 transition hover:border-zinc-300 hover:shadow-sm"
             >
               <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">

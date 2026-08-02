@@ -36,6 +36,7 @@ function mapPlanBody(body: any): any {
   if ('is_active' in body && !('isActive' in body)) mapped.isActive = body.is_active;
   else if (body.isActive !== undefined) mapped.isActive = body.isActive;
   if (body.stripePriceId !== undefined) mapped.stripePriceId = body.stripePriceId;
+  if (body.hosting !== undefined) mapped.hosting = body.hosting;
   return mapped;
 }
 
@@ -240,6 +241,7 @@ router.post('/plans', superAdminOnly, [
   body('isActive').optional().isBoolean(),
   body('is_active').optional().isBoolean(),
   body('stripePriceId').optional().isString(),
+  body('hosting').optional().isIn(['rahatio', 'vercel', 'custom']),
 ], validate, async (req: Request, res: Response) => {
   try {
     const body = mapPlanBody(req.body);
@@ -292,6 +294,7 @@ router.put('/plans/:id', superAdminOnly, [
   body('isActive').optional({ values: 'falsy' }).isBoolean(),
   body('is_active').optional({ values: 'falsy' }).isBoolean(),
   body('stripePriceId').optional({ values: 'falsy' }).isString(),
+  body('hosting').optional({ values: 'falsy' }).isIn(['rahatio', 'vercel', 'custom']),
 ], validate, async (req: Request, res: Response) => {
   try {
     const plan = await Plan.findByPk(req.params.id);

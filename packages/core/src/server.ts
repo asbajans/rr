@@ -64,6 +64,7 @@ export const createApp = async (): Promise<Express> => {
   // Add pixels column to stores table if missing (safe migration)
   try {
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS pixels JSONB`);
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "siteUrl" VARCHAR(255)`);
   } catch (e) {
     // Ignore
   }
@@ -76,6 +77,7 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "storeLimit" INTEGER DEFAULT 1`);
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS modules JSONB`);
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS hosting VARCHAR(20) DEFAULT 'rahatio'`);
     // Backfill empty slugs from name
     await sequelize.query(
       `UPDATE plans SET slug = LOWER(REPLACE(REPLACE(name, ' ', '-'), 'ı', 'i')) WHERE slug IS NULL OR slug = ''`

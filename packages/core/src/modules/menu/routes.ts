@@ -15,6 +15,10 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
+const slugify = (value: string) => {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100) || 'menu';
+};
+
 menuRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -31,15 +35,16 @@ menuRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Resp
 
 menuRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   body('name').isString().isLength({ min: 2, max: 100 }),
-  body('slug').isString().isLength({ min: 2, max: 100 }),
+  body('slug').optional({ values: 'falsy' }).isString().isLength({ min: 2, max: 100 }),
   body('items').optional().isArray(),
   body('location').optional().isString().isLength({ max: 50 }),
   body('isActive').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
+    const slug = req.body.slug || slugify(req.body.name);
 
-    const existing = await StoreMenu.findOne({ where: { storeId: store.id, slug: req.body.slug } });
+    const existing = await StoreMenu.findOne({ where: { storeId: store.id, slug } });
     if (existing) {
       return res.status(409).json({ error: 'Menu with this slug already exists' });
     }
@@ -47,7 +52,7 @@ menuRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore
     const menu = await StoreMenu.create({
       storeId: store.id,
       name: req.body.name,
-      slug: req.body.slug,
+      slug,
       items: req.body.items || [],
       location: req.body.location || 'header',
       isActive: req.body.isActive !== undefined ? req.body.isActive : true,
@@ -79,7 +84,7 @@ menuRoutes.get('/:id', authMiddleware, requireStore, [
 menuRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('id').isInt(),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
-  body('slug').optional().isString().isLength({ min: 2, max: 100 }),
+  body('slug').optional({ values: 'falsy' }).isString().isLength({ min: 2, max: 100 }),
   body('items').optional().isArray(),
   body('location').optional().isString().isLength({ max: 50 }),
   body('isActive').optional().isBoolean(),
@@ -91,14 +96,19 @@ menuRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireSto
       return res.status(404).json({ error: 'Menu not found' });
     }
 
-    if (req.body.slug && req.body.slug !== menu.slug) {
-      const existing = await StoreMenu.findOne({ where: { storeId: store.id, slug: req.body.slug } });
+    const updates: any = { ...req.body };
+    if (!updates.slug && updates.name) {
+      updates.slug = slugify(updates.name);
+    }
+
+    if (updates.slug && updates.slug !== menu.slug) {
+      const existing = await StoreMenu.findOne({ where: { storeId: store.id, slug: updates.slug } });
       if (existing) {
         return res.status(409).json({ error: 'Menu with this slug already exists' });
       }
     }
 
-    await menu.update(req.body);
+    await menu.update(updates);
     res.json({ menu });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update menu error');

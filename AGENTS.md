@@ -27,6 +27,17 @@ Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
 - [x] Pricing CTA: girişli → `/billing`, değilse → `/register`; Enterprise → `mailto:hello@rahatio.com.tr`
 - [x] **Doğrulamalar** — `npm run build` ✅ (42 route, 0 hata), prod sunucu testi `/`+`/login`+`/register`+`/pricing`+`/dashboard` 200 ✅, lint 0 error ✅, SSR HTML tüm bölümler render ediliyor ✅
 
+### Free Plan Storefront Hosting + Plan Hosting Yönetimi ✅
+- [x] **Plan.hosting** (`'rahatio' | 'vercel' | 'custom'`, default `rahatio`) — Plan model + safe migration + `serializePlan` + super admin `mapPlanBody`/validator; ücretsiz plan mağazaları `rahatio.com.tr/stores/{siteCode}` altında yayınlanır, üst paketler Vercel/kendi sunucu (slave) kullanır
+- [x] **Store.siteUrl** — Store model + safe migration; vercel/custom hosting için explicit yayın URL'si
+- [x] **Storefront route taşındı**: `app/store/[siteCode]` → `app/stores/[siteCode]` (git mv) + tüm `/store/` linkleri `/stores/` yapıldı (PageBlocks, StoreMenuBar, layout, cart/checkout/detail/pages)
+- [x] **`GET /api/store/:siteCode` düzeltildi** — artık `{ store, products, total }` döner; products `StoreProduct` şeklinde (`'product.id'`, `'product.label'`, `image`, `price`, `currency`) — önceden flat store objesi dönüyordu, storefront home boş render ediyordu
+- [x] **`getStoreFront`/`getStoreProduct`** — api-client'te tolerant unwrap + `toStoreProduct()` mapper (mapProduct → StoreProduct); product detail **hooks sırası hatası** düzeltildi (conditional return öncesi `useState`/`useEffect`)
+- [x] **Super admin Plans** — form'a "Site Yayınlama" select (`rahatio`/`vercel`/`custom`), plan kartında yayınlama gösterimi
+- [x] **Super admin Stores** — Site kodu yanında Plan adı + site linki (`rahatio.com.tr/stores/{siteCode}` veya `siteUrl`)
+- [x] **Owner görünümü** — Settings'te "Mağaza Siten" linki, Plan kartında yayınlama; Billing modül karşılaştırma tablosuna "Site Yayınlama" satırı eklendi
+- [x] **Doğrulamalar** — core build ✅, frontend `npm run build` ✅ (43 route, `/stores/[siteCode]` dynamic), lint 0 error ✅
+
 ### Plan/Modül Yaptırım Sistemi + B2B Tab Placeholder Fix + EAS Deploy ✅
 Commitler: `09949ad "Limits+Plans Control"` (tüm sistem), `5b00cf0` (B2B tab fix)
 

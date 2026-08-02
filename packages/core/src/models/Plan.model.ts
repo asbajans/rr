@@ -78,6 +78,11 @@ export class Plan extends Model {
   @Column(DataType.STRING(100))
   declare stripePriceId: string;
 
+  @AllowNull(true)
+  @Default('rahatio')
+  @Column(DataType.STRING(20))
+  declare hosting: string;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

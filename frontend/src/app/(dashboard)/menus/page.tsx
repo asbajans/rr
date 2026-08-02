@@ -2,23 +2,49 @@
 
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
-import type { StoreMenu } from '@/lib/types'
+import type { StoreMenu, Page } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Save, Edit, ChevronUp, ChevronDown, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Save, Edit, ChevronUp, ChevronDown, FileText, Link as LinkIcon, X, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+type MenuItem = {
+  id: string
+  label: string
+  url?: string
+  page_id?: number
+  target?: '_self' | '_blank'
+  children?: MenuItem[]
+}
+
+let itemCounter = 1
+const newItemId = () => `item_${itemCounter++}`
+
+function emptyItem(): MenuItem {
+  return { id: newItemId(), label: '', url: '', page_id: undefined, children: [] }
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function pageTitle(page: Page): string {
+  return typeof page.title === 'object' ? ((page.title as Record<string, string>).tr ?? (page.title as Record<string, string>).en ?? '') : String(page.title)
+}
 
 export default function MenusPage() {
   const [menus, setMenus] = useState<(StoreMenu & { isActive?: boolean })[]>([])
+  const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [form, setForm] = useState<Record<string, any>>({
-    name: '', slug: '', location: 'header', isActive: true, items: []
+  const [form, setForm] = useState<{ name: string; slug: string; location: string; isActive: boolean; items: MenuItem[] }>({
+    name: '', slug: '', location: 'header', isActive: true, items: [],
   })
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     loadMenus()
+    api.getPages().then(setPages).catch(() => {})
   }, [])
 
   async function loadMenus() {
@@ -26,38 +52,43 @@ export default function MenusPage() {
       const data = await api.getMenus()
       setMenus(data.map(m => ({ ...m, isActive: m.is_active })))
     } catch (err: any) {
-      setMessage(err.message || 'Menüler yüklenemedi')
+      setMessage({ text: err.message || 'Menüler yüklenemedi', ok: false })
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleCreate() {
-    setSaving(true)
-    setMessage('')
-    try {
-      const newMenu = await api.createMenu({ name: form.name, slug: form.slug, location: form.location, items: form.items, isActive: form.isActive })
-      setMenus([...menus, { ...newMenu, isActive: newMenu.is_active }])
-      resetForm()
-      setMessage('Menü oluşturuldu')
-    } catch (err: any) {
-      setMessage(err.message || 'Oluşturma başarısız')
-    } finally {
-      setSaving(false)
-    }
+  function showMessage(text: string, ok = true) {
+    setMessage({ text, ok })
   }
 
-  async function handleUpdate(id: number) {
+  function handleNameChange(value: string) {
+    setForm(prev => ({
+      ...prev,
+      name: value,
+      slug: editingId ? prev.slug : (slugify(value) || prev.slug),
+    }))
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { showMessage('Menü adı zorunludur', false); return }
+    const items = form.items.filter(i => i.label.trim())
     setSaving(true)
-    setMessage('')
+    setMessage(null)
+    const payload = { name: form.name, slug: form.slug || slugify(form.name), location: form.location, items, isActive: form.isActive }
     try {
-      const updated = await api.updateMenu(id, { name: form.name, slug: form.slug, location: form.location, items: form.items, isActive: form.isActive })
-      setMenus(menus.map(m => m.id === id ? { ...updated, isActive: updated.is_active } : m))
-      setEditingId(null)
+      if (editingId) {
+        const updated = await api.updateMenu(editingId, payload)
+        setMenus(menus.map(m => m.id === editingId ? { ...updated, isActive: updated.is_active } : m))
+        showMessage('Menü güncellendi')
+      } else {
+        const created = await api.createMenu(payload)
+        setMenus([...menus, { ...created, isActive: created.is_active }])
+        showMessage('Menü oluşturuldu')
+      }
       resetForm()
-      setMessage('Menü güncellendi')
     } catch (err: any) {
-      setMessage(err.message || 'Güncelleme başarısız')
+      showMessage(err.message || 'Kaydetme başarısız', false)
     } finally {
       setSaving(false)
     }
@@ -68,9 +99,9 @@ export default function MenusPage() {
     try {
       await api.deleteMenu(id)
       setMenus(menus.filter(m => m.id !== id))
-      setMessage('Menü silindi')
+      showMessage('Menü silindi')
     } catch (err: any) {
-      setMessage(err.message || 'Silme başarısız')
+      showMessage(err.message || 'Silme başarısız', false)
     }
   }
 
@@ -81,13 +112,153 @@ export default function MenusPage() {
       slug: menu.slug,
       location: menu.location,
       isActive: menu.is_active,
-      items: menu.items
+      items: Array.isArray(menu.items) ? (menu.items as MenuItem[]) : [],
     })
   }
 
   function resetForm() {
     setEditingId(null)
     setForm({ name: '', slug: '', location: 'header', isActive: true, items: [] })
+  }
+
+  // --- Item tree helpers (supports one level of children / submenu) ---
+  function updateItem(items: MenuItem[], id: string, patch: Partial<MenuItem>): MenuItem[] {
+    return items.map(i => {
+      if (i.id === id) return { ...i, ...patch }
+      if (i.children?.length) return { ...i, children: updateItem(i.children, id, patch) }
+      return i
+    })
+  }
+
+  function addItem() {
+    setForm(prev => ({ ...prev, items: [...prev.items, emptyItem()] }))
+  }
+
+  function addChildItem(parentId: string) {
+    setForm(prev => ({
+      ...prev,
+      items: prev.items.map(i => {
+        if (i.id !== parentId) return i
+        return { ...i, children: [...(i.children ?? []), emptyItem()] }
+      }),
+    }))
+  }
+
+  function removeItem(id: string) {
+    setForm(prev => {
+      const strip = (items: MenuItem[]): MenuItem[] => items.filter(i => i.id !== id).map(i => ({ ...i, children: i.children?.length ? strip(i.children) : i.children }))
+      return { ...prev, items: strip(prev.items) }
+    })
+  }
+
+  function moveItem(id: string, dir: -1 | 1) {
+    setForm(prev => {
+      const moveIn = (items: MenuItem[]): MenuItem[] => {
+        const idx = items.findIndex(i => i.id === id)
+        if (idx !== -1) {
+          const target = idx + dir
+          if (target < 0 || target >= items.length) return items
+          const copy = [...items]
+          ;[copy[idx], copy[target]] = [copy[target], copy[idx]]
+          return copy
+        }
+        return items.map(i => (i.children?.length ? { ...i, children: moveIn(i.children) } : i))
+      }
+      return { ...prev, items: moveIn(prev.items) }
+    })
+  }
+
+  function renderItemEditor(item: MenuItem, depth: number) {
+    const isChild = depth > 0
+    const labelInput = (
+      <input
+        value={item.label}
+        onChange={e => setForm(prev => ({ ...prev, items: updateItem(prev.items, item.id, { label: e.target.value }) }))}
+        placeholder={isChild ? 'Alt menü başlığı' : 'Menü başlığı (ör: Hakkımızda)'}
+        className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+      />
+    )
+
+    return (
+      <div key={item.id} className={cn('rounded-lg border p-3', isChild ? 'ml-6 border-zinc-200 bg-zinc-50/60' : 'border-zinc-200 bg-white')}>
+        <div className="flex items-start gap-2">
+          <div className="mt-2 text-zinc-400"><GripVertical className="h-4 w-4" /></div>
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2">
+              {labelInput}
+              <div className="flex items-center gap-1">
+                <button onClick={() => moveItem(item.id, -1)} title="Yukarı taşı"
+                  className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30">
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button onClick={() => moveItem(item.id, 1)} title="Aşağı taşı"
+                  className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30">
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                {!isChild && (
+                  <button onClick={() => addChildItem(item.id)} title="Alt menü öğesi ekle"
+                    className="rounded p-1.5 text-indigo-600 hover:bg-indigo-50">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+                <button onClick={() => removeItem(item.id)} title="Sil"
+                  className="rounded p-1.5 text-red-500 hover:bg-red-50">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={item.page_id ? 'page' : item.url ? 'url' : 'none'}
+                onChange={e => {
+                  const kind = e.target.value
+                  setForm(prev => ({
+                    ...prev,
+                    items: updateItem(prev.items, item.id, kind === 'page'
+                      ? { page_id: pages[0]?.id, url: undefined }
+                      : kind === 'url'
+                        ? { url: item.url || '/', page_id: undefined }
+                        : { url: undefined, page_id: undefined }),
+                  }))
+                }}
+                className="rounded-lg border border-zinc-300 px-2 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none">
+                <option value="none">Link yok</option>
+                <option value="url">Harici bağlantı / URL</option>
+                <option value="page">Sayfa</option>
+              </select>
+
+              {item.page_id ? (
+                <div className="flex flex-1 items-center gap-1">
+                  <FileText className="h-4 w-4 text-zinc-400" />
+                  <select
+                    value={item.page_id ?? ''}
+                    onChange={e => setForm(prev => ({ ...prev, items: updateItem(prev.items, item.id, { page_id: Number(e.target.value) || undefined }) }))}
+                    className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none">
+                    <option value="">Sayfa seç...</option>
+                    {pages.map(p => <option key={p.id} value={p.id}>/{p.slug} — {pageTitle(p)}</option>)}
+                  </select>
+                </div>
+              ) : item.url !== undefined ? (
+                <div className="flex flex-1 items-center gap-1">
+                  <LinkIcon className="h-4 w-4 text-zinc-400" />
+                  <input
+                    value={item.url ?? ''}
+                    onChange={e => setForm(prev => ({ ...prev, items: updateItem(prev.items, item.id, { url: e.target.value }) }))}
+                    placeholder="/iletisim veya https://ornek.com"
+                    className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                  />
+                </div>
+              ) : (
+                <span className="flex-1 text-xs text-zinc-400">Bu menü öğesi link içermiyor (alt menü anahtarı olarak kullanılabilir).</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {(item.children ?? []).map(child => renderItemEditor(child, depth + 1))}
+      </div>
+    )
   }
 
   if (loading) return <div className="p-8 text-center text-zinc-500">Yükleniyor...</div>
@@ -97,57 +268,66 @@ export default function MenusPage() {
       <h1 className="text-2xl font-bold text-zinc-900">Menüler</h1>
 
       {message && (
-        <div className="rounded-lg bg-green-50 p-4 text-green-800 text-sm">{message}</div>
+        <div className={cn('rounded-lg p-4 text-sm', message.ok ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700')}>{message.text}</div>
       )}
 
       <div className="rounded-xl border border-zinc-200 p-6">
         <h2 className="mb-4 text-lg font-semibold">{editingId ? 'Menüyü Düzenle' : 'Yeni Menü'}</h2>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Adı</label>
-            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Örn: Ana Menü"
+            <label className="block text-sm font-medium text-zinc-700 mb-1">Adı <span className="text-red-500">*</span></label>
+            <input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Örn: Ana Menü"
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Slug</label>
-            <input value={form.slug} onChange={e => setForm({...form, slug: e.target.value})} placeholder="ana-menu"
+            <label className="block text-sm font-medium text-zinc-700 mb-1">Slug <span className="text-zinc-400 font-normal">(boş bırakılırsa ad üretir)</span></label>
+            <input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="ana-menu"
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" />
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">Konum</label>
-            <select value={form.location} onChange={e => setForm({...form, location: e.target.value})}
+            <select value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none">
-              <option value="header">Header</option>
-              <option value="footer">Footer</option>
-              <option value="sidebar">Sidebar</option>
+              <option value="header">Üst menü (Header)</option>
+              <option value="footer">Alt menü (Footer)</option>
+              <option value="sidebar">Yan menü (Sidebar)</option>
             </select>
           </div>
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-zinc-700 pt-6">
-              <input type="checkbox" checked={form.isActive} onChange={e => setForm({...form, isActive: e.target.checked})}
-                className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
-              Aktif
-            </label>
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-1">Menü Öğeleri</label>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3">
+            {form.items.length === 0 ? (
+              <p className="py-4 text-center text-sm text-zinc-400">
+                Henüz menü öğesi yok. Aşağıdaki butonla öğe ekleyin — kod yazmanıza gerek yok.
+              </p>
+            ) : (
+              <div className="space-y-2">{form.items.map(item => renderItemEditor(item, 0))}</div>
+            )}
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => addItem()}>
+              <Plus className="mr-1 h-3 w-3" />Menü Öğesi Ekle
+            </Button>
+            <p className="mt-2 text-xs text-zinc-500">
+              Her öğeye başlık ve bir hedef seçin (URL veya sitenizdeki bir sayfa). Bir öğenin yanındaki + butonu ile alt menü (açılır menü) öğeleri ekleyebilirsiniz.
+            </p>
           </div>
         </div>
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-1">Öğeler (JSON)</label>
-          <textarea
-            value={JSON.stringify(form.items || [], null, 2)}
-            onChange={e => { try { setForm({...form, items: JSON.parse(e.target.value)}) } catch {} }}
-            rows={6}
-            placeholder={'[{"id":"1","label":"Ana Sayfa","url":"/"},{"id":"2","label":"Urunler","url":"/products"}]'}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
-          />
-          <p className="mt-1 text-xs text-zinc-500">Format: {'[{id,label,url,page_id?,target?,children[]}]'}</p>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <Button onClick={editingId ? () => handleUpdate(editingId!) : handleCreate} disabled={saving}>
-            <Save className="mr-2 h-4 w-4" /> {editingId ? 'Güncelle' : 'Oluştur'}
-          </Button>
-          {editingId && (
-            <Button variant="outline" onClick={resetForm}>İptal</Button>
-          )}
+
+        <div className="mt-4 flex items-center gap-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+            <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })}
+              className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+            Aktif
+          </label>
+          <div className="flex gap-2">
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="mr-2 h-4 w-4" /> {editingId ? 'Güncelle' : 'Oluştur'}
+            </Button>
+            {editingId && (
+              <Button variant="outline" onClick={resetForm}><X className="mr-1 h-4 w-4" />İptal</Button>
+            )}
+          </div>
         </div>
       </div>
 

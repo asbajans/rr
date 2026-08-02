@@ -40,6 +40,12 @@ function moduleEnabled(plan: Plan | null, key: string): boolean {
   return v?.enabled === true
 }
 
+const HOSTING_LABELS: Record<string, string> = {
+  rahatio: 'Rahatio Alan Adı',
+  vercel: 'Vercel (Slave)',
+  custom: 'Kendi Sunucu',
+}
+
 export default function BillingPage() {
   const { user } = useAuth()
   const { t } = useI18n()
@@ -238,6 +244,22 @@ export default function BillingPage() {
                       })}
                     </tr>
                   ))}
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 pr-4 text-zinc-700">Site Yayınlama</td>
+                    {plans.filter(p => p.is_active).map(plan => {
+                      const isCurrent = plan.id === currentPlan?.id
+                      const hosting = plan.hosting ?? 'rahatio'
+                      return (
+                        <td key={plan.id} className="px-3 py-2 text-center text-xs">
+                          <span className={isCurrent ? 'font-medium text-green-600' : 'text-zinc-600'}>
+                            {hosting === 'rahatio'
+                              ? 'rahatio.com.tr/stores/{kod}'
+                              : HOSTING_LABELS[hosting] ?? hosting}
+                          </span>
+                        </td>
+                      )
+                    })}
+                  </tr>
                 </tbody>
               </table>
             </div>

@@ -94,6 +94,10 @@ export class Store extends Model {
   @Column(DataType.JSONB)
   declare pixels: object;
 
+  @AllowNull(true)
+  @Column(DataType.STRING(255))
+  declare siteUrl: string;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;
