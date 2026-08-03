@@ -48,9 +48,12 @@ async function main() {
   let noImg = 0;
   let failed = 0;
 
+  const resultFile = '/tmp/bf-result.txt';
+  const resultLines: string[] = [];
+
   for (const p of products) {
     const cfg: any = (p.marketplaceConfig as any)?.pazarama || {};
-    const code: string = cfg.code || cfg.externalId || p.sku;
+    const code: string = cfg.raw?.code || cfg.code || cfg.externalId || p.sku;
     if (!code) {
       noCode++;
       continue;
@@ -74,21 +77,27 @@ async function main() {
       if (imgs.length > 0) {
         await p.update({ images: imgs });
         updated++;
-        console.log(`+ [${p.id}] ${code} -> ${imgs.length} images`);
+        resultLines.push(`+ [${p.id}] ${code} -> ${imgs.length} images`);
       } else {
         noImg++;
       }
     } catch (e: any) {
       failed++;
-      console.error(`x [${p.id}] ${code}: ${e?.response?.status || e?.status || e?.message}`);
+      resultLines.push(`x [${p.id}] ${code}: ${e?.response?.status || e?.status || e?.message}`);
     }
 
     await sleep(200);
   }
 
-  console.log(
-    `\nDONE total=${products.length} updated=${updated} already=${already} noCode=${noCode} noImg=${noImg} failed=${failed}`
-  );
+  const summary = `\nDONE total=${products.length} updated=${updated} already=${already} noCode=${noCode} noImg=${noImg} failed=${failed}`;
+  console.log(summary);
+  try {
+    const fs = await import('fs');
+    fs.writeFileSync(resultFile, [...resultLines, summary].join('\n'));
+    console.log(`result file written: ${resultFile}`);
+  } catch (e: any) {
+    console.error('result file write failed', e?.message);
+  }
   await sequelize.close();
 }
 
