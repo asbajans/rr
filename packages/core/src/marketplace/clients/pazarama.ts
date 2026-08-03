@@ -15,6 +15,8 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
   private tokenExpiry: number = 0;
   private useApiKeyAuth: boolean = false;
 
+  private static tokenCache = new Map<string, { token: string; expiry: number }>();
+
   constructor(config: PazaramaConfig) {
     super('https://isortagimapi.pazarama.com');
     this.marketplaceName = 'pazarama';
@@ -47,14 +49,33 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     const token = body?.data?.accessToken || body?.access_token;
     if (!token) return null;
     const expires = body?.data?.expiresIn || body?.expires_in || 3600;
+    const expiry = Date.now() + (Number(expires) - 60) * 1000;
     this.bearerToken = token;
-    this.tokenExpiry = Date.now() + (Number(expires) - 60) * 1000;
+    this.tokenExpiry = expiry;
+    const key = this.tokenCacheKey();
+    if (key) PazaramaClient.tokenCache.set(key, { token, expiry });
     return token;
+  }
+
+  private tokenCacheKey(): string | null {
+    const id = this.config.apiKey || this.config.clientId;
+    if (!id) return null;
+    return `${id}:${this.config.clientSecret || ''}`;
   }
 
   private async ensureToken(): Promise<string> {
     if (this.useApiKeyAuth) return '';
     if (this.bearerToken && Date.now() < this.tokenExpiry) return this.bearerToken;
+
+    const key = this.tokenCacheKey();
+    if (key) {
+      const cached = PazaramaClient.tokenCache.get(key);
+      if (cached && Date.now() < cached.expiry) {
+        this.bearerToken = cached.token;
+        this.tokenExpiry = cached.expiry;
+        return cached.token;
+      }
+    }
 
     // Pazarama: client_id = API Key, client_secret = Client Secret (Basic veya body).
     // clientId as credentials is a fallback for stores that stored them differently.
