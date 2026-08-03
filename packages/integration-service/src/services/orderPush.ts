@@ -34,7 +34,7 @@ export async function pushOrderStatus(
   marketplace: string,
   externalId: string,
   newStatus: string,
-  lineIds?: number[],
+  lineIds?: any[],
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const integration = await getIntegration(storeId, marketplace);
@@ -45,7 +45,7 @@ export async function pushOrderStatus(
     const client = createMarketplaceClient(marketplace, integration.config);
 
     if (marketplace === 'trendyol') {
-      await client.approveOrder(externalId);
+      await client.approveOrder(externalId, lineIds);
       await CORE_CLIENT.post('/api/admin/integration/logs', {
         marketplace,
         storeId,

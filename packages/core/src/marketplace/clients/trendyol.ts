@@ -30,7 +30,6 @@ interface TrendyolProduct {
 export class TrendyolClient extends BaseMarketplaceClient implements MarketplaceClient {
   private config: TrendyolConfig;
   private orderClient: AxiosInstance;
-  private invoiceClient: AxiosInstance;
 
   constructor(config: TrendyolConfig) {
     super('https://apigw.trendyol.com/integration/product', {
@@ -47,11 +46,6 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     };
     this.orderClient = axios.create({
       baseURL: 'https://apigw.trendyol.com/integration/order',
-      headers,
-      timeout: 30000,
-    });
-    this.invoiceClient = axios.create({
-      baseURL: 'https://apigw.trendyol.com/integration/invoice',
       headers,
       timeout: 30000,
     });
@@ -216,7 +210,7 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     return this.orderRequest<any>({ method: 'GET', url });
   }
 
-  async updatePackageStatus(packageId: string, status: string, lines: Array<{ lineId: number; quantity: number }>): Promise<any> {
+  async updatePackageStatus(packageId: string, status: string, lines: Array<{ lineId: number; quantity: number }> = []): Promise<any> {
     return this.orderRequest<any>({
       method: 'PUT',
       url: `/sellers/${this.config.supplierId}/shipment-packages/${packageId}`,
@@ -224,13 +218,16 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     });
   }
 
-  async approveOrder(packageId: string): Promise<any> {
-    const pkg = await this.getOrderByPackageId(packageId);
-    const lines = (pkg?.lines || []).map((line: any) => ({
-      lineId: line.id,
-      quantity: line.quantity || 1,
-    }));
-    return this.updatePackageStatus(packageId, 'Picking', lines);
+  async approveOrder(packageId: string, lines?: Array<{ lineId: number; quantity: number }>): Promise<any> {
+    let payloadLines = lines;
+    if (!payloadLines || payloadLines.length === 0) {
+      const pkg = await this.getOrderByPackageId(packageId).catch(() => null);
+      payloadLines = (pkg?.lines || []).map((line: any) => ({
+        lineId: line.id,
+        quantity: line.quantity || 1,
+      }));
+    }
+    return this.updatePackageStatus(packageId, 'Picking', payloadLines);
   }
 
   async cancelOrder(orderId: string, reason: string = 'OUT_OF_STOCK'): Promise<any> {
@@ -250,53 +247,29 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     throw new Error(`Trendyol does not support manual status change to '${status}'. Only approve and cancel are allowed.`);
   }
 
-  async createCommonLabel(packageIds: string[]): Promise<any> {
-    return this.orderRequest<any>({
-      method: 'POST',
-      url: `/sellers/${this.config.supplierId}/common-labels`,
-      data: { packageIds },
-    });
-  }
+  async getOrderLabel(arg: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
+    const options = typeof arg === 'string' ? { packageId: arg } : arg;
+    const trackingNumber = options.trackingNumber;
 
-  async getCommonLabel(eccode: string): Promise<string> {
-    const response = await this.orderClient.get<string>(`/sellers/${this.config.supplierId}/common-labels/${eccode}`, {
-      responseType: 'text',
-    });
-    return response.data;
-  }
-
-  async getOrderLabel(packageId: string): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
-    try {
-      const data = await this.getOrderByPackageId(packageId);
-      const cargoCompany = data?.cargoCompany || data?.cargoCompanyName || '';
-      const isTexAras = /TEX|Aras/i.test(cargoCompany);
-
-      if (isTexAras) {
-        try {
-          const labelResult = await this.createCommonLabel([packageId]);
-          const eccode = labelResult?.eccode;
-          if (eccode) {
-            const zpl = await this.getCommonLabel(eccode);
-            if (zpl) return { labelZpl: zpl, cargoCompany };
-          }
-        } catch {}
-      }
-
-      const labelUrl = data?.shipmentLabel || data?.labelUrl || data?.invoiceUrl;
-      if (labelUrl) return { labelUrl, cargoCompany };
-
+    if (trackingNumber) {
       try {
-        const response = await this.invoiceClient.get<any>(`/sellers/${this.config.supplierId}/invoices`, {
-          params: { orderNumber: packageId, size: 1 },
+        const response = await axios.get(`https://apigw.trendyol.com/integration/sellers/${this.config.supplierId}/common-label/query`, {
+          params: { id: trackingNumber },
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': this.config.supplierId,
+            'Authorization': `Basic ${Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64')}`,
+          },
+          timeout: 30000,
         });
-        const invoice = (response.data?.invoices || response.data?.content || [])[0];
-        if (invoice?.invoiceUrl) return { labelUrl: invoice.invoiceUrl, cargoCompany };
+        const labels = response.data?.data || [];
+        if (labels.length > 0 && labels[0]?.label) {
+          return { labelUrl: labels[0].label, cargoCompany: '' };
+        }
       } catch {}
-
-      return { cargoCompany };
-    } catch {
-      return null;
     }
+
+    return null;
   }
 
   private async orderRequest<T>(config: AxiosRequestConfig): Promise<T> {

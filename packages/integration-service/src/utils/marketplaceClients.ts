@@ -55,18 +55,21 @@ export class TrendyolClient {
     return data;
   }
 
-  async updatePackageStatus(packageId: string, status: string, lines: Array<{ lineId: number; quantity: number }>): Promise<any> {
+  async updatePackageStatus(packageId: string, status: string, lines: Array<{ lineId: number; quantity: number }> = []): Promise<any> {
     const { data } = await this.orderClient.put(`/sellers/${this.supplierId}/shipment-packages/${packageId}`, { status, lines });
     return data;
   }
 
-  async approveOrder(packageId: string): Promise<any> {
-    const pkg = await this.getOrderByPackageId(packageId);
-    const lines = (pkg?.lines || []).map((line: any) => ({
-      lineId: line.id,
-      quantity: line.quantity || 1,
-    }));
-    return this.updatePackageStatus(packageId, 'Picking', lines);
+  async approveOrder(packageId: string, lines?: Array<{ lineId: number; quantity: number }>): Promise<any> {
+    let payloadLines = lines;
+    if (!payloadLines || payloadLines.length === 0) {
+      const pkg = await this.getOrderByPackageId(packageId).catch(() => null);
+      payloadLines = (pkg?.lines || []).map((line: any) => ({
+        lineId: line.id,
+        quantity: line.quantity || 1,
+      }));
+    }
+    return this.updatePackageStatus(packageId, 'Picking', payloadLines);
   }
 
   async updateOrderStatus(orderId: string, status: string): Promise<any> {
@@ -84,42 +87,29 @@ export class TrendyolClient {
     return data;
   }
 
-  async createCommonLabel(packageIds: string[]): Promise<any> {
-    const { data } = await this.orderClient.post(`/sellers/${this.supplierId}/common-labels`, { packageIds });
-    return data;
-  }
+  async getOrderLabel(arg: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
+    const options = typeof arg === 'string' ? { packageId: arg } : arg;
+    const trackingNumber = options.trackingNumber;
 
-  async getCommonLabel(eccode: string): Promise<string> {
-    const response = await this.orderClient.get(`/sellers/${this.supplierId}/common-labels/${eccode}`, {
-      responseType: 'text',
-    });
-    return response.data;
-  }
-
-  async getOrderLabel(packageId: string): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
-    try {
-      const data = await this.getOrderByPackageId(packageId);
-      const cargoCompany = data?.cargoCompany || data?.cargoCompanyName || '';
-      const isTexAras = /TEX|Aras/i.test(cargoCompany);
-
-      if (isTexAras) {
-        try {
-          const labelResult = await this.createCommonLabel([packageId]);
-          const eccode = labelResult?.eccode;
-          if (eccode) {
-            const zpl = await this.getCommonLabel(eccode);
-            if (zpl) return { labelZpl: zpl, cargoCompany };
-          }
-        } catch {}
-      }
-
-      const labelUrl = data?.shipmentLabel || data?.labelUrl || data?.invoiceUrl;
-      if (labelUrl) return { labelUrl, cargoCompany };
-
-      return { cargoCompany };
-    } catch {
-      return null;
+    if (trackingNumber) {
+      try {
+        const { data } = await axios.get(`https://apigw.trendyol.com/integration/sellers/${this.supplierId}/common-label/query`, {
+          params: { id: trackingNumber },
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': this.supplierId,
+            'Authorization': (this.orderClient.defaults.headers.common['Authorization'] as string) || '',
+          },
+          timeout: 30000,
+        });
+        const labels = data?.data || [];
+        if (labels.length > 0 && labels[0]?.label) {
+          return { labelUrl: labels[0].label, cargoCompany: '' };
+        }
+      } catch {}
     }
+
+    return null;
   }
 }
 

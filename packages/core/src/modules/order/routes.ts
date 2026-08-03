@@ -200,6 +200,9 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
             storeId: store.id,
             marketplace: order.marketplace,
             externalId: order.marketplaceOrderId,
+            lineIds: ((order.items as any[]) || [])
+              .map((item: any) => ({ lineId: item.orderLineId, quantity: item.quantity }))
+              .filter((x: any) => x.lineId != null),
             value: status,
           });
         }
@@ -371,7 +374,7 @@ orderRoutes.get('/:id/label', authMiddleware, requireStore, [
       if (integration) {
         const mpConfig = getMarketplaceConfig('trendyol' as MarketplaceType, integration);
         const client = createMarketplaceClient('trendyol' as MarketplaceType, mpConfig) as any;
-        const label = await (client as any).getOrderLabel(marketplaceOrderId);
+        const label = await (client as any).getOrderLabel({ packageId: marketplaceOrderId, trackingNumber: order.get('trackingNumber') });
         if (label) {
           const updateData: any = {};
           if (label.labelUrl) updateData.labelUrl = label.labelUrl;

@@ -70,8 +70,27 @@ function getExternalId(mp: string, raw: any): string {
     case 'n11': return raw.stockCode || raw.n11ProductId?.toString() || '';
     case 'amazon': return raw.asin || raw.sellerSKU || raw.sku || '';
     case 'etsy': return raw.listing_id?.toString() || raw.sku || '';
-    default: return '';
+    default: return raw.code || raw.sku || raw.barcode || '';
   }
+}
+
+async function preserveExistingOnEmpty(storeId: number, mapped: any): Promise<Partial<Product>> {
+  const keep: Partial<Product> = {};
+  const hasIncomingImages = Array.isArray(mapped.images) && mapped.images.length > 0;
+  const hasIncomingDesc = mapped.description && String(mapped.description).trim().length > 0;
+  if (hasIncomingImages && hasIncomingDesc) return keep;
+  const existing = await Product.findOne({
+    where: { storeId, sku: mapped.sku },
+    attributes: ['id', 'images', 'description'],
+  });
+  if (!existing) return keep;
+  if (!hasIncomingImages && Array.isArray(existing.images) && existing.images.length > 0) {
+    keep.images = existing.images;
+  }
+  if (!hasIncomingDesc && existing.description && String(existing.description).trim().length > 0) {
+    keep.description = existing.description;
+  }
+  return keep;
 }
 
 export async function createImportWorker() {
@@ -211,6 +230,7 @@ export async function createImportWorker() {
                 ...mapped,
                 storeId,
                 sku: mapped.sku,
+                ...preserveExistingOnEmpty(storeId, mapped),
               } as any);
 
               const externalId = getExternalId(marketplace, raw);

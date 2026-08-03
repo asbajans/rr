@@ -578,7 +578,7 @@ class ApiClient {
         customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || '') : ''),
         customer_email: o.customerEmail || (typeof address === 'object' ? (address.email || '') : ''),
         customer_phone: o.customerPhone || (typeof address === 'object' ? (address.phone || '') : ''),
-        external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
+      external_id: o.marketplaceOrderNumber || o.marketplaceOrderId || o.orderNumber || o.external_id,
         subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
         shipping: o.shipping ?? 0,
         tax: o.tax ?? 0,

@@ -150,7 +150,7 @@ function mapOrder(o: any): any {
     customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || address.firstName + ' ' + address.lastName || '') : ''),
     customer_email: o.customerEmail || (typeof address === 'object' ? (address.email || '') : ''),
     customer_phone: o.customerPhone || (typeof address === 'object' ? (address.phone || address.phoneNumber || '') : ''),
-    external_id: o.marketplaceOrderId || o.orderNumber || o.external_id,
+    external_id: o.marketplaceOrderNumber || o.marketplaceOrderId || o.orderNumber || o.external_id,
     tracking_number: o.trackingNumber ?? o.tracking_number,
     tracking_company: o.carrier ?? o.tracking_company,
     payment_method: o.paymentMethod ?? o.payment_method,

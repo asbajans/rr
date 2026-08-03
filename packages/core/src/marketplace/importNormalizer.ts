@@ -131,7 +131,17 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
     || `imp-${Date.now()}`;
   const description = resolveValue(root, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || resolveValue(variant, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || '';
   const quantity = resolveQuantity(raw);
-  const images = normalizeImages((Array.isArray(root?.images) || Array.isArray(root?.imageUrls) || Array.isArray(root?.image) || Array.isArray(root?.Images)) ? root.images ?? root.imageUrls ?? root.image ?? root.Images : variant?.images ?? variant?.imageUrls ?? variant?.image ?? variant?.Images);
+  const imageCandidate = (obj: any) =>
+    obj?.images ?? obj?.imageUrls ?? obj?.imageUrl ?? obj?.image ?? obj?.Images ?? obj?.productImages ?? obj?.mainImage ?? obj?.imageList;
+  const rootImgs = imageCandidate(root);
+  const variantImgs = imageCandidate(variant);
+  const images = normalizeImages(
+    Array.isArray(rootImgs) ? rootImgs
+      : Array.isArray(variantImgs) ? variantImgs
+      : typeof rootImgs === 'string' ? rootImgs
+      : typeof variantImgs === 'string' ? variantImgs
+      : undefined
+  );
   const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']);
   const normalizedStatus = typeof statusValue === 'boolean'
     ? statusValue

@@ -298,8 +298,11 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
 
         const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
 
-        const address = pkg.address || pkg.shippingAddress || {};
-        const fullName = pkg.customerfullName || address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
+        const address = pkg.address || pkg.shippingAddress || pkg.shipmentAddress || {};
+        const fullName = (pkg.customerfullName || pkg.customerFullName)
+          || `${pkg.customerFirstName || ''} ${pkg.customerLastName || ''}`.trim()
+          || address.fullName || address.name
+          || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
         const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || pkg.phone || '';
         const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
         const shippingAddress = {
@@ -308,7 +311,7 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           city: address.city || pkg.city || '',
           district: address.district || pkg.district || '',
           neighborhood: address.neighborhood || pkg.neighborhood || '',
-          address: address.address || address.line || pkg.address || '',
+          address: address.address1 || address.address || address.fullAddress || address.line || pkg.address || '',
           zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
         };
 
@@ -472,8 +475,11 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
             }));
 
             const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
-            const address = pkg.address || pkg.shippingAddress || {};
-            const fullName = pkg.customerfullName || address.fullName || address.name || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
+            const address = pkg.address || pkg.shippingAddress || pkg.shipmentAddress || {};
+            const fullName = (pkg.customerfullName || pkg.customerFullName)
+              || `${pkg.customerFirstName || ''} ${pkg.customerLastName || ''}`.trim()
+              || address.fullName || address.name
+              || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
             const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || '';
             const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
             const shippingAddress = {
@@ -481,7 +487,7 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
               city: address.city || pkg.city || '',
               district: address.district || pkg.district || '',
               neighborhood: address.neighborhood || pkg.neighborhood || '',
-              address: address.address || address.line || pkg.address || '',
+              address: address.address1 || address.address || address.fullAddress || address.line || pkg.address || '',
               zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
             };
 
