@@ -618,6 +618,10 @@ class ApiClient {
     return this.get<{ attributes: any[] }>(`/api/admin/integrations/${marketplace}/categories/${categoryId}/attributes`)
   }
 
+  getMarketplaceShipmentTemplates(marketplace: string) {
+    return this.get<{ templates: { templateName: string }[] }>(`/api/admin/integrations/${marketplace}/shipment-templates`)
+  }
+
   // B2B
   async getB2bDiscover(filters?: { page?: number; limit?: number; search?: string }) {
     const params: Record<string, string> = {}

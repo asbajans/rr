@@ -135,6 +135,9 @@ export default function ProductsPage() {
   const [categoryAttrs, setCategoryAttrs] = useState<Record<string, any[]>>({})
   const [loadingAttrs, setLoadingAttrs] = useState<Record<string, boolean>>({})
 
+  // marketplace shipment templates (N11 kargo şablonları)
+  const [shipmentTemplates, setShipmentTemplates] = useState<Record<string, { templateName: string }[]>>({})
+
   async function handleUploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     setUploading(true)
@@ -264,6 +267,7 @@ export default function ProductsPage() {
         }
       })
     }
+    if (p.marketplaces?.includes('n11')) loadShipmentTemplates('n11')
     if (product?.id) {
       api.getB2bSettings(product.id).then((b) => {
         const setting = (b && 'is_b2b_enabled' in b ? b : null) as { is_b2b_enabled?: boolean; b2b_discount?: number | null; b2b_price?: number | null } | null
@@ -324,6 +328,7 @@ export default function ProductsPage() {
         on_sale: m === 'Kendi Sitem' ? product.status === 1 : !!md.on_sale,
         status: m === 'Kendi Sitem' ? product.status : (md.on_sale ? 1 : 0),
         attributes: md.attributes ?? [],
+        shipmentTemplate: m === 'n11' ? (md.shipmentTemplate ?? '') : undefined,
       }
     })
 
@@ -475,6 +480,16 @@ export default function ProductsPage() {
       setCategoryAttrs((prev) => ({ ...prev, [key]: [] }))
     } finally {
       setLoadingAttrs((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
+  async function loadShipmentTemplates(mp: string) {
+    if (!mp || shipmentTemplates[mp]) return
+    try {
+      const res = await api.getMarketplaceShipmentTemplates(mp)
+      setShipmentTemplates((prev) => ({ ...prev, [mp]: res.templates ?? [] }))
+    } catch {
+      setShipmentTemplates((prev) => ({ ...prev, [mp]: [] }))
     }
   }
 
@@ -1275,7 +1290,8 @@ export default function ProductsPage() {
                       <button
                         key={m}
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          if (!product.marketplaces.includes(m) && m === 'n11') loadShipmentTemplates('n11')
                           setProduct((prev) => {
                             if (!prev) return prev
                             const has = prev.marketplaces.includes(m)
@@ -1284,7 +1300,7 @@ export default function ProductsPage() {
                               marketplaces: has ? prev.marketplaces.filter((x) => x !== m) : [...prev.marketplaces, m],
                             }
                           })
-                        }
+                        }}
                         className={`px-2.5 py-1 rounded-full text-xs border ${
                           product.marketplaces.includes(m)
                             ? 'bg-indigo-600 text-white border-indigo-600'
@@ -1410,6 +1426,30 @@ export default function ProductsPage() {
                             {md.brand_id && <p className="text-xs text-gray-400 mt-1">ID: {md.brand_id}</p>}
                           </div>
                         </div>
+                        {mp === 'n11' && (
+                          <div className="mt-2">
+                            <label className="block text-xs text-gray-500 mb-1">
+                              Kargo Şablonu <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              list={`shipment-${mp}`}
+                              value={md.shipmentTemplate ?? ''}
+                              onChange={(e) => updateMd(mp, { shipmentTemplate: e.target.value })}
+                              className="w-full border rounded px-2 py-1.5 text-sm"
+                              placeholder="N11 Teslimat Bilgilerindeki şablon adı"
+                            />
+                            <datalist id={`shipment-${mp}`}>
+                              {(shipmentTemplates[mp] ?? []).map((t) => (
+                                <option key={t.templateName} value={t.templateName} />
+                              ))}
+                            </datalist>
+                            {(shipmentTemplates[mp] && shipmentTemplates[mp].length === 0) && (
+                              <p className="text-xs text-amber-600 mt-1">
+                                Kargo şablonları alınamadı — Hesabım &gt; Teslimat Bilgilerindeki şablonu adını yazın.
+                              </p>
+                            )}
+                          </div>
+                        )}
                         {mp !== 'Kendi Sitem' && md.category_id && (() => {
                           const key = `${mp}-${md.category_id}`
                           const rawAttrs = Array.isArray(categoryAttrs[key]) ? categoryAttrs[key] : []

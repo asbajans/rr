@@ -56,11 +56,57 @@ export class N11Client extends BaseMarketplaceClient implements MarketplaceClien
       url: `/cdn/category/${categoryId}/attribute`,
       headers: authHeaders(this.config),
     });
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.attribute)) return data.attribute;
-    if (Array.isArray(data?.attributeList)) return data.attributeList;
-    if (Array.isArray(data?.attributes)) return data.attributes;
-    return [];
+    const raw = Array.isArray(data)
+      ? data
+      : data?.categoryAttributes ?? data?.attribute ?? data?.attributeList ?? data?.attributes ?? [];
+    const list = Array.isArray(raw) ? raw : [];
+    return list
+      .map((a: any) => {
+        const values = Array.isArray(a.attributeValues)
+          ? a.attributeValues.map((v: any) => ({ id: v.id, name: v.value ?? v.name ?? '' }))
+          : [];
+        return {
+          attributeId: a.attributeId ?? a.id,
+          name: a.attributeName ?? a.name ?? '',
+          required: a.isMandatory ?? a.mandatory ?? false,
+          allowCustom: a.isCustomValue ?? a.customValue ?? false,
+          attributeValues: values,
+        };
+      })
+      .filter((a: any) => a.attributeId != null);
+  }
+
+  // ─── Shipment Templates (SOAP GetShipmentTemplateList) ─────
+  // N11 does not expose a REST endpoint for shipping templates; the only way to
+  // list a seller's templates is the SOAP ShipmentService. We send a raw SOAP
+  // envelope and extract every <templateName> from the response.
+  async getShipmentTemplates(): Promise<{ templateName: string }[]> {
+    const envelope =
+      '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.n11.com/ws/schemas">' +
+      '<soapenv:Header/><soapenv:Body>' +
+      '<sch:GetShipmentTemplateListRequest>' +
+      `<auth><appKey>${this.config.appKey}</appKey><appSecret>${this.config.appSecret}</appSecret></auth>` +
+      '</sch:GetShipmentTemplateListRequest>' +
+      '</soapenv:Body></soapenv:Envelope>';
+
+    const response = await this.client.request({
+      method: 'POST',
+      url: 'https://api.n11.com/ws/ShipmentService.wsdl',
+      data: envelope,
+      headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: 'GetShipmentTemplateList' },
+      timeout: 30000,
+    });
+
+    const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    const names: string[] = [];
+    const re = /<templateName[^>]*>([^<]*)<\/templateName>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const t = (m[1] ?? '').trim();
+      if (t && !names.includes(t)) names.push(t);
+    }
+    logger.info({ count: names.length, templates: names }, '[n11] shipment templates fetched');
+    return names.map((templateName) => ({ templateName }));
   }
 
   private flattenTree(nodes: any[], parentId: number, level: number = 0): any[] {

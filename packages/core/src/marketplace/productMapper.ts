@@ -104,6 +104,13 @@ export function mapProductForN11(product: any, integration: any): Record<string,
   const categoryId = entry.categoryId || entry.category_id;
   if (!categoryId) return { _skip: true, reason: 'N11 category not mapped' };
 
+  // N11 rejects the create task if shipmentTemplate is not a real template name
+  // that exists in the seller's "Hesabım > Teslimat Bilgileri".
+  const shipmentTemplate = String(entry.shipmentTemplate ?? '').trim();
+  if (!shipmentTemplate) {
+    return { _skip: true, reason: 'N11 kargo şablonu (shipmentTemplate) atanmamış — ürün düzenlemeden seçin' };
+  }
+
   const validVat = [0, 1, 10, 20];
   const vatRate = validVat.includes(Number(entry.vatRate ?? 10)) ? Number(entry.vatRate ?? 10) : 10;
 
@@ -114,7 +121,7 @@ export function mapProductForN11(product: any, integration: any): Record<string,
     currencyType: 'TL',
     productMainId: product.sku,
     preparingDay: Number(entry.preparingDay ?? 3),
-    shipmentTemplate: String(entry.shipmentTemplate || '1'),
+    shipmentTemplate,
     stockCode: product.sku,
     quantity: Number(product.quantity ?? 0),
     images,
