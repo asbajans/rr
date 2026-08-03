@@ -74,6 +74,152 @@ function getExternalId(mp: string, raw: any): string {
   }
 }
 
+/*
+ * N11 product tasks are fully ASYNC: POST product-create / price-stock-update / product-update
+ * return `{ id, type, status: "IN_QUEUE", reasons }` and must be resolved via TaskDetails
+ * (`POST /ms/product/task-details/page-query`) before we know if the SKU was actually processed.
+ *
+ * Helper: poll the TaskDetails result for a N11 task id until PROCESSED.
+ * Returns { status: 'SUCCESS'|'FAIL', reasons }, 'processing' while in queue, or 'error'.
+ */
+async function pollN11Task(client: any, taskId: string | number): Promise<{ status: 'SUCCESS' | 'FAIL'; reasons?: string[] } | 'processing' | 'error'> {
+  try {
+    const res = await client.getTaskDetail(Number(taskId));
+    const taskStatus = res?.status;
+    const items = res?.skus?.content ?? res?.content ?? [];
+    const arr = Array.isArray(items) ? items : [];
+
+    if (taskStatus === 'REJECT') {
+      return { status: 'FAIL', reasons: Array.isArray(res?.reasons) ? res.reasons : ['REJECT'] };
+    }
+    if (taskStatus === 'PROCESSED') {
+      const failed = arr.find((i: any) => i?.status === 'FAIL' || i?.status === 'FAILED');
+      if (failed) return { status: 'FAIL', reasons: failed.reasons || [] };
+      const done = arr.find((i: any) => i?.status === 'SUCCESS');
+      if (done || arr.length === 0) return { status: 'SUCCESS' };
+    }
+    return 'processing';
+  } catch (err) {
+    return 'error';
+  }
+}
+
+async function n11ProductExists(client: any, stockCode: string): Promise<boolean> {
+  try {
+    const res = await client.getProducts({ stockCode, size: 20 });
+    const list = res?.products ?? [];
+    return Array.isArray(list) && list.length > 0;
+  } catch (err) {
+    // On query error, assume it exists to avoid duplicate create requests.
+    return true;
+  }
+}
+
+async function syncToN11(opts: {
+  client: any;
+  product: any;
+  storeId: number;
+  mp: string;
+  mpProduct: any;
+  existingListing: any;
+}): Promise<Record<string, any>> {
+  const { client, product, storeId, mp, mpProduct, existingListing } = opts;
+
+  // 1) Recover a pending create task (batchRequestId set, externalId empty).
+  if (existingListing?.batchRequestId && !existingListing?.externalId) {
+    const poll = await pollN11Task(client, existingListing.batchRequestId);
+    if (poll === 'processing' || poll === 'error') {
+      return { success: false, action: 'pending', reason: 'N11 create still processing' };
+    }
+    if (poll.status === 'SUCCESS') {
+      await existingListing.update({ status: 'active', externalId: product.sku, batchRequestId: null, lastError: null, lastSyncedAt: new Date() });
+      return { success: true, action: 'created' };
+    }
+    // Create FAILED: clear pending state and fall through to (re)create.
+    await existingListing.update({ status: 'failed', batchRequestId: null, lastError: (poll.reasons || []).join('; '), lastSyncedAt: new Date() });
+  }
+
+  // 2) externalId set (product should exist on N11) → verify then update price/stock/info.
+  if (existingListing?.externalId && !existingListing?.batchRequestId) {
+    const stockCode = String(existingListing.externalId);
+    const exists = await n11ProductExists(client, stockCode);
+    if (!exists) {
+      // Product is NOT actually on N11 (stale listing). Re-create.
+      await existingListing.update({ status: 'failed', externalId: null, lastError: 'N11 product not found by stockCode', lastSyncedAt: new Date() });
+      existingListing.externalId = null;
+    } else {
+      let infoResult: any;
+      try {
+        infoResult = await client.updateProduct(stockCode, mpProduct);
+      } catch (err: any) {
+        const detail = err?.response?.data ? JSON.stringify(err.response.data) : String(err?.message || err);
+        await existingListing.update({ status: 'failed', lastError: detail.slice(0, 2000) });
+        return { success: false, action: 'update', error: detail };
+      }
+      let priceResult: any;
+      try {
+        priceResult = await client.updatePriceStock(stockCode, {
+          salePrice: Number(mpProduct.salePrice ?? 0),
+          listPrice: Number(mpProduct.listPrice ?? mpProduct.salePrice ?? 0),
+          quantity: Number(mpProduct.quantity ?? 0),
+          currencyType: mpProduct.currencyType ?? 'TL',
+        });
+      } catch (err: any) {
+        const detail = err?.response?.data ? JSON.stringify(err.response.data) : String(err?.message || err);
+        await existingListing.update({ status: 'failed', lastError: detail.slice(0, 2000) });
+        return { success: false, action: 'update', error: detail };
+      }
+      await existingListing.update({ status: 'active', lastError: null, lastSyncedAt: new Date() });
+      const tasks: string[] = [];
+      if (infoResult?.id != null) tasks.push(`info:${infoResult.id}`);
+      if (priceResult?.id != null) tasks.push(`price:${priceResult.id}`);
+      return { success: true, action: 'updated', tasks };
+    }
+  }
+
+  // 3) Create (or re-create) the product on N11.
+  let listingResult: any;
+  try {
+    listingResult = await client.createProduct(mpProduct);
+  } catch (err: any) {
+    const detail = err?.response?.data ? JSON.stringify(err.response.data) : String(err?.message || err);
+    await ProductMarketplaceListing.upsert({ productId: product.id, storeId, platform: mp, externalId: null, status: 'failed', lastError: detail.slice(0, 2000), lastSyncedAt: new Date() });
+    logIntegration(storeId, mp, `create-product/${product.id}`, 'POST', false, { mpProduct }, undefined, detail);
+    return { success: false, action: 'create', error: detail };
+  }
+
+  const taskId = listingResult?.id ?? listingResult?.taskId ?? null;
+  if (listingResult?.status === 'REJECT' || (listingResult?.status == null && taskId == null)) {
+    const reason = Array.isArray(listingResult?.reasons) ? listingResult.reasons.join('; ') : 'N11 product create rejected';
+    await ProductMarketplaceListing.upsert({ productId: product.id, storeId, platform: mp, externalId: null, status: 'failed', lastError: reason.slice(0, 2000), lastSyncedAt: new Date() });
+    logIntegration(storeId, mp, `create-product/${product.id}`, 'POST', false, { mpProduct }, listingResult, reason);
+    return { success: false, action: 'create', error: reason };
+  }
+
+  // Task was submitted (IN_QUEUE) → store the task id and let next sync confirm completion.
+  if (taskId != null) {
+    const poll = await pollN11Task(client, taskId);
+    if (poll === 'processing' || poll === 'error') {
+      await ProductMarketplaceListing.upsert({ productId: product.id, storeId, platform: mp, externalId: null, batchRequestId: String(taskId), status: 'pending', lastError: null, lastSyncedAt: new Date() });
+      logIntegration(storeId, mp, `create-product/${product.id}`, 'POST', true, { mpProduct }, { taskId }, undefined);
+      return { success: true, action: 'pending', taskId };
+    }
+    if (poll.status === 'SUCCESS') {
+      await ProductMarketplaceListing.upsert({ productId: product.id, storeId, platform: mp, externalId: product.sku, status: 'active', lastError: null, lastSyncedAt: new Date() });
+      logIntegration(storeId, mp, `create-product/${product.id}`, 'POST', true, { mpProduct }, poll, undefined);
+      return { success: true, action: 'created' };
+    }
+    const reason = (poll.reasons || []).join('; ') || 'N11 product create failed';
+    await ProductMarketplaceListing.upsert({ productId: product.id, storeId, platform: mp, externalId: null, status: 'failed', lastError: reason.slice(0, 2000), lastSyncedAt: new Date() });
+    logIntegration(storeId, mp, `create-product/${product.id}`, 'POST', false, { mpProduct }, poll, reason);
+    return { success: false, action: 'create', error: reason };
+  }
+
+  const reason = Array.isArray(listingResult?.reasons) ? listingResult.reasons.join('; ') : 'N11 product create failed';
+  await ProductMarketplaceListing.upsert({ productId: product.id, storeId, platform: mp, externalId: null, status: 'failed', lastError: reason.slice(0, 2000), lastSyncedAt: new Date() });
+  return { success: false, action: 'create', error: reason };
+}
+
 async function preserveExistingOnEmpty(storeId: number, mapped: any): Promise<Partial<Product>> {
   const keep: Partial<Product> = {};
   const hasIncomingImages = Array.isArray(mapped.images) && mapped.images.length > 0;
@@ -518,6 +664,13 @@ export async function createSyncWorker() {
           }
 
           const { _skip, reason, ...mpProduct } = rawMapped;
+
+          // N11 uses fully async task endpoints; handle create/update/pending lifecycle separately.
+          if (mp === 'n11') {
+            const n11Result = await syncToN11({ client, product, storeId, mp, mpProduct, existingListing });
+            results[mp] = n11Result;
+            continue;
+          }
 
           let shouldCreate = false;
           if (existingListing?.externalId) {
