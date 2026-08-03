@@ -26,68 +26,58 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     this.client.defaults.timeout = 60000;
   }
 
+  private static readonly SCOPE = 'merchantgatewayapi.fullaccess';
+
+  private async requestToken(auth?: { username: string; password: string }, bodyClientId?: string, bodyClientSecret?: string): Promise<any> {
+    const params: Record<string, string> = {
+      grant_type: 'client_credentials',
+      scope: PazaramaClient.SCOPE,
+    };
+    if (bodyClientId) params.client_id = bodyClientId;
+    if (bodyClientSecret) params.client_secret = bodyClientSecret;
+
+    const res = await this.authClient.post<any>('', new URLSearchParams(params), {
+      auth,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    return res.data;
+  }
+
+  private cacheToken(body: any): string | null {
+    const token = body?.data?.accessToken || body?.access_token;
+    if (!token) return null;
+    const expires = body?.data?.expiresIn || body?.expires_in || 3600;
+    this.bearerToken = token;
+    this.tokenExpiry = Date.now() + (Number(expires) - 60) * 1000;
+    return token;
+  }
+
   private async ensureToken(): Promise<string> {
     if (this.useApiKeyAuth) return '';
     if (this.bearerToken && Date.now() < this.tokenExpiry) return this.bearerToken;
 
-    const tryBasic = async (): Promise<any> => {
-      const res = await this.authClient.post<any>('', new URLSearchParams({
-        grant_type: 'client_credentials',
-        scope: 'merchantgatewayapi.fullaccess',
-      }), {
-        auth: { username: this.config.clientId, password: this.config.clientSecret },
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      return res.data;
-    };
-
-    const tryBodyAuth = async (): Promise<any> => {
-      const res = await this.authClient.post<any>('', new URLSearchParams({
-        grant_type: 'client_credentials',
-        scope: 'merchantgatewayapi.fullaccess',
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-      }), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      return res.data;
-    };
-
-    const tryApiKey = async (): Promise<any> => {
-      const res = await this.authClient.post<any>('', new URLSearchParams({
-        grant_type: 'client_credentials',
-        scope: 'merchantgatewayapi.fullaccess',
-        client_id: this.config.apiKey,
-        client_secret: this.config.clientSecret,
-      }), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      return res.data;
-    };
+    // Pazarama: client_id = API Key, client_secret = Client Secret (Basic veya body).
+    // clientId as credentials is a fallback for stores that stored them differently.
+    const attempts: Array<() => Promise<any>> = [
+      () => this.requestToken({ username: this.config.apiKey, password: this.config.clientSecret }),
+      () => this.requestToken(undefined, this.config.apiKey, this.config.clientSecret),
+      () => this.requestToken({ username: this.config.clientId, password: this.config.clientSecret }),
+      () => this.requestToken(undefined, this.config.clientId, this.config.clientSecret),
+    ];
 
     let lastErr: any;
-
-    for (const attempt of [tryBasic, tryBodyAuth, tryApiKey]) {
+    for (const attempt of attempts) {
       try {
         const body = await attempt();
-        if (body?.success === true && body?.data?.accessToken) {
-          this.bearerToken = body.data.accessToken;
-          this.tokenExpiry = Date.now() + ((body.data.expiresIn || 3600) - 60) * 1000;
-          return this.bearerToken!;
-        }
-        if (body?.access_token) {
-          this.bearerToken = body.access_token;
-          this.tokenExpiry = Date.now() + ((body.expires_in || 3600) - 60) * 1000;
-          return this.bearerToken!;
-        }
-        lastErr = new Error('unexpected response format: ' + JSON.stringify(body));
+        if (this.cacheToken(body)) return this.bearerToken!;
+        lastErr = new Error('unexpected token response format: ' + JSON.stringify(body));
       } catch (err: any) {
         lastErr = err;
         if (err?.response?.status !== 400 && err?.response?.status !== 401) throw err;
       }
     }
 
-    logger.warn('[pazarama] OAuth2 all 3 attempts failed, falling back to API key header auth');
+    logger.warn('[pazarama] OAuth2 token attempts failed (%s), falling back to API key header auth', lastErr?.message || lastErr);
     this.useApiKeyAuth = true;
     return '';
   }
@@ -201,6 +191,12 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
       products: items,
       hasMore: data?.hasNextPage === true || (items.length > 0 && currentPage < totalPages),
     };
+  }
+
+  /** Per-product detail. Unlike the list endpoint, this returns image URLs even for approved products. */
+  async getProductDetail(code: string): Promise<any> {
+    const data = await this.requestWithAuth<any>('POST', '/product/getProductDetail', { body: { Code: code } });
+    return data?.data ?? data;
   }
 
   async createProduct(product: any): Promise<any> {
