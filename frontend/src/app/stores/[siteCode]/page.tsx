@@ -1,58 +1,111 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Sparkles, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { api } from '@/lib/api-client'
-import type { StoreFrontData, StoreProduct } from '@/lib/types'
+import type { StoreProduct } from '@/lib/types'
+
+function toStoreProduct(p: any): StoreProduct {
+  const images = Array.isArray(p.images) ? p.images : p.images ?? []
+  const firstImage = images.length > 0
+    ? (typeof images[0] === 'string' ? images[0] : images[0]?.url ?? images[0]?.src ?? null)
+    : null
+  return {
+    'product.id': String(p.id ?? p['product.id'] ?? ''),
+    'product.code': p.sku ?? p.code ?? '',
+    'product.label': p.title ?? p.label ?? '',
+    'product.status': p.isActive ?? (p.status ?? 1),
+    price: p.price ?? p.priceTRY ?? null,
+    currency: p.price_currency ?? (p.priceTRY != null ? 'TRY' : p.priceUSD != null ? 'USD' : 'TRY'),
+    image: firstImage,
+    description: p.description ?? null,
+  }
+}
 
 export default function StoreFrontPage() {
   const { siteCode } = useParams<{ siteCode: string }>()
-  const [data, setData] = useState<StoreFrontData | null>(null)
+  const pageSize = 24
+  const [storeName, setStoreName] = useState('')
+  const [products, setProducts] = useState<StoreProduct[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<StoreProduct[] | null>(null)
   const [searching, setSearching] = useState(false)
+  const searchRef = useRef('')
+  const reqId = useRef(0)
+
+  const fetchProducts = useCallback(async (pageNum: number, q: string, append: boolean) => {
+    const current = ++reqId.current
+    try {
+      const res = await api.getStoreProducts(siteCode, { page: pageNum, limit: pageSize, search: q || undefined })
+      if (current !== reqId.current) return
+      setProducts(prev => append ? [...prev, ...res.data.map(toStoreProduct)] : res.data.map(toStoreProduct))
+      setPage(res.current_page)
+      setTotal(res.total)
+    } catch (err: any) {
+      if (current !== reqId.current) return
+      if (!append) setError(err.message)
+    } finally {
+      if (current === reqId.current) {
+        setLoading(false)
+        setLoadingMore(false)
+        setSearching(false)
+      }
+    }
+  }, [siteCode])
 
   useEffect(() => {
-    if (!siteCode) return
     api.getStoreFront(siteCode)
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [siteCode])
+      .then(r => setStoreName(r.store?.name ?? ''))
+      .catch(() => {})
+    setLoading(true)
+    fetchProducts(1, '', false)
+  }, [siteCode, fetchProducts])
+
+  useEffect(() => {
+    if (!products.length) return
+    const totalPages = Math.ceil(total / pageSize)
+    if (page >= totalPages) return
+    const onScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 400) {
+        if (!loadingMore && !searching) {
+          setLoadingMore(true)
+          const next = page + 1
+          setPage(next)
+          fetchProducts(next, searchRef.current, true)
+        }
+      }
+    }
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [products.length, total, page, loadingMore, searching, fetchProducts])
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    if (!searchQuery.trim() || !data?.products) return
+    const q = searchQuery.trim()
+    searchRef.current = q
+    reqId.current++
     setSearching(true)
-    try {
-      const res = await api.aiSearch(searchQuery, data.products)
-      setSearchResults(res.results)
-    } catch {
-      // Fallback to basic filter
-      const q = searchQuery.toLowerCase()
-      setSearchResults(data.products.filter(p =>
-        p['product.label'].toLowerCase().includes(q) ||
-        (p.description && p.description.toLowerCase().includes(q))
-      ))
-    } finally {
-      setSearching(false)
-    }
+    setLoading(true)
+    setPage(1)
+    fetchProducts(1, q, false)
   }
 
   function clearSearch() {
     setSearchQuery('')
-    setSearchResults(null)
+    searchRef.current = ''
+    reqId.current++
+    setLoading(true)
+    setPage(1)
+    fetchProducts(1, '', false)
   }
 
-  const products = searchResults ?? data?.products ?? []
-  const storeName = data?.store?.name ?? ''
-  const isSearching = searchResults !== null
-
-  if (loading) {
+  if (loading && products.length === 0) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <p className="text-sm text-zinc-500">Yükleniyor...</p>
@@ -69,20 +122,17 @@ export default function StoreFrontPage() {
     )
   }
 
-  if (!data) return null
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-zinc-900">{storeName}</h1>
       </div>
 
-      {/* AI Search */}
-      <form onSubmit={handleSearch} className="relative mb-8">
+      <form onSubmit={handleSearch} className="relative mb-4">
         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
         <input
           value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          placeholder="AI ile ara: 'siyah elbise', 'elektronik aksesuar'..."
+          placeholder="Ürün ara: 'kafa lambası', 'elektronik aksesuar'..."
           className="w-full rounded-xl border border-zinc-300 py-3 pl-12 pr-4 text-sm focus:border-zinc-900 focus:outline-none"
         />
         {searchQuery && (
@@ -96,19 +146,11 @@ export default function StoreFrontPage() {
         </button>
       </form>
 
-      {isSearching && (
-        <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-zinc-400" />
-          <p className="text-sm text-zinc-500">
-            AI ile arama sonuçları ({products.length} ürün)
-          </p>
-          <button onClick={clearSearch} className="text-xs text-indigo-600 hover:text-indigo-500">Temizle</button>
-        </div>
-      )}
+      <p className="mb-6 text-xs text-zinc-400">{total} ürün</p>
 
       {products.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-zinc-500">{isSearching ? 'Aramanızla eşleşen ürün bulunamadı.' : 'Henüz ürün bulunmuyor.'}</p>
+          <p className="text-zinc-500">{searchQuery ? 'Aramanızla eşleşen ürün bulunamadı.' : 'Henüz ürün bulunmuyor.'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -140,6 +182,13 @@ export default function StoreFrontPage() {
             </Link>
           ))}
         </div>
+      )}
+
+      {(loadingMore || searching) && (
+        <div className="py-8 text-center text-sm text-zinc-400">Yükleniyor...</div>
+      )}
+      {!loadingMore && !searching && products.length > 0 && Math.ceil(total / pageSize) > page && (
+        <div className="py-8 text-center text-sm text-zinc-400">Aşağı kaydırın daha fazla ürün yüklensin...</div>
       )}
     </div>
   )

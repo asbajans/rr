@@ -15,6 +15,19 @@ const router: Router = Router();
 
 const FRIENDLY_ERROR = 'AI servisi şu an kullanılamıyor (Ollama bağlantısı yok). Lütfen daha sonra tekrar deneyin.';
 
+function handleLlmError(res: Response, err: any) {
+  if (err instanceof OllamaUnavailableError) {
+    return res.status(503).json({ error: FRIENDLY_ERROR });
+  }
+  const status = err?.status || err?.response?.status;
+  if (status === 429 || status === 502 || status === 503 || status === 504) {
+    return res.status(status === 429 ? 429 : 503).json({
+      error: 'AI sağlayıcısı şu an yoğun (istek kuyruğu dolu). Lütfen birkaç saniye sonra tekrar deneyin.',
+    });
+  }
+  return res.status(500).json({ error: err.message });
+}
+
 function extractProviderConfig(body: any): ProviderConfig {
   if (body.provider) {
     return {
@@ -219,11 +232,7 @@ KEYWORDS: ...`;
       short_description: metaDescription || generatedDescription.substring(0, 160),
     });
   } catch (err: any) {
-    if (err instanceof OllamaUnavailableError) {
-      res.status(503).json({ error: FRIENDLY_ERROR });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    return handleLlmError(res, err);
   }
 });
 
@@ -274,11 +283,7 @@ Sadece en alakalı 5 ürünün index numaralarını virgülle ayırarak yaz, ba�
     const results = indices.map((i: number) => products[i]);
     res.json({ query, results, count: results.length });
   } catch (err: any) {
-    if (err instanceof OllamaUnavailableError) {
-      res.status(503).json({ error: FRIENDLY_ERROR });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    return handleLlmError(res, err);
   }
 });
 
@@ -316,11 +321,7 @@ router.post('/recommend', async (req: Request, res: Response) => {
     const results = indices.map((i: number) => allProducts[i]);
     res.json({ type: type || 'similar', results, count: results.length });
   } catch (err: any) {
-    if (err instanceof OllamaUnavailableError) {
-      res.status(503).json({ error: FRIENDLY_ERROR });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    return handleLlmError(res, err);
   }
 });
 
@@ -360,11 +361,7 @@ Yardımcı ol:`;
 
     res.json({ reply });
   } catch (err: any) {
-    if (err instanceof OllamaUnavailableError) {
-      res.status(503).json({ error: FRIENDLY_ERROR });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    return handleLlmError(res, err);
   }
 });
 

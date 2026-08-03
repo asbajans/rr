@@ -13,7 +13,39 @@ interface LlmOptions {
   topP?: number;
 }
 
-const DEFAULT_TIMEOUT = 15000;
+const DEFAULT_TIMEOUT = 20000;
+const MAX_RETRIES = 3;
+
+function isRetryableStatus(status: number | undefined): boolean {
+  return status === 429 || status === 502 || status === 503 || status === 504;
+}
+
+async function postWithRetry(url: string, body: any, headers: Record<string, string>): Promise<any> {
+  let lastErr: any = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await axios.post(url, body, { headers, timeout: DEFAULT_TIMEOUT });
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.response?.status;
+      if (attempt < MAX_RETRIES && isRetryableStatus(status)) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+function providerError(err: any): Error {
+  const status = err?.response?.status;
+  const data = err?.response?.data;
+  const msg = (data && (data.error?.message || data.error?.code || data.message)) || err?.message || 'LLM provider error';
+  const e = new Error(`${msg}`);
+  (e as any).status = status;
+  return e;
+}
 
 function buildHeaders(config: ProviderConfig): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -56,15 +88,15 @@ async function callOpenAiCompatible(
 
   if (baseUrl.includes('generativelanguage')) {
     const key = config.apiKey ? `?key=${config.apiKey}` : '';
-    const res = await axios.post(
+    const res = await postWithRetry(
       `${endpoint}/v1beta/models/${config.model}:generateContent${key}`,
       { contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : m.role, parts: [{ text: m.content }] })), generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 2048 } },
-      { timeout: DEFAULT_TIMEOUT }
+      headers
     );
     return res.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
 
-  const res = await axios.post(endpoint, body, { headers, timeout: DEFAULT_TIMEOUT });
+  const res = await postWithRetry(endpoint, body, headers);
   return res.data?.choices?.[0]?.message?.content || '';
 }
 
@@ -91,10 +123,14 @@ export async function callLlm(
   messages: { role: string; content: string }[],
   options?: LlmOptions
 ): Promise<string> {
-  if (isOpenAiCompatible(config.baseUrl)) {
-    return callOpenAiCompatible(config, messages, options);
+  try {
+    if (isOpenAiCompatible(config.baseUrl)) {
+      return await callOpenAiCompatible(config, messages, options);
+    }
+    return await callOllama(config, messages);
+  } catch (err: any) {
+    throw providerError(err);
   }
-  return callOllama(config, messages);
 }
 
 export function buildDefaultConfig(overrides?: Partial<ProviderConfig>): ProviderConfig {
