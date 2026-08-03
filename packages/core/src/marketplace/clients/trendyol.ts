@@ -210,6 +210,23 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     return this.orderRequest<any>({ method: 'GET', url });
   }
 
+  async getPackageStatus(orderNumber: string, packageId?: string): Promise<string | null> {
+    try {
+      const data = await this.orderRequest<any>({
+        method: 'GET',
+        url: `/sellers/${this.config.supplierId}/orders`,
+        params: { orderNumber, size: 10 },
+      });
+      const packages = data.shipmentPackages || data.content || [];
+      const pkg = packageId
+        ? packages.find((p: any) => String(p.id) === String(packageId))
+        : packages[0];
+      return pkg?.status || pkg?.shipmentPackageStatus || null;
+    } catch {
+      return null;
+    }
+  }
+
   async updatePackageStatus(packageId: string, status: string, lines: Array<{ lineId: number; quantity: number }> = []): Promise<any> {
     return this.orderRequest<any>({
       method: 'PUT',

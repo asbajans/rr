@@ -25,6 +25,28 @@ async function notifyIntegrationService(payload: Record<string, any>): Promise<v
   }
 }
 
+export function mapTrendyolStatus(mpStatus: string | null | undefined): string | null {
+  switch (mpStatus) {
+    case 'Awaiting':
+    case 'Created':
+    case 'ReadyToShip':
+      return 'pending';
+    case 'Picking':
+    case 'Invoiced':
+      return 'processing';
+    case 'Shipped':
+      return 'shipped';
+    case 'Delivered':
+      return 'delivered';
+    case 'Cancelled':
+      return 'cancelled';
+    case 'Returned':
+      return 'returned';
+    default:
+      return null;
+  }
+}
+
 export const orderRoutes: Router = Router();
 
 const validate = (req: Request, res: Response, next: Function) => {
@@ -195,16 +217,49 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
     if (!order.parentOrderId) {
       if (order.marketplace === 'trendyol') {
         if (status === 'processing' && oldStatus === 'pending') {
-          notifyIntegrationService({
-            action: 'approve',
-            storeId: store.id,
-            marketplace: order.marketplace,
-            externalId: order.marketplaceOrderId,
-            lineIds: ((order.items as any[]) || [])
-              .map((item: any) => ({ lineId: item.orderLineId, quantity: item.quantity }))
-              .filter((x: any) => x.lineId != null),
-            value: status,
-          });
+          try {
+            const integration = await MarketplaceIntegration.findOne({
+              where: { storeId: store.id, marketplace: 'trendyol', isActive: true },
+            });
+            if (integration) {
+              const mpConfig = getMarketplaceConfig('trendyol', integration);
+              const tyClient = createMarketplaceClient('trendyol', mpConfig);
+              const lines: Array<{ lineId: number; quantity: number }> = ((order.items as any[]) || [])
+                .map((item: any) => ({ lineId: item.orderLineId, quantity: item.quantity }))
+                .filter((x: any) => x.lineId != null);
+              await (tyClient as any).approveOrder(order.marketplaceOrderId, lines);
+
+              const actualMp = await (tyClient as any).getPackageStatus(order.marketplaceOrderNumber, order.marketplaceOrderId);
+              const mapped = mapTrendyolStatus(actualMp);
+              if (mapped && mapped !== order.status) {
+                const prev = order.status;
+                await order.update({ status: mapped });
+                await OrderStatusHistory.create({
+                  dropshippingOrderId: order.id,
+                  fromStatus: prev,
+                  toStatus: mapped,
+                  note: `Synced from Trendyol actual status: ${actualMp}`,
+                });
+                logger.info(`Trendyol order ${order.id} synced to actual status ${actualMp} -> ${mapped}`);
+
+                const subs = await DropshippingOrder.findAll({ where: { parentOrderId: order.id } });
+                for (const sub of subs) {
+                  if (sub.status !== mapped) {
+                    const subOld = sub.status;
+                    await sub.update({ status: mapped });
+                    await OrderStatusHistory.create({
+                      dropshippingOrderId: sub.id,
+                      fromStatus: subOld,
+                      toStatus: mapped,
+                      note: `Synced from parent Trendyol actual status: ${actualMp}`,
+                    });
+                  }
+                }
+              }
+            }
+          } catch (tyErr: any) {
+            logger.error({ err: tyErr.message, orderId: order.id }, 'Failed to approve/sync Trendyol order');
+          }
         }
       } else if (order.marketplace === 'n11') {
         if (status === 'processing' && oldStatus === 'pending') {
