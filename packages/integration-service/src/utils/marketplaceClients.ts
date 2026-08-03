@@ -102,26 +102,44 @@ export class TrendyolClient {
     return data;
   }
 
-  async getOrderLabel(arg: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
+  async getOrderLabel(arg: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string; reason?: string } | null> {
     const options = typeof arg === 'string' ? { packageId: arg } : arg;
+    const packageId = options.packageId;
     const trackingNumber = options.trackingNumber;
+
+    const sellerBase = `https://apigw.trendyol.com/integration/sellers/${this.supplierId}`;
+    const auth = (this.orderClient.defaults.headers.common['Authorization'] as string) || '';
+    const headers = { 'Content-Type': 'application/json', 'User-Agent': this.supplierId, 'Authorization': auth };
 
     if (trackingNumber) {
       try {
-        const { data } = await axios.get(`https://apigw.trendyol.com/integration/sellers/${this.supplierId}/common-label/query`, {
-          params: { id: trackingNumber },
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': this.supplierId,
-            'Authorization': (this.orderClient.defaults.headers.common['Authorization'] as string) || '',
-          },
-          timeout: 30000,
-        });
+        const { data } = await axios.get(`${sellerBase}/common-label/query`, { params: { id: trackingNumber }, headers, timeout: 30000 });
         const labels = data?.data || [];
         if (labels.length > 0 && labels[0]?.label) {
           return { labelUrl: labels[0].label, cargoCompany: '' };
         }
       } catch {}
+    }
+
+    if (packageId) {
+      try {
+        const create = await axios.post(`${sellerBase}/common-labels`, { packageIds: [packageId] }, { headers, timeout: 30000 });
+        const eccode = create.data?.eccode;
+        if (eccode) {
+          try {
+            const zplResp = await axios.get(`${sellerBase}/common-label/${eccode}`, { headers, timeout: 30000, responseType: 'text' });
+            if (typeof zplResp.data === 'string' && zplResp.data.includes('^XA')) {
+              return { labelZpl: zplResp.data };
+            }
+          } catch {}
+        }
+      } catch (createErr: any) {
+        const status = createErr?.response?.status;
+        const body = JSON.stringify(createErr?.response?.data || '');
+        if (status === 401 || status === 556 || body.includes('COMMON_LABEL_NOT_ALLOWED') || body.includes('UNAUTHORIZED')) {
+          return { reason: 'Etiket servisi bu hesap için Trendyol API yetkisi içermiyor. Etiketi Trendyol panelinden indirin.' };
+        }
+      }
     }
 
     return null;

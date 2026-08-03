@@ -440,6 +440,7 @@ orderRoutes.get('/:id/label', authMiddleware, requireStore, [
             labelUrl: label.labelUrl || null,
             labelZpl: label.labelZpl || null,
             cargoCompany: label.cargoCompany || null,
+            reason: label.reason || null,
           });
         }
       }

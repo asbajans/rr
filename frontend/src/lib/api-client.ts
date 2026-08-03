@@ -801,7 +801,7 @@ class ApiClient {
   }
 
   async getOrderLabel(id: number) {
-    return this.get<{ labelUrl: string | null; labelZpl: string | null; cargoCompany: string | null }>(`/api/admin/orders/${id}/label`)
+    return this.get<{ labelUrl: string | null; labelZpl: string | null; cargoCompany: string | null; reason?: string | null }>(`/api/admin/orders/${id}/label`)
   }
 
   getOrderHistory(id: number) {

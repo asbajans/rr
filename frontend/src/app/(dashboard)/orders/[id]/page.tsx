@@ -93,7 +93,9 @@ export default function OrderDetailPage() {
     setLabelLoading(true)
     try {
       const result = await api.getOrderLabel(parseInt(id))
-      if (result.cargoCompany) setCargoCompany(result.cargoCompany)
+      if (result.reason) {
+        setMessage(result.reason)
+      } else if (result.cargoCompany) setCargoCompany(result.cargoCompany)
       if (result.labelZpl) {
         setLabelZpl(result.labelZpl)
         const blob = new Blob([result.labelZpl], { type: 'text/plain' })

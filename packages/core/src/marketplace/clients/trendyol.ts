@@ -264,19 +264,23 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     throw new Error(`Trendyol does not support manual status change to '${status}'. Only approve and cancel are allowed.`);
   }
 
-  async getOrderLabel(arg: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null> {
+  async getOrderLabel(arg: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string; reason?: string } | null> {
     const options = typeof arg === 'string' ? { packageId: arg } : arg;
+    const packageId = options.packageId;
     const trackingNumber = options.trackingNumber;
+
+    const sellerBase = `https://apigw.trendyol.com/integration/sellers/${this.config.supplierId}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': this.config.supplierId,
+      'Authorization': `Basic ${Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64')}`,
+    };
 
     if (trackingNumber) {
       try {
-        const response = await axios.get(`https://apigw.trendyol.com/integration/sellers/${this.config.supplierId}/common-label/query`, {
+        const response = await axios.get(`${sellerBase}/common-label/query`, {
           params: { id: trackingNumber },
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': this.config.supplierId,
-            'Authorization': `Basic ${Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64')}`,
-          },
+          headers,
           timeout: 30000,
         });
         const labels = response.data?.data || [];
@@ -284,6 +288,27 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
           return { labelUrl: labels[0].label, cargoCompany: '' };
         }
       } catch {}
+    }
+
+    if (packageId) {
+      try {
+        const create = await axios.post(`${sellerBase}/common-labels`, { packageIds: [packageId] }, { headers, timeout: 30000 });
+        const eccode = create.data?.eccode;
+        if (eccode) {
+          try {
+            const zplResp = await axios.get(`${sellerBase}/common-label/${eccode}`, { headers, timeout: 30000, responseType: 'text' });
+            if (typeof zplResp.data === 'string' && zplResp.data.includes('^XA')) {
+              return { labelZpl: zplResp.data };
+            }
+          } catch {}
+        }
+      } catch (createErr: any) {
+        const status = createErr?.response?.status;
+        const body = JSON.stringify(createErr?.response?.data || '');
+        if (status === 401 || status === 556 || body.includes('COMMON_LABEL_NOT_ALLOWED') || body.includes('UNAUTHORIZED')) {
+          return { reason: 'Etiket servisi bu hesap için Trendyol API yetkisi içermiyor. Etiketi Trendyol panelinden indirin.' };
+        }
+      }
     }
 
     return null;
