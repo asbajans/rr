@@ -13,10 +13,10 @@ import { callLlm, buildDefaultConfig, ProviderConfig } from '../services/llmProv
 
 const router: Router = Router();
 
-const FRIENDLY_ERROR = 'AI servisi şu an kullanılamıyor (Ollama bağlantısı yok). Lütfen daha sonra tekrar deneyin.';
+const FRIENDLY_ERROR = 'AI sağlayıcısına ulaşılamadı (bağlantı hatası). Lütfen sağlayıcı/base URL ayarlarını kontrol edin veya daha sonra tekrar deneyin.';
 
 function handleLlmError(res: Response, err: any) {
-  if (err instanceof OllamaUnavailableError) {
+  if (err instanceof OllamaUnavailableError || isUnavailableError(err)) {
     return res.status(503).json({ error: FRIENDLY_ERROR });
   }
   const status = err?.status || err?.response?.status;
@@ -26,6 +26,14 @@ function handleLlmError(res: Response, err: any) {
     });
   }
   return res.status(500).json({ error: err.message });
+}
+
+// DNS / connection failures (e.g. "getaddrinfo ENOTFOUND host.docker.internal",
+// ECONNREFUSED) mean the configured provider endpoint is unreachable — surface a
+// friendly message instead of a raw 500.
+function isUnavailableError(err: any): boolean {
+  const code = err?.code || err?.cause?.code;
+  return code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'ETIMEDOUT';
 }
 
 function extractProviderConfig(body: any): ProviderConfig {
@@ -161,7 +169,7 @@ router.post(
         slug: result.seo.slug,
       });
     } catch (err: any) {
-      if (err instanceof OllamaUnavailableError) {
+      if (err instanceof OllamaUnavailableError || isUnavailableError(err)) {
         res.status(503).json({ error: FRIENDLY_ERROR });
         return;
       }
@@ -202,7 +210,7 @@ router.post(
 
       res.json(result);
     } catch (err: any) {
-      if (err instanceof OllamaUnavailableError) {
+      if (err instanceof OllamaUnavailableError || isUnavailableError(err)) {
         res.status(503).json({ error: FRIENDLY_ERROR });
         return;
       }

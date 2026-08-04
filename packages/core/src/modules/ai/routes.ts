@@ -197,6 +197,15 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
     const axios = (await import('axios')).default;
 
     const providerPayload = buildProviderPayload(provider, model, scenario, keys);
+
+    if (!provider || !model) {
+      logger.warn({ scenarioCode }, 'AI scenario has no provider/model configured; refusing proxy');
+      return res.status(422).json({
+        error: 'AI_PROVIDER_NOT_CONFIGURED',
+        message: 'Bu AI senaryosu için sağlayıcı/model atanmamış. Süper admin: AI Senaryoları sayfasından bu senaryoya bir model atayın veya AI Ayarları sayfasından varsayılan sağlayıcı/model seçin.',
+      });
+    }
+
     const body = { ...req.body, ...providerPayload };
 
     const response = await axios.post(`${aiServiceUrl}${path}`, body, { timeout: AI_TIMEOUT_MS });

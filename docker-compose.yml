@@ -120,6 +120,8 @@ services:
       - rahatio
     ports:
       - "3630:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
