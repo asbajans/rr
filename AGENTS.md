@@ -801,6 +801,7 @@ POST   /api/ai/chat                 # Proxy → ai-service
 #### AI Gateway & API Key Yönetimi
 - [x] **Global AI Settings (Super Admin)** — `GET|PUT /api/admin/ai/settings` (Setting modeli `ai` anahtarı): varsayılan provider/model seçimi (senaryoda provider/model yoksa fallback) + sağlayıcı API key deposu (openai/openrouter/nvidia/deepseek/mistral/google; key'ler masked, boş kaydedilerek silinir); frontend `/ai-settings` sayfası + super admin nav
 - [x] **AI Gateway fallback** — `resolveScenarioConfig` senaryoda provider/model yoksa global default'a düşer; `buildProviderPayload` provider.authConfig yoksa global key'i kullanır; hiçbiri yoksa ai-service Ollama default'a düşer
+- [x] **Analyze-product 500 fix (double `/v1`)** — `ai-service/llmProvider.ts`: `callOpenAiCompatible` endpoint'i artık `resolveChatEndpoint()` ile çözer; baseUrl `https://api.openai.com/v1` gibi `/v1` ile bitiyorsa tekrar `/v1` eklenmez (`/v1/chat/completions` → doğru). Scheme yoksa `https://` öneki eklenir, tam `.../v1/chat/completions` girişi de kabul edilir. `providerError` hata mesajına `[status]` öneki eklendi (UI'da gerçek upstream hatası görünür). Ai-providers formu placeholder `https://api.openai.com` yapıldı + `/v1` otomatik eklenir notu.
 - [ ] **Per-Store AI Override (Opsiyonel)** — Mağaza bazında farklı key/model kullanımı
 - [ ] **API Key Gizliliği** — Keyler sadece super admin panelinde, seller panelinde GÖRÜNMEZ (zaten öyle; `stripApiKey` mevcut)
 

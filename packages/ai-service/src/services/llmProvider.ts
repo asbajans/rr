@@ -51,7 +51,7 @@ function providerError(err: any): Error {
   const status = err?.response?.status;
   const data = err?.response?.data;
   const msg = (data && (data.error?.message || data.error?.code || data.message)) || err?.message || 'LLM provider error';
-  const e = new Error(`${msg}`);
+  const e = new Error(status ? `[${status}] ${msg}` : msg);
   (e as any).status = status;
   return e;
 }
@@ -75,6 +75,21 @@ function isOpenAiCompatible(baseUrl: string): boolean {
          u.includes('anthropic') || u.includes('generativelanguage');
 }
 
+/**
+ * Resolve the chat-completions endpoint from a provider base URL.
+ * Handles the common convention where the stored baseUrl may or may not
+ * include the trailing `/v1` (e.g. "https://api.openai.com/v1" vs
+ * "https://api.openai.com") and may already contain the full
+ * `/v1/chat/completions` path.
+ */
+function resolveChatEndpoint(baseUrl: string): string {
+  let base = baseUrl.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(base)) base = `https://${base}`;
+  if (/\/v1\/chat\/completions$/i.test(base)) return base;
+  if (/\/v1$/i.test(base)) return `${base}/chat/completions`;
+  return `${base}/v1/chat/completions`;
+}
+
 function textFromContent(content: string | ChatContentPart[]): string {
   if (typeof content === 'string') return content;
   return content.filter((p) => p.type === 'text').map((p) => (p as any).text).join('\n');
@@ -94,7 +109,7 @@ async function callOpenAiCompatible(
   const baseUrl = config.baseUrl.replace(/\/+$/, '');
   const endpoint = baseUrl.includes('generativelanguage')
     ? baseUrl
-    : `${baseUrl}/v1/chat/completions`;
+    : resolveChatEndpoint(baseUrl);
 
   const body: any = {
     model: config.model,

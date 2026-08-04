@@ -452,8 +452,9 @@ export default function AiProvidersPage() {
                   value={providerForm.baseUrl}
                   onChange={e => setProviderForm({...providerForm, baseUrl: e.target.value})}
                   className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="https://api.openai.com/v1"
+                  placeholder="https://api.openai.com"
                 />
+                <p className="mt-1 text-xs text-zinc-400">Boş bırakılırsa Ollama kullanılır. OpenAI uyumlu servislerde `/v1` otomatik eklenir.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">API Key <span className="text-red-500">*</span></label>
