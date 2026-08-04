@@ -247,7 +247,7 @@ export default function AiCreatorPage() {
       {/* Step 3: Form */}
       {step === 'form' && analysis && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Ürün Bilgilerini Düzenle</h2>
             <button onClick={() => setStep('analyze')} className="text-sm text-indigo-600 hover:underline">← Görsele Geri Dön</button>
           </div>

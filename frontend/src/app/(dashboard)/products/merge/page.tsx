@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
 import { Product } from '@/lib/types'
+import { TableSkeleton, EmptyState } from '@/components/ui/skeleton'
 
 interface DuplicateGroup {
   sku: string
@@ -60,7 +61,7 @@ export default function MergePage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold">SKU Birleştirme</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -76,10 +77,13 @@ export default function MergePage() {
       {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
       {message && <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">{message}</div>}
 
-      {loading && <div className="text-gray-500 text-sm">Yükleniyor…</div>}
+      {loading && <TableSkeleton rows={5} cols={4} />}
 
       {!loading && groups.length === 0 && (
-        <div className="p-12 text-center text-gray-400 text-sm">Tekrarlayan SKU bulunamadı.</div>
+        <EmptyState
+          title="Tekrarlayan SKU bulunamadı"
+          description="Aynı SKU ile birden fazla ürün olduğunda birleştirme önerileri burada görünecek."
+        />
       )}
 
       {!loading && groups.length > 0 && (

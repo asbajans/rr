@@ -6,6 +6,7 @@ import { api } from '@/lib/api-client'
 import type { Page, PageBlock } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { FileText, Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, X } from 'lucide-react'
+import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
 
 let blockIdCounter = 1
 function newBlockId() { return `block_${blockIdCounter++}` }
@@ -407,11 +408,11 @@ export default function PagesPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-zinc-500">Yükleniyor...</div>
+  if (loading) return <div className="p-8"><CardSkeleton count={3} /></div>
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Sayfalar</h1>
           <p className="mt-1 text-sm text-zinc-600">Site sayfalarını blok düzenleyici ile yönet.</p>
@@ -429,9 +430,11 @@ export default function PagesPage() {
 
       <div className="mt-6 space-y-3">
         {pages.length === 0 && (
-          <div className="rounded-xl border border-zinc-200 p-12 text-center text-sm text-zinc-500">
-            Henüz sayfa bulunmuyor.
-          </div>
+          <EmptyState
+            icon={<FileText className="h-10 w-10" />}
+            title="Henüz sayfa bulunmuyor"
+            description="Site için yeni bir sayfa oluşturduğunuzda burada görünecek."
+          />
         )}
         {pages.map((page) => {
           const title = typeof page.title === 'object' ? (page.title as Record<string, string>).tr ?? '' : String(page.title)

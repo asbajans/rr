@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Variation } from '@/lib/types'
 import { Plus, Pencil, Trash2, GripVertical, FolderKanban } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 export default function VariationsPage() {
   const { user } = useAuth()
@@ -96,7 +97,7 @@ export default function VariationsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Varyasyonlar</h1>
           <p className="mt-1 text-sm text-zinc-600">Ürün varyasyonlarını (renk, beden, vb.) yönet.</p>
@@ -108,7 +109,7 @@ export default function VariationsPage() {
 
       {error && <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
 
-      {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-8"><CardSkeleton count={3} /></div>}
 
       {!loading && variations.length === 0 && (
         <div className="mt-16 text-center text-sm text-zinc-500">

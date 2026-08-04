@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { B2bProductItem } from '@/lib/types'
 import { Search, Package, Store, Tag, Percent, PlusCircle, Eye, CheckCircle, Clock, XCircle, X } from 'lucide-react'
+import { CardSkeleton, EmptyState, TableSkeleton } from '@/components/ui/skeleton'
 
 type Tab = 'discover' | 'listed'
 
@@ -100,7 +101,7 @@ export default function B2bPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">B2B Ürün Keşfet</h1>
           <p className="mt-1 text-sm text-zinc-600">Diğer satıcıların B2B'ye açık ürünlerini keşfet ve mağazana ekle.</p>
@@ -138,10 +139,14 @@ export default function B2bPage() {
             />
           </div>
 
-          {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+          {loading && <div className="mt-8"><CardSkeleton count={4} /></div>}
 
           {!loading && products.length === 0 && (
-            <div className="mt-16 text-center text-sm text-zinc-500">B2B'ye açık ürün bulunamadı.</div>
+            <EmptyState
+              icon={<Package className="h-10 w-10" />}
+              title="B2B'ye açık ürün bulunamadı"
+              description="Satıcıların B2B'ye açtığı ürünler burada görünecek."
+            />
           )}
 
           {!loading && products.length > 0 && (
@@ -351,9 +356,13 @@ export default function B2bPage() {
 
       {tab === 'listed' && (
         <div className="mt-6">
-          {listedLoading && <p className="text-sm text-zinc-500">Yükleniyor...</p>}
+          {listedLoading && <div className="mt-4"><TableSkeleton rows={5} cols={3} /></div>}
           {!listedLoading && listedProducts.length === 0 && (
-            <div className="mt-8 text-center text-sm text-zinc-500">Henüz B2B ürün eklenmemiş.</div>
+            <EmptyState
+              icon={<Package className="h-10 w-10" />}
+              title="Henüz B2B ürün eklenmemiş"
+              description="B2B Keşfet sekmesinden bir ürünü listeye eklediğinizde burada görünecek."
+            />
           )}
           {!listedLoading && listedProducts.length > 0 && (
             <div className="overflow-hidden rounded-xl border border-zinc-200">

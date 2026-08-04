@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { ShoppingBag, Store, Download, ExternalLink } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 const MARKETPLACE_LOGOS: Record<string, string> = {
   trendyol: 'Trendyol',
@@ -175,7 +176,7 @@ export default function IntegrationsPage() {
         <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{message}</div>
       )}
 
-      {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-8"><CardSkeleton count={4} /></div>}
 
       {!loading && (
         <div className="mt-6 space-y-4">

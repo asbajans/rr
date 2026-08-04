@@ -170,6 +170,47 @@ router.post(
   }
 );
 
+// Agentic listing: image → vision specs → full publish-ready draft (title/desc/attrs/price)
+router.post(
+  '/agentic-listing',
+  upload.single('image'),
+  async (req: Request, res: Response) => {
+    let filePath: string;
+    try {
+      filePath = await resolveSingleFile(req, path.resolve('uploads'));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+      return;
+    }
+
+    try {
+      const providerConfig = extractProviderConfig(req.body);
+      const { generateAgenticListing } = await import('../services/agenticListing.js');
+
+      const result = await generateAgenticListing(
+        filePath,
+        {
+          category: (req.body.category || 'diger') as any,
+          shortDescription: req.body.short_description,
+          keywords: req.body.keywords,
+          notes: req.body.notes,
+          suggestPrice: req.body.suggest_price !== false,
+          targetMarketplaces: req.body.target_marketplaces,
+        },
+        providerConfig
+      );
+
+      res.json(result);
+    } catch (err: any) {
+      if (err instanceof OllamaUnavailableError) {
+        res.status(503).json({ error: FRIENDLY_ERROR });
+        return;
+      }
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // Generate product description from title/category/attributes
 router.post('/generate-description', async (req: Request, res: Response) => {
   const { title, category, attributes, keywords } = req.body;

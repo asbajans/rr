@@ -6,6 +6,7 @@ import type { StoreMenu, Page } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Plus, Trash2, Save, Edit, ChevronUp, ChevronDown, FileText, Link as LinkIcon, X, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 type MenuItem = {
   id: string
@@ -261,7 +262,7 @@ export default function MenusPage() {
     )
   }
 
-  if (loading) return <div className="p-8 text-center text-zinc-500">Yükleniyor...</div>
+  if (loading) return <div className="p-8"><CardSkeleton count={3} /></div>
 
   return (
     <div className="p-6 space-y-6">

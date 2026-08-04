@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { MapPin, Plus, Pencil, Trash2, Clock } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
+import { CardSkeleton } from '@/components/ui/skeleton'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -116,7 +117,7 @@ export default function LocationsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Mağaza Konumları</h1>
           <p className="mt-1 text-sm text-zinc-600">Mağaza lokasyonlarını harita üzerinde yönet.</p>
@@ -129,7 +130,7 @@ export default function LocationsPage() {
       {message && <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{message}</div>}
 
       {loading ? (
-        <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>
+        <div className="mt-8"><CardSkeleton count={3} /></div>
       ) : (
         <div className="mt-6 space-y-4">
           {/* Map Overview */}

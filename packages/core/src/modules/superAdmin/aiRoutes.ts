@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import { AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog } from '../../models/AiModels.js';
+import { Setting } from '../../models/Setting.model.js';
 import { authMiddleware, requireRole } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 import { Op } from 'sequelize';
@@ -19,6 +20,90 @@ const validate = (req: Request, res: Response, next: Function) => {
 superAdminAiRoutes.use(authMiddleware);
 
 const superAdminOnly = requireRole('superadmin');
+
+const KNOWN_PROVIDER_CODES = ['openai', 'openrouter', 'nvidia', 'deepseek', 'mistral', 'google', 'ollama'];
+
+async function getAiSettings(): Promise<any> {
+  const row = await Setting.findByPk('ai');
+  return row?.value || {};
+}
+
+// ============ AI GLOBAL SETTINGS ============
+
+superAdminAiRoutes.get('/ai/settings', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const val = await getAiSettings();
+    const keys: Record<string, boolean> = {};
+    for (const code of KNOWN_PROVIDER_CODES) {
+      keys[code] = Boolean(val.keys?.[code]);
+    }
+    for (const k of Object.keys(val.keys || {})) {
+      keys[k] = true;
+    }
+    res.json({
+      defaultProviderId: val.defaultProviderId || null,
+      defaultModelId: val.defaultModelId || null,
+      keys,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get AI settings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+superAdminAiRoutes.put('/ai/settings', superAdminOnly, [
+  body('defaultProviderId').optional({ values: 'falsy' }).isInt(),
+  body('defaultModelId').optional({ values: 'falsy' }).isInt(),
+  body('keys').optional().isObject(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const current = await getAiSettings();
+    const next = { ...current };
+
+    if (req.body.defaultProviderId !== undefined) {
+      next.defaultProviderId = req.body.defaultProviderId ? Number(req.body.defaultProviderId) : null;
+    }
+    if (req.body.defaultModelId !== undefined) {
+      next.defaultModelId = req.body.defaultModelId ? Number(req.body.defaultModelId) : null;
+    }
+
+    if (req.body.keys && typeof req.body.keys === 'object') {
+      next.keys = { ...(current.keys || {}) };
+      for (const [k, v] of Object.entries(req.body.keys)) {
+        if (typeof v === 'string' && v.trim()) {
+          next.keys[k] = v.trim();
+        } else if (v === '') {
+          delete next.keys[k];
+        }
+      }
+    }
+
+    const row = await Setting.findByPk('ai');
+    if (row) {
+      await row.update({ value: next });
+    } else {
+      await Setting.create({ key: 'ai', value: next });
+    }
+
+    const keys: Record<string, boolean> = {};
+    for (const code of KNOWN_PROVIDER_CODES) {
+      keys[code] = Boolean(next.keys?.[code]);
+    }
+    for (const k of Object.keys(next.keys || {})) {
+      keys[k] = true;
+    }
+
+    logger.info('AI global settings updated');
+    res.json({
+      defaultProviderId: next.defaultProviderId || null,
+      defaultModelId: next.defaultModelId || null,
+      keys,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Update AI settings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 function stripApiKey(provider: any): any {
   const data = provider.toJSON ? provider.toJSON() : { ...provider };
@@ -53,14 +138,9 @@ superAdminAiRoutes.post('/ai/providers', superAdminOnly, [
   body('baseUrl').optional({ values: 'falsy' }).isString(),
   body('authConfig').optional().isObject(),
   body('isActive').optional().isBoolean(),
-  body('isDefault').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {
-    const { code, name, type, baseUrl, authConfig, isActive, isDefault } = req.body;
-
-    if (isDefault) {
-      await AiProvider.update({ isDefault: false }, { where: { type } });
-    }
+    const { code, name, type, baseUrl, authConfig, isActive } = req.body;
 
     const provider = await AiProvider.create({
       code,
@@ -69,7 +149,6 @@ superAdminAiRoutes.post('/ai/providers', superAdminOnly, [
       baseUrl,
       authConfig,
       isActive: isActive !== false,
-      isDefault: isDefault === true,
     });
 
     // Strip API key from response
@@ -92,15 +171,10 @@ superAdminAiRoutes.put('/ai/providers/:id', superAdminOnly, [
   body('baseUrl').optional({ values: 'falsy' }).isString(),
   body('authConfig').optional().isObject(),
   body('isActive').optional().isBoolean(),
-  body('isDefault').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const provider = await AiProvider.findByPk(req.params.id);
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
-
-    if (req.body.isDefault === true) {
-      await AiProvider.update({ isDefault: false }, { where: { type: provider.type } });
-    }
 
     await provider.update(req.body);
     logger.info(`AI Provider updated: ${provider.code}`);
@@ -132,7 +206,7 @@ superAdminAiRoutes.get('/ai/models', superAdminOnly, async (req: Request, res: R
   try {
     const models = await AiModel.findAll({
       include: [{ model: AiProvider, as: 'provider' }],
-      order: [['providerId', 'ASC'], ['modelCode', 'ASC']],
+      order: [['providerId', 'ASC'], ['displayName', 'ASC']],
     });
     res.json({ models });
   } catch (error) {
@@ -143,14 +217,23 @@ superAdminAiRoutes.get('/ai/models', superAdminOnly, async (req: Request, res: R
 
 superAdminAiRoutes.post('/ai/models', superAdminOnly, [
   body('providerId').isInt(),
-  body('modelCode').isString().isLength({ min: 2, max: 100 }),
+  body('modelId').isString().isLength({ min: 2, max: 100 }),
   body('displayName').isString().isLength({ min: 2, max: 100 }),
-  body('capability').optional().isIn(['chat', 'vision', 'embedding', 'image', 'diffusion']),
-  body('parameters').optional().isObject(),
+  body('modality').optional().isIn(['chat', 'vision', 'embedding', 'image', 'diffusion', 'multimodal']),
+  body('maxTokens').optional().isInt({ min: 1 }),
+  body('pricing').optional().isObject(),
   body('isActive').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {
-    const model = await AiModel.create(req.body);
+    const model = await AiModel.create({
+      providerId: req.body.providerId,
+      modelId: req.body.modelId,
+      displayName: req.body.displayName,
+      modality: req.body.modality,
+      maxTokens: req.body.maxTokens,
+      pricing: req.body.pricing,
+      isActive: req.body.isActive !== false,
+    });
     logger.info(`AI Model created: ${model.modelId}`);
     res.status(201).json({ model });
   } catch (error) {
@@ -161,9 +244,11 @@ superAdminAiRoutes.post('/ai/models', superAdminOnly, [
 
 superAdminAiRoutes.put('/ai/models/:id', superAdminOnly, [
   param('id').isInt(),
+  body('modelId').optional().isString().isLength({ min: 2, max: 100 }),
   body('displayName').optional().isString().isLength({ min: 2, max: 100 }),
-  body('capability').optional().isIn(['chat', 'vision', 'embedding', 'image', 'diffusion']),
-  body('parameters').optional().isObject(),
+  body('modality').optional().isIn(['chat', 'vision', 'embedding', 'image', 'diffusion', 'multimodal']),
+  body('maxTokens').optional().isInt({ min: 1 }),
+  body('pricing').optional().isObject(),
   body('isActive').optional().isBoolean(),
 ], validate, async (req: Request, res: Response) => {
   try {

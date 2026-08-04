@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { DropshippingOrderDetail } from '@/lib/types'
 import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock, ThumbsUp, Barcode, ChevronDown, ChevronUp } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: 'Beklemede', icon: <Clock className="h-5 w-5" />, color: 'bg-yellow-100 text-yellow-700' },
@@ -138,7 +139,7 @@ export default function OrderDetailPage() {
   }
 
   if (!user) return null
-  if (loading) return <div className="p-8 text-sm text-zinc-500">Yükleniyor...</div>
+  if (loading) return <div className="p-8"><CardSkeleton count={3} /></div>
   if (error) return <div className="p-8 text-sm text-red-600">{error}</div>
   if (!order) return null
 

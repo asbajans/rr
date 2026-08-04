@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import type { Brand } from '@/lib/types'
 import { RefreshCw, Tag, Download, Settings, ShoppingBag, Store, Package, ArrowLeft, ExternalLink, Globe } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 type TabKey = 'brands' | 'import' | 'categories' | 'config'
 
@@ -181,7 +182,7 @@ export default function MarketplaceDetailPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> Tüm Pazaryerleri
       </button>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 text-xs font-bold uppercase">
             {mp.slice(0, 3)}
@@ -246,10 +247,10 @@ export default function MarketplaceDetailPage() {
         <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700 whitespace-pre-wrap">{message}</div>
       )}
 
-      <div className="mt-6 flex gap-1 border-b border-zinc-200">
+      <div className="mt-6 flex gap-1 overflow-x-auto border-b border-zinc-200">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === t.key ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
             }`}>
             {t.label}
@@ -257,7 +258,7 @@ export default function MarketplaceDetailPage() {
         ))}
       </div>
 
-      {loading && <p className="mt-6 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-6"><CardSkeleton count={3} /></div>}
 
       {!loading && tab === 'brands' && (
         <div className="mt-4">

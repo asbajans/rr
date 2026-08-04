@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { ExternalFeed } from '@/lib/types'
 import { Rss, Plus, Play, Trash2, ExternalLink, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
 
 export default function FeedsPage() {
   const { user } = useAuth()
@@ -64,7 +65,7 @@ export default function FeedsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">XML Feed Yönetimi</h1>
           <p className="mt-1 text-sm text-zinc-600">Dış kaynaklardan (XML/CSV/XLSX/JSON) ürünleri içe aktar.</p>
@@ -76,14 +77,15 @@ export default function FeedsPage() {
 
       {error && <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
 
-      {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-8"><CardSkeleton count={3} /></div>}
 
       {!loading && feeds.length === 0 && (
-        <div className="mt-16 text-center text-sm text-zinc-500">
-          <Rss className="mx-auto h-10 w-10 text-zinc-300" />
-          <p className="mt-4">Henüz feed eklenmemiş.</p>
-          <Link href="/feeds/new" className="mt-2 inline-block text-indigo-600 hover:underline">İlk feed'i ekle</Link>
-        </div>
+        <EmptyState
+          icon={<Rss className="h-10 w-10" />}
+          title="Henüz feed eklenmemiş"
+          description="XML/JSON/CSV feed içe aktarımı ile ürünlerini otomatik senkronize edebilirsin."
+          action={<Link href="/feeds/new" className="text-sm text-indigo-600 hover:underline">İlk feed'i ekle</Link>}
+        />
       )}
 
       {!loading && feeds.length > 0 && (

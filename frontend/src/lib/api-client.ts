@@ -902,8 +902,32 @@ class ApiClient {
     }>(`/api/ai/analyze-product`, { imageUrl })
   }
 
-  generateDescription(data: { title: string; category: string; attributes?: Record<string, any>; keywords?: string[] }) {
-    return this.post<{ description: string; title: string; keywords: string[]; slug: string }>(`/api/ai/generate-description`, data)
+  async agenticListing(data: {
+    imageUrl: string
+    category?: string
+    short_description?: string
+    keywords?: string
+    notes?: string
+    suggest_price?: boolean
+    target_marketplaces?: string[]
+  }) {
+    return this.post<{
+      specs: { material: string; color: string; type: string; style: string; pattern?: string; brand?: string; category: string }
+      title: string
+      description: string
+      short_description: string
+      meta_title: string
+      meta_description: string
+      keywords: string[]
+      slug: string
+      category: string
+      attributes: Record<string, string>
+      bullet_points: string[]
+      price_suggestion: { min: number; max: number; currency: string; rationale: string } | null
+    }>(`/api/ai/agentic-listing`, data)
+  }
+
+  generateDescription(data: { title: string; category: string; attributes?: Record<string, any>; keywords?: string[] }) {    return this.post<{ description: string; title: string; keywords: string[]; slug: string }>(`/api/ai/generate-description`, data)
   }
 
   chat(message: string, history?: { role: string; content: string }[], storeInfo?: Record<string, string>) {
@@ -1393,7 +1417,7 @@ class ApiClient {
     return this.get<{ providers: any[] }>('/api/admin/ai/providers')
   }
 
-  createAiProvider(data: { code: string; name: string; type: string; baseUrl?: string; authConfig?: any; isActive?: boolean; isDefault?: boolean }) {
+  createAiProvider(data: { code: string; name: string; type: string; baseUrl?: string; authConfig?: any; isActive?: boolean }) {
     return this.post<{ provider: any }>('/api/admin/ai/providers', data)
   }
 
@@ -1410,7 +1434,7 @@ class ApiClient {
     return this.get<{ models: any[] }>('/api/admin/ai/models')
   }
 
-  createAiModel(data: { providerId: number; modelCode: string; displayName: string; capability?: string; parameters?: any; isActive?: boolean }) {
+  createAiModel(data: { providerId: number; modelId: string; displayName: string; modality?: string; maxTokens?: number; pricing?: any; isActive?: boolean }) {
     return this.post<{ model: any }>('/api/admin/ai/models', data)
   }
 
@@ -1442,6 +1466,14 @@ class ApiClient {
   // Super Admin - AI Rate Limits
   getAiRateLimits() {
     return this.get<{ limits: any[] }>('/api/admin/ai/rate-limits')
+  }
+
+  getAiSettings() {
+    return this.get<{ defaultProviderId: number | null; defaultModelId: number | null; keys: Record<string, boolean> }>('/api/admin/ai/settings')
+  }
+
+  updateAiSettings(data: { defaultProviderId?: number | null; defaultModelId?: number | null; keys?: Record<string, string> }) {
+    return this.put<{ defaultProviderId: number | null; defaultModelId: number | null; keys: Record<string, boolean> }>('/api/admin/ai/settings', data)
   }
 
   createAiRateLimit(data: { providerId: number; scope: string; maxRequests: number; isActive?: boolean }) {

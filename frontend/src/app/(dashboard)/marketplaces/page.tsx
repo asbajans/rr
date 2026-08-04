@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import Link from 'next/link'
 import { ShoppingBag, Store, Globe, Box, Tag, RefreshCw, ChevronRight, ExternalLink } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 const MARKETPLACE_ICONS: Record<string, string> = {
   trendyol: 'Trendyol',
@@ -54,7 +55,7 @@ export default function MarketplacesPage() {
       <h1 className="text-2xl font-bold text-zinc-900">Pazaryerleri</h1>
       <p className="mt-1 text-sm text-zinc-600">Tüm pazaryeri entegrasyonlarını yönetin.</p>
 
-      {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-8"><CardSkeleton count={4} /></div>}
 
       {!loading && (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

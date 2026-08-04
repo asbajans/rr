@@ -36,6 +36,7 @@ export const es: Record<string, string> = {
   superProviders: 'Proveedores IA',
   superScenarios: 'Escenarios IA',
   superRateLimits: 'Límites IA',
+  superAiSettings: 'Ajustes globales IA',
 
   billingTitle: 'Plan',
   billingSubtitle: 'Gestiona tu suscripción y créditos IA.',

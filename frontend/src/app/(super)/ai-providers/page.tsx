@@ -13,16 +13,16 @@ type Provider = {
   baseUrl?: string
   authConfig?: any
   isActive: boolean
-  isDefault: boolean
 }
 
 type Model = {
   id: number
   providerId: number
-  modelCode: string
+  modelId: string
   displayName: string
-  capability?: string
-  parameters?: any
+  modality?: string
+  maxTokens?: number
+  pricing?: any
   isActive: boolean
   provider?: { id: number; code: string; name: string }
 }
@@ -46,16 +46,16 @@ export default function AiProvidersPage() {
     headerName: '',
     authConfig: {} as Record<string, string>,
     isActive: true,
-    isDefault: false,
   })
   const [showModelForm, setShowModelForm] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [modelForm, setModelForm] = useState({
     providerId: 0,
-    modelCode: '',
+    modelId: '',
     displayName: '',
-    capability: 'chat',
-    parameters: {},
+    modality: 'chat',
+    maxTokens: 4096,
+    pricing: {},
     isActive: true,
   })
 
@@ -106,7 +106,6 @@ export default function AiProvidersPage() {
       headerName: '',
       authConfig: {},
       isActive: true,
-      isDefault: false,
     })
     setEditingProvider(null)
     setShowProviderForm(false)
@@ -115,10 +114,11 @@ export default function AiProvidersPage() {
   function resetModelForm() {
     setModelForm({
       providerId: providers[0]?.id || 0,
-      modelCode: '',
+      modelId: '',
       displayName: '',
-      capability: 'chat',
-      parameters: {},
+      modality: 'chat',
+      maxTokens: 4096,
+      pricing: {},
       isActive: true,
     })
     setEditingModel(null)
@@ -144,7 +144,6 @@ export default function AiProvidersPage() {
       type: providerForm.type,
       baseUrl: providerForm.baseUrl || '',
       isActive: providerForm.isActive,
-      isDefault: providerForm.isDefault,
     }
     if (Object.keys(authConfig).length > 0) {
       payload.authConfig = authConfig
@@ -179,7 +178,7 @@ export default function AiProvidersPage() {
   }
 
   async function saveModel() {
-    if (!modelForm.modelCode || !modelForm.displayName) {
+    if (!modelForm.modelId || !modelForm.displayName) {
       setMessage('Model kodu ve görünen isim zorunlu')
       return
     }
@@ -253,9 +252,6 @@ export default function AiProvidersPage() {
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
                           {typeLabels[provider.type] || provider.type}
                         </span>
-                        {provider.isDefault && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Varsayılan</span>
-                        )}
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                           provider.isActive ? 'bg-green-50 text-green-700' : 'bg-zinc-50 text-zinc-600'
                         }`}>
@@ -288,7 +284,6 @@ export default function AiProvidersPage() {
                           headerName: cfg.headerName || '',
                           authConfig: cfg,
                           isActive: provider.isActive,
-                          isDefault: provider.isDefault,
                         });
                         setShowProviderForm(true);
                       }}
@@ -334,15 +329,16 @@ export default function AiProvidersPage() {
                         <tbody className="divide-y divide-zinc-100">
                           {providerModels.map((model) => (
                             <tr key={model.id} className="hover:bg-zinc-50">
-                              <td className="py-3 font-mono text-zinc-900">{model.modelCode}</td>
+                              <td className="py-3 font-mono text-zinc-900">{model.modelId}</td>
                               <td className="py-3 text-zinc-900">{model.displayName}</td>
                               <td className="py-3">
                                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700">
-                                  {model.capability || '—'}
+                                  {model.modality || '—'}
                                 </span>
                               </td>
                               <td className="py-3 text-zinc-500 font-mono text-xs">
-                                {model.parameters ? JSON.stringify(model.parameters).substring(0, 40) + (JSON.stringify(model.parameters).length > 40 ? '...' : '') : '—'}
+                                {model.maxTokens ? `max_tokens: ${model.maxTokens}` : '—'}
+                                {model.pricing ? ` · ${JSON.stringify(model.pricing).substring(0, 40)}${JSON.stringify(model.pricing).length > 40 ? '...' : ''}` : ''}
                               </td>
                               <td className="py-3">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -354,7 +350,15 @@ export default function AiProvidersPage() {
                               <td className="py-3">
                                 <div className="flex items-center gap-1">
                                   <button
-                                    onClick={() => { setEditingModel(model); setModelForm({...model, capability: model.capability || 'chat', parameters: model.parameters || {}}); setShowModelForm(true); }}
+                                    onClick={() => { setEditingModel(model); setModelForm({
+                                      providerId: model.providerId,
+                                      modelId: model.modelId,
+                                      displayName: model.displayName,
+                                      modality: model.modality || 'chat',
+                                      maxTokens: model.maxTokens || 4096,
+                                      pricing: model.pricing || {},
+                                      isActive: model.isActive,
+                                    }); setShowModelForm(true); }}
                                     className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100"
                                   >
                                     <Edit className="h-3.5 w-3.5" />
@@ -506,15 +510,6 @@ export default function AiProvidersPage() {
                   />
                   <span className="text-sm text-zinc-700">Aktif</span>
                 </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={providerForm.isDefault}
-                    onChange={e => setProviderForm({...providerForm, isDefault: e.target.checked})}
-                    className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-zinc-700">Bu tür için varsayılan olsun</span>
-                </label>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-zinc-100">
                 <button onClick={resetProviderForm} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
@@ -556,8 +551,8 @@ export default function AiProvidersPage() {
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 mb-1">Model Kodu <span className="text-red-500">*</span></label>
                   <input
-                    value={modelForm.modelCode}
-                    onChange={e => setModelForm({...modelForm, modelCode: e.target.value})}
+                    value={modelForm.modelId}
+                    onChange={e => setModelForm({...modelForm, modelId: e.target.value})}
                     className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     placeholder="gpt-4o"
                   />
@@ -575,8 +570,8 @@ export default function AiProvidersPage() {
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">Yetenek</label>
                 <select
-                  value={modelForm.capability}
-                  onChange={e => setModelForm({...modelForm, capability: e.target.value})}
+                  value={modelForm.modality}
+                  onChange={e => setModelForm({...modelForm, modality: e.target.value})}
                   className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="chat">Chat</option>
@@ -584,21 +579,35 @@ export default function AiProvidersPage() {
                   <option value="embedding">Embedding</option>
                   <option value="image">Image Generation</option>
                   <option value="diffusion">Diffusion</option>
+                  <option value="multimodal">Multimodal</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Parametreler (JSON)</label>
-                <textarea
-                  value={JSON.stringify(modelForm.parameters || {}, null, 2)}
-                  onChange={e => {
-                    try {
-                      setModelForm({...modelForm, parameters: JSON.parse(e.target.value)})
-                    } catch {}
-                  }}
-                  rows={3}
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder='{"temperature": 0.7, "max_tokens": 2000}'
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">Max Tokens</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={modelForm.maxTokens}
+                    onChange={e => setModelForm({...modelForm, maxTokens: Number(e.target.value)})}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="4096"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">Fiyatlandırma (JSON)</label>
+                  <textarea
+                    value={JSON.stringify(modelForm.pricing || {}, null, 2)}
+                    onChange={e => {
+                      try {
+                        setModelForm({...modelForm, pricing: JSON.parse(e.target.value)})
+                      } catch {}
+                    }}
+                    rows={3}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder='{"input": 0.001, "output": 0.002, "currency": "USD"}'
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-2">

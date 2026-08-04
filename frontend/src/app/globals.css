@@ -105,6 +105,24 @@ select {
   background-repeat: no-repeat;
   background-size: 1.5em 1.5em;
   padding-right: 2.5rem;
+  color-scheme: light;
+}
+
+/* Dark surfaces: native dropdown options inherit the select color, so without a dark
+   color-scheme Chrome renders white text on a white popup (white-on-white bug). */
+select[class*="bg-zinc-700"],
+select[class*="bg-zinc-800"],
+select[class*="bg-zinc-900"],
+select[class*="bg-neutral-700"],
+select[class*="bg-neutral-800"],
+select[class*="bg-neutral-900"],
+select[class*="bg-slate-700"],
+select[class*="bg-slate-800"],
+select[class*="bg-slate-900"],
+select[class*="bg-gray-700"],
+select[class*="bg-gray-800"],
+select[class*="bg-gray-900"] {
+  color-scheme: dark;
 }
 
 /* Custom scrollbar */
@@ -129,6 +147,31 @@ select {
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: #d4d4d8 transparent;
+}
+
+/* Firefox named scrollbar (Chrome/Edge handled above); consistent thin, rounded thumb */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+/* Text selection — brand-tinted */
+::selection {
+  background: color-mix(in srgb, #6366f1 18%, transparent);
+  color: #18181b;
+}
+
+/* Placeholder consistency across the dashboard shell */
+input::placeholder,
+textarea::placeholder {
+  color: #a1a1aa;
+  opacity: 1;
+}
+
+/* Disabled controls affordance */
+button:disabled,
+button[disabled] {
+  cursor: not-allowed;
 }
 
 /* Table styles */
@@ -170,6 +213,25 @@ tr:hover td {
 .card-hover:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
+}
+
+/* Shared card surface (dashboard) — consistent border/radius/elevation token */
+.card {
+  background-color: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Scrollable table wrapper for small screens */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll > table {
+  min-width: 720px;
 }
 
 /* Badge base */

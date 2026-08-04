@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { B2bRequestItem } from '@/lib/types'
 import { CheckCircle, Clock, XCircle, Package, Store, ArrowLeftRight, Check, X } from 'lucide-react'
+import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
 
 type Tab = 'incoming' | 'outgoing'
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
@@ -53,7 +54,7 @@ export default function B2bRequestsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">B2B Talepler</h1>
           <p className="mt-1 text-sm text-zinc-600">Gelen ve giden B2B taleplerini yönet.</p>
@@ -94,10 +95,14 @@ export default function B2bRequestsPage() {
         ))}
       </div>
 
-      {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-8"><CardSkeleton count={3} /></div>}
 
       {!loading && requests.length === 0 && (
-        <div className="mt-16 text-center text-sm text-zinc-500">Henüz talep bulunmuyor.</div>
+        <EmptyState
+          icon={<ArrowLeftRight className="h-10 w-10" />}
+          title="Henüz talep bulunmuyor"
+          description="B2B ürünleri için gelen ve giden talepler burada görünecek."
+        />
       )}
 
       {!loading && requests.length > 0 && (

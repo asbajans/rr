@@ -65,13 +65,35 @@ async function logAiUsage(
   });
 }
 
+async function getGlobalAiSettings(): Promise<{
+  defaultProviderId?: number;
+  defaultModelId?: number;
+  keys: Record<string, string>;
+}> {
+  try {
+    const Setting = (await import('../../models/Setting.model.js')).Setting;
+    const row = await Setting.findByPk('ai');
+    const val = row?.value || {};
+    return {
+      defaultProviderId: val.defaultProviderId || undefined,
+      defaultModelId: val.defaultModelId || undefined,
+      keys: val.keys || {},
+    };
+  } catch (err) {
+    logger.warn({ err }, 'Global AI settings lookup failed');
+    return { keys: {} };
+  }
+}
+
 async function resolveScenarioConfig(scenarioCode: string): Promise<{
   provider: any | null;
   model: any | null;
   scenario: any | null;
   parameters: any;
   costCredits: number;
+  keys: Record<string, string>;
 }> {
+  const defaultCost = scenarioCode === 'chat' ? 1 : 3;
   try {
     const scenario = await AiScenario.findOne({
       where: { code: scenarioCode, isActive: true },
@@ -81,24 +103,43 @@ async function resolveScenarioConfig(scenarioCode: string): Promise<{
       ],
     });
 
+    let provider = scenario?.provider || null;
+    let model = scenario?.model || null;
+
+    const globals = await getGlobalAiSettings();
+
+    // Fallback: scenario has no provider/model → use global defaults
+    if ((!provider || !model) && (globals.defaultModelId || globals.defaultProviderId)) {
+      if (!model && globals.defaultModelId) {
+        model = await AiModel.findByPk(globals.defaultModelId, {
+          include: [{ model: AiProvider, as: 'provider' }],
+        });
+      }
+      if (!provider && model?.provider) provider = model.provider;
+      if (!provider && globals.defaultProviderId) {
+        provider = await AiProvider.findByPk(globals.defaultProviderId);
+      }
+    }
+
     if (!scenario) {
-      return { provider: null, model: null, scenario: null, parameters: {}, costCredits: scenarioCode === 'chat' ? 1 : 3 };
+      return { provider, model, scenario: null, parameters: {}, costCredits: defaultCost, keys: globals.keys };
     }
 
     return {
-      provider: scenario.provider || null,
-      model: scenario.model || null,
+      provider,
+      model,
       scenario,
       parameters: scenario.parameters || {},
-      costCredits: scenario.costCredits,
+      costCredits: scenario.costCredits ?? defaultCost,
+      keys: globals.keys,
     };
   } catch (err) {
     logger.warn({ err, scenarioCode }, 'Scenario config lookup failed, using defaults');
-    return { provider: null, model: null, scenario: null, parameters: {}, costCredits: scenarioCode === 'chat' ? 1 : 3 };
+    return { provider: null, model: null, scenario: null, parameters: {}, costCredits: defaultCost, keys: {} };
   }
 }
 
-function buildProviderPayload(provider: any, model: any, scenario: any) {
+function buildProviderPayload(provider: any, model: any, scenario: any, globalKeys: Record<string, string> = {}) {
   if (!provider || !model) return {};
 
   let apiKey = '';
@@ -109,6 +150,9 @@ function buildProviderPayload(provider: any, model: any, scenario: any) {
     } else if (ac.apiKeyEnv) {
       apiKey = process.env[ac.apiKeyEnv] || '';
     }
+  }
+  if (!apiKey && globalKeys[provider.code]) {
+    apiKey = globalKeys[provider.code];
   }
 
   return {
@@ -126,14 +170,14 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
   const user = (req as any).user;
   const store = (req as any).store;
 
-  const { provider, model, scenario, costCredits } = await resolveScenarioConfig(scenarioCode);
+  const { provider, model, scenario, costCredits, keys } = await resolveScenarioConfig(scenarioCode);
   let credits = costCredits || defaultCredits;
 
   // Per-plan credit cost override (modules[key].credit_cost)
   const plan = await getPlanForStore(store);
-  const moduleKey = scenarioCode === 'analyze-product' || scenarioCode === 'generate-description'
+  const moduleKey = scenarioCode === 'analyze_product' || scenarioCode === 'generate_description' || scenarioCode === 'agentic_listing'
     ? 'ai_product_create'
-    : scenarioCode === 'process-image' ? 'ai_image_generate' : null;
+    : scenarioCode === 'process_image' || scenarioCode === 'generate_image' ? 'ai_image_generate' : null;
   if (plan && moduleKey) {
     const override = getModuleCreditCost(plan, moduleKey);
     if (override != null) credits = override;
@@ -152,7 +196,7 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
 
-    const providerPayload = buildProviderPayload(provider, model, scenario);
+    const providerPayload = buildProviderPayload(provider, model, scenario, keys);
     const body = { ...req.body, ...providerPayload };
 
     const response = await axios.post(`${aiServiceUrl}${path}`, body, { timeout: AI_TIMEOUT_MS });
@@ -190,14 +234,23 @@ aiRoutes.post('/process-image', authMiddleware, requireStore, [
   body('imageUrl').isURL(),
   body('category').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
-  return proxyToAiService(req, res, '/ai/process-image', 'process-image', 5);
+  return proxyToAiService(req, res, '/ai/process-image', 'process_image', 5);
 });
 
 aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
   body('imageUrl').isURL(),
   body('category').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
-  return proxyToAiService(req, res, '/ai/analyze-product', 'analyze-product', 10);
+  return proxyToAiService(req, res, '/ai/analyze-product', 'analyze_product', 10);
+});
+
+aiRoutes.post('/agentic-listing', authMiddleware, requireStore, [
+  body('imageUrl').isURL(),
+  body('category').optional().isString(),
+  body('suggest_price').optional().isBoolean(),
+  body('target_marketplaces').optional().isArray(),
+], validate, async (req: Request, res: Response) => {
+  return proxyToAiService(req, res, '/ai/agentic-listing', 'agentic_listing', 12);
 });
 
 aiRoutes.post('/generate-description', authMiddleware, requireStore, [
@@ -206,7 +259,7 @@ aiRoutes.post('/generate-description', authMiddleware, requireStore, [
   body('attributes').optional().isObject(),
   body('keywords').optional().isArray(),
 ], validate, async (req: Request, res: Response) => {
-  return proxyToAiService(req, res, '/ai/generate-description', 'generate-description', 3);
+  return proxyToAiService(req, res, '/ai/generate-description', 'generate_description', 3);
 });
 
 aiRoutes.post('/chat', authMiddleware, requireStore, [

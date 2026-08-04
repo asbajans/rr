@@ -54,7 +54,7 @@ export class AiModel extends Model {
 export class AiScenario extends Model {
   @PrimaryKey @AutoIncrement @Column(DataType.BIGINT) declare id: number;
 
-  @AllowNull(false) @Unique @Column(DataType.STRING(100)) declare code: string; // 'analyze-product' | 'generate-description' | 'chat' | 'search' | 'recommend'
+  @AllowNull(false) @Unique @Column(DataType.STRING(100)) declare code: string; // 'analyze_product' | 'generate_description' | 'process_image' | 'generate_image' | 'agentic_listing' | 'chat' | 'search' | 'recommend'
   @AllowNull(false) @Column(DataType.STRING(200)) declare name: string;
   @AllowNull(true) @Column(DataType.TEXT) declare description: string;
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import { Truck, Save } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 interface ShippingData {
   id: number
@@ -57,7 +58,7 @@ export default function ShippingPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-zinc-500">Yükleniyor...</div>
+  if (loading) return <div className="p-8"><CardSkeleton count={2} /></div>
 
   return (
     <div>

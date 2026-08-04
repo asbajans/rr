@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
+import { TableSkeleton, EmptyState } from '@/components/ui/skeleton'
+import { ShoppingCart } from 'lucide-react'
 
 const ALL_MARKETPLACES = ['trendyol', 'n11', 'hepsiburada', 'pazarama', 'amazon', 'etsy'] as const
 type Marketplace = typeof ALL_MARKETPLACES[number]
@@ -161,7 +163,7 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Siparişler</h1>
           <p className="mt-1 text-sm text-zinc-600">Tüm siparişlerini görüntüle ve yönet.</p>
@@ -169,10 +171,10 @@ export default function OrdersPage() {
       </div>
 
       {/* Marketplace Tabs */}
-      <div className="mt-6 flex gap-1 border-b border-zinc-200">
+      <div className="mt-6 flex gap-1 overflow-x-auto border-b border-zinc-200">
         {Object.entries(TAB_LABELS).map(([key, label]) => (
           <button key={key} onClick={() => { setTab(key); setActiveFilter('') }}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === key
                 ? 'border-zinc-900 text-zinc-900'
                 : 'border-transparent text-zinc-500 hover:text-zinc-700'
@@ -216,7 +218,7 @@ export default function OrdersPage() {
       )}
 
       {/* Import Bar */}
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <input
           placeholder="Sipariş no, müşteri adı, takip no ara..."
           value={search}
@@ -255,9 +257,9 @@ export default function OrdersPage() {
       )}
 
       {loading ? (
-        <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>
+        <TableSkeleton rows={6} cols={6} />
       ) : (
-        <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
+        <div className="table-scroll mt-4 overflow-hidden rounded-xl border border-zinc-200">
           <table className="min-w-full divide-y divide-zinc-200">
             <thead className="bg-zinc-50">
               <tr>
@@ -295,7 +297,11 @@ export default function OrdersPage() {
             </tbody>
           </table>
           {filteredOrders.length === 0 && (
-            <div className="p-12 text-center text-sm text-zinc-500">Henüz sipariş bulunmuyor.</div>
+            <EmptyState
+              icon={<ShoppingCart className="h-10 w-10" />}
+              title="Henüz sipariş bulunmuyor"
+              description="Pazaryeri siparişlerini içe aktardığınızda burada görünecek."
+            />
           )}
         </div>
       )}

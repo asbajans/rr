@@ -18,6 +18,7 @@ const navItems = [
   { href: '/ai-providers', labelKey: 'superProviders', icon: Cpu },
   { href: '/ai-scenarios', labelKey: 'superScenarios', icon: Layers },
   { href: '/ai-rate-limits', labelKey: 'superRateLimits', icon: Gauge },
+  { href: '/ai-settings', labelKey: 'superAiSettings', icon: Settings },
 ]
 
 function SuperShell({ children }: { children: React.ReactNode }) {

@@ -7,6 +7,15 @@ export interface ProviderConfig {
   authType?: 'bearer' | 'api-key' | 'none';
 }
 
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+export type ChatMessage = {
+  role: string;
+  content: string | ChatContentPart[];
+};
+
 interface LlmOptions {
   temperature?: number;
   maxTokens?: number;
@@ -66,9 +75,20 @@ function isOpenAiCompatible(baseUrl: string): boolean {
          u.includes('anthropic') || u.includes('generativelanguage');
 }
 
+function textFromContent(content: string | ChatContentPart[]): string {
+  if (typeof content === 'string') return content;
+  return content.filter((p) => p.type === 'text').map((p) => (p as any).text).join('\n');
+}
+
+function splitDataUri(uri: string): { mime: string; data: string } | null {
+  const match = uri.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mime: match[1], data: match[2] };
+}
+
 async function callOpenAiCompatible(
   config: ProviderConfig,
-  messages: { role: string; content: string }[],
+  messages: ChatMessage[],
   options?: LlmOptions
 ): Promise<string> {
   const baseUrl = config.baseUrl.replace(/\/+$/, '');
@@ -88,12 +108,25 @@ async function callOpenAiCompatible(
 
   if (baseUrl.includes('generativelanguage')) {
     const key = config.apiKey ? `?key=${config.apiKey}` : '';
+    const contents = messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : m.role,
+      parts: typeof m.content === 'string'
+        ? [{ text: m.content }]
+        : m.content.map((p) => {
+            if (p.type === 'text') return { text: p.text };
+            const decoded = splitDataUri(p.image_url.url);
+            if (decoded) {
+              return { inline_data: { mime_type: decoded.mime, data: decoded.data } };
+            }
+            return { text: '' };
+          }),
+    }));
     const res = await postWithRetry(
       `${endpoint}/v1beta/models/${config.model}:generateContent${key}`,
-      { contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : m.role, parts: [{ text: m.content }] })), generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 2048 } },
+      { contents, generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 2048 } },
       headers
     );
-    return res.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return (res.data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('') || '';
   }
 
   const res = await postWithRetry(endpoint, body, headers);
@@ -102,25 +135,38 @@ async function callOpenAiCompatible(
 
 async function callOllama(
   config: ProviderConfig,
-  messages: { role: string; content: string }[]
+  messages: ChatMessage[]
 ): Promise<string> {
   const baseUrl = config.baseUrl.replace(/\/+$/, '');
-  const prompt = messages.map((m) => `${m.role}: ${m.content}`).join('\n');
   const systemMsg = messages.find((m) => m.role === 'system');
+  const prompt = messages.map((m) => textFromContent(m.content)).filter(Boolean).join('\n');
 
-  const res = await axios.post(`${baseUrl}/api/generate`, {
+  const images: string[] = [];
+  for (const m of messages) {
+    if (typeof m.content === 'string') continue;
+    for (const p of m.content) {
+      if (p.type === 'image_url') {
+        const decoded = splitDataUri(p.image_url.url);
+        if (decoded) images.push(decoded.data);
+      }
+    }
+  }
+
+  const body: any = {
     model: config.model,
     prompt,
-    system: systemMsg?.content || '',
+    system: systemMsg ? textFromContent(systemMsg.content) : '',
     stream: false,
-  }, { timeout: DEFAULT_TIMEOUT });
+  };
+  if (images.length) body.images = images;
 
+  const res = await axios.post(`${baseUrl}/api/generate`, body, { timeout: DEFAULT_TIMEOUT });
   return res.data?.response || '';
 }
 
 export async function callLlm(
   config: ProviderConfig,
-  messages: { role: string; content: string }[],
+  messages: ChatMessage[],
   options?: LlmOptions
 ): Promise<string> {
   try {

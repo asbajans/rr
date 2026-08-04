@@ -181,12 +181,13 @@ Commitler: `09949ad "Limits+Plans Control"` (tüm sistem), `5b00cf0` (B2B tab fi
 ## Sıradaki
 
 ### Phase 12 — UI/Design Refresh
-- [ ] CSS bug: dropdown/select white text on white background
-- [ ] Global design improvements (inputs, buttons, cards, tables, scrollbars)
-- [ ] Consistent spacing/tokens across all dashboard pages
-- [ ] Loading states (skeleton screens, spinners)
-- [ ] Error/empty state improvements
-- [ ] Responsive layout fixes
+- [x] CSS bug: dropdown/select white text on white background — `globals.css`'te koyu yüzey select'lerine `color-scheme: dark` (native dropdown artık koyu); base select `color-scheme: light`
+- [x] AI + Credits sayfaları görünürlük fix — açık shell üzerinde `text-white` başlıklar görünmüyordu; sayfa kökleri `rounded-2xl border-zinc-800 bg-zinc-950` panel yapıldı (kartlarla tutarlı)
+- [x] Global design improvements (kısmi) — globals.css'e tarayıcılar arası scrollbar (Firefox `scrollbar-width/color`), `::selection` (indigo tint), placeholder rengi, `button:disabled{cursor:not-allowed}`, `.card` (birleşik yüzey token'ı) ve `.table-scroll` (mobilde yatay kaydırmalı tablo) yardımcı sınıfları; `Button` bileşenine tutarlı `shadow-sm` derinliği; products/orders tabloları `.table-scroll`
+- [x] Consistent spacing/tokens (kısmi) — dashboard shell `main p-4 md:p-6 lg:p-8` + h-14 header tutarlı; `.card`/`.table-scroll` token'ları globals.css'te
+- [x] Loading states — tüm dashboard listeleri `TableSkeleton`/`CardSkeleton` (products, orders, b2b, b2b-requests, variations, brands, categories, pages, pixels, locations, payment, shipping, feeds, feeds/[id], integrations, marketplaces, marketplaces/[marketplace], menus, credits, orders/[id], products/merge)
+- [x] Error/empty state improvements — products/orders/b2b/b2b-requests/pages/feeds/products-merge boş ekranları `EmptyState`
+- [x] Responsive layout fixes (kısmi) — tüm sayfa header satırlarına `flex-wrap gap-3` (title+buton dar ekranda sarar); uzun sekme barları `overflow-x-auto` + `whitespace-nowrap` (orders, brands, categories, marketplaces/[mp], ai, ai tabları); orders import bar `flex-wrap`; products/orders tabloları `.table-scroll` (yatay kaydırma); dashboard plan kartı `flex-wrap`
 - [ ] Dark mode support (optional)
 
 ## ~~🔴 PHASE 1 — Sayfa Çökmesine Sebep Olan Kritik Hatalar~~ ✅ DÜZELTİLDİ
@@ -736,7 +737,7 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] Variation/Option/Variant CRUD (backend full + frontend sayfa)
 - [x] Marketplace config per product (categoryId, brandId, attributes per mp)
 - [x] Frontend Products sayfası entegrasyonu (filtreler, modal, AI)
-- [ ] Mobile CRUD methods (category create/update/delete + variation methods)
+- [x] Mobile CRUD methods — `mobile-app/src/shared/api-client.ts`: category create/update/delete + tree/flat, variation CRUD + option add/update/delete
 
 ### Phase 9 — Marketplace Integrations ✅ TAMAMLANDI
 - [x] Integration CRUD (Trendyol/HB/Pazarama/N11/Amazon/Etsy tam)
@@ -778,18 +779,30 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [x] **Setting modeli** (`Setting.model.ts`) — Global anahtar-değer deposu (Etsy OAuth credential'ları için)
 - [x] **Super admin nav** — Tüm AI sayfaları linklendi
 
-#### AI Gateway & API Key Yönetimi (Sıradaki)
-- [ ] **Global AI Settings (Super Admin)** — NVIDIA developer key, OpenRouter key, default model seçimi
-- [ ] **Per-Store AI Override (Opsiyonel)** — Mağaza bazında farklı key/model kullanımı
-- [ ] **API Key Gizliliği** — Keyler sadece super admin panelinde, seller panelinde GÖRÜNMEZ
-- [ ] **AI Gateway Proxy** — Core'den `/api/ai/*` endpointleri → ai-service'e yönlendirme (key injection ile)
+#### AI Gateway & Provider Yönlendirme ✅ TAMAMLANDI
+- [x] **AI Gateway Proxy** — Core'den `/api/ai/*` endpointleri → ai-service'e yönlendirme (key injection ile, `buildProviderPayload`)
+- [x] **Vision provider yönlendirmesi** — `llmProvider.ts` artık vision destekli: `ChatMessage` içinde `image_url` data-URI (OpenAI-compatible + Gemini `inline_data` + Ollama `images` base64); `visionAnalyzer.ts` görsel analizini hardcoded Ollama yerine yapılandırılan provider üzerinden yapar (Ollama fallback korunur)
+- [x] **Senaryo kodu birleştirme** — `analyze_product`, `generate_description`, `process_image`, `agentic_listing`, `chat`, `search`, `recommend` (tire → underscore); superadmin `SCENARIO_CODES` + `AiModels.code` yorumu güncellendi
 
 #### AI İşlevleri
-- [ ] analyze-product (görsel analizi → kategori/özellik önerisi)
-- [ ] generate-description (başlık + özellikler → SEO açıklama)
-- [ ] chat (müşteri destek / ürün soruları)
-- [ ] search (semantik ürün arama)
-- [ ] recommend (cross-sell / up-sell önerileri)
+- [x] analyze-product (görsel analizi → kategori/özellik önerisi)
+- [x] generate-description (başlık + özellikler → SEO açıklama)
+- [x] chat (müşteri destek / ürün soruları)
+- [x] search (semantik ürün arama)
+- [x] recommend (cross-sell / up-sell önerileri)
+
+### Agentik İlan Akışı (`agentic_listing`) ✅ TAMAMLANDI
+- [x] **ai-service `/ai/agentic-listing`** — `services/agenticListing.ts`: fotoğraf → vision specs (`analyzeProductImage`) → tam ilan taslağı (başlık, kısa+uzun açıklama, SEO meta, keywords, slug, kategori, attributes, Amazon bullet points, opsiyonel fiyat aralığı önerisi); multipart `image` VEYA JSON `{ imageUrl, category, suggest_price, target_marketplaces, provider?, model? }`
+- [x] **core proxy `POST /api/admin/ai/agentic-listing`** — scenario `agentic_listing`, default 12 kredi; kredi kesimi + `AiUsageLog`; modül `ai_product_create`
+- [x] **frontend api-client `agenticListing()`** — görsel URL + seçeneklerle JSON post
+- [x] **AI sayfası "Agentik İlan" sekmesi** (`/ai`) — kategori seçimi, fotoğraf yükleme, satıcı notu/keywords, hedef pazaryeri çip'leri (Trendyol/N11/HB/Pazarama/Amazon/Etsy), fiyat önerisi toggle, taslak düzenleme (başlık/kategori/fiyat/stok/açıklama), AI tespit detayı (attributes + bullet points), "Ürünü Oluştur" (`marketplaces` ile ürün yaratır)
+- [x] **Doğrulamalar** — ai-service `tsc` ✅, core build ✅, frontend build ✅ (43 route)
+
+#### AI Gateway & API Key Yönetimi
+- [x] **Global AI Settings (Super Admin)** — `GET|PUT /api/admin/ai/settings` (Setting modeli `ai` anahtarı): varsayılan provider/model seçimi (senaryoda provider/model yoksa fallback) + sağlayıcı API key deposu (openai/openrouter/nvidia/deepseek/mistral/google; key'ler masked, boş kaydedilerek silinir); frontend `/ai-settings` sayfası + super admin nav
+- [x] **AI Gateway fallback** — `resolveScenarioConfig` senaryoda provider/model yoksa global default'a düşer; `buildProviderPayload` provider.authConfig yoksa global key'i kullanır; hiçbiri yoksa ai-service Ollama default'a düşer
+- [ ] **Per-Store AI Override (Opsiyonel)** — Mağaza bazında farklı key/model kullanımı
+- [ ] **API Key Gizliliği** — Keyler sadece super admin panelinde, seller panelinde GÖRÜNMEZ (zaten öyle; `stripApiKey` mevcut)
 
 #### Sipariş & Diğer
 - [x] Dropshipping Order (create, status, tracking, history, split by vendor)

@@ -36,6 +36,7 @@ export const tr: Record<string, string> = {
   superProviders: 'AI Sağlayıcılar',
   superScenarios: 'AI Senaryoları',
   superRateLimits: 'AI Rate Limits',
+  superAiSettings: 'AI Global Ayarlar',
 
   billingTitle: 'Plan',
   billingSubtitle: 'Aboneliğini ve AI kredilerini yönet.',

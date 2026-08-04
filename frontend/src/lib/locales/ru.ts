@@ -36,6 +36,7 @@ export const ru: Record<string, string> = {
   superProviders: 'AI-провайдеры',
   superScenarios: 'AI-сценарии',
   superRateLimits: 'AI-лимиты',
+  superAiSettings: 'Глобальные настройки AI',
 
   billingTitle: 'План',
   billingSubtitle: 'Управление подпиской и AI-кредитами.',

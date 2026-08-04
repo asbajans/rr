@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { ExternalFeed, FeedTestResult } from '@/lib/types'
 import { ArrowLeft, Rss, Play, TestTube, Clock, CheckCircle, XCircle, History } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 const FILE_FORMATS = ['xml', 'csv', 'xlsx', 'json']
 const AUTH_TYPES = ['none', 'basic', 'bearer', 'api-key']
@@ -131,7 +132,7 @@ export default function FeedDetailPage() {
   }
 
   if (!user) return null
-  if (loading) return <p className="text-sm text-zinc-500">Yükleniyor...</p>
+  if (loading) return <div className="p-8"><CardSkeleton count={3} /></div>
 
   return (
     <div>
@@ -139,7 +140,7 @@ export default function FeedDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Feed'ler
       </button>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Rss className="h-6 w-6 text-amber-600" />
           <h1 className="text-2xl font-bold text-zinc-900">{feed ? feed.name : 'Yeni Feed'}</h1>

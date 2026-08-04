@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import { Coins, TrendingDown, TrendingUp, ArrowDown, ArrowUp, ShoppingCart } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 const PURCHASE_PACKS = [
   { credits: 50, price: 50 },
@@ -44,10 +45,10 @@ export default function CreditsPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-zinc-500">Yükleniyor...</div>
+  if (loading) return <div className="p-8"><CardSkeleton count={3} /></div>
 
   return (
-    <div>
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
       <h1 className="text-2xl font-bold text-white">AI Kredileri</h1>
       <p className="mt-1 text-sm text-zinc-400">Kredi bakiyeni görüntüle ve yeni kredi satın al.</p>
 

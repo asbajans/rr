@@ -10,9 +10,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 const variantStyles: Record<Variant, string> = {
-  primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-500',
-  secondary: 'bg-zinc-900 text-white hover:bg-zinc-800 focus-visible:ring-zinc-700',
-  outline: 'border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50 focus-visible:ring-zinc-500',
+  primary: 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 focus-visible:ring-indigo-500',
+  secondary: 'bg-zinc-900 text-white shadow-sm hover:bg-zinc-800 focus-visible:ring-zinc-700',
+  outline: 'border border-zinc-300 bg-white text-zinc-900 shadow-sm hover:bg-zinc-50 focus-visible:ring-zinc-500',
   ghost: 'text-zinc-700 hover:bg-zinc-100 focus-visible:ring-zinc-500',
 }
 

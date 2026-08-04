@@ -6,6 +6,7 @@ import { api } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth'
 import { Product, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '@/lib/types'
 import { Sparkles, Camera, Coins, ArrowUpRight, Package } from 'lucide-react'
+import { TableSkeleton, EmptyState } from '@/components/ui/skeleton'
 
 interface Filters {
   marketplaces: string[]
@@ -736,7 +737,7 @@ export default function ProductsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold">Ürünler</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -903,10 +904,10 @@ export default function ProductsPage() {
       </div>
 
       {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
-      {loading && <div className="text-gray-500 text-sm">Yükleniyor…</div>}
+      {loading && <TableSkeleton rows={6} cols={5} />}
 
       {!loading && (
-        <div className="border rounded">
+        <div className="table-scroll rounded-xl border border-zinc-200">
           <table className="w-full table-fixed text-sm">
             <colgroup>
               <col className="w-8" />
@@ -939,8 +940,12 @@ export default function ProductsPage() {
             <tbody>
               {products.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-3 py-6 text-center text-gray-400">
-                    Ürün bulunamadı.
+                    <td colSpan={10} className="px-3 py-6">
+                    <EmptyState
+                      icon={<Package className="h-10 w-10" />}
+                      title="Ürün bulunamadı"
+                      description="Filtreleri değiştirmeyi deneyin veya yeni ürün oluşturun."
+                    />
                   </td>
                 </tr>
               )}

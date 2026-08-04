@@ -36,6 +36,7 @@ export const ar: Record<string, string> = {
   superProviders: 'مزودو AI',
   superScenarios: 'سيناريوهات AI',
   superRateLimits: 'حدود AI',
+  superAiSettings: 'إعدادات AI العامة',
 
   billingTitle: 'الباقة',
   billingSubtitle: 'إدارة اشتراكك ورصيد الذكاء الاصطناعي.',

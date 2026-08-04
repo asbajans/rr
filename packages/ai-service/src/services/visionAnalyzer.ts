@@ -1,15 +1,27 @@
-import axios from 'axios';
 import fs from 'fs';
+import path from 'path';
 import { ProductSpecs, ProductCategory } from '../types';
+import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const VISION_MODEL = process.env.VISION_MODEL || 'llama3.2-vision';
 
-interface ProviderConfig {
+export interface VisionProviderConfig {
   baseUrl?: string;
   model?: string;
   apiKey?: string;
   authType?: string;
+}
+
+function mimeFromPath(p: string): string {
+  const ext = path.extname(p).toLowerCase();
+  switch (ext) {
+    case '.png': return 'image/png';
+    case '.webp': return 'image/webp';
+    case '.gif': return 'image/gif';
+    case '.bmp': return 'image/bmp';
+    default: return 'image/jpeg';
+  }
 }
 
 function buildVisionPrompt(category: ProductCategory): string {
@@ -32,28 +44,44 @@ Return ONLY a valid JSON object (no markdown, no extra text) with these fields:
 Be precise and descriptive. Use Turkish for values.`;
 }
 
-async function analyzeWithOllama(
-  imagePath: string,
-  category: ProductCategory
-): Promise<ProductSpecs> {
-  const imageBase64 = fs.readFileSync(imagePath).toString('base64');
-
-  const res = await axios.post(`${OLLAMA_URL}/api/generate`, {
-    model: VISION_MODEL,
-    prompt: buildVisionPrompt(category),
-    images: [imageBase64],
-    stream: false,
-    options: { temperature: 0.1, top_p: 0.9 },
-  });
-
-  const text: string = res.data.response;
-
+function parseJsonResponse(text: string): any {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error(`Vision API did not return valid JSON: ${text.slice(0, 200)}`);
   }
+  return JSON.parse(jsonMatch[0]);
+}
 
-  const parsed = JSON.parse(jsonMatch[0]);
+export async function analyzeProductImage(
+  imagePath: string,
+  category: ProductCategory,
+  providerConfig?: VisionProviderConfig
+): Promise<ProductSpecs> {
+  const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+  const mime = mimeFromPath(imagePath);
+
+  const config: ProviderConfig = providerConfig?.baseUrl
+    ? {
+        baseUrl: providerConfig.baseUrl,
+        model: providerConfig.model || VISION_MODEL,
+        apiKey: providerConfig.apiKey,
+        authType: (providerConfig.authType as 'bearer' | 'api-key' | 'none') || 'bearer',
+      }
+    : { baseUrl: OLLAMA_URL, model: VISION_MODEL };
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: buildVisionPrompt(category) },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Analyze this product image and return the JSON.' },
+        { type: 'image_url', image_url: { url: `data:${mime};base64,${imageBase64}` } },
+      ],
+    },
+  ];
+
+  const text = await callLlm(config, messages, { temperature: 0.1, maxTokens: 1024 });
+  const parsed = parseJsonResponse(text);
 
   return {
     material: parsed.material || '',
@@ -66,14 +94,4 @@ async function analyzeWithOllama(
     weight: parsed.weight,
     category,
   };
-}
-
-export async function analyzeProductImage(
-  imagePath: string,
-  category: ProductCategory,
-  providerConfig?: ProviderConfig
-): Promise<ProductSpecs> {
-  // Use Ollama for vision analysis (LLaVA/llama3.2-vision)
-  // Future: extend to support GPT-4o, Claude 3, Gemini vision APIs
-  return analyzeWithOllama(imagePath, category);
 }

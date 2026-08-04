@@ -502,6 +502,55 @@ class ApiClient {
     return { data: r.categories }
   }
 
+  async getCategoriesTree() {
+    const r = await this.get<{ categories: Category[] }>('/api/admin/categories/tree')
+    return { data: r.categories }
+  }
+
+  createCategory(data: { name: Record<string, string>; slug: string; parentId?: number; translations?: Record<string, string>; icon?: string; sortOrder?: number; isActive?: boolean }) {
+    return this.post<{ category: Category }>('/api/admin/categories', data).then(r => r.category)
+  }
+
+  updateCategory(id: number, data: { name?: Record<string, string>; slug?: string; parentId?: number | null; translations?: Record<string, string>; icon?: string; sortOrder?: number; isActive?: boolean }) {
+    return this.put<{ category: Category }>(`/api/admin/categories/${id}`, data).then(r => r.category)
+  }
+
+  deleteCategory(id: number) {
+    return this.delete<{ success?: boolean }>(`/api/admin/categories/${id}`)
+  }
+
+  getVariations() {
+    return this.get<{ variations: any[] }>('/api/admin/variations').then(r => r.variations)
+  }
+
+  getVariation(id: number) {
+    return this.get<{ variation: any }>(`/api/admin/variations/${id}`).then(r => r.variation)
+  }
+
+  createVariation(data: { name: string; type: string; options?: string[] }) {
+    return this.post<{ variation: any }>('/api/admin/variations', data).then(r => r.variation)
+  }
+
+  updateVariation(id: number, data: { name?: string; type?: string }) {
+    return this.put<{ variation: any }>(`/api/admin/variations/${id}`, data).then(r => r.variation)
+  }
+
+  deleteVariation(id: number) {
+    return this.delete<{ success?: boolean }>(`/api/admin/variations/${id}`)
+  }
+
+  addVariationOption(id: number, value: string, sortOrder?: number) {
+    return this.post<{ option: any }>(`/api/admin/variations/${id}/options`, { value, sortOrder }).then(r => r.option)
+  }
+
+  updateVariationOption(id: number, optionId: number, value: string, sortOrder?: number) {
+    return this.put<{ option: any }>(`/api/admin/variations/${id}/options/${optionId}`, { value, sortOrder }).then(r => r.option)
+  }
+
+  deleteVariationOption(id: number, optionId: number) {
+    return this.delete<{ success?: boolean }>(`/api/admin/variations/${id}/options/${optionId}`)
+  }
+
   uploadImage(fileUri: string, fileName: string, mimeType: string) {
     const formData = new FormData()
     formData.append('file', { uri: fileUri, name: fileName, type: mimeType } as any)

@@ -14,12 +14,12 @@ type Scenario = {
   parameters?: any
   costCredits: number
   isActive: boolean
-  model?: { id: number; modelCode: string; displayName: string; provider?: { code: string; name: string } }
+  model?: { id: number; modelId: string; displayName: string; provider?: { code: string; name: string } }
 }
 
 type Model = {
   id: number
-  modelCode: string
+  modelId: string
   displayName: string
   provider?: { code: string; name: string }
 }
@@ -27,6 +27,8 @@ type Model = {
 const SCENARIO_CODES = [
   { code: 'analyze_product', name: 'Ürün Analizi', desc: 'Görselden kategori/özellik çıkarma' },
   { code: 'generate_description', name: 'Açıklama Üretimi', desc: 'Başlık+özelliklerden SEO açıklama' },
+  { code: 'process_image', name: 'Resim İşleme', desc: 'Arka plan temizleme / resim üretim' },
+  { code: 'agentic_listing', name: 'Agentik İlan Akışı', desc: 'Fotoğraf → ilan hazırlama → yayınlama' },
   { code: 'chat', name: 'Sohbet/Chat', desc: 'Müşteri destek asistanı' },
   { code: 'search', name: 'Semantik Arama', desc: 'Ürünler arası anlam bazlı arama' },
   { code: 'recommend', name: 'Öneri Sistemi', desc: 'Cross-sell / Up-sell önerileri' },
@@ -64,7 +66,7 @@ export default function AiScenariosPage() {
       setScenarios(scRes.scenarios || [])
       setModels((modRes.models || []).filter(m => m.isActive).map(m => ({
         id: m.id,
-        modelCode: m.modelCode,
+        modelId: m.modelId,
         displayName: m.displayName,
         provider: m.provider,
       })))
@@ -300,7 +302,7 @@ export default function AiScenariosPage() {
                   onChange={e => setForm({...form, modelId: Number(e.target.value)})}
                   className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 >
-                  {models.map(m => <option key={m.id} value={m.id}>{m.displayName} ({m.modelCode}) — {m.provider?.name || '—'}</option>)}
+                  {models.map(m => <option key={m.id} value={m.id}>{m.displayName} ({m.modelId}) — {m.provider?.name || '—'}</option>)}
                 </select>
               </div>
               <div>

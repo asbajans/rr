@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { BarChart3, Tag, Hash, Globe, ShoppingBag, Music, Store, Code, ChevronDown, ChevronRight } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/skeleton'
 
 type PixelPlatform = {
   key: string
@@ -135,7 +136,7 @@ export default function PixelsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Piksel & Takip Kodları</h1>
           <p className="mt-1 text-sm text-zinc-600">
@@ -157,7 +158,7 @@ export default function PixelsPage() {
         }`}>{message}</div>
       )}
 
-      {loading && <p className="mt-8 text-sm text-zinc-500">Yükleniyor...</p>}
+      {loading && <div className="mt-8"><CardSkeleton count={4} /></div>}
 
       {!loading && (
         <div className="mt-6 space-y-3">
