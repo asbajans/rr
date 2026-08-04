@@ -61,7 +61,7 @@ export default function AiRateLimitsPage() {
       setLimits(limRes.limits || [])
       setProviders((provRes.providers || []).map(p => ({ id: p.id, code: p.code, name: p.name })))
       if (!form.providerId && provRes.providers?.length) {
-        setForm(f => ({ ...f, providerId: provRes.providers[0].id }))
+        setForm(f => ({ ...f, providerId: Number(provRes.providers[0].id) }))
       }
     } catch {
       setMessage('Veriler yüklenemedi')
@@ -72,7 +72,7 @@ export default function AiRateLimitsPage() {
 
   function resetForm() {
     setForm({
-      providerId: providers[0]?.id || 0,
+      providerId: Number(providers[0]?.id) || 0,
       scope: 'per_hour',
       maxRequests: 100,
       isActive: true,
@@ -83,7 +83,7 @@ export default function AiRateLimitsPage() {
 
   function startEdit(l: RateLimit) {
     setForm({
-      providerId: l.providerId,
+      providerId: Number(l.providerId),
       scope: l.scope,
       maxRequests: l.maxRequests,
       isActive: l.isActive,

@@ -46,8 +46,8 @@ export default function AiSettingsPage() {
       ])
       setProviders(prov.providers)
       setModels(modelsRes.models)
-      setDefaultProviderId(settings.defaultProviderId)
-      setDefaultModelId(settings.defaultModelId)
+      setDefaultProviderId(settings.defaultProviderId ? Number(settings.defaultProviderId) : null)
+      setDefaultModelId(settings.defaultModelId ? Number(settings.defaultModelId) : null)
       setKeys(settings.keys)
     } catch (err: any) {
       setError(err instanceof Error ? err.message : 'Ayarlar yüklenemedi')
@@ -57,7 +57,7 @@ export default function AiSettingsPage() {
   }
 
   const filteredModels = defaultProviderId
-    ? models.filter(m => m.providerId === defaultProviderId)
+    ? models.filter(m => Number(m.providerId) === Number(defaultProviderId))
     : []
 
   async function handleSave() {

@@ -113,7 +113,7 @@ export default function AiProvidersPage() {
 
   function resetModelForm() {
     setModelForm({
-      providerId: providers[0]?.id || 0,
+      providerId: Number(providers[0]?.id) || 0,
       modelId: '',
       displayName: '',
       modality: 'chat',
@@ -237,7 +237,7 @@ export default function AiProvidersPage() {
       {!loading && (
         <div className="space-y-6">
           {providers.map((provider) => {
-            const providerModels = models.filter(m => m.providerId === provider.id)
+            const providerModels = models.filter(m => Number(m.providerId) === Number(provider.id))
             return (
               <div key={provider.id} className="rounded-xl border border-zinc-200 bg-white">
                 <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
@@ -308,7 +308,7 @@ export default function AiProvidersPage() {
                     <h4 className="mb-4 text-sm font-semibold text-zinc-700">Modeller ({providerModels.length})</h4>
                     <div className="flex gap-2 mb-4">
                       <button
-                        onClick={() => { resetModelForm(); setModelForm(prev => ({...prev, providerId: provider.id})); setShowModelForm(true); }}
+                        onClick={() => { resetModelForm(); setModelForm(prev => ({...prev, providerId: Number(provider.id)})); setShowModelForm(true); }}
                         className="text-xs rounded-lg bg-zinc-100 px-3 py-1.5 text-zinc-700 hover:bg-zinc-200"
                       >
                         <Plus className="h-3 w-3 mr-1" /> Model Ekle
@@ -351,7 +351,7 @@ export default function AiProvidersPage() {
                                 <div className="flex items-center gap-1">
                                   <button
                                     onClick={() => { setEditingModel(model); setModelForm({
-                                      providerId: model.providerId,
+                                      providerId: Number(model.providerId),
                                       modelId: model.modelId,
                                       displayName: model.displayName,
                                       modality: model.modality || 'chat',
@@ -384,7 +384,7 @@ export default function AiProvidersPage() {
                   <div className="p-6 text-center text-sm text-zinc-500">
                     Henüz model eklenmemiş.
                     <button
-                      onClick={() => { resetModelForm(); setModelForm(prev => ({...prev, providerId: provider.id})); setShowModelForm(true); }}
+                      onClick={() => { resetModelForm(); setModelForm(prev => ({...prev, providerId: Number(provider.id)})); setShowModelForm(true); }}
                       className="ml-2 text-indigo-600 hover:underline"
                     >
                       İlk modeli ekle
