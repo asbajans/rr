@@ -32,6 +32,7 @@ import { ExternalFeed } from './ContentModels.js';
 import { CreditLog } from './CreditLog.model.js';
 import { IntegrationLog } from './LogModels.js';
 import { StoreMenu } from './Menu.model.js';
+import { SiteDeployment } from './SiteDeployment.model.js';
 
 @Table({
   tableName: 'stores',
@@ -98,6 +99,10 @@ export class Store extends Model {
   @Column(DataType.STRING(255))
   declare siteUrl: string;
 
+  @Default(true)
+  @Column(DataType.BOOLEAN)
+  declare published: boolean;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;
@@ -162,4 +167,7 @@ export class Store extends Model {
 
   @HasMany(() => StoreMenu)
   declare menus: StoreMenu[];
+
+  @HasMany(() => SiteDeployment)
+  declare siteDeployments: SiteDeployment[];
 }

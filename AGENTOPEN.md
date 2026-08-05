@@ -673,7 +673,7 @@ Mevcut B2B clone sistemi dropshipping için temel sağlayabilir; ancak tedarikç
 
 ## Faz 8 — Gerçek site yayınlama sistemi
 
-Durum: `[ ] Başlanmadı`
+Durum: `8A ✅ (publish + deployment geçmişi + tema render) — 8B (Vercel/custom domain/slave) bekliyor`
 
 ### Mevcut durum (kod denetimi 2026-08-05)
 
@@ -687,17 +687,17 @@ Durum: `[ ] Başlanmadı`
 
 Kapsam:
 
-- [ ] Rahatio hosting deployment (preview/draft site, publish on/off, `plan.hosting='rahatio'` davranışı)
+- [x] Rahatio hosting deployment (preview/draft site, publish on/off, `plan.hosting='rahatio'` davranışı) (8A)
 - [ ] Vercel deployment entegrasyonu (REST API + token, per-store project, deploy tetikleme + status poll)
 - [ ] Özel sunucu/slave deployment (artifact + config push)
 - [ ] Domain doğrulama (CNAME TXT kontrolü)
 - [ ] CNAME/DNS yönlendirme rehberi ve kontrolü
 - [ ] SSL durumu (Cloudflare / Let's Encrypt entegrasyon notu)
-- [ ] Deployment geçmişi (`SiteDeployment` modeli)
-- [ ] Rollback (önceki deployment'a dön)
-- [ ] Yayın hata logları
-- [ ] Site yayın durumu (published/draft/pending/failed)
-- [ ] Tema/template sistemi (preset'ler + tema stillerinin storefront'a uygulanması)
+- [x] Deployment geçmişi (`SiteDeployment` modeli) (8A)
+- [x] Rollback (önceki deployment'a dön) (8A)
+- [x] Yayın hata logları (deployment status `failed` + note) (8A, kısmi)
+- [x] Site yayın durumu (published/draft/pending/failed) (8A)
+- [x] Tema/template sistemi (preset'ler + tema stillerinin storefront'a uygulanması) — stiller uygulandı, preset'ler kaldı (8A kısmi)
 - [ ] Gelişmiş page builder (blok bazlı drag-drop)
 
 Mevcut [frontend/src/app/(dashboard)/site-builder/page.tsx](C:/Users/EXCALIBUR/Documents/rahatio/rr/frontend/src/app/(dashboard)/site-builder/page.tsx) yalnızca temel tema ayarlarını kapsıyor; deployment orkestrasyonu ayrıca geliştirilmelidir.
@@ -853,9 +853,9 @@ Yeni kullanıcı → Mobil uygulama → Fotoğraf çekme
 5. `[x]` Faz 4 — Mobil AI Product Studio
 6. `[x]` Faz 5 — Ürün oluşturma ve yayın orkestrasyonu
 7. `[x]` Faz 9 — Web AI Product Studio
-8. `[ ]` Faz 6 — Storefront checkout ve ödeme (Stripe + iyzico + PayTR) — **SIRADAKİ HEDEF**
-9. `[ ]` Faz 8 — Site deployment sistemi (Vercel/custom domain/tema uygulaması)
-10. `[ ]` Faz 7 — Dropshipping tedarikçi operasyonu
+8. `[x]` Faz 6 — Storefront checkout ve ödeme (Stripe + iyzico + PayTR) — **TAMAMLANDI** (6A+6B+6C, deploy + canlı test yapıldı)
+9. `[ ]` Faz 8 — Site deployment sistemi (Vercel/custom domain/tema uygulaması) — **SIRADAKİ HEDEF**
+10. `[x]` Faz 7 — Dropshipping tedarikçi operasyonu (7A+7B+7C, deploy yapıldı)
 11. `[ ]` Faz 10 — Müşteri deneyimi ve gelişmiş ticari özellikler
 
 ## 15. Çalışma kuralları
@@ -908,5 +908,6 @@ Yeni kullanıcı → Mobil uygulama → Fotoğraf çekme
 - [x] Doğrulamalar: core build ✅, core typecheck ✅, core test **35/35** ✅, integration-service `tsc` ✅.
 - [x] **Faz 7C TAMAMLANDI — hakediş + panel** — `SupplierSettlement` modeli (dönem bazlı: `supplierId/storeId/period/totalAmount/commissionAmount/netAmount/orderCount/status(open|requested|paid)/requestedAt/paidAt/payoutMethod/payoutRef`, unique `(storeId, period)`, `sequelize.sync`); `modules/supplier/settlement.ts` — `computeSettlementTotals`, `toSettlementLines`, `getFulfilledSubOrders` (fulfilled + `parentOrderId != null` + dönem aralığı), `computePeriod`, `requestSettlement`; route'lar `GET /supplier/settlements`, `GET /supplier/settlements/period?period=YYYY-MM`, `POST /supplier/settlements/request|cancel|mark-paid`; iade `POST /supplier/orders/:id/return` (restock + parent sync). **Web panel**: `frontend/src/app/(dashboard)/supplier/page.tsx` (profil / gelen siparişler / hakediş sekmeleri; accept/reject/ship/return + dönem hesabı + ödeme geçmişi) + api-client'e 14 tedarikçi metodu + nav `/supplier` (Truck) + 5 locale'e `supplier` anahtarı. **Mobil**: `mobile-app/app/(tabs)/supplier.tsx` (3 sekmeli panel + ship Modal'ı) + api-client tedarikçi metotları + `(tabs)/_layout.tsx`'e `supplier` sekmesi (car icon) + 5 locale'e `supplier*`/`saved`/`ok` anahtarları. Testler: `settlement.test.ts` — core **39** test ✅. Mobil `npx tsc --noEmit` ✅.
 - [x] Doğrulamalar: core build ✅, core typecheck ✅, core test **39/39** ✅, frontend build ✅ (50 route), mobil `npx tsc --noEmit` ✅.
-- [x] **HOTFIX — deploy sonrası `SequelizeAssociationError: alias session` crash'i** — `AiProductDraft.model.ts`'teki `@BelongsTo(() => AiProductSession)` decorator'ü ile `associations.ts`'teki `AiProductDraft.belongsTo(AiProductSession, { as: 'session' })` aynı alias'ı iki kez tanımlıyordu → sunucu boot'ta düşüyordu. Çözüm: `associations.ts`'ten AI session/draft satırları kaldırıldı (draft route'ları association'ları hiç kullanmıyor, doğrudan `sessionId`/`draftId` alanlarıyla çalışıyor); decorator'e `{ foreignKey: 'sessionId' }` eklendi (varsayılan `aiProductSessionId` yerine doğru kolon). Doğrulama: 24 model + `setupAssociations()` tüm modellerle crash'siz ✅. Yeniden deploy gerekiyor.
+- [x] **HOTFIX — deploy sonrası `SequelizeAssociationError: alias session` crash'i** — `AiProductDraft.model.ts`'teki `@BelongsTo(() => AiProductSession)` decorator'ü ile `associations.ts`'teki `AiProductDraft.belongsTo(AiProductSession, { as: 'session' })` aynı alias'ı iki kez tanımlıyordu → sunucu boot'ta düşüyordu. Çözüm: `associations.ts`'ten AI session/draft satırları kaldırıldı (draft route'ları association'ları hiç kullanmıyor, doğrudan `sessionId`/`draftId` alanlarıyla çalışıyor); decorator'e `{ foreignKey: 'sessionId' }` eklendi (varsayılan `aiProductSessionId` yerine doğru kolon). Doğrulama: 24 model + `setupAssociations()` tüm modellerle crash'siz ✅. Yeniden deploy başarılı (2026-08-05).
+- [x] **Faz 8A TAMAMLANDI — publish + deployment geçmişi + tema render** — `Store.published` (default true) + boot migration; **`SiteDeployment` modeli** (`site_deployments`: storeId/status published|draft|reverted|failed/version/siteCode/domain/siteUrl/themeSnapshot JSONB/note/deployedAt/revertedAt, append-only geçmiş) + `database.ts` + `Store.hasMany`; saf helper `modules/site/publish.ts` (`computeNextVersion`, `snapshotOf`, `resolveRollbackTarget`, `serializeDeployment` — testli); route'lar `GET /api/admin/site/deployments`, `POST /api/admin/site/publish|unpublish`, `POST /api/admin/site/deployments/:id/rollback` (tema + siteCode + domain snapshot'tan geri yükler, yeni `reverted` kaydı). **Draft gating**: storefront `resolveStore` (public store routes) + product/categories public route'larında `published: true`; unpublished → 404, `?preview=1` owner önizleme. `published` `/api/admin/me`, `/api/admin/store/me` ve storefront response'larına eklendi. **Tema render**: `components/store/StoreTheme.tsx` CSS custom property (`--sf-primary/secondary/accent/font`) + `custom_css` inline `<style>` + favicon enjeksiyonu; `stores/layout.tsx` `data-storefront` + publish gating + "yayında değil" ekranı; storefront butonları `sf-btn-primary` (home arama, cart, checkout, product detail, result). **Frontend**: api-client `getSiteDeployments/publishSite/unpublishSite/rollbackSiteDeployment`; site-builder sayfasına Yayınla/Yayından Kaldır + yayın notu + yayın geçmişi tablosu + Geri Dön butonu. Testler: `site/publish.test.ts` — core **42** test ✅. Core build+typecheck ✅, frontend build ✅ (51 route), lint 0 error ✅.
 

@@ -1099,6 +1099,24 @@ class ApiClient {
     return this.get<{ available: boolean }>(`/api/admin/me/check-site-code`, { params: { code } })
   }
 
+  // Site deployment (Faz 8) — publish/unpublish/rollback
+  async getSiteDeployments() {
+    const r = await this.get<{ deployments: any[]; published: boolean }>(`/api/admin/site/deployments`)
+    return { deployments: r.deployments || [], published: r.published }
+  }
+
+  async publishSite(note?: string) {
+    return this.post<any>(`/api/admin/site/publish`, { note })
+  }
+
+  async unpublishSite(note?: string) {
+    return this.post<any>(`/api/admin/site/unpublish`, { note })
+  }
+
+  async rollbackSiteDeployment(id: number | string) {
+    return this.post<any>(`/api/admin/site/deployments/${id}/rollback`)
+  }
+
   // Pages
   getPages() {
     return this.get<{ pages: any[] }>(`/api/admin/pages`).then(r => (r.pages || []).map(mapPage))

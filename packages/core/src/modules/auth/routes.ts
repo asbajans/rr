@@ -268,6 +268,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       email: store.email,
       currency: store.currency,
       is_active: store.isActive,
+      published: store.published,
       theme: store.theme,
       plan: store.plan ? serializePlan(store.plan) : null,
       subscription: subscription ? {

@@ -8,6 +8,19 @@ import { config } from '../../config/index.js';
 
 export const publicStoreRoutes: Router = Router();
 
+/**
+ * Loads an active store by siteCode and enforces publish gating.
+ * Unpublished (draft) stores are only reachable with ?preview=1 (used by the
+ * owner during site builder work).
+ */
+async function resolveStore(siteCode: string, req: Request): Promise<Store | null> {
+  const store = await Store.findOne({ where: { siteCode, isActive: true } });
+  if (!store) return null;
+  const preview = String((req.query as any).preview ?? '') === '1';
+  if (!store.published && !preview) return null;
+  return store;
+}
+
 function toAbsoluteImage(img: unknown): string | null {
   if (!img) return null;
   const url = typeof img === 'string' ? img : (img as any)?.url;
@@ -20,7 +33,7 @@ function toAbsoluteImage(img: unknown): string | null {
 publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) {
       return res.status(404).json({ error: 'Not found', message: 'Store not found' });
     }
@@ -39,6 +52,7 @@ publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
         siteUrl: store.siteUrl,
         email: store.email,
         currency: store.currency,
+        published: store.published,
         theme: store.theme,
         taxSettings: store.taxSettings,
         shippingSettings: store.shippingSettings,
@@ -69,7 +83,7 @@ publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
 publicStoreRoutes.get('/:siteCode/locations', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const locations = await StoreLocation.findAll({ where: { storeId: store.id, isActive: true } });
@@ -83,7 +97,7 @@ publicStoreRoutes.get('/:siteCode/locations', async (req: Request, res: Response
 publicStoreRoutes.get('/:siteCode/pixels', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
     res.json({ pixels: store.pixels || {} });
   } catch (error) {
@@ -95,7 +109,7 @@ publicStoreRoutes.get('/:siteCode/pixels', async (req: Request, res: Response) =
 publicStoreRoutes.get('/:siteCode/payment-methods', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const methods = await StorePaymentMethod.findAll({ where: { storeId: store.id, isActive: true } });
@@ -109,7 +123,7 @@ publicStoreRoutes.get('/:siteCode/payment-methods', async (req: Request, res: Re
 publicStoreRoutes.get('/:siteCode/menus', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const menus = await StoreMenu.findAll({ where: { storeId: store.id, isActive: true } });
@@ -123,7 +137,7 @@ publicStoreRoutes.get('/:siteCode/menus', async (req: Request, res: Response) =>
 publicStoreRoutes.get('/:siteCode/pages', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const pages = await Page.findAll({
@@ -141,7 +155,7 @@ publicStoreRoutes.get('/:siteCode/pages', async (req: Request, res: Response) =>
 publicStoreRoutes.get('/:siteCode/pages/:slug', async (req: Request, res: Response) => {
   try {
     const { siteCode, slug } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const page = await Page.findOne({ where: { storeId: store.id, slug, isActive: true } });

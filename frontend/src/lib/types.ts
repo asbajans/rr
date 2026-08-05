@@ -37,6 +37,7 @@ export type Store = {
   domain: string | null
   email: string | null
   is_active: boolean
+  published?: boolean
   theme?: StoreTheme | null
   tax_settings?: Record<string, any> | null
   shipping_settings?: Record<string, any> | null
@@ -51,6 +52,20 @@ export type StoreTheme = {
   favicon_url?: string
   custom_css?: string
   [key: string]: any
+}
+
+export type SiteDeployment = {
+  id: number
+  storeId: number
+  status: 'published' | 'draft' | 'reverted' | 'failed'
+  version: number
+  siteCode?: string | null
+  domain?: string | null
+  siteUrl?: string | null
+  note?: string | null
+  deployedAt?: string | null
+  revertedAt?: string | null
+  createdAt: string
 }
 
 export type StoreMenu = {

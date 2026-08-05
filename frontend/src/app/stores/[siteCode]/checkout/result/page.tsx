@@ -113,7 +113,7 @@ function ResultInner() {
       <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <button
           onClick={() => router.push(`/stores/${siteCode}`)}
-          className="inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
+          className="inline-flex items-center gap-1 sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           <ArrowLeft className="h-4 w-4" /> Alışverişe Devam Et
         </button>

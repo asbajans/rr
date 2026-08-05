@@ -7,6 +7,7 @@ import { CartProvider, useCart } from '@/lib/cart'
 import { ShoppingCart, MapPin } from 'lucide-react'
 import AiChat from '@/components/store/AiChat'
 import PixelInjector from '@/components/store/PixelInjector'
+import StoreThemeInjector from '@/components/store/StoreTheme'
 import { StoreMenuBar, StoreFooterMenus } from '@/components/store/StoreMenuBar'
 import { api } from '@/lib/api-client'
 
@@ -50,13 +51,44 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
   )
 }
 
+function StoreUnpublished() {
+  return (
+    <div className="mx-auto flex max-w-7xl flex-col items-center px-4 py-32 text-center sm:px-6 lg:px-8">
+      <div className="text-5xl">🚧</div>
+      <h1 className="mt-4 text-xl font-bold text-zinc-900">Bu mağaza henüz yayında değil</h1>
+      <p className="mt-2 max-w-md text-sm text-zinc-500">
+        Mağaza sahibi siteyi henüz yayınlamadı. Lütfen daha sonra tekrar deneyin.
+      </p>
+      <Link href="/" className="mt-6 text-sm font-medium text-indigo-600 hover:text-indigo-500">Ana Sayfaya Dön</Link>
+    </div>
+  )
+}
+
 export default function StoreLayout({ children }: { children: ReactNode }) {
   const params = useParams()
   const siteCode = params?.siteCode as string
+  const [published, setPublished] = useState(true)
+
+  useEffect(() => {
+    if (!siteCode) return
+    api.getStoreFront(siteCode).then((r: any) => {
+      const store = r?.store ?? r ?? {}
+      setPublished(store.published !== false)
+    }).catch(() => setPublished(false))
+  }, [siteCode])
+
+  if (!published) {
+    return (
+      <div className="min-h-screen bg-white">
+        <StoreUnpublished />
+      </div>
+    )
+  }
 
   return (
     <CartProvider siteCode={siteCode}>
-      <div className="min-h-screen bg-white">
+      <div data-storefront className="min-h-screen bg-white">
+        <StoreThemeInjector siteCode={siteCode} />
         <StoreHeader siteCode={siteCode} />
         <main>{children}</main>
         <footer className="border-t border-zinc-200 bg-zinc-50">

@@ -236,7 +236,7 @@ export default function CheckoutPage() {
         )}
         <button
           onClick={() => router.push(`/stores/${siteCode}`)}
-          className="mt-8 inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
+          className="mt-8 inline-flex items-center gap-1 sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           <ArrowLeft className="h-4 w-4" /> Alışverişe Devam Et
         </button>
@@ -349,7 +349,7 @@ export default function CheckoutPage() {
             <button
               onClick={handleSubmit}
               disabled={processing || !selectedPayment}
-              className="mt-6 w-full rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+              className="mt-6 w-full sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
             >
               {processing ? 'İşleniyor...' : 'Siparişi Tamamla'}
             </button>
@@ -421,7 +421,7 @@ function AddressForm({ form, onChange, saving, onSave, onBack }: {
       <button
         onClick={onSave}
         disabled={saving || !form.full_name || !form.phone || !form.city || !form.address_line}
-        className="mt-2 w-full rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+        className="mt-2 w-full sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
         {saving ? 'Kaydediliyor...' : 'Adresi Kaydet'}
       </button>

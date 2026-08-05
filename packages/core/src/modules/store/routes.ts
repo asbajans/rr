@@ -61,7 +61,7 @@ storeRoutes.get('/me', authMiddleware, requireStore, async (req: Request, res: R
   res.json({
     store: {
       id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain, siteUrl: store.siteUrl,
-      email: store.email, isActive: store.isActive, currency: store.currency,
+      email: store.email, isActive: store.isActive, published: store.published, currency: store.currency,
       theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
     },
     subscription: subscription ? serializeSubscription(subscription) : null,
@@ -116,7 +116,7 @@ storeRoutes.put('/me', authMiddleware, requireRole('owner', 'admin'), requireSto
       message: 'Settings updated',
       store: {
         id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain, siteUrl: store.siteUrl,
-        email: store.email, isActive: store.isActive, currency: store.currency,
+        email: store.email, isActive: store.isActive, published: store.published, currency: store.currency,
         theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
       },
     });

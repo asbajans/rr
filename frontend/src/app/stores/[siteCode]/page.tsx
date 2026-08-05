@@ -141,7 +141,7 @@ export default function StoreFrontPage() {
           </button>
         )}
         <button type="submit" disabled={searching || !searchQuery.trim()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+          className="sf-btn-primary absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
           {searching ? 'Aranıyor...' : 'Ara'}
         </button>
       </form>

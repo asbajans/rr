@@ -32,6 +32,7 @@ import { menuRoutes } from './modules/menu/routes.js';
 import { brandRoutes } from './modules/brand/routes.js';
 import { pixelRoutes } from './modules/pixels/routes.js';
 import { supplierRoutes } from './modules/supplier/routes.js';
+import { siteRoutes } from './modules/site/routes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -58,6 +59,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/brands', brandRoutes);
   app.use('/api/admin/pixels', pixelRoutes);
   app.use('/api/admin', supplierRoutes);
+  app.use('/api/admin/site', siteRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/ai', draftRoutes);
   app.use('/api/ai', publishRoutes);

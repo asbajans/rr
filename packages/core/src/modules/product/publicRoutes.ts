@@ -27,7 +27,7 @@ function normalizeProductImages(p: any): any {
 publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await Store.findOne({ where: { siteCode, isActive: true, published: true } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const page = parseInt(req.query.page as string) || 1;
@@ -64,7 +64,7 @@ publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Respons
 publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Response) => {
   try {
     const { siteCode, id } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await Store.findOne({ where: { siteCode, isActive: true, published: true } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const product = await Product.findOne({
@@ -85,7 +85,7 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
 publicProductRoutes.get('/:siteCode/categories', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
-    const store = await Store.findOne({ where: { siteCode, isActive: true } });
+    const store = await Store.findOne({ where: { siteCode, isActive: true, published: true } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const categories = await Category.findAll({

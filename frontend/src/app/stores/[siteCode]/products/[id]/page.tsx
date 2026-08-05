@@ -144,7 +144,7 @@ export default function StoreProductDetailPage() {
               className={`flex-1 rounded-lg px-6 py-3 text-sm font-medium transition-colors ${
                 added
                   ? 'bg-green-500 text-white'
-                  : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                  : 'sf-btn-primary text-white hover:bg-zinc-800'
               }`}
             >
               {added ? 'Sepete Eklendi ✓' : 'Sepete Ekle'}

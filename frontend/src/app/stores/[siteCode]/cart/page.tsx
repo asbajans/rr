@@ -69,7 +69,7 @@ export default function CartPage() {
         </div>
         <button
           onClick={() => router.push(`/stores/${siteCode}/checkout`)}
-          className="mt-6 w-full rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
+          className="mt-6 w-full sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           Ödemeye Geç
         </button>

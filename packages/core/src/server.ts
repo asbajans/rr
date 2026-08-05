@@ -193,6 +193,13 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Faz 8 — site publish state + deployment history
+  try {
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS published BOOLEAN DEFAULT true`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Normalize plan.modules: default all-enabled for unconfigured plans, convert legacy boolean values
   try {
     await sequelize.query(
