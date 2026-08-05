@@ -9,6 +9,7 @@ import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js
 import { assertProductQuota, requireModule } from '../plan/access.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { clonePatchFromOriginal } from '../supplier/fulfillment.js';
 
 export const productRoutes: Router = Router();
 
@@ -336,6 +337,89 @@ productRoutes.post('/:id/sync', authMiddleware, requireRole('owner', 'admin'), r
     res.status(202).json({ jobId: job.id, message: 'Sync job queued' });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Product sync error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/products/:id/pull-from-original — clone adopts stock/price from supplier original
+productRoutes.post('/:id/pull-from-original', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const clone = await Product.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!clone) return res.status(404).json({ error: 'Product not found' });
+    if (!clone.originalProductId) return res.status(400).json({ error: 'Not a B2B clone' });
+
+    const original = await Product.findByPk(clone.originalProductId);
+    if (!original) return res.status(404).json({ error: 'Original product not found' });
+
+    const patch = clonePatchFromOriginal(original.toJSON());
+    await clone.update(patch);
+
+    logger.info(`Clone ${clone.id} synced from original ${original.id}: ${Object.keys(patch).join(',')}`);
+    res.json({ product: clone, syncedFields: Object.keys(patch) });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Pull from original error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/products/:id/push-to-clones — supplier pushes stock/price to every B2B clone
+productRoutes.post('/:id/push-to-clones', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const product = await Product.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const clones = await Product.findAll({ where: { originalProductId: product.id } });
+    const patch = clonePatchFromOriginal(product.toJSON());
+    let updated = 0;
+    for (const clone of clones) {
+      await clone.update(patch);
+      updated++;
+    }
+
+    logger.info(`Original ${product.id} pushed ${Object.keys(patch).join(',')} to ${updated} clones`);
+    res.json({ updated, syncedFields: Object.keys(patch) });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Push to clones error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/products/:id/clones — list B2B clones of a product
+productRoutes.get('/:id/clones', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const product = await Product.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const clones = await Product.findAll({
+      where: { originalProductId: product.id },
+      attributes: ['id', 'title', 'sku', 'quantity', 'priceTRY', 'originalStoreId', 'isActive', 'updatedAt'],
+    });
+
+    const originals = await Product.findAll({
+      where: { originalProductId: product.id },
+      attributes: ['id', 'storeId'],
+    });
+    const storeIds = [...new Set(originals.map((o) => o.storeId))];
+    const stores = storeIds.length > 0
+      ? await (await import('../../models/Store.model.js')).Store.findAll({ where: { id: { [Op.in]: storeIds } }, attributes: ['id', 'name', 'siteCode'] })
+      : [];
+
+    const byStore = new Map(stores.map((s) => [s.id, s]));
+    res.json({
+      clones: clones.map((c) => ({ ...c.toJSON(), store: byStore.get(c.storeId) || null })),
+      total: clones.length,
+    });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List clones error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

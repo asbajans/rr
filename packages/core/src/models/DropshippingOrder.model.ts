@@ -157,6 +157,22 @@ export class DropshippingOrder extends Model {
   @Column(DataType.BIGINT)
   declare parentOrderId: number;
 
+  @Default(0)
+  @Column(DataType.DECIMAL(5, 2))
+  declare commissionRate: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(15, 2))
+  declare commissionAmount: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(15, 2))
+  declare supplierEarnings: number;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(20))
+  declare supplierStatus: string;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

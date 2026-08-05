@@ -132,6 +132,6 @@ export class AiProductDraft extends Model {
   declare updatedAt: Date;
 
   @BelongsTo(() => Store) declare store: Store;
-  @BelongsTo(() => AiProductSession) declare session: AiProductSession;
+  @BelongsTo(() => AiProductSession, { foreignKey: 'sessionId' }) declare session: AiProductSession;
   @BelongsTo(() => Product) declare product: Product;
 }

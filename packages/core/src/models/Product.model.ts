@@ -90,6 +90,10 @@ export class Product extends Model {
 
   @AllowNull(true)
   @Column(DataType.DECIMAL(15, 2))
+  declare cost: number;
+
+  @AllowNull(true)
+  @Column(DataType.DECIMAL(15, 2))
   declare priceTRY: number;
 
   @AllowNull(true)

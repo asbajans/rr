@@ -66,6 +66,10 @@ export class ProductVariant extends Model {
 
   @AllowNull(true)
   @Column(DataType.DECIMAL(15, 2))
+  declare cost: number;
+
+  @AllowNull(true)
+  @Column(DataType.DECIMAL(15, 2))
   declare priceUSD: number;
 
   @AllowNull(true)

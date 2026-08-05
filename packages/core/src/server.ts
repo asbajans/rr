@@ -181,6 +181,18 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Faz 7 — supplier cost + order commission/settlement columns
+  try {
+    await sequelize.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS cost DECIMAL(15,2)`);
+    await sequelize.query(`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS cost DECIMAL(15,2)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "commissionRate" DECIMAL(5,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "commissionAmount" DECIMAL(15,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "supplierEarnings" DECIMAL(15,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "supplierStatus" VARCHAR(20)`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Normalize plan.modules: default all-enabled for unconfigured plans, convert legacy boolean values
   try {
     await sequelize.query(

@@ -3,7 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { Store } from '../../models/Store.model.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
-import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
+import { createSplitOrder } from '../order/orderSplit.js';
 import { requireInternalKey } from '../../middleware/internalAuth.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/env.js';
@@ -61,7 +61,7 @@ internalRoutes.post('/dropshipping-orders', requireInternalKey, [
   body('totals').isObject(),
 ], validate, validate, async (req: Request, res: Response) => {
   try {
-    const { storeId, marketplace, externalId, status, customer, items, totals, createdAt } = req.body;
+    const { storeId, marketplace, externalId, status, customer, items, totals } = req.body;
 
     // Check if store exists
     const store = await Store.findByPk(storeId);
@@ -71,23 +71,23 @@ internalRoutes.post('/dropshipping-orders', requireInternalKey, [
 
     // Check if order with this externalId and marketplace already exists for this store
     const existingOrder = await DropshippingOrder.findOne({
-      where: { storeId, marketplace, externalId },
+      where: { storeId, marketplace, marketplaceOrderId: String(externalId) },
     });
 
     if (existingOrder) {
-      // Optionally update the order? For now, we'll just return the existing order to avoid duplicates.
       return res.status(200).json({ order: existingOrder, message: 'Order already exists' });
     }
 
-    // Create the dropshipping order
-    const order = await DropshippingOrder.create({
+    const orderNumber = totals.orderNumber || `ORD-${Date.now()}`;
+    const { mainOrder } = await createSplitOrder(
       storeId,
       marketplace,
-      externalId,
-      status,
-      totalAmount: totals.grandTotal || 0,
-      currency: 'TRY', // Assuming TRY, but we can get from totals.currency if available
-      shippingAddress: {
+      String(externalId),
+      items,
+      totals.grandTotal || 0,
+      orderNumber,
+      totals.currency || 'TRY',
+      {
         name: customer.name,
         address: customer.address,
         city: customer.city,
@@ -95,24 +95,16 @@ internalRoutes.post('/dropshipping-orders', requireInternalKey, [
         phone: customer.phone,
         email: customer.email,
       },
-      items: JSON.stringify(items), // Assuming we store items as JSON string? Check the model.
-      // Note: The DropshippingOrder model might have different fields. We need to check.
-      // For now, we'll assume the model matches the DTO we are sending from integration service.
-      // But let's look at the model later. For now, we'll create with the fields we have.
-      // We'll also set the createdAt if provided.
-      ...(createdAt && { createdAt }),
-    });
+      {},
+      totals.orderNumber,
+      customer.name,
+      customer.email,
+      customer.phone,
+      { status: status || 'pending' },
+    );
 
-    // Create initial status history
-    await OrderStatusHistory.create({
-      dropshippingOrderId: order.id,
-      fromStatus: 'pending', // Assuming initial status is pending
-      toStatus: status,
-      note: `Order created from marketplace ${marketplace}`,
-    });
-
-    logger.info(`Dropshipping order created: ${order.id} for store ${storeId} from marketplace ${marketplace}`);
-    res.status(201).json({ order });
+    logger.info(`Dropshipping order created: ${mainOrder.id} for store ${storeId} from marketplace ${marketplace}`);
+    res.status(201).json({ order: mainOrder });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Failed to create dropshipping order');
     res.status(500).json({ error: 'Internal server error' });

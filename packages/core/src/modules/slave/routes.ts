@@ -179,25 +179,39 @@ slaveRoutes.post('/orders', slaveAuth, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const { DropshippingOrder } = await import('../../models/DropshippingOrder.model.js');
+    const { createSplitOrder } = await import('../order/orderSplit.js');
     const input = req.body;
     if (!input || !input.id) {
       res.status(400).json({ error: 'Invalid order data' });
       return;
     }
-    const order = await DropshippingOrder.create({
-      storeId: store.id,
-      marketplaceOrderId: String(input.id),
-      marketplace: input.marketplace || 'slave',
-      customerName: input.customer_name || input.customerName || '',
-      customerEmail: input.customer_email || input.customerEmail || '',
-      shippingAddress: input.shipping_address || input.shippingAddress || {},
-      items: input.items || [],
-      totalAmount: input.grand_total ?? input.totalAmount ?? 0,
-      currency: input.currency || 'TRY',
-      status: input.status || 'pending',
-      notes: input.notes || '',
-    });
-    res.status(201).json({ status: 'received', order_id: order.id });
+
+    const marketplaceOrderId = String(input.id);
+    const existing = await DropshippingOrder.findOne({ where: { storeId: store.id, marketplaceOrderId } });
+    if (existing) {
+      res.status(200).json({ status: 'exists', order_id: existing.id });
+      return;
+    }
+
+    const orderNumber = input.order_number || input.orderNumber || `ORD-${Date.now()}`;
+    const { mainOrder } = await createSplitOrder(
+      store.id,
+      input.marketplace || 'slave',
+      marketplaceOrderId,
+      input.items || [],
+      input.grand_total ?? input.totalAmount ?? 0,
+      orderNumber,
+      input.currency || 'TRY',
+      input.shipping_address || input.shippingAddress || {},
+      input.payload || {},
+      input.marketplace_order_number || input.marketplaceOrderNumber,
+      input.customer_name || input.customerName,
+      input.customer_email || input.customerEmail,
+      input.customer_phone || input.customerPhone,
+      { status: input.status || 'pending', note: input.notes || input.note || null },
+    );
+
+    res.status(201).json({ status: 'received', order_id: mainOrder.id });
   } catch (error: any) {
     logger.error('Slave receive order error:', error);
     res.status(500).json({ error: error.message });

@@ -885,21 +885,27 @@ export async function createWebhookWorker() {
       try {
         if (type === 'order') {
           const { DropshippingOrder } = await import('../models/DropshippingOrder.model.js');
-          const { OrderStatusHistory } = await import('../models/OrderStatusHistory.model.js');
+          const { createSplitOrder } = await import('../modules/order/orderSplit.js');
           const existing = await DropshippingOrder.findOne({
             where: { marketplaceOrderId: data.marketplaceOrderId, storeId },
           });
           if (!existing) {
-            await DropshippingOrder.create({
+            const orderNumber = data.orderNumber || `ORD-${Date.now()}`;
+            await createSplitOrder(
               storeId,
-              marketplace: data.marketplace,
-              marketplaceOrderId: data.marketplaceOrderId,
-              marketplaceOrderNumber: data.marketplaceOrderNumber,
-              totalAmount: data.totalAmount,
-              shippingAddress: data.shippingAddress,
-              items: data.items,
-              status: 'pending',
-            } as any);
+              data.marketplace || 'webhook',
+              data.marketplaceOrderId,
+              data.items || [],
+              data.totalAmount || 0,
+              orderNumber,
+              data.currency || 'TRY',
+              data.shippingAddress || {},
+              data.payload || {},
+              data.marketplaceOrderNumber,
+              data.customerName,
+              data.customerEmail,
+              data.customerPhone,
+            );
             logger.info({ marketplaceOrderId: data.marketplaceOrderId }, 'Order created from webhook');
           } else {
             logger.info({ marketplaceOrderId: data.marketplaceOrderId }, 'Order already exists, skipping');

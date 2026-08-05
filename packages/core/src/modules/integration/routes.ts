@@ -354,34 +354,20 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
           continue;
         }
 
-        const order = await DropshippingOrder.create({
-          storeId: store.id,
-          orderNumber,
-          marketplace,
-          marketplaceOrderId,
-          marketplaceOrderNumber: String(pkg.orderNumber || ''),
-          totalAmount,
-          currency: 'TRY',
-          status: newStatus,
-          shippingAddress,
-          items,
-          customerName: fullName,
-          customerEmail,
-          customerPhone: phone,
-          trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
-          carrier: pkg.cargoProviderName || pkg.carrier || '',
-          paymentMethod: 'marketplace',
-          paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
-        } as any);
+        const { mainOrder, subOrders } = await createSplitOrder(
+          store.id, marketplace, marketplaceOrderId,
+          items, totalAmount, orderNumber, 'TRY', shippingAddress, pkg,
+          String(pkg.orderNumber || ''), fullName, customerEmail, phone,
+          {
+            status: newStatus,
+            trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
+            carrier: pkg.cargoProviderName || pkg.carrier || '',
+            paymentMethod: 'marketplace',
+            paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
+          },
+        );
 
-        await OrderStatusHistory.create({
-          dropshippingOrderId: order.id,
-          fromStatus: 'none',
-          toStatus: order.status,
-          note: `Imported from ${marketplace}`,
-        });
-
-        imported.push({ id: order.id, orderNumber, status: order.status, marketplaceOrderId, updated: false });
+        imported.push({ id: mainOrder.id, orderNumber, status: mainOrder.status, marketplaceOrderId, updated: false, subOrders: subOrders.length });
       }
 
       page++;
@@ -522,25 +508,18 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
               continue;
             }
 
-            await DropshippingOrder.create({
-              storeId: store.id,
-              orderNumber,
-              marketplace: mp,
-              marketplaceOrderId,
-              marketplaceOrderNumber: String(pkg.orderNumber || ''),
-              totalAmount,
-              currency: 'TRY',
-              status: newStatus,
-              shippingAddress,
-              items,
-              customerName: fullName,
-              customerEmail,
-              customerPhone: phone,
-              trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
-              carrier: pkg.cargoProviderName || pkg.carrier || '',
-              paymentMethod: 'marketplace',
-              paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
-            } as any);
+            await createSplitOrder(
+              store.id, mp, marketplaceOrderId,
+              items, totalAmount, orderNumber, 'TRY', shippingAddress, pkg,
+              String(pkg.orderNumber || ''), fullName, customerEmail, phone,
+              {
+                status: newStatus,
+                trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
+                carrier: pkg.cargoProviderName || pkg.carrier || '',
+                paymentMethod: 'marketplace',
+                paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
+              },
+            );
 
             imported++;
           }

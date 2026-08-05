@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculateTotals, issueOrderToken, verifyOrderToken, hashOrderToken, createCheckoutOrder, CheckoutError } from './checkout.js';
+import { computeSettlement } from './orderSplit.js';
 import { createGateway } from '../payment/gateways/index.js';
 
 describe('calculateTotals', () => {
@@ -135,5 +136,25 @@ describe('gateway factory', () => {
     expect(createGateway('bank_transfer')).toBeNull();
     expect(createGateway('')).toBeNull();
     expect(createGateway('nope')).toBeNull();
+  });
+});
+
+describe('computeSettlement', () => {
+  it('keeps full earnings with zero commission', () => {
+    const s = computeSettlement(1000, 0);
+    expect(s.commissionAmount).toBe(0);
+    expect(s.supplierEarnings).toBe(1000);
+  });
+
+  it('deducts the commission percentage from supplier earnings', () => {
+    const s = computeSettlement(1000, 5);
+    expect(s.commissionAmount).toBe(50);
+    expect(s.supplierEarnings).toBe(950);
+  });
+
+  it('rounds to 2 decimals', () => {
+    const s = computeSettlement(33.33, 12.5);
+    expect(s.commissionAmount).toBe(4.17);
+    expect(s.supplierEarnings).toBe(29.16);
   });
 });

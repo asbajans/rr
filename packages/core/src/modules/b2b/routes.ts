@@ -8,6 +8,7 @@ import { B2BRequest, B2BListedProduct } from '../../models/B2BModels.js';
 import { Store } from '../../models/Store.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { requireModule, assertProductQuota } from '../plan/access.js';
+import { ensureSupplierForStore } from '../supplier/service.js';
 import { logger } from '../../utils/logger.js';
 
 export const b2bRoutes: Router = Router();
@@ -273,6 +274,9 @@ b2bRoutes.put('/requests/:id', authMiddleware, requireStore, requireModule('b2b'
 
     await request.update({ status, profitMargin: profitMargin || request.profitMargin });
 
+    // The approving store becomes a supplier — ensure a profile exists
+    await ensureSupplierForStore(store.id);
+
     logger.info(`B2B request ${request.id} ${status} by store ${store.id}`);
     res.json({ request });
   } catch (error) {
@@ -332,6 +336,7 @@ async function cloneProductForB2B(request: any, targetStore: any, profitMargin: 
     milyem: originalProduct.milyem,
     effectiveMilyem: originalProduct.effectiveMilyem,
     profitMargin,
+    cost: originalProduct.priceTRY,
     priceTRY: b2bPrice,
     priceUSD: originalProduct.priceUSD,
     quantity: variant?.quantity || originalProduct.quantity,
@@ -360,6 +365,7 @@ async function cloneProductForB2B(request: any, targetStore: any, profitMargin: 
         attributes: origVariant.attributes,
         gramWeight: origVariant.gramWeight,
         quantity: origVariant.quantity,
+        cost: origVariant.priceTRY,
         priceTRY: vPrice,
         priceUSD: origVariant.priceUSD,
         b2bPrice: vPrice,
@@ -376,6 +382,9 @@ async function cloneProductForB2B(request: any, targetStore: any, profitMargin: 
     b2bRequestId: request.id,
     profitMargin,
   });
+
+  // The source store is now a supplier for this buyer
+  await ensureSupplierForStore(originalProduct.storeId);
 
   return clonedProduct;
 }

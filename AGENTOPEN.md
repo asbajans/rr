@@ -600,7 +600,7 @@ Kabul kriterleri:
 
 ## Faz 7 — Dropshipping ve tedarikçi operasyonu
 
-Durum: `[ ] Başlanmadı`
+Durum: `7A ✅ (backend çekirdek) — 7B ✅ (state makinesi + stok/fiyat sync + tracking) — 7C (hakediş + panel)`
 
 ### Mevcut durum (kod denetimi 2026-08-05)
 
@@ -616,18 +616,58 @@ Durum: `[ ] Başlanmadı`
 
 Kapsam:
 
-- [ ] `Supplier` modeli (profil, banka, sözleşme, onay durumu) — B2B listed/approved sahiplerinden türetilir
+- [x] `Supplier` modeli (profil, banka, sözleşme, onay durumu) — B2B listed/approved sahiplerinden **lazy türetilir** (7A)
 - [ ] Tedarikçi ürün kataloğu (B2B listed üzerinden)
-- [ ] Tedarikçi sipariş kabul/red akışı (sub-order'a ayrı state makinesi)
-- [ ] Sipariş tedarikçiye iletimi (tüm giriş yollarında `createSplitOrder` tutarlılığı: import-orders, checkout, slave, webhook worker)
-- [ ] Stok ve fiyat senkronizasyonu (orijinal → klon push)
-- [ ] Tedarikçi maliyeti (klon üzerinde cost alanı)
-- [ ] Satıcı kârı (margin hesabı)
-- [ ] Platform komisyonu (sipariş üzerinde commissionRate + tutar)
-- [ ] Hakediş/ödeme kayıtları (settlement modeli + payout durumu)
-- [ ] Tedarikçi kargo ve tracking akışı
-- [ ] İade ve sorunlu sipariş yönetimi
-- [ ] Tedarikçi paneli (web + mobil sekmesi)
+- [x] Tedarikçi maliyeti (klon üzerinde `cost` alanı = orijinal priceTRY) (7A)
+- [x] Satıcı kârı (margin hesabı — klon priceTRY = orijinal × (1+margin/100); alt sipariş cost bazlı) (7A)
+- [x] Platform komisyonu (sub-order `commissionRate` + `commissionAmount` + `supplierEarnings`) (7A)
+- [x] Sipariş tedarikçiye iletimi (tüm giriş yollarında `createSplitOrder` tutarlılığı: import-orders, import-all, checkout, webhook, manual) (7A)
+- [x] Tedarikçi sipariş kabul/red akışı (sub-order'a ayrı state makinesi) (7B)
+- [x] Stok ve fiyat senkronizasyonu (orijinal → klon push) (7B)
+- [x] Tedarikçi kargo ve tracking akışı (7B)
+- [ ] Hakediş/ödeme kayıtları (settlement modeli + payout durumu) (7C)
+- [ ] İade ve sorunlu sipariş yönetimi (7C)
+- [ ] Tedarikçi paneli (web + mobil sekmesi) (7C)
+
+### Faz 7A — Tedarikçi domain çekirdeği (backend) ✅
+
+- [x] **`Supplier` modeli** (`suppliers`, storeId unique) — name/email/phone/taxId, bankName/iban/bankOwner, contractStatus (`invited|active|suspended`), commissionRate, payoutMethod; `database.ts`'e kayıt; tablo `sequelize.sync` ile oluşur.
+- [x] **`ensureSupplierForStore`** — idempotent lazy profil üretimi; B2B onayında (`PUT /requests/:id`) ve klon oluşumunda (`POST /requests/:id/clone` → `originalStoreId` sahibi) çağrılır.
+- [x] **Supplier route'ları** (`modules/supplier/routes.ts`, `/api/admin` altında):
+  - `GET /api/admin/supplier/profile` — kendi tedarikçi profili (lazy create)
+  - `PUT /api/admin/supplier/profile` — banka/komisyon/sözleşme/ödeme yöntemi
+  - `GET /api/admin/suppliers` — "Tedarikçilerim" (b2b_listed'dan türetilir)
+  - `GET /api/admin/supplier/orders` — gelen sub-order'larım (tedarikçi siparişleri)
+- [x] **`Product.cost` / `ProductVariant.cost`** kolonları + boot migration; klonlama `cost = orijinal.priceTRY` yazar.
+- [x] **`DropshippingOrder` komisyon kolonları** — `commissionRate`, `commissionAmount`, `supplierEarnings` + boot migration.
+- [x] **`createSplitOrder` refactor** — opsiyonel `transaction`; sub-order totali artık **cost bazlı** (`lineUnitCost`); `computeSettlement(costTotal, commissionRate)` ile komisyon/hakediş; `createVendorSubOrders(mainOrder, itemsByStore, vendors, tx, opts)` paylaşılan helper olarak ayrıldı (split + checkout ortak kullanır).
+- [x] **Storefront checkout split** — `createCheckoutOrder` satırlarına `cost` eklendi; klon ürünler txn içinde tedarikçiye sub-order olarak iletilir.
+- [x] **Import split tutarlılığı** — `POST /:marketplace/import-orders` ve `POST /integration/import-all` artık doğrudan create yerine `createSplitOrder` kullanır (status/tracking/carrier/paymentStatus opsiyonları ile).
+- [x] **Testler** — `computeSettlement` unit (0 komisyon, % komisyon, rounding) — core **26** test ✅.
+- [x] **Notlar** — `internal/routes.ts` `externalId` (mevcut olmayan kolon) ve `slave/routes.ts` `notes`→`note` latent bug'ları 7B'de düzeltildi.
+
+### Faz 7B — Tedarikçi operasyonu state makinesi + stok/fiyat sync ✅
+
+- [x] **`DropshippingOrder.supplierStatus`** kolonu (`pending|accepted|rejected|fulfilled`) + boot migration; sub-order oluşumunda `pending` olarak set edilir (`createVendorSubOrders`).
+- [x] **Saf fulfillment mantığı** (`modules/supplier/fulfillment.ts`):
+  - `deriveParentStatus(subs)` — red > tamamı fulfilled (shipped) > herhangi biri accepted (confirmed) önceliğiyle parent durumu türetir.
+  - `latestSupplierTracking(subs)` — en son tracking bilgisini parent'a yansıtır.
+  - `toRestockMap(lines)` — red durumunda alıcının klon stoğunu geri iade için aggregate.
+  - `clonePatchFromOriginal(original)` + `CLONE_SYNC_FIELDS` — klonun orijinalden aldığı ticari alanlar (quantity, priceTRY, priceUSD, discountRate, isActive; cost/margin asla sync edilmez).
+- [x] **Tedarikçi fulfillment route'ları** (`modules/supplier/routes.ts`, `/api/admin/supplier/orders/:id`):
+  - `POST /accept` — `supplierStatus='accepted'`, sub `status='confirmed'`, history, parent sync.
+  - `POST /reject` — `supplierStatus='rejected'`, sub `status='cancelled'`, alıcının klon stoğunu geri iade (`restoreBuyerStock`), parent sync.
+  - `POST /ship` — `supplierStatus='fulfilled'`, sub `status='shipped'`, trackingNumber/carrier, history, parent'e tracking yayılır.
+  - `syncParentOrder(parentId)` — alt siparişlerden parent durum + tracking otomatik türetilir (history notu ile).
+- [x] **Orijinal→klon stok/fiyat senkronizasyonu** (`modules/product/routes.ts`):
+  - `POST /api/admin/products/:id/pull-from-original` — alıcı klonu orijinalden günceller.
+  - `POST /api/admin/products/:id/push-to-clones` — tedarikçi tüm B2B klonlarına günceller.
+  - `GET /api/admin/products/:id/clones` — klon listesi + sahibi store bilgisi.
+- [x] **Tüm giriş yollarında `createSplitOrder` tutarlılığı** (7A'nın kalan parçası):
+  - `slave/routes.ts` `POST /orders` — artık `createSplitOrder` + idempotency (`notes`→`note` bug'ı da düzeltildi).
+  - `internal/routes.ts` `POST /dropshipping-orders` — `externalId` (olmayan kolon) → `marketplaceOrderId` düzeltildi; `createSplitOrder` kullanıyor.
+  - `queues/index.ts` webhook worker — order handler'ı `createSplitOrder` kullanıyor (integration-service → `/webhook/order` zaten split kullanıyordu).
+- [x] **Testler** — `fulfillment.test.ts` (deriveParentStatus/latestSupplierTracking/toRestockMap/SUPPLIER_STATUS) — core **35** test ✅.
 
 Mevcut B2B clone sistemi dropshipping için temel sağlayabilir; ancak tedarikçi operasyonu ayrı bir domain olarak modellenmelidir.
 
@@ -859,4 +899,12 @@ Yeni kullanıcı → Mobil uygulama → Fotoğraf çekme
 
 - [x] **Faz 6C TAMAMLANDI — güvenlik & frontend polish** — **Rate limit**: `express-rate-limit` kuruldu, `server.ts`'te global `/api` (600/15dk) + strict `checkout`(10), `payments/initiate`(10), `auth/login`(20), `auth/register`(10). **Honeypot**: DTO'ya `website` alanı, doluysa checkout 400 `Spam detected`. **`CustomerAddress`** modeli (anonim adres defteri, `ownerTokenHash`) + `GET|POST|PUT|DELETE /:siteCode/addresses` route'ları (stub silindi); checkout `address_id` ile adres çözümleme. **Frontend**: api-client adres + `refundOrder` metotları; checkout sayfası adres defteri (localStorage owner token, kaydet/sil, email alanı). **Order status route**: `cancelled`/`returned` → stok iadesi + otomatik gateway refund (`paymentStatus='refunded'`). **Admin order sayfası**: `paid` iken Para İadesi butonu. **Yeni testler**: honeypot reddi + gateway factory — core 23 test ✅.
 - [x] Doğrulamalar: core build ✅, core typecheck ✅, core test **23/23** ✅ (5 dosya), shared build ✅, shared test 5/5 ✅, frontend build ✅ (48 route).
+
+### 2026-08-05 (deploy sonrası)
+
+- [x] **CI/Docker düzeltmeleri** — `turbo.json`'da `typecheck` + `test` task'larına `dependsOn: ["^build"]` (CI'da `@rahatio/shared` dist'i yoktu → TS2307 cascade); core `Dockerfile`'a `packages/shared` eklendi (builder: `pnpm build --filter=@rahatio/core` turbo ile; runner: shared package.json + prod install + dist copy). GitHub workflow + Docker build ✅.
+- [x] **Faz 7A TAMAMLANDI — tedarikçi domain çekirdeği** — `Supplier` modeli + `ensureSupplierForStore` (lazy, B2B onay/klon'da) + supplier route'ları (`GET|PUT /supplier/profile`, `GET /suppliers` Tedarikçilerim, `GET /supplier/orders` gelen sub-order'lar); `Product.cost`/`ProductVariant.cost` + `DropshippingOrder.commissionRate|commissionAmount|supplierEarnings` kolonları + boot migration'lar; `createSplitOrder` refactor (transaction, cost bazlı sub-order totali, `computeSettlement` komisyon, `createVendorSubOrders` paylaşılan helper); **checkout + import-orders + import-all** artık tedarikçiye sub-order üretiyor; B2B klon cost yazıyor. Testler: `computeSettlement` — core **26** test ✅.
+- [x] **Faz 7B TAMAMLANDI — tedarikçi state makinesi + stok/fiyat sync** — `DropshippingOrder.supplierStatus` (`pending|accepted|rejected|fulfilled`) + boot migration; saf mantık `modules/supplier/fulfillment.ts` (`deriveParentStatus`, `latestSupplierTracking`, `toRestockMap`, `clonePatchFromOriginal`); tedarikçi fulfillment route'ları `POST /api/admin/supplier/orders/:id/accept|reject|ship` (red → alıcı klon stoğu iade; ship → tracking parent'a yayılır; `syncParentOrder` otomatik türetme); orijinal→klon sync (`POST /products/:id/pull-from-original`, `POST /products/:id/push-to-clones`, `GET /products/:id/clones`); **split tutarlılığı tamamlandı** — slave `POST /orders` (idempotent + `notes`→`note` fix) ve internal `POST /dropshipping-orders` (`externalId`→`marketplaceOrderId` fix) + webhook worker artık `createSplitOrder` kullanıyor. Testler: `fulfillment.test.ts` — core **35** test ✅.
+- [x] Doğrulamalar: core build ✅, core typecheck ✅, core test **35/35** ✅, integration-service `tsc` ✅.
+- [x] **HOTFIX — deploy sonrası `SequelizeAssociationError: alias session` crash'i** — `AiProductDraft.model.ts`'teki `@BelongsTo(() => AiProductSession)` decorator'ü ile `associations.ts`'teki `AiProductDraft.belongsTo(AiProductSession, { as: 'session' })` aynı alias'ı iki kez tanımlıyordu → sunucu boot'ta düşüyordu. Çözüm: `associations.ts`'ten AI session/draft satırları kaldırıldı (draft route'ları association'ları hiç kullanmıyor, doğrudan `sessionId`/`draftId` alanlarıyla çalışıyor); decorator'e `{ foreignKey: 'sessionId' }` eklendi (varsayılan `aiProductSessionId` yerine doğru kolon). Doğrulama: 24 model + `setupAssociations()` tüm modellerle crash'siz ✅. Yeniden deploy gerekiyor.
 

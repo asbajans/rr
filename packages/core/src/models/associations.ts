@@ -3,8 +3,6 @@ import { Product } from './Product.model.js';
 import { ProductVariant } from './ProductVariant.model.js';
 import { B2BRequest, B2BListedProduct } from './B2BModels.js';
 import { ExternalFeed, FeedSyncLog, Variation, VariationOption } from './ContentModels.js';
-import { AiProductSession } from './AiProductSession.model.js';
-import { AiProductDraft } from './AiProductDraft.model.js';
 
 /**
  * Only associations NOT already defined by sequelize-typescript decorators.
@@ -29,8 +27,4 @@ export function setupAssociations() {
   // Content models: ExternalFeed.hasMany(FeedSyncLog), Variation.hasMany(VariationOption)
   ExternalFeed.hasMany(FeedSyncLog, { foreignKey: 'feedId', as: 'syncLogs' });
   Variation.hasMany(VariationOption, { foreignKey: 'variationId', as: 'options' });
-
-  // AI Product Studio: session <-> draft (reverse of the draft decorator)
-  AiProductSession.hasOne(AiProductDraft, { foreignKey: 'sessionId', as: 'draft' });
-  AiProductDraft.belongsTo(AiProductSession, { foreignKey: 'sessionId', as: 'session' });
 }

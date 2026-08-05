@@ -15,6 +15,7 @@ import {
   type CheckoutTotals,
   type CheckoutItem,
 } from '@rahatio/shared';
+import { detectVendors, createVendorSubOrders } from './orderSplit.js';
 import type { Store } from '../../models/Store.model.js';
 
 export class CheckoutError extends Error {
@@ -32,6 +33,7 @@ export interface PricedOrderItem extends CheckoutItem {
   name: string;
   unitPrice: number;
   price: number;
+  cost?: number;
   image?: string | null;
 }
 
@@ -188,6 +190,7 @@ export async function createCheckoutOrder(
         name: product.title,
         unitPrice,
         price: unitPrice,
+        cost: product.cost != null && Number(product.cost) > 0 ? Number(product.cost) : unitPrice,
         image: (product.images && product.images[0]) || null,
       });
     }
@@ -237,6 +240,18 @@ export async function createCheckoutOrder(
 
     const orderToken = issueOrderToken(order.id, order.orderNumber);
     await order.update({ orderTokenHash: hashOrderToken(orderToken) }, { transaction });
+
+    // Route B2B-clone items to their suppliers as sub-orders (Faz 7)
+    const { itemsByStore } = await detectVendors(pricedItems);
+    const vendorStoreIds = [...itemsByStore.keys()].filter((id) => id !== 0);
+    if (vendorStoreIds.length > 0) {
+      await createVendorSubOrders(order, itemsByStore, vendorStoreIds, transaction, {
+        status: 'pending',
+        paymentMethod: payment_method || 'bank_transfer',
+        paymentProvider: requiresGateway && payment_method ? payment_method : undefined,
+        paymentStatus,
+      });
+    }
 
     await transaction.commit();
 
