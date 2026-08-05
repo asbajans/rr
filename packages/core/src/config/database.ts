@@ -25,12 +25,13 @@ import { AiProductSession } from '../models/AiProductSession.model.js';
 import { AiProductDraft } from '../models/AiProductDraft.model.js';
 import { CustomerAddress } from '../models/CustomerAddress.model.js';
 import { Supplier } from '../models/Supplier.model.js';
+import { SupplierSettlement } from '../models/SupplierSettlement.model.js';
 
 export const sequelize = new Sequelize(config.database.url, {
   dialect: 'postgres',
   logging: config.env === 'development' ? (msg) => console.log(msg) : false,
   pool: config.database.pool,
-  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier],
+  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement],
   define: {
     timestamps: true,
     underscored: false,

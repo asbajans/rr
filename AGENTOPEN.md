@@ -600,7 +600,7 @@ Kabul kriterleri:
 
 ## Faz 7 — Dropshipping ve tedarikçi operasyonu
 
-Durum: `7A ✅ (backend çekirdek) — 7B ✅ (state makinesi + stok/fiyat sync + tracking) — 7C (hakediş + panel)`
+Durum: `7A ✅ (backend çekirdek) — 7B ✅ (state makinesi + stok/fiyat sync + tracking) — 7C ✅ (hakediş + panel)`
 
 ### Mevcut durum (kod denetimi 2026-08-05)
 
@@ -625,9 +625,9 @@ Kapsam:
 - [x] Tedarikçi sipariş kabul/red akışı (sub-order'a ayrı state makinesi) (7B)
 - [x] Stok ve fiyat senkronizasyonu (orijinal → klon push) (7B)
 - [x] Tedarikçi kargo ve tracking akışı (7B)
-- [ ] Hakediş/ödeme kayıtları (settlement modeli + payout durumu) (7C)
-- [ ] İade ve sorunlu sipariş yönetimi (7C)
-- [ ] Tedarikçi paneli (web + mobil sekmesi) (7C)
+- [x] Hakediş/ödeme kayıtları (settlement modeli + payout durumu) (7C)
+- [x] İade ve sorunlu sipariş yönetimi (7C)
+- [x] Tedarikçi paneli (web + mobil sekmesi) (7C)
 
 ### Faz 7A — Tedarikçi domain çekirdeği (backend) ✅
 
@@ -906,5 +906,7 @@ Yeni kullanıcı → Mobil uygulama → Fotoğraf çekme
 - [x] **Faz 7A TAMAMLANDI — tedarikçi domain çekirdeği** — `Supplier` modeli + `ensureSupplierForStore` (lazy, B2B onay/klon'da) + supplier route'ları (`GET|PUT /supplier/profile`, `GET /suppliers` Tedarikçilerim, `GET /supplier/orders` gelen sub-order'lar); `Product.cost`/`ProductVariant.cost` + `DropshippingOrder.commissionRate|commissionAmount|supplierEarnings` kolonları + boot migration'lar; `createSplitOrder` refactor (transaction, cost bazlı sub-order totali, `computeSettlement` komisyon, `createVendorSubOrders` paylaşılan helper); **checkout + import-orders + import-all** artık tedarikçiye sub-order üretiyor; B2B klon cost yazıyor. Testler: `computeSettlement` — core **26** test ✅.
 - [x] **Faz 7B TAMAMLANDI — tedarikçi state makinesi + stok/fiyat sync** — `DropshippingOrder.supplierStatus` (`pending|accepted|rejected|fulfilled`) + boot migration; saf mantık `modules/supplier/fulfillment.ts` (`deriveParentStatus`, `latestSupplierTracking`, `toRestockMap`, `clonePatchFromOriginal`); tedarikçi fulfillment route'ları `POST /api/admin/supplier/orders/:id/accept|reject|ship` (red → alıcı klon stoğu iade; ship → tracking parent'a yayılır; `syncParentOrder` otomatik türetme); orijinal→klon sync (`POST /products/:id/pull-from-original`, `POST /products/:id/push-to-clones`, `GET /products/:id/clones`); **split tutarlılığı tamamlandı** — slave `POST /orders` (idempotent + `notes`→`note` fix) ve internal `POST /dropshipping-orders` (`externalId`→`marketplaceOrderId` fix) + webhook worker artık `createSplitOrder` kullanıyor. Testler: `fulfillment.test.ts` — core **35** test ✅.
 - [x] Doğrulamalar: core build ✅, core typecheck ✅, core test **35/35** ✅, integration-service `tsc` ✅.
+- [x] **Faz 7C TAMAMLANDI — hakediş + panel** — `SupplierSettlement` modeli (dönem bazlı: `supplierId/storeId/period/totalAmount/commissionAmount/netAmount/orderCount/status(open|requested|paid)/requestedAt/paidAt/payoutMethod/payoutRef`, unique `(storeId, period)`, `sequelize.sync`); `modules/supplier/settlement.ts` — `computeSettlementTotals`, `toSettlementLines`, `getFulfilledSubOrders` (fulfilled + `parentOrderId != null` + dönem aralığı), `computePeriod`, `requestSettlement`; route'lar `GET /supplier/settlements`, `GET /supplier/settlements/period?period=YYYY-MM`, `POST /supplier/settlements/request|cancel|mark-paid`; iade `POST /supplier/orders/:id/return` (restock + parent sync). **Web panel**: `frontend/src/app/(dashboard)/supplier/page.tsx` (profil / gelen siparişler / hakediş sekmeleri; accept/reject/ship/return + dönem hesabı + ödeme geçmişi) + api-client'e 14 tedarikçi metodu + nav `/supplier` (Truck) + 5 locale'e `supplier` anahtarı. **Mobil**: `mobile-app/app/(tabs)/supplier.tsx` (3 sekmeli panel + ship Modal'ı) + api-client tedarikçi metotları + `(tabs)/_layout.tsx`'e `supplier` sekmesi (car icon) + 5 locale'e `supplier*`/`saved`/`ok` anahtarları. Testler: `settlement.test.ts` — core **39** test ✅. Mobil `npx tsc --noEmit` ✅.
+- [x] Doğrulamalar: core build ✅, core typecheck ✅, core test **39/39** ✅, frontend build ✅ (50 route), mobil `npx tsc --noEmit` ✅.
 - [x] **HOTFIX — deploy sonrası `SequelizeAssociationError: alias session` crash'i** — `AiProductDraft.model.ts`'teki `@BelongsTo(() => AiProductSession)` decorator'ü ile `associations.ts`'teki `AiProductDraft.belongsTo(AiProductSession, { as: 'session' })` aynı alias'ı iki kez tanımlıyordu → sunucu boot'ta düşüyordu. Çözüm: `associations.ts`'ten AI session/draft satırları kaldırıldı (draft route'ları association'ları hiç kullanmıyor, doğrudan `sessionId`/`draftId` alanlarıyla çalışıyor); decorator'e `{ foreignKey: 'sessionId' }` eklendi (varsayılan `aiProductSessionId` yerine doğru kolon). Doğrulama: 24 model + `setupAssociations()` tüm modellerle crash'siz ✅. Yeniden deploy gerekiyor.
 

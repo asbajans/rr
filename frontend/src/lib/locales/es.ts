@@ -11,6 +11,7 @@ export const es: Record<string, string> = {
   orders: 'Pedidos',
   b2b: 'Descubrir B2B',
   b2bRequests: 'Solicitudes B2B',
+  supplier: 'Proveedor',
   marketplaces: 'Marketplaces',
   pages: 'Páginas',
   menus: 'Menús',

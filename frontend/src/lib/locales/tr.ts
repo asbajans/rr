@@ -11,6 +11,7 @@ export const tr: Record<string, string> = {
   orders: 'Siparişler',
   b2b: 'B2B Keşfet',
   b2bRequests: 'B2B Talepler',
+  supplier: 'Tedarikçi',
   marketplaces: 'Pazaryerleri',
   pages: 'Sayfalar',
   menus: 'Menüler',

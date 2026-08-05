@@ -11,6 +11,7 @@ export const ar: Record<string, string> = {
   orders: 'الطلبات',
   b2b: 'اكتشاف B2B',
   b2bRequests: 'طلبات B2B',
+  supplier: 'المورد',
   marketplaces: 'الأسواق',
   pages: 'الصفحات',
   menus: 'القوائم',

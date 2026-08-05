@@ -1023,6 +1023,59 @@ class ApiClient {
     return this.downloadFile('/api/admin/slave/download-vercel', 'rahatio-slave-vercel.zip')
   }
 
+  // Supplier (dropshipping / B2B)
+  async getSupplierProfile() {
+    const r = await this.get<any>('/api/admin/supplier/profile')
+    return r.supplier || r.data || r
+  }
+
+  updateSupplierProfile(data: Record<string, unknown>) {
+    return this.put<{ supplier: any }>('/api/admin/supplier/profile', data)
+  }
+
+  getSupplierOrders(params?: { page?: number; status?: string }) {
+    const queryParams: Record<string, string> = {}
+    if (params?.page) queryParams.page = String(params.page)
+    if (params?.status) queryParams.status = params.status
+    return this.get<any>('/api/admin/supplier/orders', { params: Object.keys(queryParams).length ? queryParams : undefined })
+  }
+
+  supplierAcceptOrder(id: number, note?: string) {
+    return this.post<{ order: any }>(`/api/admin/supplier/orders/${id}/accept`, { note })
+  }
+
+  supplierRejectOrder(id: number, note?: string) {
+    return this.post<{ order: any }>(`/api/admin/supplier/orders/${id}/reject`, { note })
+  }
+
+  supplierShipOrder(id: number, trackingNumber: string, carrier?: string, note?: string) {
+    return this.post<{ order: any }>(`/api/admin/supplier/orders/${id}/ship`, { trackingNumber, carrier, note })
+  }
+
+  supplierReturnOrder(id: number, note?: string) {
+    return this.post<{ order: any }>(`/api/admin/supplier/orders/${id}/return`, { note })
+  }
+
+  getSupplierSettlements(params?: { page?: number }) {
+    return this.get<any>('/api/admin/supplier/settlements', { params: params?.page ? { page: String(params.page) } : undefined })
+  }
+
+  getSupplierSettlementPeriod(period: string) {
+    return this.get<any>('/api/admin/supplier/settlements/period', { params: { period } })
+  }
+
+  requestSupplierSettlement(period: string) {
+    return this.post<{ settlement: any }>('/api/admin/supplier/settlements/request', { period })
+  }
+
+  cancelSupplierSettlement(id: number) {
+    return this.post<{ settlement: any }>(`/api/admin/supplier/settlements/${id}/cancel`)
+  }
+
+  markSupplierSettlementPaid(id: number, payoutRef?: string) {
+    return this.post<{ settlement: any }>(`/api/admin/supplier/settlements/${id}/mark-paid`, { payoutRef })
+  }
+
   // Store Frontend
   getStoreFront(siteCode: string) {
     return this.get<StoreFrontData>(`/api/store/${siteCode}`)

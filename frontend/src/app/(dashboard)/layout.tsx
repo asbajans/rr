@@ -39,6 +39,7 @@ const navGroups = [
       { href: '/b2b', labelKey: 'b2b', icon: Handshake },
       { href: '/b2b/requests', labelKey: 'b2bRequests', icon: Handshake },
       { href: '/marketplaces', labelKey: 'marketplaces', icon: ShoppingCart },
+      { href: '/supplier', labelKey: 'supplier', icon: Truck },
     ],
   },
   {

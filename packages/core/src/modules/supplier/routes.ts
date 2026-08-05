@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { body, param, query, validationResult } from 'express-validator';
 import { Op } from 'sequelize';
 import { Supplier } from '../../models/Supplier.model.js';
 import { Store } from '../../models/Store.model.js';
@@ -10,6 +10,8 @@ import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { ensureSupplierForStore } from './service.js';
 import { SUPPLIER_STATUS, deriveParentStatus, latestSupplierTracking, toRestockMap } from './fulfillment.js';
+import { computePeriod, requestSettlement } from './settlement.js';
+import { SupplierSettlement } from '../../models/SupplierSettlement.model.js';
 import { logger } from '../../utils/logger.js';
 
 export const supplierRoutes: Router = Router();
@@ -262,6 +264,135 @@ supplierRoutes.post('/supplier/orders/:id/ship', authMiddleware, requireRole('ow
     res.json({ order: sub, supplierStatus: SUPPLIER_STATUS.FULFILLED });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Ship supplier order error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Supplier accepts a return on a shipped sub-order → restocks + syncs parent
+supplierRoutes.post('/supplier/orders/:id/return', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+  body('note').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const sub = await loadSupplierSubOrder(store.id, Number(req.params.id));
+    if (!sub) return res.status(404).json({ error: 'Sub-order not found' });
+
+    if (sub.supplierStatus === SUPPLIER_STATUS.REJECTED) {
+      return res.status(409).json({ error: 'Order already rejected' });
+    }
+    if (sub.supplierStatus !== SUPPLIER_STATUS.FULFILLED) {
+      return res.status(409).json({ error: 'Only fulfilled orders can be returned' });
+    }
+
+    const oldStatus = sub.status;
+    await sub.update({ supplierStatus: SUPPLIER_STATUS.FULFILLED, status: 'returned' });
+    await writeSubHistory(sub, oldStatus, 'returned', req.body.note || 'Returned by supplier');
+
+    await restoreBuyerStock(sub);
+    await syncParentOrder(sub.parentOrderId!);
+
+    logger.info(`Supplier ${store.id} returned sub-order ${sub.id}`);
+    res.json({ order: sub, supplierStatus: SUPPLIER_STATUS.FULFILLED, status: 'returned' });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Return supplier order error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ---- Settlements (payouts) ----
+
+// GET /supplier/settlements — my payout records, newest first
+supplierRoutes.get('/supplier/settlements', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    const where: Record<string, unknown> = { storeId: store.id };
+    if (req.query.status) where.status = req.query.status;
+
+    const { count, rows } = await SupplierSettlement.findAndCountAll({
+      where,
+      limit,
+      offset,
+      order: [['period', 'DESC']],
+    });
+
+    res.json({ settlements: rows, pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) } });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List settlements error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /supplier/settlements/period?period=YYYY-MM — computed totals for a period
+supplierRoutes.get('/supplier/settlements/period', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  query('period').matches(/^\d{4}-\d{2}$/),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const result = await computePeriod(store.id, req.query.period as string);
+    res.json(result);
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Compute period settlement error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /supplier/settlements/request — request payout for a period
+supplierRoutes.post('/supplier/settlements/request', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('period').matches(/^\d{4}-\d{2}$/),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const settlement = await requestSettlement(store.id, req.body.period);
+    res.json({ settlement });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Request settlement error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /supplier/settlements/:id/cancel — cancel a pending request
+supplierRoutes.post('/supplier/settlements/:id/cancel', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const settlement = await SupplierSettlement.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!settlement) return res.status(404).json({ error: 'Settlement not found' });
+    if (settlement.status !== 'requested') return res.status(409).json({ error: 'Only requested settlements can be cancelled' });
+
+    await settlement.update({ status: 'open', requestedAt: null });
+    res.json({ settlement });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Cancel settlement error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /supplier/settlements/:id/mark-paid — platform operator marks payout paid
+supplierRoutes.post('/supplier/settlements/:id/mark-paid', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+  body('payoutRef').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const settlement = await SupplierSettlement.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!settlement) return res.status(404).json({ error: 'Settlement not found' });
+    if (settlement.status !== 'requested') return res.status(409).json({ error: 'Only requested settlements can be marked paid' });
+
+    await settlement.update({
+      status: 'paid',
+      paidAt: new Date(),
+      payoutRef: req.body.payoutRef || null,
+    });
+    logger.info(`Settlement ${settlement.id} marked paid (net=${settlement.netAmount})`);
+    res.json({ settlement });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Mark settlement paid error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

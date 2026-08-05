@@ -828,6 +828,59 @@ class ApiClient {
     return this.post<{ imported: number; results: { marketplace: string; imported: number }[] }>(`/api/admin/integration/import-all`, options || {})
   }
 
+  // Supplier (dropshipping / B2B)
+  getSupplierProfile() {
+    return this.get<{ supplier: any }>('/api/admin/supplier/profile')
+  }
+
+  updateSupplierProfile(data: Record<string, unknown>) {
+    return this.put<{ supplier: any }>('/api/admin/supplier/profile', data)
+  }
+
+  getSuppliers() {
+    return this.get<{ suppliers: any[]; supplierStoreIds: number[] }>('/api/admin/suppliers')
+  }
+
+  getSupplierOrders(filters?: { page?: number; limit?: number; status?: string }) {
+    return this.get<{ orders: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/supplier/orders', { params: filters })
+  }
+
+  supplierAcceptOrder(id: number, note?: string) {
+    return this.post<{ order: any; supplierStatus: string }>(`/api/admin/supplier/orders/${id}/accept`, { note })
+  }
+
+  supplierRejectOrder(id: number, note?: string) {
+    return this.post<{ order: any; supplierStatus: string }>(`/api/admin/supplier/orders/${id}/reject`, { note })
+  }
+
+  supplierShipOrder(id: number, trackingNumber: string, carrier?: string, note?: string) {
+    return this.post<{ order: any; supplierStatus: string }>(`/api/admin/supplier/orders/${id}/ship`, { trackingNumber, carrier, note })
+  }
+
+  supplierReturnOrder(id: number, note?: string) {
+    return this.post<{ order: any; supplierStatus: string; status: string }>(`/api/admin/supplier/orders/${id}/return`, { note })
+  }
+
+  getSupplierSettlements(filters?: { page?: number; limit?: number; status?: string }) {
+    return this.get<{ settlements: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/api/admin/supplier/settlements', { params: filters })
+  }
+
+  getSupplierSettlementPeriod(period: string) {
+    return this.get<{ computation: any; lines: any[]; settlement: any | null }>('/api/admin/supplier/settlements/period', { params: { period } })
+  }
+
+  requestSupplierSettlement(period: string) {
+    return this.post<{ settlement: any }>('/api/admin/supplier/settlements/request', { period })
+  }
+
+  cancelSupplierSettlement(id: number) {
+    return this.post<{ settlement: any }>(`/api/admin/supplier/settlements/${id}/cancel`)
+  }
+
+  markSupplierSettlementPaid(id: number, payoutRef?: string) {
+    return this.post<{ settlement: any }>(`/api/admin/supplier/settlements/${id}/mark-paid`, { payoutRef })
+  }
+
   // Integration Webhooks
   webhookOrder(marketplace: string, payload: any) {
     return this.post<{ order: any; created: boolean }>(`/api/admin/integration/webhook/order`, { marketplace, payload })

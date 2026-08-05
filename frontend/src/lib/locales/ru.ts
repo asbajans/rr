@@ -11,6 +11,7 @@ export const ru: Record<string, string> = {
   orders: 'Заказы',
   b2b: 'B2B Поиск',
   b2bRequests: 'B2B Запросы',
+  supplier: 'Поставщик',
   marketplaces: 'Площадки',
   pages: 'Страницы',
   menus: 'Меню',
