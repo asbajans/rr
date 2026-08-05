@@ -6,10 +6,11 @@ FROM base AS builder
 RUN npm install -g pnpm@9
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml turbo.json ./
 COPY packages/core ./packages/core
+COPY packages/shared ./packages/shared
 COPY packages/ai-service ./packages/ai-service
 COPY packages/integration-service ./packages/integration-service
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @rahatio/core build
+RUN pnpm build --filter=@rahatio/core
 
 FROM base AS runner
 WORKDIR /app
@@ -21,9 +22,11 @@ RUN apk add --no-cache postgresql-client redis
 RUN npm install -g pnpm@9
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
-RUN pnpm install --frozen-lockfile --prod --filter @rahatio/core
+COPY packages/shared/package.json ./packages/shared/
+RUN pnpm install --frozen-lockfile --prod --filter @rahatio/core --filter @rahatio/shared
 
 COPY --from=builder /app/packages/core/dist ./packages/core/dist
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/core/src/config ./packages/core/src/config
 COPY packages/core/src/scripts ./packages/core/src/scripts
 COPY packages/core/docker-entrypoint.sh ./packages/core/
