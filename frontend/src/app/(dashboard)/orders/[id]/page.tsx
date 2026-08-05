@@ -46,6 +46,7 @@ export default function OrderDetailPage() {
   const [labelLoading, setLabelLoading] = useState(false)
   const [showRawPayload, setShowRawPayload] = useState(false)
   const [rawData, setRawData] = useState<any>(null)
+  const [refunding, setRefunding] = useState(false)
 
   useEffect(() => {
     if (!id || !user) return
@@ -135,6 +136,21 @@ export default function OrderDetailPage() {
       setMessage(err.message || 'Kaydedilemedi')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  async function handleRefund() {
+    if (!window.confirm(`Bu sipariş için para iadesi başlatılacak. Emin misiniz?`)) return
+    setRefunding(true)
+    setMessage('')
+    try {
+      const res = await api.refundOrder(parseInt(id))
+      setOrder(prev => prev ? { ...prev, payment_status: res.paymentStatus } : prev)
+      setMessage(`Para iadesi işlendi (${res.refId})`)
+    } catch (err: any) {
+      setMessage(err.message || 'İade yapılamadı')
+    } finally {
+      setRefunding(false)
     }
   }
 
@@ -412,6 +428,15 @@ export default function OrderDetailPage() {
               {labelField('Durum', STATUS_CONFIG[order.status]?.label)}
               {labelField('Ödeme Yöntemi', order.payment_method)}
               {labelField('Ödeme Durumu', order.payment_status)}
+              {order.payment_status === 'paid' && (
+                <button
+                  onClick={handleRefund}
+                  disabled={refunding}
+                  className="mt-1 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {refunding ? 'İşleniyor...' : 'Para İadesi Yap'}
+                </button>
+              )}
               {cargoCompany && labelField('Kargo Firması', cargoCompany)}
               {order.tracking_number && labelField('Kargo Takip', order.tracking_number)}
               {order.tracking_company && labelField('Kargo Şirketi', order.tracking_company)}

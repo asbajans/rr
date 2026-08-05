@@ -796,6 +796,10 @@ class ApiClient {
     return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/status`, { status, note })
   }
 
+  refundOrder(id: number, amount?: number, reason?: string) {
+    return this.post<{ success: boolean; refId: string; paymentStatus: string }>(`/api/admin/orders/${id}/refund`, { amount, reason })
+  }
+
   updateOrderTracking(id: number, trackingNumber: string, carrier?: string) {
     return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/tracking`, { trackingNumber, carrier })
   }
@@ -928,6 +932,69 @@ class ApiClient {
   }
 
   generateDescription(data: { title: string; category: string; attributes?: Record<string, any>; keywords?: string[] }) {    return this.post<{ description: string; title: string; keywords: string[]; slug: string }>(`/api/ai/generate-description`, data)
+  }
+
+  // AI Product Studio (session → draft → publish flow)
+  async createAiProductSession(data: {
+    sourceImageUrl: string
+    category?: string
+    short_description?: string
+    keywords?: string[]
+    notes?: string
+    suggest_price?: boolean
+    target_marketplaces?: string[]
+  }) {
+    const r = await this.post<{ session: any; draft: any | null }>(`/api/ai/product-sessions`, data)
+    return { session: r.session, draft: r.draft }
+  }
+
+  async getAiProductSession(id: string) {
+    const r = await this.get<{ session: any; draft: any | null }>(`/api/ai/product-sessions/${id}`)
+    return { session: r.session, draft: r.draft }
+  }
+
+  async getAiProductSessionStatus(id: string) {
+    return this.get<{ id: string; status: string; errorMessage?: string; creditsUsed: number; draftId?: number }>(`/api/ai/product-sessions/${id}/status`)
+  }
+
+  async listAiProductDrafts() {
+    const r = await this.get<{ drafts: any[] }>(`/api/ai/product-drafts`)
+    return r.drafts || []
+  }
+
+  getAiProductDraft(id: number) {
+    return this.get<any>(`/api/ai/product-drafts/${id}`).then(r => r.draft ?? r)
+  }
+
+  updateAiProductDraft(id: number, patch: Record<string, any>) {
+    return this.put<any>(`/api/ai/product-drafts/${id}`, patch).then(r => r.draft ?? r)
+  }
+
+  approveAiProductDraft(id: number) {
+    return this.post<any>(`/api/ai/product-drafts/${id}/approve`).then(r => r.draft ?? r)
+  }
+
+  validateAiProductChannels(id: number, channels: string[]) {
+    return this.post<{ results: any[] }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels }).then(r => r.results || [])
+  }
+
+  publishAiProductDraft(id: number, channels: string[]) {
+    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels })
+  }
+
+  retryAiProductPublish(id: number, channels?: string[]) {
+    return this.post<{ ok: boolean; retried: number; results: any[] }>(
+      `/api/ai/product-drafts/${id}/publish/retry`,
+      channels && channels.length ? { channels } : undefined
+    )
+  }
+
+  getAiProductPublishState(id: number) {
+    return this.get<{ productId: number | null; draftStatus: string; listings: any[] }>(`/api/ai/product-drafts/${id}/publish`)
+  }
+
+  deleteAiProductDraft(id: number) {
+    return this.delete<{ ok: boolean }>(`/api/ai/product-drafts/${id}`)
   }
 
   chat(message: string, history?: { role: string; content: string }[], storeInfo?: Record<string, string>) {
@@ -1137,8 +1204,9 @@ class ApiClient {
     } as import('./types').StoreFrontData
   }
 
-  getAddresses(siteCode: string) {
-    return this.get<any[]>(`/api/store/${siteCode}/addresses`).then(r => ({ data: Array.isArray(r) ? r : (r as any).data ?? (r as any).addresses ?? [] }))
+  async getAddresses(siteCode: string, ownerToken: string) {
+    const r = await this.get<any>(`/api/store/${siteCode}/addresses`, { params: { ownerToken } })
+    return { data: Array.isArray(r) ? r : (r as any).data ?? (r as any).addresses ?? [] }
   }
 
   getCheckoutPaymentMethods(siteCode: string) {
@@ -1185,12 +1253,49 @@ class ApiClient {
     return this.get<import('./types').StorePaymentMethod[]>(`/api/store/${siteCode}/payment-methods`)
   }
 
-  saveAddress(siteCode: string, data: { type: string; name: string; phone: string; address: string; city: string; district: string; postalCode: string; country: string }) {
-    return this.post<any>(`/api/store/${siteCode}/addresses`, data)
+  saveAddress(siteCode: string, data: Record<string, any>, ownerToken?: string) {
+    return this.post<any>(`/api/store/${siteCode}/addresses`, ownerToken ? { ...data, ownerToken } : data)
+  }
+
+  updateAddress(siteCode: string, id: number, data: Record<string, any>, ownerToken: string) {
+    return this.put<any>(`/api/store/${siteCode}/addresses/${id}`, { ...data, ownerToken })
+  }
+
+  deleteAddress(siteCode: string, id: number, ownerToken: string) {
+    return this.delete<any>(`/api/store/${siteCode}/addresses/${id}`, { params: { ownerToken } })
   }
 
   checkout(siteCode: string, data: Record<string, any>) {
-    return this.post<{ orderId: number; orderNumber: string; message: string }>(`/api/store/${siteCode}/checkout`, data)
+    return this.post<{
+      orderId: number
+      orderNumber: string
+      orderToken: string
+      paymentMethod: string
+      paymentStatus: string
+      requiresPaymentGateway: boolean
+      totals: { subtotal: number; shippingAmount: number; taxAmount: number; totalAmount: number }
+      message: string
+    }>(`/api/store/${siteCode}/checkout`, data)
+  }
+
+  getOrderTracking(siteCode: string, id: string | number, token: string) {
+    return this.get<{ order: { id: number; orderNumber: string; status: string; paymentStatus: string; paymentMethod: string; totalAmount: number; currency: string; trackingNumber?: string; carrier?: string; items: unknown[]; createdAt: string } }>(
+      `/api/store/${siteCode}/orders/${id}`,
+      { params: { token } }
+    )
+  }
+
+  initiatePayment(siteCode: string, orderId: number, orderToken: string, returnUrl: string) {
+    return this.post<{
+      orderId: number
+      orderNumber: string
+      requiresRedirect: boolean
+      clientToken?: string
+      paymentUrl?: string
+      refId?: string
+      expiresAt?: number
+      alreadyPaid?: boolean
+    }>(`/api/store/${siteCode}/payments/initiate`, { orderId, orderToken, returnUrl })
   }
 
   // Product Admin (products/page.tsx legacy interface)

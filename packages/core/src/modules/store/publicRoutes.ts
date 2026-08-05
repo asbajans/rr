@@ -4,7 +4,6 @@ import { Product } from '../../models/Product.model.js';
 import { Category } from '../../models/Category.model.js';
 import { Page, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
 import { StoreMenu } from '../../models/Menu.model.js';
-import { apiKeyMiddleware } from '../auth/middleware.js';
 import { config } from '../../config/index.js';
 
 export const publicStoreRoutes: Router = Router();
@@ -151,16 +150,6 @@ publicStoreRoutes.get('/:siteCode/pages/:slug', async (req: Request, res: Respon
     res.json({ page });
   } catch (error) {
     console.error('Public page error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-publicStoreRoutes.post('/:siteCode/addresses', apiKeyMiddleware, async (req: Request, res: Response) => {
-  try {
-    const store = (req as any).store;
-    res.json({ success: true, message: 'Address saved' });
-  } catch (error) {
-    console.error('Save address error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

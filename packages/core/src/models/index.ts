@@ -18,3 +18,7 @@ export { CreditLog } from './CreditLog.model.js';
 export { Setting } from './Setting.model.js';
 export { AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog } from './AiModels.js';
 export { Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption } from './ContentModels.js';
+export { StoreMenu } from './Menu.model.js';
+export { Brand } from './Brand.model.js';
+export { AiProductSession } from './AiProductSession.model.js';
+export { AiProductDraft } from './AiProductDraft.model.js';

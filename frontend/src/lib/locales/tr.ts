@@ -20,6 +20,7 @@ export const tr: Record<string, string> = {
   locations: 'Konumlar',
   shipping: 'Kargo',
   ai: 'AI Görsel',
+  aiStudio: 'AI Stüdyosu',
   plan: 'Plan',
   settings: 'Ayarlar',
   groupAna: 'Ana',

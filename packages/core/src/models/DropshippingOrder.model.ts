@@ -125,6 +125,34 @@ export class DropshippingOrder extends Model {
   declare paymentStatus: string;
 
   @AllowNull(true)
+  @Column(DataType.STRING(50))
+  declare paymentProvider: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare paymentRefId: string;
+
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare paymentDetails: object;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare orderTokenHash: string;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(15, 2))
+  declare subtotal: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(15, 2))
+  declare shippingAmount: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(15, 2))
+  declare taxAmount: number;
+
+  @AllowNull(true)
   @Index
   @Column(DataType.BIGINT)
   declare parentOrderId: number;

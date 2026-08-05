@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { config } from './config/env.js';
 import { errorHandler } from './middleware/error.js';
 import { tenantMiddleware } from './middleware/tenant.js';
@@ -36,6 +37,8 @@ export const createApp = async (): Promise<Express> => {
   app.options('*', cors()); // Handle preflight for all routes
   app.use(compression());
   app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
+  // Stripe webhooks need the raw body for signature verification — parse raw BEFORE express.json
+  app.use('/api/store/:siteCode/payments/webhook/stripe', express.raw({ type: '*/*' }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -94,6 +97,13 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "parentOrderId" BIGINT`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentMethod" VARCHAR(50)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentStatus" VARCHAR(20) DEFAULT 'pending'`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentProvider" VARCHAR(50)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentRefId" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentDetails" JSONB`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "orderTokenHash" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "shippingAmount" DECIMAL(15,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(15,2) DEFAULT 0`);
   } catch (e) {
     // Ignore if columns already exist
   }
@@ -143,6 +153,34 @@ export const createApp = async (): Promise<Express> => {
 
   await sequelize.sync({ alter: false });
 
+  // AI Product Studio tables are created by sync; add future-safe columns here
+  try {
+    await sequelize.query(`ALTER TABLE ai_product_sessions ADD COLUMN IF NOT EXISTS "idempotencyKey" VARCHAR(128)`);
+    await sequelize.query(`ALTER TABLE ai_product_drafts ADD COLUMN IF NOT EXISTS "productId" BIGINT REFERENCES products(id) ON DELETE SET NULL`);
+  } catch (e) {
+    // Ignore if table not ready yet
+  }
+
+  // AI Product Studio publish support — listing publish tracking columns
+  try {
+    await sequelize.query(`ALTER TABLE product_marketplace_listings ADD COLUMN IF NOT EXISTS channel VARCHAR(50)`);
+    await sequelize.query(`ALTER TABLE product_marketplace_listings ADD COLUMN IF NOT EXISTS "payloadSnapshot" JSONB`);
+    await sequelize.query(`ALTER TABLE product_marketplace_listings ADD COLUMN IF NOT EXISTS "retryCount" INTEGER DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE product_marketplace_listings ADD COLUMN IF NOT EXISTS "lastAttemptAt" TIMESTAMP`);
+    await sequelize.query(
+      `CREATE INDEX IF NOT EXISTS product_marketplace_listings_channel ON product_marketplace_listings (channel)`
+    );
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
+  // Checkout (Faz 6) — product stock reservation + order payment/amount columns
+  try {
+    await sequelize.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS "reservedQuantity" INTEGER DEFAULT 0`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Normalize plan.modules: default all-enabled for unconfigured plans, convert legacy boolean values
   try {
     await sequelize.query(
@@ -185,6 +223,33 @@ export const createApp = async (): Promise<Express> => {
 
   app.use(tenantMiddleware);
 
+  // Global API rate limit (permissive); strict limits are applied to sensitive routes
+  app.use(
+    '/api',
+    rateLimit({
+      windowMs: config.rateLimit.windowMs,
+      max: config.rateLimit.max,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests' },
+    })
+  );
+
+  // Strict limiters for money/bot-sensitive endpoints
+  const strictLimit = (max: number, minutes = 15) =>
+    rateLimit({
+      windowMs: minutes * 60 * 1000,
+      max,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests — please slow down' },
+    });
+
+  app.use('/api/store/:siteCode/checkout', strictLimit(10));
+  app.use('/api/store/:siteCode/payments/initiate', strictLimit(10));
+  app.use('/api/auth/login', strictLimit(20));
+  app.use('/api/auth/register', strictLimit(10));
+
   // Serve uploaded media files (images) at /uploads/...
   app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '30d', fallthrough: true }));
 
@@ -210,18 +275,21 @@ export const startServer = async (): Promise<void> => {
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');
   try {
-    const { createImportWorker, createSyncWorker, createWebhookWorker } = await import('./queues/index.js');
+    const { createImportWorker, createSyncWorker, createWebhookWorker, createPublicationWorker } = await import('./queues/index.js');
     const importWorker = await createImportWorker();
     const syncWorker = await createSyncWorker();
     const webhookWorker = await createWebhookWorker();
+    const publicationWorker = await createPublicationWorker();
 
     importWorker.on('error', (err) => logger.error({ err }, 'Import worker error'));
     syncWorker.on('error', (err) => logger.error({ err }, 'Sync worker error'));
     webhookWorker.on('error', (err) => logger.error({ err }, 'Webhook worker error'));
+    publicationWorker.on('error', (err) => logger.error({ err }, 'Publication worker error'));
 
     importWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Import job failed'));
     syncWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Sync job failed'));
     webhookWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Webhook job failed'));
+    publicationWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Publication job failed'));
   } catch (err) {
     logger.error({ err }, 'Failed to start workers (Redis may be unavailable)');
   }

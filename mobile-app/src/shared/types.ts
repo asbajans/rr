@@ -346,3 +346,71 @@ export interface OrderStatusHistory {
   created_at?: string
   user?: { id: number; name: string } | null
 }
+
+// AI Product Studio (shared DTO contract — packages/shared/src/dto/ai.ts)
+export type AiChannel = 'storefront' | 'trendyol' | 'hepsiburada' | 'pazarama' | 'n11' | 'amazon' | 'etsy'
+
+export type AiSessionStatus =
+  | 'uploaded'
+  | 'analyzing'
+  | 'review'
+  | 'approved'
+  | 'publishing'
+  | 'completed'
+  | 'failed'
+
+export type AiDraftStatus = 'review' | 'approved' | 'rejected' | 'converted'
+
+export interface AiProductSession {
+  id: string
+  storeId: number
+  userId: number
+  status: AiSessionStatus
+  sourceImageUrl: string
+  processedImageUrl?: string
+  draftId?: number
+  errorMessage?: string
+  creditsUsed: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AiProductDraft {
+  id: number
+  sessionId: string
+  storeId: number
+  title: string
+  description: string
+  shortDescription?: string
+  slug?: string
+  sku?: string
+  categoryId?: number
+  categoryPath?: string[]
+  attributes: Record<string, string>
+  tags: string[]
+  keywords: string[]
+  suggestedPrice?: number
+  priceCurrency: string
+  quantity?: number
+  images: string[]
+  confidence: Record<string, number>
+  userEditedFields: string[]
+  status: AiDraftStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AiChannelValidationResult {
+  channel: AiChannel
+  status: 'ready' | 'integration-not-connected' | 'category-mapping-needed' | 'missing-fields'
+  missingFields: string[]
+  message?: string
+}
+
+export interface AiSessionStatusResponse {
+  id: string
+  status: AiSessionStatus
+  errorMessage?: string
+  creditsUsed: number
+  draftId?: number
+}

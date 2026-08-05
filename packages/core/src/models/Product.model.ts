@@ -120,6 +120,10 @@ export class Product extends Model {
   @Column(DataType.INTEGER)
   declare quantity: number;
 
+  @Default(0)
+  @Column(DataType.INTEGER)
+  declare reservedQuantity: number;
+
   @AllowNull(true)
   @Column(DataType.JSONB)
   declare images: string[];

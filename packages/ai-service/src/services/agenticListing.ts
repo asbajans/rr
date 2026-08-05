@@ -24,6 +24,9 @@ export interface AgenticListingResult {
   attributes: Record<string, string>;
   bullet_points: string[];
   price_suggestion: { min: number; max: number; currency: string; rationale: string } | null;
+  category_candidates: { name: string; confidence: number }[];
+  warnings: string[];
+  confidence: Record<string, number>;
 }
 
 const CATEGORY_LIST = ['giyim', 'taki', 'kozmetik', 'ayakkabi', 'canta', 'elektronik', 'ev_dekorasyon', 'spor', 'diger'];
@@ -37,7 +40,13 @@ Rules:
 - Avoid promotional forbidden words for Trendyol: "en iyi", "kaliteli", "orijinal", "garantili", "bedava", "ücretsiz", "toptan", "profesyonel", "kalite", "birinci sınıf"
 - Title max 60 characters
 - Amazon bullet points max 200 characters each
-- SEO meta title max 60 chars, meta description max 160 chars`;
+- SEO meta title max 60 chars, meta description max 160 chars
+- NEVER invent facts that are not visible in the image: do not fabricate a brand, price, stock quantity, size, or technical specs
+- If the brand is not recognizable, leave it out entirely
+- For health, cosmetic and food products, do NOT make medical or safety claims
+- Only report high-confidence details; if a detail is uncertain, mark it in warnings
+- Provide a "confidence" score (0-1) for each generated field
+- Provide 2-3 "category_candidates" each with a confidence score (0-1)`;
 }
 
 function buildPrompt(
@@ -80,7 +89,13 @@ Return the following JSON exactly:
   "bullet_points": ["5 persuasive bullets for Amazon"],
   "price_suggestion": ${input.suggestPrice !== false
     ? '{ "min": <number>, "max": <number>, "currency": "TRY", "rationale": "short reasoning" }'
-    : 'null'}
+    : 'null'},
+  "category_candidates": [
+    { "name": "best category name", "confidence": 0.0 },
+    { "name": "second best category name", "confidence": 0.0 }
+  ],
+  "warnings": ["anything uncertain or not detectable from the photo"],
+  "confidence": { "title": 0.0, "category": 0.0, "description": 0.0, "attributes": 0.0 }
 }`;
 }
 
@@ -135,6 +150,30 @@ async function generateListingDraft(
         }
       : null;
 
+  const categoryCandidates = Array.isArray(data.category_candidates)
+    ? data.category_candidates
+        .filter((c: any) => c && typeof c === 'object' && typeof c.name === 'string')
+        .map((c: any) => ({
+          name: c.name,
+          confidence: typeof c.confidence === 'number' ? Math.max(0, Math.min(1, c.confidence)) : 0,
+        }))
+    : [];
+  if (categoryCandidates.length === 0 && category) {
+    categoryCandidates.push({ name: category, confidence: 0.5 });
+  }
+
+  const warnings: string[] = Array.isArray(data.warnings)
+    ? data.warnings.filter((w: any) => typeof w === 'string')
+    : [];
+  if (!specs.brand) warnings.push('Marka fotoğraftan tanımlanamadı, boş bırakıldı.');
+  if (!specs.dimensions) warnings.push('Boyut/ölçü bilgisi fotoğraftan belirlenemedi.');
+
+  const confidence: Record<string, number> =
+    data.confidence && typeof data.confidence === 'object' ? data.confidence : {};
+  confidence.title = typeof confidence.title === 'number' ? confidence.title : 0.5;
+  confidence.category = typeof confidence.category === 'number' ? confidence.category : 0.5;
+  confidence.description = typeof confidence.description === 'number' ? confidence.description : 0.5;
+
   return {
     title: data.title || '',
     description: data.description || '',
@@ -147,6 +186,9 @@ async function generateListingDraft(
     attributes: data.attributes && typeof data.attributes === 'object' ? data.attributes : {},
     bullet_points: Array.isArray(data.bullet_points) ? data.bullet_points : [],
     price_suggestion: priceSuggestion,
+    category_candidates: categoryCandidates,
+    warnings,
+    confidence,
   };
 }
 

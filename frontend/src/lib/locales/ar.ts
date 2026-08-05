@@ -20,6 +20,7 @@ export const ar: Record<string, string> = {
   locations: 'المواقع',
   shipping: 'الشحن',
   ai: 'AI صور',
+  aiStudio: 'استوديو AI',
   plan: 'الباقة',
   settings: 'الإعدادات',
   groupAna: 'الرئيسية',

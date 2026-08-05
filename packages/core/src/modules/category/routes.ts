@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, cast, col, where as seqWhere } from 'sequelize';
 import { body, param, query, validationResult } from 'express-validator';
 import { Category } from '../../models/Category.model.js';
 import { MarketplaceCategoryMapping } from '../../models/Category.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
+import { CHANNEL_RULES, MARKETPLACE_CHANNEL_KEYS } from '../ai/channelRequirements.js';
 
 export const categoryRoutes: Router = Router();
 
@@ -68,6 +69,68 @@ categoryRoutes.get('/tree', authMiddleware, requireStore, async (req: Request, r
     res.json({ categories: roots });
   } catch (error) {
     logger.error({ err: error }, 'Category tree error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/categories/search?q=...  (must be declared before /:id)
+categoryRoutes.get('/search', authMiddleware, requireStore, [
+  query('q').isString().isLength({ min: 2 }).withMessage('Search term must be at least 2 characters'),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const q = String(req.query.q);
+    const limit = req.query.limit ? Math.min(parseInt(req.query.limit as string, 10), 100) : 20;
+
+    const categories = await Category.findAll({
+      where: {
+        storeId: store.id,
+        [Op.or]: [
+          { slug: { [Op.iLike]: `%${q}%` } },
+          seqWhere(cast(col('name'), 'text'), { [Op.iLike]: `%${q}%` }),
+        ],
+      },
+      order: [['sortOrder', 'ASC'], ['name', 'ASC']],
+      limit,
+      include: [{ model: Category, as: 'parent' }],
+    });
+
+    res.json({ categories });
+  } catch (error) {
+    logger.error({ err: error }, 'Search categories error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/categories/:id/channel-requirements
+categoryRoutes.get('/:id/channel-requirements', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const category = await Category.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!category) return res.status(404).json({ error: 'Category not found' });
+
+    const mappings = await MarketplaceCategoryMapping.findAll({ where: { categoryId: category.id } });
+    const mappingByChannel: Record<string, any> = {};
+    for (const m of mappings) mappingByChannel[m.marketplace] = m;
+
+    const channels = MARKETPLACE_CHANNEL_KEYS.map((channel) => {
+      const rule = CHANNEL_RULES[channel];
+      return {
+        channel,
+        requiredFields: rule.requiredFields,
+        requiresCategoryMapping: rule.requiresCategoryMapping,
+        requiresBrand: rule.requiresBrand,
+        hasMapping: !!mappingByChannel[channel],
+        mapping: mappingByChannel[channel] || null,
+      };
+    });
+
+    res.json({ categoryId: category.id, channels });
+  } catch (error) {
+    logger.error({ err: error }, 'Channel requirements error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

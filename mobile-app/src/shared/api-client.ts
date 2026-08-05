@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, MeResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest } from './types'
+import type { AuthResponse, MeResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest, AiProductSession, AiProductDraft, AiChannelValidationResult, AiSessionStatusResponse } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -581,6 +581,95 @@ class ApiClient {
 
   getAiOutputUrl(sessionId: string, file: string) {
     return `${API_BASE}/api/ai/output/${encodeURIComponent(sessionId)}/${encodeURIComponent(file)}`
+  }
+
+  // AI Product Studio (agentic listing flow)
+  async createAiProductSession(input: {
+    sourceImageUrl: string
+    category?: string
+    notes?: string
+    short_description?: string
+    keywords?: string[]
+    suggest_price?: boolean
+    target_marketplaces?: string[]
+  }) {
+    const r = await this.post<{ session: any; draft: any }>('/api/ai/product-sessions', input)
+    return {
+      session: r.session as AiProductSession,
+      draft: r.draft as AiProductDraft | null,
+    }
+  }
+
+  async getAiProductSession(id: string) {
+    const r = await this.get<{ session: any; draft: any }>(`/api/ai/product-sessions/${id}`)
+    return {
+      session: r.session as AiProductSession,
+      draft: r.draft as AiProductDraft | null,
+    }
+  }
+
+  async getAiProductSessionStatus(id: string) {
+    return this.get<AiSessionStatusResponse>(`/api/ai/product-sessions/${id}/status`)
+  }
+
+  async getAiProductDraftBySession(id: string) {
+    const r = await this.get<{ draft: any }>(`/api/ai/product-sessions/${id}/draft`)
+    return r.draft as AiProductDraft
+  }
+
+  async listAiProductDrafts() {
+    const r = await this.get<{ drafts: any[] }>('/api/ai/product-drafts')
+    return (r.drafts || []) as AiProductDraft[]
+  }
+
+  async getAiProductDraft(id: number) {
+    const r = await this.get<{ draft: any }>(`/api/ai/product-drafts/${id}`)
+    return r.draft as AiProductDraft
+  }
+
+  async updateAiProductDraft(id: number, patch: Partial<AiProductDraft>) {
+    const r = await this.put<{ draft: any }>(`/api/ai/product-drafts/${id}`, patch)
+    return r.draft as AiProductDraft
+  }
+
+  async approveAiProductDraft(id: number) {
+    const r = await this.post<{ draft: any }>(`/api/ai/product-drafts/${id}/approve`)
+    return r.draft as AiProductDraft
+  }
+
+  async validateAiProductChannels(id: number, channels: string[]) {
+    const r = await this.post<{ results: AiChannelValidationResult[] }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels })
+    return (r.results || []) as AiChannelValidationResult[]
+  }
+
+  async publishAiProductDraft(id: number, channels: string[]) {
+    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels })
+  }
+
+  async retryAiProductPublish(id: number, channels?: string[]) {
+    return this.post<{ ok: boolean; retried: number; results: any[] }>(
+      `/api/ai/product-drafts/${id}/publish/retry`,
+      channels && channels.length ? { channels } : undefined
+    )
+  }
+
+  async getAiProductPublishState(id: number) {
+    return this.get<{ productId: number | null; draftStatus: string; listings: any[] }>(`/api/ai/product-drafts/${id}/publish`)
+  }
+
+  async deleteAiProductDraft(id: number) {
+    return this.delete<{ ok: boolean }>(`/api/ai/product-drafts/${id}`)
+  }
+
+  // Upload image then start an agentic session in one call.
+  async createAiProductSessionFromImage(imageUri: string, opts?: { category?: string; suggestPrice?: boolean; targetMarketplaces?: string[] }) {
+    const uploaded = await this.uploadImage(imageUri, `photo-${Date.now()}.jpg`, 'image/jpeg')
+    return this.createAiProductSession({
+      sourceImageUrl: uploaded.url,
+      category: opts?.category,
+      suggest_price: opts?.suggestPrice,
+      target_marketplaces: opts?.targetMarketplaces,
+    })
   }
 
   // Admin Orders

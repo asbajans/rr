@@ -21,6 +21,13 @@ export default function CheckoutPage() {
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
   const [orderId, setOrderId] = useState('')
+  const [orderNumber, setOrderNumber] = useState('')
+  const [orderToken, setOrderToken] = useState('')
+  const [requiresPaymentGateway, setRequiresPaymentGateway] = useState(false)
+  const [paymentMethodLabel, setPaymentMethodLabel] = useState('')
+  const [initiatingPayment, setInitiatingPayment] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const [savingAddress, setSavingAddress] = useState(false)
 
   // Form state
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
@@ -30,47 +37,155 @@ export default function CheckoutPage() {
 
   // New address form
   const [addrForm, setAddrForm] = useState({
-    full_name: '', phone: '', city: '', district: '', zip: '', address_line: '', is_default: false,
+    full_name: '', phone: '', email: '', city: '', district: '', zip: '', address_line: '', is_default: false,
   })
+
+  const ownerTokenKey = `rahatio_address_token_${siteCode}`
 
   useEffect(() => {
     if (!siteCode) return
+    const ownerToken = localStorage.getItem(ownerTokenKey) || ''
     Promise.all([
-      api.getAddresses(siteCode).then(r => { setAddresses(r.data); if (r.data.length > 0) setSelectedAddressId(r.data[0].id) }).catch(() => {}),
+      ownerToken
+        ? api.getAddresses(siteCode, ownerToken).then(r => {
+            setAddresses(r.data)
+            if (r.data.length > 0) setSelectedAddressId(r.data[0].id)
+          }).catch(() => {})
+        : Promise.resolve(),
       api.getCheckoutPaymentMethods(siteCode).then(r => { setPaymentMethods(r.data); if (r.data.length > 0) setSelectedPayment(r.data[0].method) }).catch(() => {}),
     ]).finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteCode])
+
+  async function persistAddressBook(ownerToken: string) {
+    localStorage.setItem(ownerTokenKey, ownerToken)
+    const r = await api.getAddresses(siteCode, ownerToken)
+    setAddresses(r.data)
+    if (r.data.length > 0) {
+      setSelectedAddressId(r.data[0].id)
+      setShowNewAddress(false)
+    }
+  }
+
+  async function handleSaveAddress() {
+    setSavingAddress(true)
+    setError('')
+    try {
+      const ownerToken = localStorage.getItem(ownerTokenKey) || ''
+      const res = await api.saveAddress(siteCode, {
+        address: {
+          full_name: addrForm.full_name,
+          email: addrForm.email,
+          phone: addrForm.phone,
+          city: addrForm.city,
+          district: addrForm.district,
+          zip_code: addrForm.zip,
+          address: addrForm.address_line,
+          is_default: addrForm.is_default,
+        },
+      }, ownerToken || undefined)
+      await persistAddressBook(res.ownerToken || ownerToken)
+    } catch (err: any) {
+      setError(err.message || 'Adres kaydedilemedi')
+    } finally {
+      setSavingAddress(false)
+    }
+  }
+
+  async function handleDeleteAddress(id: number) {
+    const ownerToken = localStorage.getItem(ownerTokenKey) || ''
+    if (!ownerToken) return
+    try {
+      await api.deleteAddress(siteCode, id, ownerToken)
+      setAddresses(prev => prev.filter(a => a.id !== id))
+      if (selectedAddressId === id) setSelectedAddressId(addresses[0]?.id ?? null)
+    } catch (err: any) {
+      setError(err.message || 'Adres silinemedi')
+    }
+  }
 
   async function handleSubmit() {
     setProcessing(true)
     setError('')
 
-    const customer = selectedAddressId
-      ? { name: addresses.find(a => a.id === selectedAddressId)!.full_name, email: '', phone: addresses.find(a => a.id === selectedAddressId)!.phone }
-      : { name: addrForm.full_name, email: '', phone: addrForm.phone }
+    const selectedAddr = selectedAddressId
+      ? addresses.find(a => a.id === selectedAddressId)
+      : undefined
+
+    const shippingAddress = selectedAddr
+      ? {
+          full_name: selectedAddr.full_name,
+          phone: selectedAddr.phone,
+          email: selectedAddr.email || undefined,
+          city: selectedAddr.city,
+          district: selectedAddr.district || undefined,
+          address: selectedAddr.address_line,
+          zip_code: selectedAddr.zip || undefined,
+        }
+      : {
+          full_name: addrForm.full_name,
+          phone: addrForm.phone,
+          email: addrForm.email || undefined,
+          city: addrForm.city,
+          district: addrForm.district || undefined,
+          address: addrForm.address_line,
+          zip_code: addrForm.zip || undefined,
+        }
 
     try {
       const res = await api.checkout(siteCode, {
-        items: items.map(i => ({ product_id: i.product_id, sku: i.sku, name: i.name, quantity: i.quantity, unit_price: i.price })),
-        customer,
-        address_id: selectedAddressId ?? undefined,
-        shipping: selectedAddressId ? undefined : {
-          full_name: addrForm.full_name,
-          phone: addrForm.phone,
-          city: addrForm.city,
-          address_line: addrForm.address_line,
+        items: items.map(i => ({ product_id: i.product_id, sku: i.sku, quantity: i.quantity })),
+        customer: {
+          name: shippingAddress.full_name,
+          email: shippingAddress.email || '',
+          phone: shippingAddress.phone,
         },
+        address_id: selectedAddressId ?? undefined,
+        shipping_address: selectedAddressId ? undefined : shippingAddress,
         payment_method: selectedPayment,
         note: note || undefined,
       })
 
       setOrderId(String(res.orderId))
+      setOrderNumber(res.orderNumber)
+      setOrderToken(res.orderToken)
+      setRequiresPaymentGateway(res.requiresPaymentGateway)
+      setPaymentMethodLabel(paymentMethods.find(pm => pm.method === res.paymentMethod)?.label || res.paymentMethod)
       setStep('done')
       clearCart()
+
+      if (res.requiresPaymentGateway && res.orderToken) {
+        sessionStorage.setItem(
+          `rahatio_pending_order_${siteCode}`,
+          JSON.stringify({ orderId: res.orderId, orderNumber: res.orderNumber, orderToken: res.orderToken })
+        )
+        await continueToPayment(Number(res.orderId), res.orderToken, res.paymentMethod)
+      }
     } catch (err: any) {
       setError(err.message || 'Sipariş oluşturulamadı')
     } finally {
       setProcessing(false)
+    }
+  }
+
+  async function continueToPayment(orderIdNum: number, token: string, _method: string) {
+    setInitiatingPayment(true)
+    setPaymentError('')
+    try {
+      const returnUrl = `${window.location.origin}/stores/${siteCode}/checkout/result`
+      const res = await api.initiatePayment(siteCode, orderIdNum, token, returnUrl)
+      if (res.alreadyPaid) return
+      if (res.paymentUrl) {
+        window.location.assign(res.paymentUrl)
+      } else if (res.clientToken) {
+        setPaymentError('Ödeme başlatılamadı: gateway istemci anahtarı eksik. Lütfen daha sonra tekrar deneyin.')
+      } else {
+        setPaymentError('Ödeme başlatılamadı. Lütfen daha sonra tekrar deneyin.')
+      }
+    } catch (err: any) {
+      setPaymentError(err.message || 'Ödeme başlatılamadı')
+    } finally {
+      setInitiatingPayment(false)
     }
   }
 
@@ -90,8 +205,35 @@ export default function CheckoutPage() {
           <Check className="h-8 w-8 text-green-600" />
         </div>
         <h1 className="mt-6 text-2xl font-bold text-zinc-900">Siparişiniz Alındı!</h1>
-        <p className="mt-2 text-sm text-zinc-600">Sipariş No: <span className="font-mono font-medium">{orderId}</span></p>
-        <p className="mt-1 text-sm text-zinc-500">Siparişiniz en kısa sürede hazırlanacaktır.</p>
+        <p className="mt-2 text-sm text-zinc-600">Sipariş No: <span className="font-mono font-medium">{orderNumber || orderId}</span></p>
+        {requiresPaymentGateway ? (
+          <>
+            <p className="mt-1 text-sm text-zinc-600">
+              Ödemenizi <span className="font-medium">{paymentMethodLabel}</span> üzerinden tamamladıktan sonra siparişiniz onaylanacaktır.
+            </p>
+            <div className="mt-4 rounded-lg bg-amber-50 p-4 text-left text-sm text-amber-800">
+              <p className="font-medium">Ödeme bekleniyor</p>
+              <p className="mt-1">Sipariş takip kodunuzu saklayın:</p>
+              <p className="mt-1 font-mono text-xs break-all">{orderToken}</p>
+            </div>
+            {initiatingPayment && (
+              <p className="mt-4 text-sm text-zinc-600">Ödeme sayfasına yönlendiriliyorsunuz...</p>
+            )}
+            {paymentError && (
+              <div className="mt-4 rounded-lg bg-red-50 p-3 text-left text-sm text-red-700">
+                <p>{paymentError}</p>
+                <button
+                  onClick={() => orderId && orderToken && continueToPayment(Number(orderId), orderToken, paymentMethodLabel)}
+                  className="mt-2 inline-flex items-center gap-1 font-medium text-red-800 hover:text-red-900"
+                >
+                  Tekrar dene
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-zinc-500">Siparişiniz en kısa sürede hazırlanacaktır.</p>
+        )}
         <button
           onClick={() => router.push(`/stores/${siteCode}`)}
           className="mt-8 inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
@@ -119,27 +261,36 @@ export default function CheckoutPage() {
           ) : addresses.length > 0 && !showNewAddress ? (
             <div className="mt-4 space-y-3">
               {addresses.map(addr => (
-                <label key={addr.id} className={`block cursor-pointer rounded-xl border p-4 transition-colors ${
+                <div key={addr.id} className={`block rounded-xl border p-4 transition-colors ${
                   selectedAddressId === addr.id ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200'
                 }`}>
-                  <input type="radio" name="address" checked={selectedAddressId === addr.id}
-                    onChange={() => setSelectedAddressId(addr.id)} className="sr-only" />
-                  <div className="flex items-start justify-between">
+                  <label className="flex cursor-pointer items-start justify-between">
+                    <input type="radio" name="address" checked={selectedAddressId === addr.id}
+                      onChange={() => setSelectedAddressId(addr.id)} className="sr-only" />
                     <div>
                       <p className="text-sm font-medium text-zinc-900">{addr.full_name}</p>
                       <p className="text-xs text-zinc-500">{addr.phone}</p>
                       <p className="mt-1 text-sm text-zinc-600">{addr.address_line}, {addr.district && `${addr.district}, `}{addr.city}/{addr.country}</p>
                     </div>
-                    {selectedAddressId === addr.id && <Check className="h-5 w-5 text-zinc-900" />}
-                  </div>
-                </label>
+                    <div className="flex items-center gap-2">
+                      {selectedAddressId === addr.id && <Check className="h-5 w-5 text-zinc-900" />}
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleDeleteAddress(addr.id) }}
+                        className="rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  </label>
+                </div>
               ))}
               <button onClick={() => setShowNewAddress(true)} className="flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900">
                 <Plus className="h-4 w-4" /> Yeni Adres Ekle
               </button>
             </div>
           ) : (
-            <AddressForm form={addrForm} onChange={setAddrForm} onBack={addresses.length > 0 ? () => setShowNewAddress(false) : undefined} />
+            <AddressForm form={addrForm} onChange={setAddrForm} saving={savingAddress}
+              onSave={handleSaveAddress} onBack={addresses.length > 0 ? () => setShowNewAddress(false) : undefined} />
           )}
         </section>
 
@@ -209,9 +360,11 @@ export default function CheckoutPage() {
   )
 }
 
-function AddressForm({ form, onChange, onBack }: {
-  form: { full_name: string; phone: string; city: string; district: string; zip: string; address_line: string; is_default: boolean }
+function AddressForm({ form, onChange, saving, onSave, onBack }: {
+  form: { full_name: string; phone: string; email: string; city: string; district: string; zip: string; address_line: string; is_default: boolean }
   onChange: (f: typeof form) => void
+  saving: boolean
+  onSave: () => void
   onBack?: () => void
 }) {
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -232,6 +385,11 @@ function AddressForm({ form, onChange, onBack }: {
         <div>
           <label className="block text-xs font-medium text-zinc-700">Telefon</label>
           <input value={form.phone} onChange={e => set('phone', e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-zinc-700">E-posta</label>
+          <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
             className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
         </div>
         <div>
@@ -260,6 +418,13 @@ function AddressForm({ form, onChange, onBack }: {
           className="rounded border-zinc-300" />
         Varsayılan adres yap
       </label>
+      <button
+        onClick={onSave}
+        disabled={saving || !form.full_name || !form.phone || !form.city || !form.address_line}
+        className="mt-2 w-full rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+      >
+        {saving ? 'Kaydediliyor...' : 'Adresi Kaydet'}
+      </button>
     </div>
   )
 }

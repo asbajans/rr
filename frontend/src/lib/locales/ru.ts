@@ -20,6 +20,7 @@ export const ru: Record<string, string> = {
   locations: 'Адреса',
   shipping: 'Доставка',
   ai: 'AI-изображения',
+  aiStudio: 'AI-студия',
   plan: 'План',
   settings: 'Настройки',
   groupAna: 'Главная',

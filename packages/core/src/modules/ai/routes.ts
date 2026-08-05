@@ -4,10 +4,13 @@ import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { getPlanForStore, getModuleCreditCost } from '../plan/access.js';
 import { logger } from '../../utils/logger.js';
 import { AiProvider, AiModel, AiScenario, AiUsageLog } from '../../models/AiModels.js';
+import { sequelize } from '../../config/database.js';
+import { parseAiResponse, AiResponseValidationError } from '@rahatio/shared';
+import { normalizeAiResponse } from './aiResponse.js';
 
 export const aiRoutes: Router = Router();
 
-const AI_TIMEOUT_MS = 180000;
+export const AI_TIMEOUT_MS = 180000;
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -18,30 +21,52 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-async function deductCredits(userId: number, storeId: number, amount: number, action: string, module: string) {
+export async function deductCredits(userId: number, storeId: number, amount: number, action: string, module: string) {
   const User = (await import('../../models/User.model.js')).User;
   const CreditLog = (await import('../../models/CreditLog.model.js')).CreditLog;
 
-  const user = await User.findByPk(userId);
-  if (!user) return;
+  await sequelize.transaction(async (transaction) => {
+    const user = await User.findByPk(userId, { transaction });
+    if (!user) return;
 
-  const balanceBefore = user.aiCredits;
-  const balanceAfter = balanceBefore - amount;
+    const balanceBefore = user.aiCredits;
+    const balanceAfter = balanceBefore - amount;
 
-  await CreditLog.create({
-    userId,
-    storeId,
-    action,
-    module,
-    amount: -amount,
-    balanceBefore,
-    balanceAfter,
+    await CreditLog.create({
+      userId,
+      storeId,
+      action,
+      module,
+      amount: -amount,
+      balanceBefore,
+      balanceAfter,
+    }, { transaction });
+
+    await user.update({ aiCredits: balanceAfter }, { transaction });
   });
-
-  await user.update({ aiCredits: balanceAfter });
 }
 
-async function logAiUsage(
+/**
+ * Validates an AI analysis response against the shared JSON schema.
+ * Writes a 422 response and returns false when the payload is invalid,
+ * so no draft is ever created from malformed AI output.
+ */
+export function validateAiAnalysisResponse(data: unknown, res: Response): boolean {
+  try {
+    parseAiResponse(data);
+    return true;
+  } catch (err) {
+    logger.warn({ err }, 'AI response failed JSON schema validation');
+    if (err instanceof AiResponseValidationError) {
+      res.status(422).json({ error: 'AI_RESPONSE_INVALID', message: err.message, issues: err.issues });
+    } else {
+      res.status(422).json({ error: 'AI_RESPONSE_INVALID', message: (err as Error).message });
+    }
+    return false;
+  }
+}
+
+export async function logAiUsage(
   userId: number, storeId: number,
   scenarioCode: string,
   providerId: number | null,
@@ -65,7 +90,7 @@ async function logAiUsage(
   });
 }
 
-async function getGlobalAiSettings(): Promise<{
+export async function getGlobalAiSettings(): Promise<{
   defaultProviderId?: number;
   defaultModelId?: number;
   keys: Record<string, string>;
@@ -85,7 +110,7 @@ async function getGlobalAiSettings(): Promise<{
   }
 }
 
-async function resolveScenarioConfig(scenarioCode: string): Promise<{
+export async function resolveScenarioConfig(scenarioCode: string): Promise<{
   provider: any | null;
   model: any | null;
   scenario: any | null;
@@ -139,7 +164,7 @@ async function resolveScenarioConfig(scenarioCode: string): Promise<{
   }
 }
 
-function buildProviderPayload(provider: any, model: any, scenario: any, globalKeys: Record<string, string> = {}) {
+export function buildProviderPayload(provider: any, model: any, scenario: any, globalKeys: Record<string, string> = {}) {
   if (!provider || !model) return {};
 
   let apiKey = '';
@@ -166,7 +191,7 @@ function buildProviderPayload(provider: any, model: any, scenario: any, globalKe
   };
 }
 
-async function proxyToAiService(req: Request, res: Response, path: string, scenarioCode: string, defaultCredits: number) {
+async function proxyToAiService(req: Request, res: Response, path: string, scenarioCode: string, defaultCredits: number, opts?: { validateStructured?: boolean }) {
   const user = (req as any).user;
   const store = (req as any).store;
 
@@ -209,6 +234,11 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
     const body = { ...req.body, ...providerPayload };
 
     const response = await axios.post(`${aiServiceUrl}${path}`, body, { timeout: AI_TIMEOUT_MS });
+
+    if (opts?.validateStructured) {
+      const ok = validateAiAnalysisResponse(normalizeAiResponse(response.data), res);
+      if (!ok) return;
+    }
 
     await deductCredits(user.id, store.id, credits, scenarioCode, 'ai');
     await logAiUsage(
@@ -253,7 +283,7 @@ aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
   body('imageUrl').isURL(),
   body('category').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
-  return proxyToAiService(req, res, '/ai/analyze-product', 'analyze_product', 10);
+  return proxyToAiService(req, res, '/ai/analyze-product', 'analyze_product', 10, { validateStructured: true });
 });
 
 aiRoutes.post('/agentic-listing', authMiddleware, requireStore, [
@@ -262,7 +292,7 @@ aiRoutes.post('/agentic-listing', authMiddleware, requireStore, [
   body('suggest_price').optional().isBoolean(),
   body('target_marketplaces').optional().isArray(),
 ], validate, async (req: Request, res: Response) => {
-  return proxyToAiService(req, res, '/ai/agentic-listing', 'agentic_listing', 12);
+  return proxyToAiService(req, res, '/ai/agentic-listing', 'agentic_listing', 12, { validateStructured: true });
 });
 
 aiRoutes.post('/generate-description', authMiddleware, requireStore, [

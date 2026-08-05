@@ -152,6 +152,15 @@ router.post(
         notes: req.body.notes,
       }, [], () => {}, providerConfig);
 
+      const attributes: Record<string, string> = {};
+      for (const key of ['material', 'color', 'type', 'style', 'pattern', 'brand'] as const) {
+        if (specs[key]) attributes[key] = specs[key];
+      }
+
+      const warnings: string[] = [];
+      if (!specs.brand) warnings.push('Marka fotoğraftan tanımlanamadı, boş bırakıldı.');
+      if (!specs.dimensions) warnings.push('Boyut/ölçü bilgisi fotoğraftan belirlenemedi.');
+
       res.json({
         specs: {
           material: specs.material,
@@ -167,6 +176,11 @@ router.post(
         meta_description: result.seo.metaDescription,
         keywords: result.seo.keywords,
         slug: result.seo.slug,
+        category: specs.category,
+        attributes,
+        category_candidates: [{ name: specs.category || 'diger', confidence: 0.5 }],
+        warnings,
+        confidence: { title: 0.5, category: 0.5, description: 0.5 },
       });
     } catch (err: any) {
       if (err instanceof OllamaUnavailableError || isUnavailableError(err)) {

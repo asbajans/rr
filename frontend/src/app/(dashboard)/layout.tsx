@@ -8,7 +8,7 @@ import {
   Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban,
   MapPin, Truck, FileText, Camera, Palette, MenuIcon,
   FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2, GitMerge,
-  Coins,
+  Coins, Wand2,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
@@ -57,6 +57,7 @@ const navGroups = [
       { href: '/locations', labelKey: 'locations', icon: MapPin },
       { href: '/shipping', labelKey: 'shipping', icon: Truck },
       { href: '/ai', labelKey: 'ai', icon: Sparkles },
+      { href: '/ai/studio', labelKey: 'aiStudio', icon: Wand2 },
       { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
       { href: '/settings', labelKey: 'settings', icon: Settings },

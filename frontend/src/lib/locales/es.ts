@@ -20,6 +20,7 @@ export const es: Record<string, string> = {
   locations: 'Ubicaciones',
   shipping: 'Envío',
   ai: 'Imagen IA',
+  aiStudio: 'Estudio IA',
   plan: 'Plan',
   settings: 'Ajustes',
   groupAna: 'Inicio',

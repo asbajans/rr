@@ -27,7 +27,24 @@ uploadRoutes.post('/', authMiddleware, requireStore, async (req: Request, res: R
       },
     });
 
-    const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+    const ALLOWED_MIME = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'image/bmp',
+    ]);
+
+    const upload = multer({
+      storage,
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req: any, file: any, cb: any) => {
+        if (!ALLOWED_MIME.has(file.mimetype)) {
+          return cb(new Error(`Unsupported file type: ${file.mimetype}`));
+        }
+        cb(null, true);
+      },
+    });
 
     upload.single('file')(req, res, async (err: any) => {
       if (err) {

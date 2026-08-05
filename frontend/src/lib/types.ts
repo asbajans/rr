@@ -410,6 +410,7 @@ export type CustomerAddress = {
   user_id: string | null
   full_name: string
   phone: string
+  email?: string | null
   country: string
   city: string
   district: string | null
@@ -420,12 +421,31 @@ export type CustomerAddress = {
 }
 
 export type CheckoutPayload = {
-  items: { product_id: string; sku: string; name: string; quantity: number; unit_price: number }[]
+  items: { product_id: string; sku: string; quantity: number }[]
   customer: { name: string; email: string; phone: string }
   address_id?: number
-  shipping?: { full_name: string; phone: string; city: string; address_line: string }
+  shipping_address?: {
+    full_name: string
+    phone: string
+    email?: string
+    city: string
+    district?: string
+    address: string
+    zip_code?: string
+  }
   payment_method: string
   note?: string
+}
+
+export type CheckoutResult = {
+  orderId: number
+  orderNumber: string
+  orderToken: string
+  paymentMethod: string
+  paymentStatus: string
+  requiresPaymentGateway: boolean
+  totals: { subtotal: number; shippingAmount: number; taxAmount: number; totalAmount: number }
+  message: string
 }
 
 // Marketplace Integration Types

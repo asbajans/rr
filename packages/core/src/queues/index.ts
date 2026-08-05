@@ -28,6 +28,14 @@ export const webhookQueue = new Queue('webhook-processing', {
   defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 3000 }, removeOnComplete: 200, removeOnFail: 100 },
 });
 
+// AI Product Studio publish queue — per-channel publication jobs
+// (publication:storefront, publication:trendyol, ... ). A failure in one
+// channel never blocks the others (AGENTOPEN Faz 5 kabul kriteri).
+export const publicationQueue = new Queue('publication-queue', {
+  connection: { url: config.redis.url },
+  defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: 100, removeOnFail: 50 },
+});
+
 interface SyncJobData {
   productId: number;
   storeId: number;
@@ -919,6 +927,158 @@ export async function createWebhookWorker() {
         logger.error({ err, type }, 'Webhook processing failed');
         return { success: false, error: err.message };
       }
+    },
+    { connection: { url: config.redis.url }, concurrency: 5 }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AI Product Studio — publication worker
+// ---------------------------------------------------------------------------
+
+interface PublicationJobData {
+  type: string; // 'publication:storefront' | `publication:${channel}`
+  listingId?: number;
+  productId: number;
+  storeId: number;
+  channel: string;
+  trigger: 'publish' | 'retry' | 'auto';
+}
+
+/** Storefront is internal — the product already exists, just mark the listing active. */
+async function handleStorefrontPublication(job: Job<PublicationJobData>) {
+  const { listingId, productId, storeId } = job.data;
+  let listing = listingId ? await ProductMarketplaceListing.findByPk(listingId) : null;
+  if (!listing) {
+    [listing] = await ProductMarketplaceListing.findOrCreate({
+      where: { productId, storeId, platform: 'storefront' },
+      defaults: {
+        productId, storeId, platform: 'storefront', channel: 'storefront',
+        status: 'publishing', externalId: String(productId),
+      } as any,
+    });
+  }
+  await listing.update({
+    status: 'active',
+    externalId: listing.externalId || String(productId),
+    lastError: null,
+    lastSyncedAt: new Date(),
+    lastAttemptAt: new Date(),
+    retryCount: (listing.retryCount || 0) + 1,
+  });
+  return { success: true, action: 'published' };
+}
+
+/**
+ * Marketplace channel publication. The mapped payload is recorded on the
+ * listing (payloadSnapshot) so a retry can audit exactly what was sent.
+ */
+async function handleMarketplacePublication(job: Job<PublicationJobData>) {
+  const { listingId, productId, storeId, channel } = job.data;
+  const listing = await ProductMarketplaceListing.findByPk(listingId);
+  if (!listing) return { success: false, error: 'Listing not found' };
+
+  const product = await Product.findByPk(productId);
+  if (!product) {
+    await listing.update({ status: 'failed', lastError: 'Product not found' });
+    return { success: false, error: 'Product not found' };
+  }
+
+  const mp = channel as MarketplaceType;
+  const integration = await MarketplaceIntegration.findOne({ where: { storeId, marketplace: mp, isActive: true } });
+  if (!integration) {
+    await listing.update({ status: 'failed', lastError: 'Integration not connected' });
+    return { success: false, retryable: false, error: 'Integration not connected' };
+  }
+
+  const mpConfig = getMarketplaceConfig(mp, integration);
+  const client = createMarketplaceClient(mp, mpConfig);
+
+  const rawMapped = mapProductForMarketplace(mp, product, integration);
+  if (rawMapped._skip) {
+    await listing.update({
+      status: 'failed',
+      lastError: rawMapped.reason,
+      lastAttemptAt: new Date(),
+      retryCount: (listing.retryCount || 0) + 1,
+    });
+    return { success: false, retryable: false, error: rawMapped.reason };
+  }
+  const { _skip: _ignored, reason: _reasonIgnored, ...mpProduct } = rawMapped;
+
+  try {
+    let externalId = listing.externalId || '';
+    if (externalId) {
+      await client.updateProduct(externalId, mpProduct);
+      if (mpProduct.salePrice > 0) await client.updatePrice(externalId, mpProduct.salePrice);
+      if (mpProduct.quantity != null) await client.updateStock(externalId, mpProduct.quantity);
+    } else {
+      const listingResult = await client.createProduct(mpProduct);
+      externalId = await resolvePublicationExternalId(mp, client, product, listingResult);
+    }
+
+    await listing.update({
+      status: 'active',
+      externalId,
+      payloadSnapshot: mpProduct,
+      lastError: null,
+      lastSyncedAt: new Date(),
+      lastAttemptAt: new Date(),
+      retryCount: (listing.retryCount || 0) + 1,
+    });
+    return { success: true, externalId };
+  } catch (err: any) {
+    const errDetail = err?.response?.data?.message || err?.message || 'Publish failed';
+    await listing.update({
+      status: 'failed',
+      lastError: String(errDetail).slice(0, 2000),
+      payloadSnapshot: mpProduct,
+      lastAttemptAt: new Date(),
+      retryCount: (listing.retryCount || 0) + 1,
+    });
+    return { success: false, retryable: true, error: errDetail };
+  }
+}
+
+async function resolvePublicationExternalId(
+  mp: string,
+  client: any,
+  product: Product,
+  listingResult: any
+): Promise<string> {
+  if (mp === 'n11') return product.sku || '';
+  if (mp === 'trendyol') {
+    const batchId = listingResult?.batchRequestId ? String(listingResult.batchRequestId) : '';
+    return batchId || '';
+  }
+  if (mp === 'pazarama') {
+    const batchId = listingResult?.data?.batchRequestId
+      || listingResult?.batchRequestId
+      || listingResult?.batchId
+      || '';
+    if (batchId) return batchId;
+    return product.sku || '';
+  }
+  if (typeof listingResult === 'string') return listingResult;
+  if (listingResult?.batchRequestId) return listingResult.batchRequestId.toString();
+  if (listingResult?.listing_id) return listingResult.listing_id.toString();
+  if (listingResult?.data?.batchRequestId) return listingResult.data.batchRequestId.toString();
+  if (listingResult?.result?.batchRequestId) return listingResult.result.batchRequestId.toString();
+  if (listingResult?.data?.id) return listingResult.data.id.toString();
+  if (listingResult?.id) return listingResult.id.toString();
+  return product.sku || '';
+}
+
+export async function createPublicationWorker() {
+  return new Worker<PublicationJobData>(
+    'publication-queue',
+    async (job: Job<PublicationJobData>) => {
+      const { type, channel } = job.data;
+      logger.info({ type, channel }, 'Starting publication job');
+      if (type === 'publication:storefront') {
+        return handleStorefrontPublication(job);
+      }
+      return handleMarketplacePublication(job);
     },
     { connection: { url: config.redis.url }, concurrency: 5 }
   );

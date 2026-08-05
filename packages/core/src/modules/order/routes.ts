@@ -6,8 +6,11 @@ import axios from 'axios';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
+import { Product } from '../../models/Product.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { createSplitOrder } from './orderSplit.js';
+import { createGateway } from '../payment/gateways/index.js';
+import { StorePaymentMethod } from '../../models/ContentModels.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/env.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
@@ -213,10 +216,49 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
       }
     }
 
+      // Storefront orders: restore stock on cancel/return, and auto-refund if already paid
+      if ((status === 'cancelled' || status === 'returned') && oldStatus !== status && order.marketplace === 'storefront') {
+        const items = (order.items as any[]) || [];
+        for (const item of items) {
+          const productId = Number(item.product_id);
+          if (!productId) continue;
+          const product = await Product.findOne({ where: { id: productId, storeId: store.id } });
+          if (!product) continue;
+          const qty = Number(item.quantity) || 0;
+          if (order.paymentStatus === 'paid') {
+            if (qty > 0) await product.increment('quantity', { by: qty });
+          } else {
+            const reserved = Math.min(Number(product.reservedQuantity) || 0, qty);
+            if (reserved > 0) await product.decrement('reservedQuantity', { by: reserved });
+          }
+        }
+
+        if (order.paymentStatus === 'paid' && order.paymentProvider) {
+          const gateway = createGateway(order.paymentProvider);
+          const method = await StorePaymentMethod.findOne({ where: { storeId: store.id, type: order.paymentProvider } });
+          if (gateway && method) {
+            try {
+              const result = await gateway.refund(order, method);
+              if (result.success) {
+                await order.update({ paymentStatus: 'refunded' });
+                await OrderStatusHistory.create({
+                  dropshippingOrderId: order.id,
+                  fromStatus: oldStatus,
+                  toStatus: status,
+                  note: `Auto-refund via ${order.paymentProvider} (${result.refId})`,
+                });
+                logger.info(`Order ${order.id} auto-refunded via ${order.paymentProvider}: ${result.refId}`);
+              }
+            } catch (refundErr: any) {
+              logger.error({ err: refundErr.message, orderId: order.id }, 'Auto-refund failed');
+            }
+          }
+        }
+      }
+
     // Only push to marketplace for main orders, never for sub-orders (B2B)
     if (!order.parentOrderId) {
-      if (order.marketplace === 'trendyol') {
-        if (status === 'processing' && oldStatus === 'pending') {
+      if (order.marketplace === 'trendyol') {        if (status === 'processing' && oldStatus === 'pending') {
           try {
             const integration = await MarketplaceIntegration.findOne({
               where: { storeId: store.id, marketplace: 'trendyol', isActive: true },
@@ -454,6 +496,51 @@ orderRoutes.get('/:id/label', authMiddleware, requireStore, [
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get order label error');
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+orderRoutes.post('/:id/refund', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+  body('amount').optional().isFloat({ min: 0.01 }),
+  body('reason').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.paymentStatus !== 'paid') {
+      return res.status(400).json({ error: 'Order is not paid' });
+    }
+    const provider = order.paymentProvider || order.paymentMethod;
+    const gateway = provider ? createGateway(provider) : null;
+    if (!gateway) {
+      return res.status(400).json({ error: `No refund gateway available for provider: ${provider}` });
+    }
+    const method = await StorePaymentMethod.findOne({ where: { storeId: store.id, type: provider } });
+    if (!method) {
+      return res.status(400).json({ error: `Payment method config not found for provider: ${provider}` });
+    }
+
+    const result = await gateway.refund(order, method, req.body.amount, req.body.reason);
+    if (!result.success) {
+      return res.status(502).json({ error: 'Refund failed at gateway' });
+    }
+
+    const oldStatus = order.status;
+    await order.update({ paymentStatus: 'refunded' });
+    await OrderStatusHistory.create({
+      dropshippingOrderId: order.id,
+      fromStatus: oldStatus,
+      toStatus: oldStatus,
+      note: `Refund processed via ${provider} (${result.refId})`,
+    });
+    logger.info(`Order ${order.id} refunded via ${provider}: ${result.refId}`);
+    res.json({ success: true, refId: result.refId, paymentStatus: 'refunded' });
+  } catch (error: any) {
+    logger.error({ err: error }, 'Refund error');
+    res.status(500).json({ error: error?.message || 'Refund failed' });
   }
 });
 

@@ -49,6 +49,26 @@ export class ProductMarketplaceListing extends Model {
   @Column(DataType.STRING(50))
   declare platform: string;
 
+  // AI Product Studio channel this listing was published from
+  // (storefront | trendyol | hepsiburada | pazarama | n11 | amazon | etsy)
+  @AllowNull(true)
+  @Index
+  @Column(DataType.STRING(50))
+  declare channel: string;
+
+  // Serialized payload that was sent to the channel (audit + retry)
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare payloadSnapshot: Record<string, any>;
+
+  @AllowNull(true)
+  @Column(DataType.INTEGER)
+  declare retryCount: number;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare lastAttemptAt: Date;
+
   @AllowNull(true)
   @Index
   @Column(DataType.STRING(200))
