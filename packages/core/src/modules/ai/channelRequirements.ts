@@ -32,6 +32,12 @@ function missingFieldsFor(draft: AiProductDraft): string[] {
   return missing;
 }
 
+function draftBrand(draft: AiProductDraft): string | null {
+  const attrs = (draft.attributes || {}) as Record<string, unknown>;
+  const brand = attrs.brand ?? attrs.brandName ?? attrs.marka;
+  return typeof brand === 'string' && brand.trim() ? brand.trim() : null;
+}
+
 /**
  * Validates a draft against a list of target channels. A missing field or
  * mapping only blocks publishing — never draft persistence (AGENTOPEN Faz 3).
@@ -46,6 +52,10 @@ export async function validateDraftForChannels(
   for (const channel of channels) {
     const rule = CHANNEL_RULES[channel];
     const channelMissing = [...missing];
+
+    if (rule.requiresBrand && !draftBrand(draft)) {
+      channelMissing.push('brand');
+    }
 
     if (rule.requiresCategoryMapping) {
       const integration = await MarketplaceIntegration.findOne({

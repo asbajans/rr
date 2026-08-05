@@ -46,13 +46,17 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const CheckoutPayloadSchema = z.object({
   items: z.array(CheckoutItemSchema).min(1),
-  shipping_address: CheckoutShippingAddressSchema,
   customer: CheckoutCustomerSchema.default({}),
   payment_method: z.enum(PAYMENT_METHODS),
   address_id: z.number().int().positive().optional(),
+  address_owner_token: z.string().min(16).max(256).optional(),
+  shipping_address: CheckoutShippingAddressSchema.optional(),
   note: z.string().max(2000).optional(),
   /** Honeypot — bots auto-fill hidden fields; the real frontend never sends it. */
   website: z.string().max(100).optional().default(''),
+}).refine((value) => Boolean(value.address_id) || Boolean(value.shipping_address), {
+  message: 'shipping_address or address_id is required',
+  path: ['shipping_address'],
 });
 
 export type CheckoutPayload = z.infer<typeof CheckoutPayloadSchema>;

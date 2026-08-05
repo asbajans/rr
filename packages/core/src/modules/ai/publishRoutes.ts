@@ -6,6 +6,8 @@ import { AiProductSession } from '../../models/AiProductSession.model.js';
 import { Product } from '../../models/Product.model.js';
 import { ProductMarketplaceListing } from '../../models/ProductMarketplaceListing.model.js';
 import { assertProductQuota } from '../plan/access.js';
+import { MarketplaceCategoryMapping } from '../../models/Category.model.js';
+import { validateDraftForChannels } from './channelRequirements.js';
 import { logger } from '../../utils/logger.js';
 import type { AiChannel, PublishResult } from '@rahatio/shared';
 
@@ -50,7 +52,7 @@ async function resolveProduct(
   transaction: any
 ): Promise<{ product: Product; created: boolean }> {
   if (draft.productId) {
-    const existing = await Product.findByPk(draft.productId, { transaction });
+    const existing = await Product.findOne({ where: { id: draft.productId, storeId }, transaction });
     if (existing) return { product: existing, created: false };
   }
   if (draft.sku) {
@@ -61,7 +63,10 @@ async function resolveProduct(
     }
   }
 
-  const quota = await assertProductQuota({ id: storeId } as any);
+  const { Store } = await import('../../models/Store.model.js');
+  const store = await Store.findByPk(storeId);
+  if (!store) throw new Error('Store not found');
+  const quota = await assertProductQuota(store);
   if (!quota.ok) {
     const err: any = new Error('Ürün limitiniz doldu. Planınızı yükseltin.');
     err.code = 'PLAN_PRODUCT_LIMIT';
@@ -70,6 +75,28 @@ async function resolveProduct(
   }
 
   const sku = await makeUniqueSku(storeId, draft.sku || undefined);
+  const attributes = (draft.attributes || {}) as Record<string, unknown>;
+  const genericAttributes = Object.entries(attributes).map(([name, value]) => ({
+    name,
+    customValue: String(value ?? ''),
+  }));
+  const marketplaceConfig: Record<string, any> = {};
+  for (const channel of ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy']) {
+    const mapping = draft.categoryId
+      ? await MarketplaceCategoryMapping.findOne({
+          where: { categoryId: draft.categoryId, marketplace: channel },
+          transaction,
+        })
+      : null;
+    marketplaceConfig[channel] = {
+      categoryId: mapping?.marketplaceCategoryId || null,
+      brand: attributes.brand || attributes.brandName || attributes.marka || null,
+      attributes: genericAttributes,
+      aiAttributes: attributes,
+      keywords: draft.keywords || [],
+    };
+  }
+
   const product = await Product.create({
     storeId,
     title: draft.title,
@@ -81,7 +108,8 @@ async function resolveProduct(
     priceTRY: draft.suggestedPrice != null ? Number(draft.suggestedPrice) : null,
     images: draft.images || [],
     marketplaces: [],
-    marketplaceConfig: {},
+    marketplaceConfig,
+    tags: [...(draft.tags || []), ...(draft.keywords || [])],
     isActive: true,
   }, { transaction });
 
@@ -116,13 +144,23 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
   const store = (req as any).store;
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
   if (!draft) return res.status(404).json({ error: 'Draft not found' });
+  if (draft.status !== 'approved') {
+    return res.status(409).json({ error: 'DRAFT_NOT_APPROVED', message: 'Taslak yayınlanmadan önce onaylanmalıdır.' });
+  }
 
-  const channels = req.body.channels as AiChannel[];
+  const channels = [...new Set(req.body.channels as AiChannel[])];
   const invalid = channels.filter((c) => !ALL_CHANNELS.includes(c));
   if (invalid.length) return res.status(400).json({ error: `Invalid channel(s): ${invalid.join(', ')}` });
 
+  const validation = await validateDraftForChannels(draft, channels);
+  const blocked = validation.filter((result) => result.status !== 'ready');
+  if (blocked.length) {
+    return res.status(422).json({ error: 'DRAFT_CHANNEL_VALIDATION_FAILED', results: validation });
+  }
+
   const { sequelize } = await import('../../config/database.js');
   const results: PublishResult[] = [];
+  const jobs: Array<{ type: string; listingId: number; productId: number; storeId: number; channel: string }> = [];
 
   try {
     await sequelize.transaction(async (transaction: any) => {
@@ -147,11 +185,11 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
 
         if (channel === 'storefront') {
           // Listing already carries the storefront externalId; job marks it active.
-          await queuePublication('publication:storefront', listing.id, product.id, store.id, 'storefront', 'publish');
+          jobs.push({ type: 'publication:storefront', listingId: listing.id, productId: product.id, storeId: store.id, channel: 'storefront' });
           results.push({ channel: 'storefront', status: 'queued', externalId: String(product.id), retryCount: 0 });
         } else {
           await listing.update({ status: 'publishing', lastError: null, retryCount: 0 }, { transaction });
-          await queuePublication(`publication:${channel}`, listing.id, product.id, store.id, channel, 'publish');
+          jobs.push({ type: `publication:${channel}`, listingId: listing.id, productId: product.id, storeId: store.id, channel });
           results.push({ channel, status: 'queued', retryCount: 0 });
         }
       }
@@ -161,6 +199,22 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
 
       logger.info({ draftId: draft.id, productId: product.id, channels, created }, 'Draft published');
     });
+
+    for (const job of jobs) {
+      try {
+        await queuePublication(job.type, job.listingId, job.productId, job.storeId, job.channel, 'publish');
+      } catch (error: any) {
+        await ProductMarketplaceListing.update(
+          { status: 'failed', lastError: `Queue enqueue failed: ${error?.message || 'Unknown error'}` },
+          { where: { id: job.listingId, storeId: store.id } }
+        );
+        const result = results.find((item) => item.channel === job.channel);
+        if (result) {
+          result.status = 'failed';
+          result.error = error?.message || 'Queue enqueue failed';
+        }
+      }
+    }
 
     res.json({ ok: true, productId: draft.productId, results });
   } catch (error: any) {

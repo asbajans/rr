@@ -14,7 +14,7 @@ import { User } from './User.model.js';
     { fields: ['storeId'] },
     { fields: ['userId'] },
     { fields: ['status'] },
-    { fields: ['idempotencyKey'] },
+    { fields: ['storeId', 'idempotencyKey'], unique: true, where: { idempotencyKey: { $ne: null } } },
   ],
 })
 export class AiProductSession extends Model {

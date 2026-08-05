@@ -79,8 +79,8 @@ export class ProductMarketplaceListing extends Model {
   declare externalCode: string;
 
   @Default('pending')
-  @Column(DataType.ENUM('pending', 'active', 'inactive', 'failed', 'deleted'))
-  declare status: 'pending' | 'active' | 'inactive' | 'failed' | 'deleted';
+  @Column(DataType.ENUM('pending', 'publishing', 'active', 'inactive', 'failed', 'deleted'))
+  declare status: 'pending' | 'publishing' | 'active' | 'inactive' | 'failed' | 'deleted';
 
   @AllowNull(true)
   @Column(DataType.STRING(100))

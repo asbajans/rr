@@ -911,3 +911,172 @@ Yeni kullanıcı → Mobil uygulama → Fotoğraf çekme
 - [x] **HOTFIX — deploy sonrası `SequelizeAssociationError: alias session` crash'i** — `AiProductDraft.model.ts`'teki `@BelongsTo(() => AiProductSession)` decorator'ü ile `associations.ts`'teki `AiProductDraft.belongsTo(AiProductSession, { as: 'session' })` aynı alias'ı iki kez tanımlıyordu → sunucu boot'ta düşüyordu. Çözüm: `associations.ts`'ten AI session/draft satırları kaldırıldı (draft route'ları association'ları hiç kullanmıyor, doğrudan `sessionId`/`draftId` alanlarıyla çalışıyor); decorator'e `{ foreignKey: 'sessionId' }` eklendi (varsayılan `aiProductSessionId` yerine doğru kolon). Doğrulama: 24 model + `setupAssociations()` tüm modellerle crash'siz ✅. Yeniden deploy başarılı (2026-08-05).
 - [x] **Faz 8A TAMAMLANDI — publish + deployment geçmişi + tema render** — `Store.published` (default true) + boot migration; **`SiteDeployment` modeli** (`site_deployments`: storeId/status published|draft|reverted|failed/version/siteCode/domain/siteUrl/themeSnapshot JSONB/note/deployedAt/revertedAt, append-only geçmiş) + `database.ts` + `Store.hasMany`; saf helper `modules/site/publish.ts` (`computeNextVersion`, `snapshotOf`, `resolveRollbackTarget`, `serializeDeployment` — testli); route'lar `GET /api/admin/site/deployments`, `POST /api/admin/site/publish|unpublish`, `POST /api/admin/site/deployments/:id/rollback` (tema + siteCode + domain snapshot'tan geri yükler, yeni `reverted` kaydı). **Draft gating**: storefront `resolveStore` (public store routes) + product/categories public route'larında `published: true`; unpublished → 404, `?preview=1` owner önizleme. `published` `/api/admin/me`, `/api/admin/store/me` ve storefront response'larına eklendi. **Tema render**: `components/store/StoreTheme.tsx` CSS custom property (`--sf-primary/secondary/accent/font`) + `custom_css` inline `<style>` + favicon enjeksiyonu; `stores/layout.tsx` `data-storefront` + publish gating + "yayında değil" ekranı; storefront butonları `sf-btn-primary` (home arama, cart, checkout, product detail, result). **Frontend**: api-client `getSiteDeployments/publishSite/unpublishSite/rollbackSiteDeployment`; site-builder sayfasına Yayınla/Yayından Kaldır + yayın notu + yayın geçmişi tablosu + Geri Dön butonu. Testler: `site/publish.test.ts` — core **42** test ✅. Core build+typecheck ✅, frontend build ✅ (51 route), lint 0 error ✅.
 
+## 17. TÜM FAZLARIN EKSİK KAPATMA PLANI
+
+Bu bölüm, mevcut özellikleri yeniden yazmak için değil; tüm fazlarda tespit edilen eksikleri production seviyesine çıkarmak için takip edilecektir. Her iş, kod + test + migration + deploy doğrulaması tamamlanmadan bitmiş kabul edilmez.
+
+### P0 — Canlıya çıkmadan önce zorunlu güvenlik ve veri bütünlüğü işleri
+
+#### P0.1 AI yayın güvenliği
+
+- [x] Publish endpoint'i yalnızca `draft.status = approved` durumunda çalışacak. (API kontrolü eklendi)
+- [x] Publish endpoint'i API seviyesinde `validateDraftForChannels()` çağıracak; UI doğrulaması yeterli kabul edilmeyecek.
+- [x] `publishing` listing durumu model ve migration enum'una eklenecek veya ortak durum sözleşmesine geçirilecek.
+- [x] Ürün kotası gerçek `Store` nesnesi üzerinden uygulanacak; AI publish quota bypass edemeyecek.
+- [x] Draft içindeki kategori, marka, attributes ve kanal payload'ları Product/Listing kayıtlarına aktarılacak.
+- [x] Aynı `idempotency-key` için veritabanı unique constraint + yarış koşulu testi eklenecek. (unique index + yarışta mevcut kaydı döndürme)
+- [x] Queue işleri transaction commit sonrasında veya outbox modeli üzerinden kuyruğa alınacak. (commit sonrası enqueue)
+
+Kabul kriterleri:
+
+- [ ] Onaysız veya validation hatalı taslak API ile yayınlanamıyor.
+- [ ] Plan ürün limiti aşılamıyor.
+- [ ] Aynı publish isteği birden fazla Product/Listing üretmiyor.
+- [ ] Her kanal kendi doğru payload'ını ve hata durumunu kaydediyor.
+
+#### P0.2 Ödeme ve checkout güvenliği
+
+- [ ] İyzico callback yalnızca sağlayıcı API'sinden ödeme tekrar doğrulandıktan sonra başarılı sayılacak.
+- [ ] PayTR callback imzası, sipariş tutarı ve merchant bilgileri doğrulanacak.
+- [ ] Stripe webhook idempotency ve event ID kaydı eklenecek.
+- [ ] `address_id` checkout'ta owner token ile doğrulanacak; başka müşterinin adresi kullanılamayacak.
+- [ ] Ödeme başarılı, başarısız, iptal, iade ve kısmi iade state geçişleri tek state makinesiyle sınırlandırılacak.
+- [ ] Stok rezervasyonu, ödeme timeout'u ve başarısız ödeme sonrası serbest bırakma job'ı eklenecek.
+- [ ] Gerçek sağlayıcı sandbox testleri ve anonim checkout E2E testi çalıştırılacak.
+
+Kabul kriterleri:
+
+- [ ] Sunucu istemciden gelen fiyatı veya ödeme başarısını kabul etmiyor.
+- [ ] Aynı webhook ikinci kez işlendiğinde stok ve sipariş tekrar değişmiyor.
+- [ ] Ödenmemiş siparişin rezervasyonu süre sonunda geri bırakılıyor.
+
+#### P0.3 Secret ve deployment güvenliği
+
+- [ ] Dokümanlarda ve repository geçmişinde bulunan gerçek secret'lar döndürülecek.
+- [ ] Slave HMAC secret ile internal API secret kesin olarak ayrılacak.
+- [ ] Secret'lar yalnızca environment/secret manager üzerinden okunacak.
+- [ ] Migration'lar production boot sırasında rastgele `ALTER TABLE` yerine kontrollü migration runner'a taşınacak.
+
+### P1 — Faz 0–5 AI Product Studio tamamlaması
+
+- [ ] AI session gerçekten asenkron worker/job modeliyle çalışacak; `uploaded → analyzing → review/failed` geçişleri kalıcı tutulacak.
+- [ ] AI başarısız olduğunda `failed` session ve kullanıcıya gösterilecek hata kaydedilecek.
+- [ ] Görsel kalite, bulanıklık, kadraj ve ürün tespiti sonuçları kullanıcıya gösterilecek.
+- [ ] Kategori adayları Rahatio kategori ağacındaki gerçek `categoryId`/alt kategori ile eşleştirilecek.
+- [ ] Kullanıcı kategori, alt kategori ve kanal mapping'i mobilde seçebilecek.
+- [ ] Marketplace zorunlu attribute'ları gerçek kategori metadata'sından okunacak; sabit genel alan listesiyle sınırlı kalınmayacak.
+- [ ] Marka zorunluluğu, title/description/price/quantity gibi alanlar gerçekten kontrol edilecek.
+- [ ] AI çıktısında bulunmayan özellikler otomatik olarak uydurulmayacak; riskli sağlık/kozmetik/gıda iddiaları filtrelenecek.
+- [ ] Web ve mobilde aynı validation sonucu için ortak fixture testleri eklenecek.
+
+### P1 — Faz 5 marketplace yayın kalitesi
+
+- [ ] Her marketplace için create/update payload mapper testleri yazılacak.
+- [ ] Integration yoksa yayın işi `integration-required` durumuyla sonuçlanacak; sessiz başarısızlık olmayacak.
+- [ ] Listing status sözleşmesi `pending/processing/active/failed/paused/deleted` olarak ortaklaştırılacak.
+- [ ] Retry yalnızca güvenli, idempotent hatalarda çalışacak; kalıcı validation hataları dead-letter durumuna alınacak.
+- [ ] Publication worker store/listing ownership kontrolü yapacak.
+- [ ] Payload snapshot kişisel veri ve secret içermeyecek.
+- [ ] Trendyol ve N11 MVP için sandbox/mock integration testleri tamamlanacak.
+
+### P1 — Faz 6 storefront ticari akış
+
+- [ ] Checkout, ödeme, stok rezervasyonu, vergi, kargo ve iade için integration test paketi oluşturulacak.
+- [ ] Stripe, iyzico ve PayTR sandbox callback'leri ayrı ayrı test edilecek.
+- [ ] Bank transfer, kapıda ödeme ve crypto için sipariş onay kuralları açıkça ayrıştırılacak.
+- [ ] Sipariş iptal/iade işlemlerinde stok yalnızca bir kez iade edilecek.
+- [ ] Public order tracking token expiration ve rate limit test edilecek.
+- [ ] Adres defteri localStorage token'ı kaybolduğunda güvenli davranış doğrulanacak.
+
+### P1 — Faz 7 B2B ve dropshipping operasyonu
+
+- [ ] Supplier settlement `mark-paid` işlemi yalnızca platform finans/superadmin yetkisine alınacak.
+- [ ] Supplier sipariş route'larında tüm state geçişleri transaction içine alınacak.
+- [ ] Reject, return ve refund işlemlerinde stok iadesi için idempotency anahtarı eklenecek.
+- [ ] Parent/sub-order status senkronizasyonu için karma sipariş testleri yazılacak.
+- [ ] Tedarikçi maliyeti, komisyonu ve hakedişi sipariş snapshot'ı olarak korunacak; sonradan ürün fiyatı değişince geçmiş sipariş değişmeyecek.
+- [ ] Orijinal ürün silinmesi, pasif olması ve stok sıfırlanması klonlarda test edilecek.
+- [ ] Tedarikçi paneline tarih, durum, dönem ve ödeme filtreleri eklenecek.
+
+### P1 — Faz 8A site yayınlama düzeltmeleri
+
+- [ ] Rollback hedef deployment'ın `published/draft` durumunu gerçekten geri yükleyecek; her rollback otomatik publish etmeyecek.
+- [ ] Publish/unpublish/rollback işlemleri transaction ve eşzamanlılık kontrolüyle korunacak.
+- [ ] Site deployment version üretiminde yarış koşulu için unique constraint veya transaction lock eklenecek.
+- [ ] Preview erişimi signed preview token ile korunacak; yalnızca `?preview=1` parametresi yeterli olmayacak.
+- [ ] Tema preset sistemi tamamlanacak; tema değişiklikleri desktop/mobile storefront'ta test edilecek.
+- [ ] Custom CSS sanitization ve XSS testi eklenecek.
+
+### P1 — Faz 8B gerçek hosting ve domain sistemi
+
+- [ ] Hosting provider abstraction oluşturulacak: `rahatio`, `vercel`, `custom/slave`.
+- [ ] Vercel token güvenli secret olarak tutulacak; mağaza başına project/deployment ilişkisi modellenmeli.
+- [ ] Vercel project oluşturma, deployment tetikleme, status polling ve hata kaydı yapılacak.
+- [ ] Vercel deployment webhook veya polling ile `pending/ready/error` durumları güncellenecek.
+- [ ] Custom domain ekleme, domain ownership kontrolü, CNAME/TXT doğrulaması ve SSL status modeli eklenecek.
+- [ ] Cloudflare/Let’s Encrypt entegrasyonu için provider sınırları ve manuel fallback dokümante edilecek.
+- [ ] Slave artifact üretimi ile slave config push/deploy işlemi ayrıştırılacak.
+- [ ] PHP/Vercel slave canlı smoke testi yapılacak: ürün listeleme, sync, sipariş alma, HMAC, idempotency.
+- [ ] `siteUrl`, `domain`, hosting planı ve deployment durumu UI'da düzenlenebilir/izlenebilir olacak.
+
+Kabul kriterleri:
+
+- [ ] Kullanıcı seçtiği hosting tipine göre doğru deployment akışını görüyor.
+- [ ] Vercel deploy sonucu panelde gerçek status ve URL ile görünüyor.
+- [ ] Custom domain doğrulanmadan aktif gösterilmiyor.
+- [ ] Slave indirildikten sonra ürün ve sipariş senkronu çalışıyor.
+
+### P1 — Faz 9 web AI studio
+
+- [ ] Web studio mobil ile aynı alanları ve validation sözleşmesini kullanacak.
+- [ ] Sert kodlanmış metinler i18n kapsamına alınacak.
+- [ ] Web upload, draft edit, approve, publish, retry ve publish status için E2E test yazılacak.
+- [ ] Kanal bazlı hata mesajları kullanıcıya çözüm önerisiyle gösterilecek.
+
+### P2 — Faz 10 müşteri deneyimi ve ticari özellikler
+
+- [ ] Customer modeli ve merchant user modelinden ayrılmış müşteri auth oluşturulacak.
+- [ ] Müşteri kayıt/giriş, sipariş geçmişi, favoriler ve şifre sıfırlama yapılacak.
+- [ ] Kupon, kampanya, ürün yorumu ve müşteri bildirim altyapısı eklenecek.
+- [ ] KVKK, açık rıza ve pazarlama izinleri checkout/account akışına bağlanacak.
+- [ ] E-posta, SMS ve push bildirimleri event tabanlı Notification modeliyle yapılacak.
+- [ ] Fatura/e-arşiv ve kargo etiketi entegrasyonları için provider abstraction hazırlanacak.
+
+### Test ve release kapıları
+
+- [ ] Shared DTO/schema testleri
+- [ ] Core unit testleri
+- [ ] Core integration testleri (PostgreSQL + Redis)
+- [ ] AI session/draft/publish E2E
+- [ ] Checkout ve ödeme sandbox E2E
+- [ ] Marketplace mapper ve mock API testleri
+- [ ] Supplier split/settlement/refund E2E
+- [ ] Vercel/custom/slave deployment smoke testleri
+- [ ] Frontend build + lint + typecheck
+- [ ] Mobile typecheck + Expo preview build
+- [ ] Production migration dry-run ve rollback provası
+- [ ] Sentry/log/metric alarm kontrolü
+
+### Uygulama sırası
+
+1. `[ ]` P0 AI publish güvenliği ve listing state düzeltmeleri
+2. `[ ]` P0 ödeme, adres sahipliği ve webhook doğrulaması
+3. `[ ]` P0 secret rotasyonu ve migration güvenliği
+4. `[ ]` P1 kategori/attribute validation ve AI async pipeline
+5. `[ ]` P1 marketplace publication testleri ve retry dayanıklılığı
+6. `[ ]` P1 Faz 6 checkout/ödeme integration ve E2E testleri
+7. `[ ]` P1 Faz 7 settlement/state/idempotency sertleştirmesi
+8. `[ ]` P1 Faz 8A rollback/preview/theme düzeltmeleri
+9. `[ ]` P1 Faz 8B Vercel + custom domain + slave deployment
+10. `[ ]` P1 Faz 9 web AI studio E2E/i18n
+11. `[ ]` P2 Faz 10 müşteri hesabı ve ticari özellikler
+12. `[ ]` Release candidate, güvenlik taraması, staging ve production deploy
+
+### Faz bitirme kuralı
+
+Bir faz aşağıdaki dört koşul sağlanmadan `Tamamlandı` olarak işaretlenmeyecek:
+
+1. Kod ve veri migration'ı tamamlanmış olacak.
+2. Başarılı ve başarısız senaryolar için test bulunacak.
+3. Web/mobil/API sözleşmesi doğrulanacak.
+4. Staging veya sandbox ortamında gerçek akış çalıştırılacak.

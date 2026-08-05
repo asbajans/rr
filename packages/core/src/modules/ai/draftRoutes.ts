@@ -172,7 +172,22 @@ draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
     }
   }
 
-  const result = await analyzeAndCreateSession(user, store, req.body, idempotencyKey);
+  let result;
+  try {
+    result = await analyzeAndCreateSession(user, store, req.body, idempotencyKey);
+  } catch (error: any) {
+    // A concurrent request may win the unique idempotency index between the
+    // initial lookup and session creation. Return that winner instead of
+    // creating a duplicate or exposing a 500 to the mobile client.
+    if (idempotencyKey && (error?.original?.code === '23505' || error?.parent?.code === '23505')) {
+      const existing = await AiProductSession.findOne({ where: { storeId: store.id, idempotencyKey } });
+      if (existing) {
+        const draft = existing.draftId ? await AiProductDraft.findByPk(existing.draftId) : null;
+        return res.json({ session: existing, draft });
+      }
+    }
+    throw error;
+  }
   if (result.error) return res.status(result.error.status).json(result.error.body);
   res.status(201).json({ session: result.session, draft: result.draft });
 });

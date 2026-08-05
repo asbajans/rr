@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { Op } from 'sequelize';
 import { sequelize } from '../../config/database.js';
 import { config } from '../../config/env.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
@@ -126,34 +127,37 @@ export async function createCheckoutOrder(
   requiresGateway: boolean;
   paymentStatus: 'pending' | 'awaiting';
 }> {
-  const { items, shipping_address, customer, payment_method, address_id, note, website } = payload;
+  const { items, shipping_address, customer, payment_method, address_id, address_owner_token, note, website } = payload;
 
   if (website && website.trim().length > 0) {
     throw new CheckoutError(400, 'Spam detected');
   }
 
-  let addr = CheckoutShippingAddressSchema.parse(shipping_address);
+  let addr = shipping_address ? CheckoutShippingAddressSchema.parse(shipping_address) : null;
   let cust = CheckoutCustomerSchema.parse(customer ?? {});
 
   // Resolve a previously saved address book entry when the client references one
   if (address_id) {
-    const saved = await CustomerAddress.findOne({ where: { id: address_id, storeId: store.id } });
-    if (saved) {
-      addr = CheckoutShippingAddressSchema.parse({
+    if (!address_owner_token) throw new CheckoutError(403, 'address_owner_token is required for a saved address');
+    const ownerTokenHash = crypto.createHash('sha256').update(address_owner_token).digest('hex');
+    const saved = await CustomerAddress.findOne({ where: { id: address_id, storeId: store.id, ownerTokenHash } });
+    if (!saved) throw new CheckoutError(403, 'Saved address does not belong to this customer');
+    addr = CheckoutShippingAddressSchema.parse({
         full_name: saved.fullName,
         phone: saved.phone || '',
         city: saved.city,
         district: saved.district || '',
         address: saved.addressLine,
         zip_code: saved.zip || '',
-      });
-      cust = CheckoutCustomerSchema.parse({
+    });
+    cust = CheckoutCustomerSchema.parse({
         email: saved.email || '',
         name: saved.fullName,
         phone: saved.phone || '',
-      });
-    }
+    });
   }
+
+  if (!addr) throw new CheckoutError(400, 'shipping_address or a valid address_id is required');
 
   const requiresGateway = REQUIRES_GATEWAY(payment_method);
   const paymentStatus = requiresGateway ? 'awaiting' : 'pending';
@@ -263,4 +267,52 @@ export async function createCheckoutOrder(
     await transaction.rollback();
     throw error;
   }
+}
+
+/** Releases reservations left behind by abandoned gateway checkouts. */
+export async function releaseExpiredCheckoutReservations(maxAgeMinutes = 30): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000);
+  const candidates = await DropshippingOrder.findAll({
+    where: {
+      marketplace: 'storefront',
+      status: 'pending',
+      paymentStatus: 'awaiting',
+      createdAt: { [Op.lt]: cutoff },
+    },
+    attributes: ['id'],
+  });
+  let released = 0;
+  for (const candidate of candidates) {
+    await sequelize.transaction(async (transaction) => {
+      const order = await DropshippingOrder.findOne({
+        where: { id: candidate.id, status: 'pending', paymentStatus: 'awaiting' },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!order) return;
+      for (const item of ((order.items as any[]) || [])) {
+        const product = await Product.findOne({
+          where: { id: Number(item.product_id), storeId: order.storeId },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        if (!product) continue;
+        const amount = Math.min(Number(product.reservedQuantity) || 0, Number(item.quantity) || 0);
+        if (amount > 0) await product.decrement('reservedQuantity', { by: amount, transaction });
+      }
+      await order.update({
+        status: 'cancelled',
+        paymentStatus: 'failed',
+        note: 'Payment session expired; stock reservation released',
+      }, { transaction });
+      await OrderStatusHistory.create({
+        dropshippingOrderId: order.id,
+        fromStatus: 'pending',
+        toStatus: 'cancelled',
+        note: 'Payment session expired; stock reservation released',
+      }, { transaction });
+      released += 1;
+    });
+  }
+  return released;
 }

@@ -157,6 +157,7 @@ export const createApp = async (): Promise<Express> => {
   try {
     await sequelize.query(`ALTER TABLE ai_product_sessions ADD COLUMN IF NOT EXISTS "idempotencyKey" VARCHAR(128)`);
     await sequelize.query(`ALTER TABLE ai_product_drafts ADD COLUMN IF NOT EXISTS "productId" BIGINT REFERENCES products(id) ON DELETE SET NULL`);
+    await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_product_sessions_store_idempotency_unique ON ai_product_sessions ("storeId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL`);
   } catch (e) {
     // Ignore if table not ready yet
   }
@@ -170,6 +171,7 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(
       `CREATE INDEX IF NOT EXISTS product_marketplace_listings_channel ON product_marketplace_listings (channel)`
     );
+    await sequelize.query(`ALTER TYPE enum_product_marketplace_listings_status ADD VALUE IF NOT EXISTS 'publishing'`);
   } catch (e) {
     // Ignore if columns already exist
   }
