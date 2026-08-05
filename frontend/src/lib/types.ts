@@ -62,6 +62,8 @@ export type SiteDeployment = {
   providerStatus?: 'pending' | 'ready' | 'error' | null
   providerUrl?: string | null
   providerError?: string | null
+  providerProjectId?: string | null
+  providerDeploymentId?: string | null
   version: number
   siteCode?: string | null
   domain?: string | null

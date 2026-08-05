@@ -1121,6 +1121,26 @@ class ApiClient {
     return this.get<{ provider: 'rahatio' | 'vercel' | 'custom'; configured: boolean; canDeploy: boolean; reason: string | null; supportedProviders: string[] }>('/api/admin/site/provider')
   }
 
+  deployManagedSite(note?: string) {
+    return this.post<{ deployment: import('./types').SiteDeployment }>('/api/admin/site/deploy', { note })
+  }
+
+  getSiteDeploymentStatus(id: number | string) {
+    return this.get<{ deployment: import('./types').SiteDeployment }>(`/api/admin/site/deployments/${id}/status`)
+  }
+
+  addSiteDomain(domain: string) {
+    return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain', { domain })
+  }
+
+  getSiteDomain() {
+    return this.get<{ domain: string | null; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain')
+  }
+
+  verifySiteDomain() {
+    return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain/verify')
+  }
+
   async publishSite(note?: string) {
     return this.post<any>(`/api/admin/site/publish`, { note })
   }

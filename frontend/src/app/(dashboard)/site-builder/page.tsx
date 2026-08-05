@@ -28,6 +28,9 @@ export default function SiteBuilderPage() {
   const [deploying, setDeploying] = useState(false)
   const [publishNote, setPublishNote] = useState('')
   const [providerInfo, setProviderInfo] = useState<{ provider: string; configured: boolean; canDeploy: boolean; reason: string | null } | null>(null)
+  const [domainInput, setDomainInput] = useState('')
+  const [domainInfo, setDomainInfo] = useState<{ domain: string | null; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null } | null>(null)
+  const [domainBusy, setDomainBusy] = useState(false)
 
   useEffect(() => {
     api.getSettings()
@@ -37,7 +40,18 @@ export default function SiteBuilderPage() {
       .then((r) => { setPublished(r.published); setDeployments(r.deployments) })
       .catch(() => {})
     api.getSiteProvider().then(setProviderInfo).catch(() => {})
+    api.getSiteDomain().then((d) => { setDomainInfo(d); if (d.domain) setDomainInput(d.domain) }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const pending = deployments.filter((d) => d.provider === 'vercel' && d.providerStatus === 'pending')
+    if (pending.length === 0) return
+    const timer = window.setInterval(async () => {
+      await Promise.all(pending.map((d) => api.getSiteDeploymentStatus(d.id).catch(() => null)))
+      await refreshDeployments()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [deployments])
 
   if (!user) return null
 
@@ -95,6 +109,38 @@ export default function SiteBuilderPage() {
     } finally {
       setDeploying(false)
     }
+  }
+
+  async function handleManagedDeploy() {
+    setDeploying(true); setMessage('')
+    try {
+      await api.updateSettings({ theme })
+      const result = await api.deployManagedSite(publishNote || undefined)
+      setPublishNote('')
+      await refreshDeployments()
+      setMessage(result.deployment.providerStatus === 'pending' ? 'Deployment başlatıldı; durum izleniyor.' : 'Deployment tamamlandı.')
+    } catch (err) { setMessage(err instanceof Error ? err.message : 'Deployment hatası') }
+    finally { setDeploying(false) }
+  }
+
+  async function handleAddDomain() {
+    setDomainBusy(true); setMessage('')
+    try {
+      const result = await api.addSiteDomain(domainInput)
+      setDomainInfo(result)
+      setMessage(result.verified ? 'Domain doğrulandı ve siteye bağlandı.' : 'Domain eklendi. Aşağıdaki DNS kayıtlarını oluşturup tekrar doğrulayın.')
+    } catch (err) { setMessage(err instanceof Error ? err.message : 'Domain eklenemedi') }
+    finally { setDomainBusy(false) }
+  }
+
+  async function handleVerifyDomain() {
+    setDomainBusy(true); setMessage('')
+    try {
+      const result = await api.verifySiteDomain()
+      setDomainInfo(result)
+      setMessage(result.verified ? 'Domain doğrulandı ve siteye bağlandı.' : 'Domain henüz doğrulanamadı; DNS kayıtlarını kontrol edin.')
+    } catch (err) { setMessage(err instanceof Error ? err.message : 'Domain doğrulanamadı') }
+    finally { setDomainBusy(false) }
   }
 
   async function handleUnpublish() {
@@ -171,6 +217,11 @@ export default function SiteBuilderPage() {
             <Button size="sm" onClick={handlePublish} disabled={deploying || published || providerInfo?.canDeploy === false}>
               {deploying ? 'İşleniyor...' : 'Yayınla'}
             </Button>
+            {providerInfo?.provider !== 'rahatio' && providerInfo?.canDeploy && (
+              <Button size="sm" variant="outline" onClick={handleManagedDeploy} disabled={deploying}>
+                {deploying ? 'İşleniyor...' : 'Provider’a Deploy Et'}
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={handleUnpublish} disabled={deploying || !published}>
               Yayından Kaldır
             </Button>
@@ -212,6 +263,7 @@ export default function SiteBuilderPage() {
                         <td className="px-4 py-2.5 text-zinc-700">v{d.version}</td>
                         <td className="px-4 py-2.5">
                           <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
+                          {d.provider && <span className="ml-2 text-[11px] text-zinc-400">{d.provider}{d.providerStatus ? `/${d.providerStatus}` : ''}</span>}
                         </td>
                         <td className="px-4 py-2.5 text-zinc-600">
                           {new Date(d.createdAt).toLocaleString('tr-TR')}
@@ -236,6 +288,51 @@ export default function SiteBuilderPage() {
       </div>
 
       <div className="mt-8 space-y-8">
+        {providerInfo?.provider === 'vercel' && (
+          <div className="rounded-xl border border-zinc-200 p-6">
+            <h2 className="text-lg font-semibold text-zinc-900">Özel Domain</h2>
+            <p className="mt-1 text-sm text-zinc-600">Domaininizi Vercel projesine bağlayın. DNS kayıtları kendi DNS sağlayıcınızda oluşturulur.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <input
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value)}
+                placeholder="magazaniz.com"
+                className="w-64 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <Button size="sm" onClick={handleAddDomain} disabled={domainBusy || !domainInput.trim()}>
+                {domainBusy ? 'Kontrol ediliyor...' : 'Domaini Ekle'}
+              </Button>
+              {domainInfo?.domain && !domainInfo.verified && (
+                <Button size="sm" variant="outline" onClick={handleVerifyDomain} disabled={domainBusy}>
+                  Tekrar Doğrula
+                </Button>
+              )}
+            </div>
+            {domainInfo?.domain && (
+              <div className={`mt-4 rounded-lg border p-3 text-sm ${domainInfo.verified ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                <div className="font-medium">{domainInfo.domain}: {domainInfo.verified ? 'Doğrulandı' : 'DNS doğrulaması bekleniyor'}</div>
+                {!domainInfo.verified && domainInfo.verification.length > 0 && (
+                  <div className="mt-3 overflow-x-auto">
+                    <p className="mb-2 text-xs">Aşağıdaki kayıtları DNS sağlayıcınızda oluşturun:</p>
+                    <table className="min-w-full text-xs">
+                      <thead><tr className="text-left"><th className="pr-4 py-1">Tür</th><th className="pr-4 py-1">Ad</th><th className="py-1">Değer</th></tr></thead>
+                      <tbody>
+                        {domainInfo.verification.map((record, index) => (
+                          <tr key={`${record.type}-${index}`} className="border-t border-amber-200/70 align-top">
+                            <td className="pr-4 py-2 font-medium">{record.type || 'TXT'}</td>
+                            <td className="pr-4 py-2 font-mono break-all">{record.domain || domainInfo.domain}</td>
+                            <td className="py-2 font-mono break-all">{record.value || record.reason || 'Vercel panelindeki değeri kullanın'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Logo & Favicon */}
         <div className="rounded-xl border border-zinc-200 p-6">
           <div className="flex items-center gap-2">

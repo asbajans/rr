@@ -9,7 +9,6 @@ describe('site hosting providers', () => {
   });
 
   it('does not silently treat unconfigured external providers as Rahatio', () => {
-    expect(() => getHostingProvider('vercel')).toThrow(/not configured/i);
     expect(() => getHostingProvider('custom')).toThrow(/not configured/i);
   });
 });

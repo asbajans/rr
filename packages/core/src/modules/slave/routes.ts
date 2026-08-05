@@ -95,6 +95,30 @@ async function getOrCreateSlaveApiKey(storeId: number): Promise<string> {
   return key;
 }
 
+/** Build the Vercel slave files once; download and managed deployment use the same artifact. */
+export async function buildVercelArtifactFiles(store: any): Promise<Array<{ file: string; data: string }>> {
+  const apiKey = await getOrCreateSlaveApiKey(store.id);
+  const appUrl = process.env.APP_URL || 'https://api.rahatio.com.tr';
+  const hmacSecret = getSlaveHmacSecret();
+  const templatePath = path.join(SLAVE_DIR, 'vercel', 'api', 'index.js');
+  const vercelJsonPath = path.join(SLAVE_DIR, 'vercel', 'vercel.json');
+  if (!fs.existsSync(templatePath)) throw new Error('Vercel slave template not found');
+
+  let indexContent = fs.readFileSync(templatePath, 'utf-8');
+  indexContent = indexContent.replace(
+    /\/\/ #CONFIG_START[\s\S]*?\/\/ #CONFIG_END/,
+    `// #CONFIG_START\nconst CONFIG = {\n  apiUrl: '${appUrl}',\n  apiKey: '${apiKey}',\n  hmacSecret: '${hmacSecret}',\n  storeCode: '${store.siteCode}',\n  siteName: '${String(store.name || '').replace(/'/g, "\\'")}',\n}\n// #CONFIG_END`
+  );
+  indexContent = indexContent.replace(/\/api\/(products|sync|orders)/g, '/api/slave/$1');
+  const vercelJson = fs.existsSync(vercelJsonPath) ? fs.readFileSync(vercelJsonPath, 'utf-8') : '{}';
+  const packageJson = JSON.stringify({ name: `rahatio-slave-${store.siteCode}`, version: '1.0.0', private: true, main: 'api/index.js' }, null, 2);
+  return [
+    { file: 'api/index.js', data: indexContent },
+    { file: 'vercel.json', data: vercelJson },
+    { file: 'package.json', data: packageJson },
+  ];
+}
+
 // ── Helper: map Sequelize product → legacy Aimeos-compatible format ──
 function mapSlaveProduct(p: any) {
   return {

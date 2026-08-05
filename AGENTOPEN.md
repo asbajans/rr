@@ -1009,21 +1009,21 @@ Kabul kriterleri:
 
 ### P1 — Faz 8B gerçek hosting ve domain sistemi
 
-- [ ] Hosting provider abstraction oluşturulacak: `rahatio`, `vercel`, `custom/slave`.
-- [ ] Vercel token güvenli secret olarak tutulacak; mağaza başına project/deployment ilişkisi modellenmeli.
-- [ ] Vercel project oluşturma, deployment tetikleme, status polling ve hata kaydı yapılacak.
-- [ ] Vercel deployment webhook veya polling ile `pending/ready/error` durumları güncellenecek.
-- [ ] Custom domain ekleme, domain ownership kontrolü, CNAME/TXT doğrulaması ve SSL status modeli eklenecek.
-- [ ] Cloudflare/Let’s Encrypt entegrasyonu için provider sınırları ve manuel fallback dokümante edilecek.
-- [ ] Slave artifact üretimi ile slave config push/deploy işlemi ayrıştırılacak.
+- [x] Hosting provider abstraction oluşturulacak: `rahatio`, `vercel`, `custom/slave`.
+- [x] Vercel token güvenli secret olarak tutulacak; mağaza başına project/deployment ilişkisi modellenmeli.
+- [x] Vercel project oluşturma, deployment tetikleme, status polling ve hata kaydı yapılacak.
+- [x] Vercel deployment polling ile `pending/ready/error` durumları güncellenecek.
+- [x] Custom domain ekleme, Vercel ownership/DNS doğrulaması ve doğrulanmadan aktif etmeme akışı eklenecek.
+- [x] Cloudflare API/SSL entegrasyonu kapsam dışı bırakıldı; harici DNS için kullanıcıya manuel kayıt fallback'i sunulacak, SSL'i Vercel yönetecek.
+- [x] Slave artifact üretimi ile Vercel managed deploy akışı birbirinden ayrıştırıldı.
 - [ ] PHP/Vercel slave canlı smoke testi yapılacak: ürün listeleme, sync, sipariş alma, HMAC, idempotency.
-- [ ] `siteUrl`, `domain`, hosting planı ve deployment durumu UI'da düzenlenebilir/izlenebilir olacak.
+- [x] `siteUrl`, `domain`, hosting planı ve deployment durumu UI'da izlenebilir; Vercel domain ekleme/doğrulama arayüzü eklendi.
 
 Kabul kriterleri:
 
-- [ ] Kullanıcı seçtiği hosting tipine göre doğru deployment akışını görüyor.
-- [ ] Vercel deploy sonucu panelde gerçek status ve URL ile görünüyor.
-- [ ] Custom domain doğrulanmadan aktif gösterilmiyor.
+- [x] Kullanıcı seçtiği hosting tipine göre doğru deployment akışını görüyor.
+- [x] Vercel deploy sonucu panelde status ve URL ile izleniyor.
+- [x] Custom domain doğrulanmadan aktif gösterilmiyor.
 - [ ] Slave indirildikten sonra ürün ve sipariş senkronu çalışıyor.
 
 ### P1 — Faz 9 web AI studio
