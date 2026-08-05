@@ -792,6 +792,10 @@ class ApiClient {
     return { order: mapOrder(r.order) }
   }
 
+  getOrderCapabilities(id: number) {
+    return this.get<{ marketplace: string; integrationConnected: boolean; actions: Array<{ action: string; available: boolean; reason?: string | null }>; unsupported: string[] }>(`/api/admin/orders/${id}/capabilities`)
+  }
+
   updateOrderStatus(id: number, status: string, note?: string) {
     return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/status`, { status, note })
   }
@@ -810,6 +814,14 @@ class ApiClient {
 
   async getOrderLabel(id: number) {
     return this.get<{ labelUrl: string | null; labelZpl: string | null; cargoCompany: string | null; reason?: string | null }>(`/api/admin/orders/${id}/label`)
+  }
+
+  updateMarketplaceInvoice(id: number, invoiceLink: string) {
+    return this.post<{ success: boolean; invoiceUrl: string }>(`/api/admin/orders/${id}/marketplace/invoice`, { invoiceLink })
+  }
+
+  updateMarketplaceReturn(id: number, refundId: string, decision: 'approve' | 'reject') {
+    return this.post<{ success: boolean; decision: string }>(`/api/admin/orders/${id}/marketplace/return`, { refundId, decision })
   }
 
   getOrderHistory(id: number) {
@@ -1103,6 +1115,10 @@ class ApiClient {
   async getSiteDeployments() {
     const r = await this.get<{ deployments: any[]; published: boolean }>(`/api/admin/site/deployments`)
     return { deployments: r.deployments || [], published: r.published }
+  }
+
+  getSiteProvider() {
+    return this.get<{ provider: 'rahatio' | 'vercel' | 'custom'; configured: boolean; canDeploy: boolean; reason: string | null; supportedProviders: string[] }>('/api/admin/site/provider')
   }
 
   async publishSite(note?: string) {

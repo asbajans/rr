@@ -58,6 +58,10 @@ export type SiteDeployment = {
   id: number
   storeId: number
   status: 'published' | 'draft' | 'reverted' | 'failed'
+  provider?: 'rahatio' | 'vercel' | 'custom'
+  providerStatus?: 'pending' | 'ready' | 'error' | null
+  providerUrl?: string | null
+  providerError?: string | null
   version: number
   siteCode?: string | null
   domain?: string | null

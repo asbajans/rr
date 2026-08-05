@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useI18n } from '../../../src/shared/i18n'
@@ -23,11 +23,16 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<DropshippingOrder | null>(null)
+  const [capabilities, setCapabilities] = useState<{ integrationConnected: boolean; unsupported: string[] } | null>(null)
+  const [invoiceLink, setInvoiceLink] = useState('')
+  const [refundId, setRefundId] = useState('')
+  const [marketplaceBusy, setMarketplaceBusy] = useState(false)
 
   async function load() {
     try {
       const res = await api.getAdminDropshippingOrder(parseInt(id, 10))
       setOrder(res)
+      api.getAdminOrderCapabilities(id).then(setCapabilities).catch(() => setCapabilities(null))
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
     } finally {
@@ -36,6 +41,22 @@ export default function OrderDetailScreen() {
   }
 
   useEffect(() => { load() }, [id])
+
+  async function sendInvoice() {
+    if (!invoiceLink) return Alert.alert(t('error'), 'Fatura bağlantısı gerekli')
+    setMarketplaceBusy(true)
+    try { await api.updateMarketplaceInvoice(id, invoiceLink); Alert.alert('Başarılı', 'Fatura bağlantısı gönderildi'); setInvoiceLink('') }
+    catch (e: any) { Alert.alert(t('error'), e.message) }
+    finally { setMarketplaceBusy(false) }
+  }
+
+  async function updateReturn(decision: 'approve' | 'reject') {
+    if (!refundId) return Alert.alert(t('error'), 'Pazarama iade ID gerekli')
+    setMarketplaceBusy(true)
+    try { await api.updateMarketplaceReturn(id, refundId, decision); Alert.alert('Başarılı', decision === 'approve' ? 'İade onaylandı' : 'İade reddedildi'); setRefundId('') }
+    catch (e: any) { Alert.alert(t('error'), e.message) }
+    finally { setMarketplaceBusy(false) }
+  }
 
   if (loading) {
     return (
@@ -78,6 +99,17 @@ export default function OrderDetailScreen() {
         <Text style={styles.total}>{formatPrice(order.grand_total ?? 0, order.currency)}</Text>
         {order.ordered_at ? <Text style={styles.meta}>{t('ordered')}: {formatDate(order.ordered_at)}</Text> : null}
       </View>
+
+      {capabilities && (capabilities.unsupported.length > 0 || !capabilities.integrationConnected) ? (
+        <View style={[styles.card, { backgroundColor: '#fff8e1' }]}>
+          <Text style={styles.sectionTitle}>Pazaryeri işlemleri</Text>
+          <Text style={styles.meta}>
+            {!capabilities.integrationConnected
+              ? 'Pazaryeri entegrasyonu bağlı değil.'
+              : `Desteklenmeyen işlemler: ${capabilities.unsupported.join(', ')}`}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t('customerSection')}</Text>
@@ -132,6 +164,16 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
+      {order.marketplace === 'pazarama' && !(order as any).parent_order_id ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Pazarama işlemleri</Text>
+          <TextInput value={invoiceLink} onChangeText={setInvoiceLink} placeholder="Fatura PDF bağlantısı" style={styles.input} autoCapitalize="none" />
+          <TouchableOpacity style={styles.actionBtn} onPress={sendInvoice} disabled={marketplaceBusy || !invoiceLink}><Text style={styles.actionText}>Fatura bağlantısını gönder</Text></TouchableOpacity>
+          <TextInput value={refundId} onChangeText={setRefundId} placeholder="Pazarama iade ID" style={styles.input} autoCapitalize="none" />
+          <View style={styles.actionRow}><TouchableOpacity style={styles.approveBtn} onPress={() => updateReturn('approve')} disabled={marketplaceBusy || !refundId}><Text style={styles.actionText}>İadeyi onayla</Text></TouchableOpacity><TouchableOpacity style={styles.rejectBtn} onPress={() => updateReturn('reject')} disabled={marketplaceBusy || !refundId}><Text style={styles.rejectText}>İadeyi reddet</Text></TouchableOpacity></View>
+        </View>
+      ) : null}
+
       {order.status_history && order.status_history.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('statusHistory')}</Text>
@@ -177,6 +219,13 @@ const styles = StyleSheet.create({
   grandLabel: { fontSize: 15, fontWeight: '700' },
   grandValue: { fontSize: 15, fontWeight: '800' },
   tracking: { fontSize: 15, fontWeight: '700', marginTop: 2 },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8, fontSize: 13 },
+  actionBtn: { backgroundColor: '#3949ab', borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 10 },
+  actionText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  actionRow: { flexDirection: 'row', gap: 8 },
+  approveBtn: { flex: 1, backgroundColor: '#2e7d32', borderRadius: 8, padding: 10, alignItems: 'center' },
+  rejectBtn: { flex: 1, borderWidth: 1, borderColor: '#e57373', borderRadius: 8, padding: 10, alignItems: 'center' },
+  rejectText: { color: '#c62828', fontWeight: '700', fontSize: 12 },
   historyRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, marginRight: 10 },
   historyBody: { flex: 1 },

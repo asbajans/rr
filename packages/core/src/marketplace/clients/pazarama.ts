@@ -280,6 +280,67 @@ export class PazaramaClient extends BaseMarketplaceClient implements Marketplace
     return data?.data || data;
   }
 
+  /** Pazarama status codes: 12=preparing, 5=shipped. */
+  async updateOrderStatus(orderId: string, status: string, options: Record<string, any> = {}): Promise<any> {
+    const numericStatus = status === 'processing' || status === 'confirmed' || status === '12' ? 12
+      : status === 'shipped' || status === '5' ? 5
+        : status === 'cancelled' || status === 'cancelled' ? 9 : Number(status);
+    if (!Number.isFinite(numericStatus)) throw new Error(`Unsupported Pazarama order status: ${status}`);
+
+    if (numericStatus === 5) {
+      const itemId = options.orderItemId || options.item?.orderItemId;
+      if (!itemId || !options.cargoCompanyId) {
+        throw new Error('Pazarama shipped update requires orderItemId and cargoCompanyId');
+      }
+      return this.requestWithAuth<any>('PUT', '/order/updateOrderStatus', {
+        body: { orderNumber: Number(orderId), item: {
+          orderItemId: itemId,
+          status: 5,
+          deliveryType: Number(options.deliveryType || 1),
+          shippingTrackingNumber: String(options.trackingNumber || ''),
+          trackingUrl: options.trackingUrl || '',
+          cargoCompanyId: options.cargoCompanyId,
+        } },
+      });
+    }
+
+    return this.requestWithAuth<any>('PUT', '/order/updateOrderStatusList', {
+      body: { orderNumber: Number(orderId), status: numericStatus },
+    });
+  }
+
+  async updateTracking(orderId: string, trackingNumber: string, carrier?: string, options: Record<string, any> = {}): Promise<any> {
+    return this.updateOrderStatus(orderId, 'shipped', {
+      ...options,
+      trackingNumber,
+      cargoCompanyId: options.cargoCompanyId,
+      orderItemId: options.orderItemId,
+    });
+  }
+
+  async getRefunds(params: Record<string, any> = {}): Promise<any[]> {
+    const data = await this.requestWithAuth<any>('POST', '/order/getRefund', { body: {
+      pageSize: params.pageSize || 100,
+      pageNumber: params.pageNumber || 1,
+      refundStatus: params.refundStatus,
+      requestStartDate: params.requestStartDate,
+      requestEndDate: params.requestEndDate,
+    } });
+    return data?.data?.refundList || [];
+  }
+
+  async updateRefund(refundId: string, status: 2 | 3): Promise<any> {
+    return this.requestWithAuth<any>('POST', '/order/updateRefund', { body: { refundId, status } });
+  }
+
+  async updateInvoiceLink(orderId: string, invoiceLink: string, options: Record<string, any> = {}): Promise<any> {
+    return this.requestWithAuth<any>('POST', '/order/invoice-link', { body: {
+      invoiceLink, orderid: orderId,
+      deliveryCompanyId: options.deliveryCompanyId ?? null,
+      trackingNumber: options.trackingNumber ?? null,
+    } });
+  }
+
   // ─── Helpers ─────────────────────────────────────────────
 
   private buildProductPayload(product: any): Record<string, any> {

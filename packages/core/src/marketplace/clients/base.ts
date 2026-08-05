@@ -25,6 +25,9 @@ export interface MarketplaceClient {
   getBatchRequestResult?(batchRequestId: string): Promise<any>;
   updatePriceAndInventory?(items: Array<{ barcode: string; quantity: number; salePrice: number; listPrice?: number }>): Promise<any>;
   getOrderLabel?(orderId: string | { packageId?: string; trackingNumber?: string }): Promise<{ labelUrl?: string; labelZpl?: string; cargoCompany?: string } | null>;
+  updateOrderStatus?(...args: any[]): Promise<any>;
+  updateTracking?(...args: any[]): Promise<any>;
+  createReceiptShipment?(receiptId: string, trackingNumber: string, carrier?: string, noteToBuyer?: string): Promise<any>;
 }
 
 export abstract class BaseMarketplaceClient implements MarketplaceClient {

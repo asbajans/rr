@@ -691,6 +691,18 @@ class ApiClient {
     return this.mapOrder(r.order || r.data || r)
   }
 
+  async getAdminOrderCapabilities(id: string) {
+    return this.get<{ marketplace: string; integrationConnected: boolean; actions: Array<{ action: string; available: boolean; reason?: string | null }>; unsupported: string[] }>(`/api/admin/orders/${id}/capabilities`)
+  }
+
+  updateMarketplaceInvoice(id: string, invoiceLink: string) {
+    return this.post<{ success: boolean; invoiceUrl: string }>(`/api/admin/orders/${id}/marketplace/invoice`, { invoiceLink })
+  }
+
+  updateMarketplaceReturn(id: string, refundId: string, decision: 'approve' | 'reject') {
+    return this.post<{ success: boolean; decision: string }>(`/api/admin/orders/${id}/marketplace/return`, { refundId, decision })
+  }
+
   // Dropshipping / Marketplace Orders (uses same /api/admin/orders endpoint)
   async getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number; search?: string }) {
     const queryParams: Record<string, string> = {}

@@ -341,10 +341,18 @@ marketplaceRoutes.get('/:marketplace/import/:jobId', authMiddleware, requireStor
   param('jobId').isString(),
 ], validate, async (req: Request, res: Response) => {
   try {
+    const store = (req as any).store;
     const importQueue = (await import('../../queues/index.js')).importQueue;
     const job = await importQueue.getJob(req.params.jobId);
 
     if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // BullMQ job ids are not globally safe to expose without ownership
+    // checks. A user must only be able to inspect jobs created for their own
+    // store and the requested marketplace.
+    if (Number(job.data?.storeId) !== Number(store.id) || job.data?.marketplace !== req.params.marketplace) {
       return res.status(404).json({ error: 'Job not found' });
     }
 

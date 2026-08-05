@@ -19,6 +19,7 @@ export interface NormalizedOrder {
 }
 
 interface NormalizedOrderItem {
+  orderItemId?: string;
   sku: string;
   name: string;
   quantity: number;
@@ -176,6 +177,7 @@ export function mapHepsiburadaOrder(raw: any): NormalizedOrder {
 
 export function mapPazaramaOrder(raw: any): NormalizedOrder {
   const items = (raw.items || raw.lines || []).map((line: any) => ({
+    orderItemId: line.orderItemId || line.orderItem?.id || line.id || line.itemId,
     sku: line.barcode || line.sku || line.productCode || '',
     name: line.productName || line.title || '',
     quantity: line.quantity || 1,

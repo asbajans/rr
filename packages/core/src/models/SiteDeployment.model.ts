@@ -44,6 +44,32 @@ export class SiteDeployment extends Model {
   @Column(DataType.STRING(20))
   declare status: string;
 
+  /** Hosting provider and external deployment state (8B). */
+  @AllowNull(false)
+  @Default('rahatio')
+  @Column(DataType.STRING(20))
+  declare provider: 'rahatio' | 'vercel' | 'custom';
+
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare providerProjectId: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare providerDeploymentId: string;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(30))
+  declare providerStatus: 'pending' | 'ready' | 'error';
+
+  @AllowNull(true)
+  @Column(DataType.STRING(500))
+  declare providerUrl: string;
+
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare providerError: string;
+
   /** Monotonic per-store version (increments on each publish) */
   @AllowNull(false)
   @Default(1)

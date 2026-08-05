@@ -7,6 +7,12 @@ export type DeploymentView = {
   id: number;
   storeId: number;
   status: string;
+  provider?: string | null;
+  providerProjectId?: string | null;
+  providerDeploymentId?: string | null;
+  providerStatus?: string | null;
+  providerUrl?: string | null;
+  providerError?: string | null;
   version: number;
   siteCode: string | null;
   domain: string | null;
@@ -73,6 +79,12 @@ export function serializeDeployment(d: DeploymentView) {
     id: d.id,
     storeId: d.storeId,
     status: d.status,
+    provider: d.provider ?? 'rahatio',
+    providerProjectId: d.providerProjectId ?? null,
+    providerDeploymentId: d.providerDeploymentId ?? null,
+    providerStatus: d.providerStatus ?? null,
+    providerUrl: d.providerUrl ?? null,
+    providerError: d.providerError ?? null,
     version: d.version,
     siteCode: d.siteCode,
     domain: d.domain,

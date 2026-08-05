@@ -5,6 +5,7 @@ import { SiteDeployment } from '../../models/SiteDeployment.model.js';
 import { logger } from '../../utils/logger.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { computeNextVersion, resolveRollbackTarget, serializeDeployment } from './publish.js';
+import { getHostingProvider } from './providers.js';
 
 export const siteRoutes: Router = Router();
 
@@ -36,6 +37,16 @@ siteRoutes.get('/deployments', authMiddleware, requireRole('owner', 'admin'), re
     logger.error({ err: error }, 'List site deployments error');
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// GET /api/admin/site/provider — shared web/mobile hosting capability contract
+siteRoutes.get('/provider', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  const store = (req as any).store;
+  const provider = (store as any).plan?.hosting || 'rahatio';
+  let configured = true;
+  let reason: string | null = null;
+  try { getHostingProvider(provider); } catch (error: any) { configured = false; reason = error.message; }
+  res.json({ provider, configured, reason, canDeploy: configured, supportedProviders: ['rahatio', 'vercel', 'custom'] });
 });
 
 // POST /api/admin/site/publish — publish the storefront (Rahatio hosting)

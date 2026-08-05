@@ -130,6 +130,48 @@ orderRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStor
   }
 });
 
+// A single capability contract keeps web and mobile from guessing which
+// marketplace actions are actually available. Provider-specific adapters can
+// expand this list without changing either client application.
+orderRoutes.get('/:id/capabilities', authMiddleware, requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const marketplace = String(order.marketplace);
+    const integration = marketplace === 'storefront'
+      ? null
+      : await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace, isActive: true } });
+
+    const supportedByAdapter: Record<string, string[]> = {
+      storefront: ['status', 'tracking', 'refund'],
+      trendyol: ['status', 'approve', 'cancel', 'tracking', 'label'],
+      n11: ['status', 'approve', 'tracking'],
+      hepsiburada: ['status'],
+      pazarama: ['status', 'approve', 'tracking', 'return'],
+      amazon: ['status'],
+      etsy: ['status', 'tracking'],
+    };
+    const actions = supportedByAdapter[marketplace] || [];
+    res.json({
+      marketplace,
+      integrationConnected: marketplace === 'storefront' || Boolean(integration),
+      actions: actions.map(action => ({
+        action,
+        available: marketplace === 'storefront' || Boolean(integration),
+        reason: marketplace !== 'storefront' && !integration ? 'integration_required' : null,
+      })),
+      unsupported: ['approve', 'cancel', 'tracking', 'label', 'return'].filter(action => !actions.includes(action)),
+    });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Get order capabilities error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 orderRoutes.get('/:id', authMiddleware, requireStore, [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {
@@ -324,7 +366,19 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
             logger.error({ err: n11Err.message, orderId: order.id }, 'Failed to approve N11 order');
           }
         }
-      } else if (order.marketplace !== 'storefront' && order.marketplace !== 'pazarama') {
+      } else if (order.marketplace === 'pazarama' && (status === 'processing' || status === 'confirmed')) {
+        try {
+          const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
+          if (!integration) throw new Error('Pazarama integration not configured');
+          const client = createMarketplaceClient('pazarama', getMarketplaceConfig('pazarama', integration)) as any;
+          await client.updateOrderStatus(order.marketplaceOrderNumber || order.marketplaceOrderId, 'processing');
+        } catch (pazaramaErr: any) {
+          logger.error({ err: pazaramaErr.message, orderId: order.id }, 'Failed to update Pazarama order status');
+        }
+      } else if (order.marketplace === 'etsy') {
+        // Etsy has no generic approval endpoint; shipment is submitted with
+        // createReceiptShipment when tracking is entered.
+      } else if (order.marketplace !== 'storefront') {
         notifyIntegrationService({
           action: 'status',
           storeId: store.id,
@@ -368,7 +422,27 @@ orderRoutes.put('/:id/tracking', authMiddleware, requireRole('owner', 'admin'), 
       note: `Tracking added: ${carrier} - ${trackingNumber}`,
     });
 
-    if (order.marketplace !== 'storefront' && order.marketplace !== 'trendyol') {
+    if (order.marketplace === 'etsy') {
+      const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'etsy', isActive: true } });
+      if (!integration) return res.status(409).json({ error: 'Etsy integration not configured' });
+      const client = createMarketplaceClient('etsy', getMarketplaceConfig('etsy', integration)) as any;
+      await client.updateTracking(order.marketplaceOrderId, trackingNumber, carrier);
+    } else if (order.marketplace === 'pazarama') {
+      const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
+      if (!integration) return res.status(409).json({ error: 'Pazarama integration not configured' });
+      const pConfig: any = getMarketplaceConfig('pazarama', integration);
+      const integrationConfig: any = integration.config || {};
+      const configuredCargoId = integrationConfig.cargoCompanyId || integrationConfig.cargoCompanyIds?.[carrier];
+      const client = createMarketplaceClient('pazarama', pConfig) as any;
+      const items = (order.items as any[]) || [];
+      const itemIds = items.map(item => item.orderItemId || item.order_item_id || item.id).filter(Boolean);
+      if (!configuredCargoId || itemIds.length === 0) {
+        return res.status(409).json({ error: 'Pazarama tracking requires cargoCompanyId and order item ids' });
+      }
+      for (const orderItemId of itemIds) {
+        await client.updateTracking(order.marketplaceOrderNumber || order.marketplaceOrderId, trackingNumber, carrier, { orderItemId, cargoCompanyId: configuredCargoId });
+      }
+    } else if (order.marketplace !== 'storefront' && order.marketplace !== 'trendyol') {
       notifyIntegrationService({
         action: 'tracking',
         storeId: store.id,
@@ -541,6 +615,51 @@ orderRoutes.post('/:id/refund', authMiddleware, requireRole('owner', 'admin'), r
   } catch (error: any) {
     logger.error({ err: error }, 'Refund error');
     res.status(500).json({ error: error?.message || 'Refund failed' });
+  }
+});
+
+orderRoutes.post('/:id/marketplace/invoice', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+  body('invoiceLink').isURL(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.marketplace !== 'pazarama') return res.status(409).json({ error: 'Invoice API is currently available for Pazarama only' });
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
+    if (!integration) return res.status(409).json({ error: 'Pazarama integration not configured' });
+    const client = createMarketplaceClient('pazarama', getMarketplaceConfig('pazarama', integration)) as any;
+    await client.updateInvoiceLink(order.marketplaceOrderId, req.body.invoiceLink, {
+      trackingNumber: order.trackingNumber || null,
+    });
+    await order.update({ invoiceUrl: req.body.invoiceLink });
+    res.json({ success: true, invoiceUrl: req.body.invoiceLink, order });
+  } catch (error: any) {
+    logger.error({ err: error }, 'Marketplace invoice update error');
+    res.status(502).json({ error: error.message || 'Marketplace invoice update failed' });
+  }
+});
+
+orderRoutes.post('/:id/marketplace/return', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+  body('refundId').isString().isLength({ min: 1 }),
+  body('decision').isIn(['approve', 'reject']),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.marketplace !== 'pazarama') return res.status(409).json({ error: 'Return API is currently available for Pazarama only' });
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
+    if (!integration) return res.status(409).json({ error: 'Pazarama integration not configured' });
+    const client = createMarketplaceClient('pazarama', getMarketplaceConfig('pazarama', integration)) as any;
+    await client.updateRefund(req.body.refundId, req.body.decision === 'approve' ? 2 : 3);
+    if (req.body.decision === 'approve' && order.status !== 'returned') await order.update({ status: 'returned' });
+    res.json({ success: true, decision: req.body.decision, order });
+  } catch (error: any) {
+    logger.error({ err: error }, 'Marketplace return update error');
+    res.status(502).json({ error: error.message || 'Marketplace return update failed' });
   }
 });
 

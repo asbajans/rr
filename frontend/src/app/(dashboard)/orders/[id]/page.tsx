@@ -47,6 +47,9 @@ export default function OrderDetailPage() {
   const [showRawPayload, setShowRawPayload] = useState(false)
   const [rawData, setRawData] = useState<any>(null)
   const [refunding, setRefunding] = useState(false)
+  const [invoiceLink, setInvoiceLink] = useState('')
+  const [refundId, setRefundId] = useState('')
+  const [capabilities, setCapabilities] = useState<{ integrationConnected: boolean; unsupported: string[] } | null>(null)
 
   useEffect(() => {
     if (!id || !user) return
@@ -60,6 +63,7 @@ export default function OrderDetailPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
+    api.getOrderCapabilities(parseInt(id)).then(setCapabilities).catch(() => setCapabilities(null))
   }, [id, user])
 
   async function updateStatus(status: string) {
@@ -154,6 +158,21 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function sendPazaramaInvoice() {
+    setUpdating(true); setMessage('')
+    try { await api.updateMarketplaceInvoice(parseInt(id), invoiceLink); setMessage('Fatura bağlantısı Pazarama’ya gönderildi') }
+    catch (err: any) { setMessage(err.message || 'Fatura gönderilemedi') }
+    finally { setUpdating(false) }
+  }
+
+  async function processPazaramaReturn(decision: 'approve' | 'reject') {
+    if (!refundId) return setMessage('Pazarama iade ID gerekli')
+    setUpdating(true); setMessage('')
+    try { await api.updateMarketplaceReturn(parseInt(id), refundId, decision); setMessage(decision === 'approve' ? 'İade onaylandı' : 'İade reddedildi') }
+    catch (err: any) { setMessage(err.message || 'İade işlemi başarısız') }
+    finally { setUpdating(false) }
+  }
+
   if (!user) return null
   if (loading) return <div className="p-8"><CardSkeleton count={3} /></div>
   if (error) return <div className="p-8 text-sm text-red-600">{error}</div>
@@ -191,6 +210,14 @@ export default function OrderDetailPage() {
 
       {message && (
         <div className={`mt-4 rounded-lg p-3 text-sm ${message.includes('başarısız') || message.includes('hatası') || message.includes('alamıyor') || message.includes('bulunamadı') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{message}</div>
+      )}
+
+      {capabilities && (capabilities.unsupported.length > 0 || !capabilities.integrationConnected) && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {!capabilities.integrationConnected
+            ? 'Pazaryeri entegrasyonu bağlı değil; pazaryeri işlemleri kullanılamaz.'
+            : `Bu pazaryeri için henüz desteklenmeyen işlemler: ${capabilities.unsupported.join(', ')}.`}
+        </div>
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -344,6 +371,16 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>)}
+
+          {order.marketplace === 'pazarama' && !isSubOrder && (
+            <div className="rounded-xl border border-zinc-200 bg-white p-6 space-y-3">
+              <h3 className="text-sm font-semibold text-zinc-900">Pazarama işlemleri</h3>
+              <input value={invoiceLink} onChange={e => setInvoiceLink(e.target.value)} placeholder="Fatura PDF bağlantısı" className="block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+              <button onClick={sendPazaramaInvoice} disabled={updating || !invoiceLink} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Fatura bağlantısını gönder</button>
+              <input value={refundId} onChange={e => setRefundId(e.target.value)} placeholder="Pazarama iade ID" className="block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+              <div className="flex gap-2"><button onClick={() => processPazaramaReturn('approve')} disabled={updating || !refundId} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">İadeyi onayla</button><button onClick={() => processPazaramaReturn('reject')} disabled={updating || !refundId} className="rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 disabled:opacity-50">İadeyi reddet</button></div>
+            </div>
+          )}
 
           {/* Status History */}
           {order.status_history && order.status_history.length > 0 && (

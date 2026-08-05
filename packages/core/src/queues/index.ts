@@ -956,6 +956,7 @@ interface PublicationJobData {
   storeId: number;
   channel: string;
   trigger: 'publish' | 'retry' | 'auto';
+  pollAttempts?: number;
 }
 
 /** Storefront is internal — the product already exists, just mark the listing active. */
@@ -1007,6 +1008,55 @@ async function handleMarketplacePublication(job: Job<PublicationJobData>) {
   const mpConfig = getMarketplaceConfig(mp, integration);
   const client = createMarketplaceClient(mp, mpConfig);
 
+  // Trendyol and Pazarama return a batch id for product creation. Poll the
+  // provider before exposing the listing as active, otherwise a rejected or
+  // still-processing product looks published in Rahatio.
+  if ((mp === 'trendyol' && typeof (client as any).getBatchRequestResult === 'function'
+    || mp === 'pazarama' && typeof (client as any).getProductBatchResult === 'function')
+    && listing.batchRequestId && !listing.externalId) {
+    const batchResult = mp === 'trendyol'
+      ? await (client as any).getBatchRequestResult(String(listing.batchRequestId))
+      : await (client as any).getProductBatchResult(String(listing.batchRequestId));
+    const rawStatus = batchResult?.status || batchResult?.data?.status || batchResult?.data?.batchStatus || batchResult?.batchStatus;
+    const status = String(rawStatus || '').toUpperCase();
+    const failed = ['FAILED', 'FAIL', 'REJECTED', 'ERROR', 'REJECT'].includes(status)
+      || batchResult?.success === false
+      || batchResult?.data?.success === false;
+    const completed = ['SUCCESS', 'SUCCEEDED', 'COMPLETED', 'COMPLETE', 'DONE'].includes(status)
+      || batchResult?.completed === true
+      || batchResult?.data?.completed === true;
+    if (failed) {
+      const reason = String(batchResult?.message || batchResult?.data?.message || batchResult?.error || 'Marketplace batch rejected');
+      await listing.update({ status: 'failed', batchRequestId: null, lastError: reason.slice(0, 2000), lastAttemptAt: new Date() });
+      return { success: false, retryable: false, error: reason };
+    }
+    if (completed) {
+      await listing.update({ status: 'active', externalId: product.sku || null, batchRequestId: null, lastError: null, lastSyncedAt: new Date(), lastAttemptAt: new Date() });
+      return { success: true, action: 'created', externalId: product.sku || null };
+    }
+    return { success: true, pending: true, batchRequestId: listing.batchRequestId };
+  }
+
+  // N11 product creation/update is an asynchronous task API. Keep using the
+  // task-aware implementation here; the generic path would mark a product
+  // active immediately after receiving only a task id.
+  if (mp === 'n11') {
+    const n11Mapped = mapProductForMarketplace(mp, product, integration);
+    if (n11Mapped._skip) {
+      await listing.update({ status: 'failed', lastError: n11Mapped.reason, lastAttemptAt: new Date(), retryCount: (listing.retryCount || 0) + 1 });
+      return { success: false, retryable: false, error: n11Mapped.reason };
+    }
+    const { _skip: _n11Skip, reason: _n11Reason, ...n11Product } = n11Mapped;
+    return syncToN11({
+      client,
+      product,
+      storeId,
+      mp,
+      mpProduct: n11Product,
+      existingListing: listing,
+    });
+  }
+
   const rawMapped = mapProductForMarketplace(mp, product, integration);
   if (rawMapped._skip) {
     await listing.update({
@@ -1021,25 +1071,34 @@ async function handleMarketplacePublication(job: Job<PublicationJobData>) {
 
   try {
     let externalId = listing.externalId || '';
+    let listingResult: any = null;
     if (externalId) {
       await client.updateProduct(externalId, mpProduct);
       if (mpProduct.salePrice > 0) await client.updatePrice(externalId, mpProduct.salePrice);
       if (mpProduct.quantity != null) await client.updateStock(externalId, mpProduct.quantity);
     } else {
-      const listingResult = await client.createProduct(mpProduct);
+      listingResult = await client.createProduct(mpProduct);
       externalId = await resolvePublicationExternalId(mp, client, product, listingResult);
     }
 
+    const batchRequestId = listingResult?.batchRequestId
+      ? String(listingResult.batchRequestId)
+      : listingResult?.data?.batchRequestId
+        ? String(listingResult.data.batchRequestId)
+        : '';
+    const isAsyncCreate = !listing.externalId && Boolean(batchRequestId);
+
     await listing.update({
-      status: 'active',
-      externalId,
+      status: isAsyncCreate ? 'publishing' : 'active',
+      externalId: isAsyncCreate ? null : externalId,
+      batchRequestId: isAsyncCreate ? batchRequestId : null,
       payloadSnapshot: mpProduct,
       lastError: null,
-      lastSyncedAt: new Date(),
+      lastSyncedAt: isAsyncCreate ? null : new Date(),
       lastAttemptAt: new Date(),
       retryCount: (listing.retryCount || 0) + 1,
     });
-    return { success: true, externalId };
+    return { success: true, pending: isAsyncCreate, externalId: isAsyncCreate ? null : externalId, batchRequestId: batchRequestId || null };
   } catch (err: any) {
     const errDetail = err?.response?.data?.message || err?.message || 'Publish failed';
     await listing.update({
@@ -1088,10 +1147,17 @@ export async function createPublicationWorker() {
     async (job: Job<PublicationJobData>) => {
       const { type, channel } = job.data;
       logger.info({ type, channel }, 'Starting publication job');
-      if (type === 'publication:storefront') {
-        return handleStorefrontPublication(job);
+      const result: any = type === 'publication:storefront'
+        ? await handleStorefrontPublication(job)
+        : await handleMarketplacePublication(job);
+      if (result?.pending && job.data.listingId && Number(job.data.pollAttempts || 0) < 20) {
+        await publicationQueue.add(`poll-${job.data.channel}`, {
+          ...job.data,
+          trigger: 'retry',
+          pollAttempts: Number(job.data.pollAttempts || 0) + 1,
+        }, { delay: 30_000, removeOnComplete: 100, removeOnFail: 100 });
       }
-      return handleMarketplacePublication(job);
+      return result;
     },
     { connection: { url: config.redis.url }, concurrency: 5 }
   );

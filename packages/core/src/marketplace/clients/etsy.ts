@@ -68,7 +68,10 @@ export class EtsyClient extends BaseMarketplaceClient implements MarketplaceClie
       url: path,
       data,
       params,
-      headers: { Authorization: `Bearer ${this.config.accessToken}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${this.config.accessToken}`,
+        'Content-Type': data instanceof URLSearchParams ? 'application/x-www-form-urlencoded' : 'application/json',
+      },
     });
     return response.data;
   }
@@ -109,7 +112,7 @@ export class EtsyClient extends BaseMarketplaceClient implements MarketplaceClie
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
     const shopId = await this.getShopId();
-    const data = await this.authenticatedRequest<any>('GET', `/shops/${shopId}/listings/active`, { params: { limit: params.limit || 50, offset: params.offset || 0 } });
+    const data = await this.authenticatedRequest<any>('GET', `/shops/${shopId}/listings/active`, undefined, { limit: params.limit || 50, offset: params.offset || 0 });
     return { products: data.results || [], hasMore: !!data.pagination?.next_offset };
   }
 
@@ -140,6 +143,27 @@ export class EtsyClient extends BaseMarketplaceClient implements MarketplaceClie
   async getOrder(receiptId: string): Promise<any> {
     const shopId = await this.getShopId();
     return this.authenticatedRequest<any>('GET', `/shops/${shopId}/receipts/${receiptId}`);
+  }
+
+  async updateOrderStatus(receiptId: string, status: string): Promise<any> {
+    const shopId = await this.getShopId();
+    if (status === 'shipped' || status === 'completed') {
+      return this.authenticatedRequest<any>('PUT', `/shops/${shopId}/receipts/${receiptId}`, new URLSearchParams({ was_shipped: 'true' }));
+    }
+    throw new Error(`Etsy does not support manual status '${status}' through the receipt API`);
+  }
+
+  async createReceiptShipment(receiptId: string, trackingNumber: string, carrier?: string, noteToBuyer?: string): Promise<any> {
+    const shopId = await this.getShopId();
+    return this.authenticatedRequest<any>('POST', `/shops/${shopId}/receipts/${receiptId}/tracking`, {
+      tracking_code: trackingNumber,
+      carrier_name: carrier || 'other',
+      note_to_buyer: noteToBuyer,
+    });
+  }
+
+  async updateTracking(receiptId: string, trackingNumber: string, carrier?: string, options: Record<string, any> = {}): Promise<any> {
+    return this.createReceiptShipment(receiptId, trackingNumber, carrier, options.noteToBuyer);
   }
 }
 

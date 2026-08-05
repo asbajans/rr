@@ -73,6 +73,18 @@ export const createApp = async (): Promise<Express> => {
     // Ignore
   }
 
+  // Phase 8B deployment provider metadata (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS provider VARCHAR(20) DEFAULT 'rahatio'`);
+    await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS "providerProjectId" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS "providerDeploymentId" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS "providerStatus" VARCHAR(30)`);
+    await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS "providerUrl" VARCHAR(500)`);
+    await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS "providerError" TEXT`);
+  } catch (e) {
+    // The table is created by sequelize sync on a fresh installation.
+  }
+
   // Add new plan columns if missing (safe migration, runs every boot)
   try {
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS slug VARCHAR(50) UNIQUE`);

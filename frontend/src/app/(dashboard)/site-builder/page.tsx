@@ -27,6 +27,7 @@ export default function SiteBuilderPage() {
   const [deployments, setDeployments] = useState<SiteDeployment[]>([])
   const [deploying, setDeploying] = useState(false)
   const [publishNote, setPublishNote] = useState('')
+  const [providerInfo, setProviderInfo] = useState<{ provider: string; configured: boolean; canDeploy: boolean; reason: string | null } | null>(null)
 
   useEffect(() => {
     api.getSettings()
@@ -35,6 +36,7 @@ export default function SiteBuilderPage() {
     api.getSiteDeployments()
       .then((r) => { setPublished(r.published); setDeployments(r.deployments) })
       .catch(() => {})
+    api.getSiteProvider().then(setProviderInfo).catch(() => {})
   }, [])
 
   if (!user) return null
@@ -144,6 +146,13 @@ export default function SiteBuilderPage() {
       <p className="mt-1 text-sm text-zinc-600">Mağaza temasını ve görünümünü özelleştir.</p>
 
       {/* Publish / Deployment */}
+      {providerInfo && (
+        <div className={`mt-4 rounded-lg border p-3 text-sm ${providerInfo.canDeploy ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+          Yayınlama sağlayıcısı: <span className="font-semibold">{providerInfo.provider}</span>
+          {!providerInfo.canDeploy && providerInfo.reason ? ` — ${providerInfo.reason}` : ''}
+        </div>
+      )}
+
       <div className="mt-8 rounded-xl border border-zinc-200 p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -159,7 +168,7 @@ export default function SiteBuilderPage() {
               placeholder="Yayın notu (opsiyonel)"
               className="block w-56 rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none"
             />
-            <Button size="sm" onClick={handlePublish} disabled={deploying || published}>
+            <Button size="sm" onClick={handlePublish} disabled={deploying || published || providerInfo?.canDeploy === false}>
               {deploying ? 'İşleniyor...' : 'Yayınla'}
             </Button>
             <Button size="sm" variant="outline" onClick={handleUnpublish} disabled={deploying || !published}>
