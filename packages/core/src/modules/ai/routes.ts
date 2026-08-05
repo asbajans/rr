@@ -7,7 +7,7 @@ import { AiProvider, AiModel, AiScenario, AiUsageLog } from '../../models/AiMode
 
 export const aiRoutes: Router = Router();
 
-const AI_TIMEOUT_MS = 30000;
+const AI_TIMEOUT_MS = 180000;
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -220,7 +220,10 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
 
     res.json(response.data);
   } catch (error: any) {
-    logger.error({ err: error, scenarioCode, path }, 'AI proxy error');
+    logger.error(
+      { scenarioCode, path, message: error?.message, code: error?.code, status: error?.response?.status },
+      'AI proxy error'
+    );
     await logAiUsage(
       user.id, store.id, scenarioCode,
       provider?.id || null, model?.id || null, credits,

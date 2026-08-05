@@ -22,7 +22,7 @@ interface LlmOptions {
   topP?: number;
 }
 
-const DEFAULT_TIMEOUT = 20000;
+const DEFAULT_TIMEOUT = 180000;
 const MAX_RETRIES = 3;
 
 function isRetryableStatus(status: number | undefined): boolean {
