@@ -952,9 +952,9 @@ Kabul kriterleri:
 
 #### P0.3 Secret ve deployment güvenliği
 
-- [ ] Dokümanlarda ve repository geçmişinde bulunan gerçek secret'lar döndürülecek.
-- [ ] Slave HMAC secret ile internal API secret kesin olarak ayrılacak.
-- [ ] Secret'lar yalnızca environment/secret manager üzerinden okunacak.
+- [ ] Dokümanlarda ve repository geçmişinde bulunan gerçek secret'lar döndürülecek. (Kod/doküman temizlendi; dış sağlayıcı rotasyonu bekliyor)
+- [x] Slave HMAC secret ile internal API secret kesin olarak ayrılacak. (production fallback ve eşitlik guard'ı eklendi)
+- [x] Secret'lar yalnızca environment/secret manager üzerinden okunacak. (production placeholder/default guard + Compose zorunlu env)
 - [ ] Migration'lar production boot sırasında rastgele `ALTER TABLE` yerine kontrollü migration runner'a taşınacak.
 
 ### P1 — Faz 0–5 AI Product Studio tamamlaması

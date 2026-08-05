@@ -1,20 +1,38 @@
+const environment = process.env.NODE_ENV || 'development';
+const isProduction = environment === 'production';
+
+function secret(name: string, fallback: string | undefined, unsafeFallback: string): string {
+  const value = process.env[name] || fallback || '';
+  const placeholder = !value || value === unsafeFallback || /change[-_]?me|your[-_].*change|dev[-_].*key|super[-_].*secret|minioadmin/i.test(value);
+  if (isProduction && placeholder) {
+    throw new Error(`${name} must be set to a strong production secret`);
+  }
+  return value || unsafeFallback;
+}
+
+const internalKey = secret('RAHAT_INTERNAL_KEY', undefined, 'internal-dev-key');
+const slaveHmacSecret = secret('RAHAT_SLAVE_HMAC_SECRET', undefined, 'slave-hmac-dev-key');
+if (isProduction && internalKey === slaveHmacSecret) {
+  throw new Error('RAHAT_SLAVE_HMAC_SECRET must be different from RAHAT_INTERNAL_KEY in production');
+}
+
 export const config = {
-  env: process.env.NODE_ENV || 'development',
+  env: environment,
   port: parseInt(process.env.PORT || '3000', 10),
   version: process.env.npm_package_version || '2.0.0',
   apiUrl: process.env.APP_URL || 'http://localhost:3000',
   corsOrigin: process.env.CORS_ORIGIN ? [...new Set([...process.env.CORS_ORIGIN.split(','), 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'])] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081', 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'],
   
   jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
+    secret: secret('JWT_SECRET', undefined, 'dev-secret-change-in-production'),
+    refreshSecret: secret('JWT_REFRESH_SECRET', undefined, 'dev-refresh-secret-change-in-production'),
     accessExpiry: '15m',
     refreshExpiry: '7d',
   },
 
   apiKey: {
-    internalKey: process.env.RAHAT_INTERNAL_KEY || 'internal-dev-key',
-    slaveHmacSecret: process.env.RAHAT_SLAVE_HMAC_SECRET || process.env.RAHAT_INTERNAL_KEY || 'slave-hmac-dev-key',
+    internalKey,
+    slaveHmacSecret,
     hmacAlgorithm: 'sha256',
   },
 
@@ -46,7 +64,7 @@ export const config = {
 
   integrationService: {
     url: process.env.INTEGRATION_SERVICE_URL || 'http://localhost:3002',
-    apiKey: process.env.CORE_API_KEY || 'core-dev-key',
+    apiKey: secret('CORE_API_KEY', undefined, 'core-dev-key'),
   },
 
   goldPrice: {

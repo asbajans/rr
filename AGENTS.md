@@ -6,9 +6,9 @@ Monorepo: `rr` (Rahatio)
 GitHub: `https://github.com/asbajans/rr`
 Portainer Stack: `rahatio-stack` (ID: 75)
 Portainer API: `https://cont.asb.web.tr` (Endpoint 2, X-API-Key auth)
-Portainer Webhook: `51a90d30-c009-468f-b1bd-a72bf09abc7d`
+Portainer Webhook: `<stored-in-secret-manager>`
 Domain: `rahatio.com.tr` → Cloudflare proxied → Portainer sunucu
-Portainer API Key: `ptr_eQgVWsrcy0/nOY5h9buCwok0bMVeajidA1eqiYqIncU=`
+Portainer API Key: `<stored-in-secret-manager; rotate existing key>`
 
 ---
 

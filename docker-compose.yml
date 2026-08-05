@@ -86,10 +86,10 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-rahatio}:${POSTGRES_PASSWORD:-rahatio}@postgres:5432/${POSTGRES_DB:-rahatio}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
-      RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
-      RAHAT_SLAVE_HMAC_SECRET: ${RAHAT_SLAVE_HMAC_SECRET:-change-me-slave-hmac}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
+      RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:?RAHAT_INTERNAL_KEY must be set}
+      RAHAT_SLAVE_HMAC_SECRET: ${RAHAT_SLAVE_HMAC_SECRET:?RAHAT_SLAVE_HMAC_SECRET must be set}
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -98,7 +98,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-https://rahatio.com.tr,https://admin.rahatio.com.tr}
       AI_SERVICE_URL: http://ai-service:3001
       INTEGRATION_SERVICE_URL: http://integration-service:3002
-      CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
+      CORE_API_KEY: ${CORE_API_KEY:?CORE_API_KEY must be set}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       RUN_SEEDERS: ${RUN_SEEDERS:-true}
@@ -128,7 +128,7 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       COMFY_URL: ${COMFY_URL:-http://host.docker.internal:8188}
       REDIS_URL: redis://redis:6379
-      CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
+      CORE_API_KEY: ${CORE_API_KEY:?CORE_API_KEY must be set}
       CORE_API_URL: http://core-api:3000
     depends_on:
       redis:
@@ -149,9 +149,9 @@ services:
       PORT: 3002
       REDIS_URL: redis://redis:6379
       CORE_API_URL: http://core-api:3000
-      CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
-      RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:-change-me-internal-key}
-      RAHAT_SLAVE_HMAC_SECRET: ${RAHAT_SLAVE_HMAC_SECRET:-change-me-slave-hmac}
+      CORE_API_KEY: ${CORE_API_KEY:?CORE_API_KEY must be set}
+      RAHAT_INTERNAL_KEY: ${RAHAT_INTERNAL_KEY:?RAHAT_INTERNAL_KEY must be set}
+      RAHAT_SLAVE_HMAC_SECRET: ${RAHAT_SLAVE_HMAC_SECRET:?RAHAT_SLAVE_HMAC_SECRET must be set}
       TRENDYOL_API_KEY: ${TRENDYOL_API_KEY:-}
       TRENDYOL_API_SECRET: ${TRENDYOL_API_SECRET:-}
       TRENDYOL_SUPPLIER_ID: ${TRENDYOL_SUPPLIER_ID:-}

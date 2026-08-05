@@ -14,7 +14,10 @@ import { User } from './User.model.js';
     { fields: ['storeId'] },
     { fields: ['userId'] },
     { fields: ['status'] },
-    { fields: ['storeId', 'idempotencyKey'], unique: true, where: { idempotencyKey: { $ne: null } } },
+    // The partial unique index is created by the boot migration below.
+    // Keep the model index portable; Sequelize cannot serialize Mongo-style
+    // `$ne` operators in a Postgres index definition.
+    { fields: ['storeId', 'idempotencyKey'] },
   ],
 })
 export class AiProductSession extends Model {
