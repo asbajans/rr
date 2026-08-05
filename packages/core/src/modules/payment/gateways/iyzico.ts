@@ -1,4 +1,5 @@
 import Iyzipay from 'iyzipay';
+import crypto from 'crypto';
 import { logger } from '../../../utils/logger.js';
 import type { StorePaymentMethod } from '../../../models/ContentModels.js';
 import type { PaymentGateway, GatewayPaymentRequest, GatewayPaymentResult, GatewayWebhookResult, GatewayRefundResult } from './types.js';
@@ -93,23 +94,55 @@ export class IyzicoGateway implements PaymentGateway {
     });
   }
 
-  /** iyzico does not use server-to-server webhooks by default; payment result is returned via callbackUrl (GET redirect with paymentId/token). */
+  /** Callback values are not trusted; retrieve the checkout result from iyzico. */
   async parseWebhook(
     body: unknown,
     _headers: Record<string, string | string[] | undefined>,
-    _secret: string
+    secret: string
   ): Promise<GatewayWebhookResult> {
     const b = (body as Record<string, unknown>) || {};
-    const orderId = Number(b.conversationId || b.orderId);
     const token = String(b.token || '');
-    const paymentId = String(b.paymentId || '');
-    const status = String(b.status || '');
-    if (!orderId) throw new Error('iyzico callback without conversationId/orderId');
+    if (!token) throw new Error('iyzico callback without token');
+    const [apiKey = '', secretKey = ''] = String(secret || '').split('|');
+    if (!apiKey || !secretKey) throw new Error('iyzico credentials unavailable for callback verification');
+    const c = client({ config: { api_key: apiKey, secret_key: secretKey } });
+    const retrieved = await new Promise<any>((resolve, reject) => {
+      c.checkoutForm.retrieve({ locale: 'tr', conversationId: String(b.conversationId || b.orderId || ''), token }, (err: unknown, result: any) => {
+        if (err) return reject(err instanceof Error ? err : new Error(String(err)));
+        resolve(result);
+      });
+    });
+    if (retrieved?.status !== 'success' || retrieved?.paymentStatus !== 'SUCCESS') {
+      return {
+        orderId: Number(retrieved?.conversationId || b.conversationId) || undefined,
+        success: false,
+        refId: String(retrieved?.paymentId || token),
+        eventId: String(retrieved?.paymentId || token),
+        raw: retrieved,
+      };
+    }
+    const signature = String(retrieved.signature || '');
+    const expected = crypto.createHmac('sha256', secretKey)
+      .update([
+        retrieved.paymentStatus,
+        retrieved.paymentId,
+        retrieved.currency,
+        retrieved.basketId,
+        retrieved.conversationId,
+        retrieved.paidPrice,
+        retrieved.price,
+        retrieved.token,
+      ].join(':'))
+      .digest('hex');
+    if (!signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      throw new Error('iyzico signature verification failed');
+    }
     return {
-      orderId,
-      success: status === 'success' || Boolean(paymentId) || Boolean(token),
-      refId: paymentId || token,
-      raw: body,
+      orderId: Number(retrieved.conversationId) || undefined,
+      success: true,
+      refId: String(retrieved.paymentId),
+      eventId: String(retrieved.paymentId),
+      raw: retrieved,
     };
   }
 

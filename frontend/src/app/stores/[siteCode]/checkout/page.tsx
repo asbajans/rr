@@ -141,6 +141,7 @@ export default function CheckoutPage() {
           phone: shippingAddress.phone,
         },
         address_id: selectedAddressId ?? undefined,
+        address_owner_token: selectedAddressId ? (localStorage.getItem(ownerTokenKey) || undefined) : undefined,
         shipping_address: selectedAddressId ? undefined : shippingAddress,
         payment_method: selectedPayment,
         note: note || undefined,

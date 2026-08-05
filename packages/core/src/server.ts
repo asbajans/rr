@@ -99,6 +99,7 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentStatus" VARCHAR(20) DEFAULT 'pending'`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentProvider" VARCHAR(50)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentRefId" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentEventId" VARCHAR(200)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "paymentDetails" JSONB`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "orderTokenHash" VARCHAR(200)`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15,2) DEFAULT 0`);
@@ -292,6 +293,13 @@ export const createApp = async (): Promise<Express> => {
 export const startServer = async (): Promise<void> => {
   const app = await createApp();
   const port = config.port;
+
+  // Release stock reservations from abandoned gateway checkouts.
+  const { releaseExpiredCheckoutReservations } = await import('./modules/order/checkout.js');
+  const reservationTimer = setInterval(() => {
+    releaseExpiredCheckoutReservations().catch((err) => logger.error({ err }, 'Failed to release expired checkout reservations'));
+  }, 5 * 60 * 1000);
+  reservationTimer.unref?.();
 
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');

@@ -24,16 +24,41 @@ async function loadStoreMethod(
 }
 
 async function confirmFromResult(
-  result: { orderId?: number; success: boolean; refId: string; raw: unknown },
-  provider: string
+  result: { orderId?: number; success: boolean; refId: string; eventId?: string; raw: unknown },
+  provider: string,
+  storeId: number
 ): Promise<void> {
-  if (result.success && result.orderId) {
-    await confirmPaidOrder(result.orderId, {
-      refId: result.refId,
-      provider,
-      paymentDetails: result.raw,
-    });
+  if (!result.orderId) throw new Error('Payment callback has no order ID');
+  const order = await DropshippingOrder.findOne({ where: { id: result.orderId, storeId } });
+  if (!order) throw new Error('Payment order not found');
+  if (order.paymentProvider !== provider) throw new Error('Payment provider does not match order');
+
+  if (!result.success) {
+    if (order.paymentStatus === 'awaiting') await order.update({ paymentStatus: 'failed' });
+    return;
   }
+
+  const raw = (result.raw as any) || {};
+  const expected = Number(order.totalAmount);
+  const paid = provider === 'stripe'
+    ? Number(raw?.data?.object?.amount_total ?? raw?.data?.object?.amount_received ?? 0) / 100
+    : provider === 'paytr'
+      ? Number(raw.total_amount)
+      : Number(raw.paidPrice);
+  if (!Number.isFinite(paid) || Math.abs(paid - expected) > 0.01) {
+    throw new Error(`Payment amount mismatch: expected ${expected}, received ${paid}`);
+  }
+  const currency = provider === 'paytr' ? 'TRY' : String(raw.currency || '').toUpperCase();
+  if (currency && currency !== String(order.currency || 'TRY').toUpperCase()) {
+    throw new Error('Payment currency mismatch');
+  }
+
+  await confirmPaidOrder(result.orderId, {
+    refId: result.refId,
+    eventId: result.eventId,
+    provider,
+    paymentDetails: result.raw,
+  });
 }
 
 async function handleCallback(req: Request, res: Response): Promise<void> {
@@ -60,7 +85,7 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
   try {
     const body = req.method === 'GET' ? req.query : req.body;
     const result = await gateway.parseWebhook(body, req.headers, secret);
-    await confirmFromResult(result, provider);
+    await confirmFromResult(result, provider, found.store.id);
     logger.info(`${provider} callback ok: orderId=${result.orderId} success=${result.success}`);
 
     const redirect = typeof req.query.redirect === 'string' ? req.query.redirect : undefined;
@@ -97,7 +122,7 @@ paymentWebhookRoutes.post('/:siteCode/payments/webhook/stripe', async (req: Requ
   }
   try {
     const result = await gateway!.parseWebhook({ raw: req.body }, req.headers, secret);
-    await confirmFromResult(result, provider);
+    await confirmFromResult(result, provider, found.store.id);
     logger.info(`Stripe webhook ok: orderId=${result.orderId} success=${result.success}`);
     res.status(200).json({ received: true });
   } catch (err: any) {
@@ -167,7 +192,7 @@ paymentWebhookRoutes.post('/:siteCode/payments/initiate', async (req: Request, r
       store,
       method,
       returnUrl: String(returnUrl || ''),
-      callbackUrl: `${config.apiUrl}/api/store/${req.params.siteCode}/payments/callback/${provider}?redirect=${encodeURIComponent(String(returnUrl || ''))}`,
+      callbackUrl: `${config.apiUrl}/api/store/${req.params.siteCode}/payments/callback/${provider}?orderId=${order.id}&redirect=${encodeURIComponent(String(returnUrl || ''))}`,
       ipAddress: req.ip || req.socket?.remoteAddress || '',
       customer: {
         email: order.customerEmail || '',

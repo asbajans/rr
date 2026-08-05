@@ -68,11 +68,12 @@ export class StripeGateway implements PaymentGateway {
     const sig = headers['stripe-signature'];
     const signature = Array.isArray(sig) ? sig[0] : sig;
     if (!signature) throw new Error('Missing stripe-signature header');
-    if (!stripe) throw new Error('Stripe is not configured');
+    const webhookClient = clientFor(secret);
+    if (!webhookClient) throw new Error('Stripe is not configured');
     const rawBody = (body as unknown as { raw?: Buffer }).raw;
     if (!rawBody) throw new Error('Raw body not available for signature verification');
 
-    const event = stripe.webhooks.constructEvent(rawBody, signature, secret);
+    const event = webhookClient.webhooks.constructEvent(rawBody, signature, secret);
 
     const eventWithOrder = (metadata: { orderId?: string }, refId: string) => {
       const orderId = Number(metadata?.orderId);
@@ -82,21 +83,21 @@ export class StripeGateway implements PaymentGateway {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      return { ...eventWithOrder(session.metadata as any, String(session.payment_intent || session.id)), success: true };
+      return { ...eventWithOrder(session.metadata as any, String(session.payment_intent || session.id)), eventId: event.id, success: true };
     }
 
     if (event.type === 'payment_intent.succeeded') {
       const pi = event.data.object as Stripe.PaymentIntent;
-      return { ...eventWithOrder(pi.metadata as any, pi.id), success: true };
+      return { ...eventWithOrder(pi.metadata as any, pi.id), eventId: event.id, success: true };
     }
 
     if (event.type === 'payment_intent.payment_failed' || event.type === 'checkout.session.async_payment_failed') {
       const obj = event.data.object as Stripe.PaymentIntent | Stripe.Checkout.Session;
       const metadata = (obj as any).metadata as { orderId?: string };
-      return { ...eventWithOrder(metadata || {}, String((obj as any).id)), success: false };
+      return { ...eventWithOrder(metadata || {}, String((obj as any).id)), eventId: event.id, success: false };
     }
 
-    return { success: false, refId: event.id, raw: event };
+    return { success: false, refId: event.id, eventId: event.id, raw: event };
   }
 
   async refund(

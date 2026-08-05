@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 
 export interface ConfirmOptions {
   refId?: string;
+  eventId?: string;
   provider?: string;
   paymentDetails?: unknown;
 }
@@ -29,6 +30,9 @@ export async function confirmPaidOrder(orderId: number, opts: ConfirmOptions = {
     if (order.paymentStatus === 'paid') {
       logger.info(`confirmPaidOrder: order ${orderId} already paid (idempotent skip)`);
       return order;
+    }
+    if (order.paymentStatus === 'refunded' || ['cancelled', 'returned'].includes(order.status)) {
+      throw new Error(`Order ${orderId} is not payable in status ${order.status}/${order.paymentStatus}`);
     }
 
     const items = (order.items as any[]) || [];
@@ -54,6 +58,7 @@ export async function confirmPaidOrder(orderId: number, opts: ConfirmOptions = {
       status: 'confirmed',
     };
     if (opts.refId) updateData.paymentRefId = opts.refId;
+    if (opts.eventId) updateData.paymentEventId = opts.eventId;
     if (opts.provider) updateData.paymentProvider = opts.provider;
     if (opts.paymentDetails != null) updateData.paymentDetails = opts.paymentDetails;
     await order.update(updateData, { transaction: t });

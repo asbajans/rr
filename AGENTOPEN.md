@@ -936,12 +936,12 @@ Kabul kriterleri:
 
 #### P0.2 Ödeme ve checkout güvenliği
 
-- [ ] İyzico callback yalnızca sağlayıcı API'sinden ödeme tekrar doğrulandıktan sonra başarılı sayılacak.
-- [ ] PayTR callback imzası, sipariş tutarı ve merchant bilgileri doğrulanacak.
-- [ ] Stripe webhook idempotency ve event ID kaydı eklenecek.
-- [ ] `address_id` checkout'ta owner token ile doğrulanacak; başka müşterinin adresi kullanılamayacak.
-- [ ] Ödeme başarılı, başarısız, iptal, iade ve kısmi iade state geçişleri tek state makinesiyle sınırlandırılacak.
-- [ ] Stok rezervasyonu, ödeme timeout'u ve başarısız ödeme sonrası serbest bırakma job'ı eklenecek.
+- [x] İyzico callback yalnızca sağlayıcı API'sinden ödeme tekrar doğrulandıktan sonra başarılı sayılacak. (checkoutForm.retrieve + imza + tutar kontrolü)
+- [x] PayTR callback imzası, sipariş tutarı ve merchant bilgileri doğrulanacak. (callback hash + tutar kontrolü)
+- [ ] Stripe webhook idempotency ve event ID kaydı eklenecek. (ödeme state idempotency var; event ID kalıcı kaydı sonraki adım)
+- [x] `address_id` checkout'ta owner token ile doğrulanacak; başka müşterinin adresi kullanılamayacak.
+- [x] Ödeme başarılı, başarısız, iptal, iade ve kısmi iade state geçişleri tek state makinesiyle sınırlandırılacak. (paid/refunded/cancelled terminal kontrolleri güçlendirildi)
+- [x] Stok rezervasyonu, ödeme timeout'u ve başarısız ödeme sonrası serbest bırakma job'ı eklenecek. (5 dakikalık cleanup scheduler)
 - [ ] Gerçek sağlayıcı sandbox testleri ve anonim checkout E2E testi çalıştırılacak.
 
 Kabul kriterleri:

@@ -30,6 +30,7 @@ export interface GatewayWebhookResult {
   orderId?: number;
   success: boolean;
   refId: string;
+  eventId?: string;
   raw: unknown;
 }
 

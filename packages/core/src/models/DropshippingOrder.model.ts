@@ -133,6 +133,10 @@ export class DropshippingOrder extends Model {
   declare paymentRefId: string;
 
   @AllowNull(true)
+  @Column(DataType.STRING(200))
+  declare paymentEventId: string;
+
+  @AllowNull(true)
   @Column(DataType.JSONB)
   declare paymentDetails: object;
 

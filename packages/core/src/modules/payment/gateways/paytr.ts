@@ -83,7 +83,7 @@ export class PayTRGateway implements PaymentGateway {
     };
   }
 
-  /** PayTR result callback: POST body has paytr_status, paytr_token, merchant_oid, hash. secret = `merchantKey|merchantSalt`. */
+  /** PayTR result callback. The callback hash covers merchant_oid, salt, status and total_amount. */
   async parseWebhook(
     body: unknown,
     _headers: Record<string, string | string[] | undefined>,
@@ -92,14 +92,14 @@ export class PayTRGateway implements PaymentGateway {
     const b = (body as Record<string, unknown>) || {};
     const merchantOid = String(b.merchant_oid || '');
     const paytrStatus = String(b.paytr_status || '');
-    const paytrToken = String(b.paytr_token || '');
+    const totalAmount = String(b.total_amount || '');
     const hash = String(b.hash || '');
     const [merchantKey = '', merchantSalt = ''] = String(secret || '').split('|');
 
     if (merchantKey && merchantSalt) {
       const expected = crypto
         .createHmac('sha256', merchantKey)
-        .update([merchantOid, merchantSalt, paytrStatus, paytrToken].join(':'))
+        .update(`${merchantOid}${merchantSalt}${paytrStatus}${totalAmount}`)
         .digest('base64');
       const a = Buffer.from(hash || '');
       const b2 = Buffer.from(expected);
@@ -115,6 +115,7 @@ export class PayTRGateway implements PaymentGateway {
       orderId: orderId || undefined,
       success: paytrStatus === '1',
       refId: merchantOid,
+      eventId: merchantOid,
       raw: body,
     };
   }
