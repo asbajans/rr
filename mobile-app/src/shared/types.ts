@@ -405,6 +405,7 @@ export interface AiChannelValidationResult {
   status: 'ready' | 'integration-not-connected' | 'category-mapping-needed' | 'missing-fields'
   missingFields: string[]
   message?: string
+  suggestion?: string
 }
 
 export interface AiSessionStatusResponse {

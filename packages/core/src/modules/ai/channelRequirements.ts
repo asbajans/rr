@@ -62,7 +62,12 @@ export async function validateDraftForChannels(
         where: { storeId: draft.storeId, marketplace: channel, isActive: true },
       });
       if (!integration) {
-        results.push({ channel, status: 'integration-not-connected', missingFields: channelMissing });
+        results.push({
+          channel,
+          status: 'integration-not-connected',
+          missingFields: channelMissing,
+          suggestion: `${channel} entegrasyonunu Pazaryerleri ekranından bağlayın.`,
+        });
         continue;
       }
 
@@ -72,13 +77,23 @@ export async function validateDraftForChannels(
           })
         : null;
       if (!draft.categoryId || !mapping) {
-        results.push({ channel, status: 'category-mapping-needed', missingFields: channelMissing });
+        results.push({
+          channel,
+          status: 'category-mapping-needed',
+          missingFields: channelMissing,
+          suggestion: 'Ürünün kategorisini seçin ve bu kategori için pazaryeri eşlemesini tamamlayın.',
+        });
         continue;
       }
     }
 
     if (channelMissing.length > 0) {
-      results.push({ channel, status: 'missing-fields', missingFields: channelMissing });
+      results.push({
+        channel,
+        status: 'missing-fields',
+        missingFields: channelMissing,
+        suggestion: `Yayınlamadan önce şu alanları tamamlayın: ${channelMissing.join(', ')}.`,
+      });
       continue;
     }
 

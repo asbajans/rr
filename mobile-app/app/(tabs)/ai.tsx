@@ -30,6 +30,23 @@ interface DraftForm {
   price: string
   stock: string
   keywords: string
+  tags: string
+  attributes: string
+}
+
+function attributesToText(attributes: Record<string, string> | null | undefined): string {
+  return Object.entries(attributes || {}).map(([key, value]) => `${key}: ${value}`).join('\n')
+}
+
+function parseAttributes(value: string): Record<string, string> {
+  const entries: Array<[string, string]> = []
+  value.split('\n').map((line) => line.trim()).filter(Boolean).forEach((line) => {
+    const separator = line.indexOf(':')
+    const key = separator > 0 ? line.slice(0, separator).trim() : ''
+    const item = separator > 0 ? line.slice(separator + 1).trim() : ''
+    if (key && item) entries.push([key, item])
+  })
+  return Object.fromEntries(entries)
 }
 
 type Step = 'photo' | 'review' | 'channels'
@@ -49,7 +66,7 @@ export default function AiScreen() {
   const [draftsLoading, setDraftsLoading] = useState(false)
 
   const [draftForm, setDraftForm] = useState<DraftForm>({
-    title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '',
+    title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '', tags: '', attributes: '',
   })
 
   const [selectedChannels, setSelectedChannels] = useState<AiChannel[]>([])
@@ -87,6 +104,8 @@ export default function AiScreen() {
       price: d.suggestedPrice != null ? String(d.suggestedPrice) : '',
       stock: d.quantity != null ? String(d.quantity) : '10',
       keywords: (d.keywords || []).join(', '),
+      tags: (d.tags || []).join(', '),
+      attributes: attributesToText(d.attributes),
     })
   }
 
@@ -95,7 +114,7 @@ export default function AiScreen() {
     setImageUri(null)
     setSession(null)
     setDraft(null)
-    setDraftForm({ title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '' })
+    setDraftForm({ title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '', tags: '', attributes: '' })
     setSelectedChannels([])
     setValidation([])
     setPublishResults([])
@@ -228,6 +247,11 @@ export default function AiScreen() {
 
   async function handleSaveDraft() {
     if (!draft) return
+    const price = draftForm.price ? Number(draftForm.price) : undefined
+    const stock = draftForm.stock ? Number(draftForm.stock) : undefined
+    if (!draftForm.title.trim() || !draftForm.description.trim()) { setError('Başlık ve açıklama zorunludur.'); return }
+    if (draftForm.price && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) { setError('Fiyat sıfır veya daha büyük bir sayı olmalıdır.'); return }
+    if (draftForm.stock && (typeof stock !== 'number' || !Number.isInteger(stock) || stock < 0)) { setError('Stok sıfır veya daha büyük bir tam sayı olmalıdır.'); return }
     setSaving(true)
     setError('')
     setSuccess('')
@@ -238,9 +262,11 @@ export default function AiScreen() {
         shortDescription: draftForm.shortDescription,
         categoryPath: draftForm.category.split(' > ').map((s) => s.trim()).filter(Boolean),
         sku: draftForm.sku,
-        suggestedPrice: draftForm.price ? parseFloat(draftForm.price) : undefined,
-        quantity: draftForm.stock ? parseInt(draftForm.stock, 10) : undefined,
+        suggestedPrice: price,
+        quantity: stock,
         keywords: draftForm.keywords.split(',').map((s) => s.trim()).filter(Boolean),
+        tags: draftForm.tags.split(',').map((s) => s.trim()).filter(Boolean),
+        attributes: parseAttributes(draftForm.attributes),
       })
       setDraft(updated)
       setSuccess(t('aiDraftSaved'))
@@ -568,6 +594,27 @@ export default function AiScreen() {
                   onChangeText={(v) => setDraftForm({ ...draftForm, keywords: v })}
                 />
               </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{t('aiTags')}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draftForm.tags}
+                  onChangeText={(v) => setDraftForm({ ...draftForm, tags: v })}
+                  placeholder="virgülle ayır"
+                />
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Ürün Özellikleri</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={draftForm.attributes}
+                  onChangeText={(v) => setDraftForm({ ...draftForm, attributes: v })}
+                  placeholder={'renk: Siyah\nmalzeme: Deri\nmarka: Marka adı'}
+                  multiline
+                  numberOfLines={4}
+                />
+                <Text style={styles.helperText}>Her satıra alan: değer formatında yazın.</Text>
+              </View>
 
               {draft.tags && draft.tags.length > 0 && (
                 <View style={styles.chipsWrap}>
@@ -639,8 +686,11 @@ export default function AiScreen() {
             const badge = channelBadge(r)
             return (
               <View key={r.channel} style={styles.metaRow}>
-                <Text style={styles.metaLabel}>{r.channel}:</Text>
-                <Text style={[styles.metaValue, { color: badge.color, fontWeight: '600' }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.metaLabel}>{r.channel}:</Text>
+                  {r.suggestion ? <Text style={styles.metaValue}>{r.suggestion}</Text> : null}
+                </View>
+                <Text style={[styles.metaValue, { color: badge.color, fontWeight: '600', textAlign: 'right' }]}>
                   {badge.text}
                   {r.status === 'missing-fields' && r.missingFields.length > 0
                     ? ` (${r.missingFields.join(', ')})`
@@ -759,6 +809,7 @@ const styles = StyleSheet.create({
   field: { marginBottom: 16, flex: 1 },
   fieldRow: { flexDirection: 'row', gap: 12 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 6 },
+  helperText: { fontSize: 11, color: '#888', marginTop: 5 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, fontSize: 14, backgroundColor: '#fff' },
   textArea: { minHeight: 110, textAlignVertical: 'top' },
   chipsWrap: { marginBottom: 16 },

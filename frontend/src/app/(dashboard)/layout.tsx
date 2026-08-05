@@ -22,6 +22,13 @@ const navGroups = [
     ],
   },
   {
+    labelKey: 'groupAi',
+    items: [
+      { href: '/ai/studio', labelKey: 'aiStudio', icon: Wand2 },
+      { href: '/ai', labelKey: 'ai', icon: Sparkles },
+    ],
+  },
+  {
     labelKey: 'groupProducts',
     items: [
       { href: '/products', labelKey: 'products', icon: Package },
@@ -36,10 +43,13 @@ const navGroups = [
     labelKey: 'groupSales',
     items: [
       { href: '/orders', labelKey: 'orders', icon: ShoppingCart },
+      { href: '/marketplaces', labelKey: 'marketplaces', icon: ShoppingCart },
       { href: '/b2b', labelKey: 'b2b', icon: Handshake },
       { href: '/b2b/requests', labelKey: 'b2bRequests', icon: Handshake },
-      { href: '/marketplaces', labelKey: 'marketplaces', icon: ShoppingCart },
       { href: '/supplier', labelKey: 'supplier', icon: Truck },
+      { href: '/payment', labelKey: 'payment', icon: CreditCard },
+      { href: '/shipping', labelKey: 'shipping', icon: Truck },
+      { href: '/locations', labelKey: 'locations', icon: MapPin },
     ],
   },
   {
@@ -54,11 +64,6 @@ const navGroups = [
   {
     labelKey: 'groupSettings',
     items: [
-      { href: '/payment', labelKey: 'payment', icon: CreditCard },
-      { href: '/locations', labelKey: 'locations', icon: MapPin },
-      { href: '/shipping', labelKey: 'shipping', icon: Truck },
-      { href: '/ai', labelKey: 'ai', icon: Sparkles },
-      { href: '/ai/studio', labelKey: 'aiStudio', icon: Wand2 },
       { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
       { href: '/settings', labelKey: 'settings', icon: Settings },
@@ -81,6 +86,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       return true
     }),
   }))
+  const activeHref = nav.flatMap((group) => group.items)
+    .map((item) => item.href)
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0]
 
   useEffect(() => {
     if (!loading && !user) router.push('/login')
@@ -144,7 +153,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   )}
                   <div className="space-y-0.5">
                     {group.items.map((item) => {
-                      const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                      const active = activeHref === item.href
                       return (
                         <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
                           className={cn(

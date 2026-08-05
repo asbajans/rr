@@ -154,6 +154,7 @@ export interface ChannelValidationResult {
   status: ChannelValidationStatus;
   missingFields: string[];
   message?: string;
+  suggestion?: string;
 }
 
 export interface PublishDraftInput {

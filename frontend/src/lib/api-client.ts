@@ -1040,7 +1040,7 @@ class ApiClient {
   }
 
   validateAiProductChannels(id: number, channels: string[]) {
-    return this.post<{ results: any[] }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels }).then(r => r.results || [])
+    return this.post<{ results: Array<{ channel: string; status: string; missingFields: string[]; message?: string; suggestion?: string }> }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels }).then(r => r.results || [])
   }
 
   publishAiProductDraft(id: number, channels: string[]) {

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
+import { useI18n } from '@/lib/i18n'
 import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send } from 'lucide-react'
 
 const ALL_CHANNELS = [
@@ -17,29 +18,45 @@ const ALL_CHANNELS = [
 ]
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
-  published: { text: 'Yayınlandı', cls: 'bg-green-900/50 text-green-400' },
-  queued: { text: 'Kuyrukta', cls: 'bg-blue-900/50 text-blue-400' },
-  skipped: { text: 'Atlandı', cls: 'bg-amber-900/50 text-amber-400' },
-  failed: { text: 'Başarısız', cls: 'bg-red-900/50 text-red-400' },
+  published: { text: 'aiPublished', cls: 'bg-green-900/50 text-green-400' },
+  queued: { text: 'aiQueued', cls: 'bg-blue-900/50 text-blue-400' },
+  skipped: { text: 'aiSkipped', cls: 'bg-amber-900/50 text-amber-400' },
+  failed: { text: 'aiFailed', cls: 'bg-red-900/50 text-red-400' },
 }
 
 const CHANNEL_STATUS: Record<string, { text: string; cls: string }> = {
-  ready: { text: 'Yayına hazır', cls: 'bg-green-900/50 text-green-400' },
-  'integration-not-connected': { text: 'Entegrasyon bağlı değil', cls: 'bg-amber-900/50 text-amber-400' },
-  'category-mapping-needed': { text: 'Kategori eşlemesi eksik', cls: 'bg-violet-900/50 text-violet-400' },
-  'missing-fields': { text: 'Eksik alanlar', cls: 'bg-red-900/50 text-red-400' },
+  ready: { text: 'aiReady', cls: 'bg-green-900/50 text-green-400' },
+  'integration-not-connected': { text: 'aiIntegrationMissing', cls: 'bg-amber-900/50 text-amber-400' },
+  'category-mapping-needed': { text: 'aiCategoryMappingMissing', cls: 'bg-violet-900/50 text-violet-400' },
+  'missing-fields': { text: 'aiFieldsMissing', cls: 'bg-red-900/50 text-red-400' },
 }
 
 const LISTING_STATUS: Record<string, { text: string; cls: string }> = {
-  active: { text: 'Aktif', cls: 'bg-green-900/50 text-green-400' },
-  publishing: { text: 'Yayınlanıyor', cls: 'bg-blue-900/50 text-blue-400' },
-  pending: { text: 'Beklemede', cls: 'bg-amber-900/50 text-amber-400' },
-  failed: { text: 'Başarısız', cls: 'bg-red-900/50 text-red-400' },
-  inactive: { text: 'Pasif', cls: 'bg-zinc-800 text-zinc-400' },
-  deleted: { text: 'Silindi', cls: 'bg-zinc-800 text-zinc-400' },
+  active: { text: 'aiActive', cls: 'bg-green-900/50 text-green-400' },
+  publishing: { text: 'aiPublishing', cls: 'bg-blue-900/50 text-blue-400' },
+  pending: { text: 'aiPending', cls: 'bg-amber-900/50 text-amber-400' },
+  failed: { text: 'aiFailed', cls: 'bg-red-900/50 text-red-400' },
+  inactive: { text: 'aiInactive', cls: 'bg-zinc-800 text-zinc-400' },
+  deleted: { text: 'aiDeleted', cls: 'bg-zinc-800 text-zinc-400' },
+}
+
+function attributesToText(attributes: Record<string, unknown> | null | undefined): string {
+  return Object.entries(attributes || {}).map(([key, value]) => `${key}: ${String(value)}`).join('\n')
+}
+
+function parseAttributes(value: string): Record<string, string> {
+  const entries: Array<[string, string]> = []
+  value.split('\n').map(line => line.trim()).filter(Boolean).forEach(line => {
+    const separator = line.indexOf(':')
+    const key = separator > 0 ? line.slice(0, separator).trim() : ''
+    const item = separator > 0 ? line.slice(separator + 1).trim() : ''
+    if (key && item) entries.push([key, item])
+  })
+  return Object.fromEntries(entries)
 }
 
 export default function AiStudioPage() {
+  const { t } = useI18n()
   const { user, can, refreshMe } = useAuth()
   const router = useRouter()
   const [gate, setGate] = useState<'product' | 'credits' | null>(null)
@@ -55,7 +72,7 @@ export default function AiStudioPage() {
 
   // Draft
   const [draft, setDraft] = useState<any | null>(null)
-  const [form, setForm] = useState({ title: '', category: '', short_description: '', description: '', keywords: '', price: '', stock: '10', sku: '' })
+  const [form, setForm] = useState({ title: '', category: '', short_description: '', description: '', keywords: '', tags: '', attributes: '', price: '', stock: '10', sku: '' })
   const [saving, setSaving] = useState(false)
   const [drafts, setDrafts] = useState<any[]>([])
 
@@ -120,6 +137,8 @@ export default function AiStudioPage() {
       short_description: d.shortDescription || '',
       description: d.description || '',
       keywords: (d.keywords || []).join(', '),
+      tags: (d.tags || []).join(', '),
+      attributes: attributesToText(d.attributes),
       price: d.suggestedPrice != null ? String(d.suggestedPrice) : '',
       stock: d.quantity != null ? String(d.quantity) : '10',
       sku: d.sku || '',
@@ -138,7 +157,7 @@ export default function AiStudioPage() {
       setListings([])
       loadPublishState(id)
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : 'Taslak yüklenemedi')
+      setError(err instanceof Error ? err.message : t('aiDraftLoadFailed'))
     }
   }
 
@@ -168,10 +187,10 @@ export default function AiStudioPage() {
             draftData = g.draft
             break
           }
-          if (st.status === 'failed') throw new Error(st.errorMessage || 'AI analizi başarısız')
+          if (st.status === 'failed') throw new Error(st.errorMessage || t('aiAnalysisFailed'))
         }
       }
-      if (!draftData) throw new Error('Taslak hazırlanamadı')
+      if (!draftData) throw new Error(t('aiDraftNotReady'))
 
       setDraft(draftData)
       setFormFromDraft(draftData)
@@ -180,7 +199,7 @@ export default function AiStudioPage() {
       refreshMe()
     } catch (err: any) {
       if (err?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
-      else setError(err instanceof Error ? err.message : 'İlan hazırlama başarısız')
+      else setError(err instanceof Error ? err.message : t('aiPrepareFailed'))
     } finally {
       setCreating(false)
     }
@@ -188,6 +207,11 @@ export default function AiStudioPage() {
 
   async function handleSaveDraft() {
     if (!draft) return
+    const price = form.price ? Number(form.price) : undefined
+    const stock = form.stock ? Number(form.stock) : undefined
+    if (!form.title.trim() || !form.description.trim()) { setError(t('aiTitleDescriptionRequired')); return }
+    if (form.price && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) { setError(t('aiPriceInvalid')); return }
+    if (form.stock && (typeof stock !== 'number' || !Number.isInteger(stock) || stock < 0)) { setError(t('aiStockInvalid')); return }
     setSaving(true)
     setError('')
     setSuccess('')
@@ -198,14 +222,16 @@ export default function AiStudioPage() {
         shortDescription: form.short_description,
         categoryPath: form.category.split(' > ').map(s => s.trim()).filter(Boolean),
         sku: form.sku,
-        suggestedPrice: form.price ? parseFloat(form.price) : undefined,
-        quantity: form.stock ? parseInt(form.stock) : undefined,
+        suggestedPrice: price,
+        quantity: stock,
         keywords: form.keywords.split(',').map(s => s.trim()).filter(Boolean),
+        tags: form.tags.split(',').map(s => s.trim()).filter(Boolean),
+        attributes: parseAttributes(form.attributes),
       })
       setDraft(updated)
-      setSuccess('Taslak kaydedildi')
+      setSuccess(t('aiDraftSaved'))
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : 'Taslak kaydedilemedi')
+      setError(err instanceof Error ? err.message : t('aiDraftSaveFailed'))
     } finally {
       setSaving(false)
     }
@@ -218,7 +244,7 @@ export default function AiStudioPage() {
     try {
       setValidation(await api.validateAiProductChannels(draft.id, selectedChannels))
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : 'Doğrulama başarısız')
+      setError(err instanceof Error ? err.message : t('aiValidationFailed'))
     } finally {
       setValidating(false)
     }
@@ -231,9 +257,9 @@ export default function AiStudioPage() {
     try {
       const updated = await api.approveAiProductDraft(draft.id)
       setDraft(updated)
-      setSuccess('Taslak onaylandı')
+      setSuccess(t('aiDraftApproved'))
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : 'Onaylama başarısız')
+      setError(err instanceof Error ? err.message : t('aiApprovalFailed'))
     } finally {
       setSaving(false)
     }
@@ -250,10 +276,10 @@ export default function AiStudioPage() {
       loadPublishState(draft.id)
       loadDrafts()
       refreshMe()
-      setSuccess('Yayın kuyruğa alındı')
+      setSuccess(t('aiPublishQueuedMessage'))
     } catch (err: any) {
       if (err?.code === 'PLAN_PRODUCT_LIMIT') setGate('product')
-      else setError(err instanceof Error ? err.message : 'Yayınlama başarısız')
+      else setError(err instanceof Error ? err.message : t('aiPublishFailedMessage'))
     } finally {
       setPublishing(false)
     }
@@ -270,9 +296,9 @@ export default function AiStudioPage() {
       const res = await api.retryAiProductPublish(draft.id, failed)
       setPublishResults(res.results || [])
       loadPublishState(draft.id)
-      setSuccess(`Tekrar deneniyor (${res.retried})`)
+      setSuccess(`${t('aiRetrying')} (${res.retried})`)
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : 'Tekrar deneme başarısız')
+      setError(err instanceof Error ? err.message : t('aiRetryFailed'))
     } finally {
       setRetrying(false)
     }
@@ -284,10 +310,10 @@ export default function AiStudioPage() {
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">AI Stüdyosu</h1>
-          <p className="mt-1 text-sm text-zinc-400">Fotoğraf → AI taslağı → kanallara yayınla.</p>
+          <h1 className="text-2xl font-bold text-white">{t('aiStudio')}</h1>
+          <p className="mt-1 text-sm text-zinc-400">{t('aiStudioSubtitle')}</p>
         </div>
-        {user.ai_credits != null && <p className="text-xs text-zinc-500">Kalan kredi: {user.ai_credits}</p>}
+        {user.ai_credits != null && <p className="text-xs text-zinc-500">{t('aiRemainingCredits')} {user.ai_credits}</p>}
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-900/50 p-3 text-sm text-red-400">{error}</div>}
@@ -295,9 +321,9 @@ export default function AiStudioPage() {
 
       {!can('ai_product_create') ? (
         <div className="mt-6 rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-center">
-          <p className="text-sm text-zinc-400">Bu modül planınızda kapalı.</p>
+          <p className="text-sm text-zinc-400">{t('aiModuleDisabled')}</p>
           <button onClick={() => router.push('/billing')} className="mt-3 inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-600">
-            Üst Pakete Geç <ArrowUpRight className="h-3.5 w-3.5" />
+            {t('aiUpgradePlan')} <ArrowUpRight className="h-3.5 w-3.5" />
           </button>
         </div>
       ) : (
@@ -305,12 +331,12 @@ export default function AiStudioPage() {
           {/* Saved drafts */}
           {drafts.length > 0 && (
             <div className="mt-6">
-              <p className="text-sm font-medium text-zinc-400">Taslaklarım</p>
+              <p className="text-sm font-medium text-zinc-400">{t('aiDrafts')}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {drafts.map(d => (
                   <button key={d.id} onClick={() => openDraft(d.id)}
                     className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${draft?.id === d.id ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}`}>
-                    #{d.id} — {d.title?.slice(0, 40) || 'Taslak'}
+                    #{d.id} — {d.title?.slice(0, 40) || t('aiDraft')}
                   </button>
                 ))}
               </div>
@@ -322,12 +348,12 @@ export default function AiStudioPage() {
             <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-6">
               <div className="flex items-center gap-3">
                 <Wand2 className="h-5 w-5 text-violet-400" />
-                <h2 className="text-lg font-semibold text-white">1. Görsel & Seçenekler</h2>
+                <h2 className="text-lg font-semibold text-white">{t('aiStep1')}</h2>
               </div>
-              <p className="mt-1 text-sm text-zinc-400">Fotoğrafı yükle, AI ilanı uçtan uca hazırlasın.</p>
+              <p className="mt-1 text-sm text-zinc-400">{t('aiStep1Desc')}</p>
 
               <div className="mt-4">
-                <label className="text-xs font-medium text-zinc-400">Kategori</label>
+                <label className="text-xs font-medium text-zinc-400">{t('aiCategory')}</label>
                 <select value={category} onChange={e => setCategory(e.target.value)}
                   className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
                   <option value="giyim">Giyim</option>
@@ -350,7 +376,7 @@ export default function AiStudioPage() {
 
               <div className="mt-4 grid grid-cols-1 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-zinc-400">Kısa Açıklama (opsiyonel)</label>
+                  <label className="text-xs font-medium text-zinc-400">{t('aiOptionalShort')}</label>
                   <input value={notes.short_description} onChange={e => setNotes({ ...notes, short_description: e.target.value })}
                     placeholder="Satıcı notu / kısa bilgi"
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
@@ -364,7 +390,7 @@ export default function AiStudioPage() {
               </div>
 
               <div className="mt-4">
-                <label className="text-xs font-medium text-zinc-400">Hedef Kanallar</label>
+                <label className="text-xs font-medium text-zinc-400">{t('aiTargetChannels')}</label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {ALL_CHANNELS.map(o => (
                     <button key={o.key} type="button" onClick={() => setTargetMps(prev => prev.includes(o.key) ? prev.filter(x => x !== o.key) : [...prev, o.key])}
@@ -378,86 +404,99 @@ export default function AiStudioPage() {
               <label className="mt-4 flex items-center gap-2 text-sm text-zinc-300">
                 <input type="checkbox" checked={suggestPrice} onChange={e => setSuggestPrice(e.target.checked)}
                   className="h-4 w-4 rounded border-zinc-600 bg-zinc-800" />
-                Fiyat aralığı öner
+                {t('aiSuggestPrice')}
               </label>
 
               <button onClick={handleRun} disabled={!rawFile || creating}
                 className="mt-4 flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50">
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                {creating ? 'İlan Hazırlanıyor...' : 'İlanı Hazırla'}
+                {creating ? t('aiPreparing') : t('aiPrepare')}
               </button>
             </div>
 
             {/* 2. Draft + Publish */}
             <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-6">
-              <h2 className="text-lg font-semibold text-white">2. Taslak & Yayın</h2>
-              <p className="mt-1 text-sm text-zinc-400">AI taslağını düzenle, kanalları doğrula ve yayınla.</p>
+              <h2 className="text-lg font-semibold text-white">{t('aiStep2')}</h2>
+              <p className="mt-1 text-sm text-zinc-400">{t('aiStep2Desc')}</p>
 
               {!draft && !creating && (
                 <div className="mt-8 flex flex-col items-center gap-2 text-zinc-500">
                   <ImageUp className="h-10 w-10" />
-                  <p className="text-sm">Görsel yükle ve &quot;İlanı Hazırla&quot;ya bas.</p>
+                  <p className="text-sm">{t('aiUploadHint')}</p>
                 </div>
               )}
               {creating && (
                 <div className="mt-8 flex flex-col items-center gap-2 text-zinc-400">
                   <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
-                  <p className="text-sm">Görsel analiz edilip ilan oluşturuluyor...</p>
+                  <p className="text-sm">{t('aiAnalyzing')}</p>
                 </div>
               )}
 
               {draft && (
                 <div className="mt-4 space-y-3">
                   <div>
-                    <label className="text-xs font-medium text-zinc-400">Başlık</label>
+                    <label className="text-xs font-medium text-zinc-400">{t('title')}</label>
                     <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-medium text-zinc-400">Kategori Yolu</label>
+                      <label className="text-xs font-medium text-zinc-400">{t('aiCategoryPath')}</label>
                       <input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                         placeholder="Kategori > Alt Kategori"
                         className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-zinc-400">SKU / Kod</label>
+                      <label className="text-xs font-medium text-zinc-400">{t('aiSku')}</label>
                       <input value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })}
                         className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-medium text-zinc-400">Fiyat (₺)</label>
+                      <label className="text-xs font-medium text-zinc-400">{t('aiPrice')} (₺)</label>
                       <input type="number" min="0" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
                         className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-zinc-400">Stok</label>
+                      <label className="text-xs font-medium text-zinc-400">{t('aiStock')}</label>
                       <input type="number" min="0" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })}
                         className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-zinc-400">Kısa Açıklama</label>
+                    <label className="text-xs font-medium text-zinc-400">{t('aiShortDescription')}</label>
                     <textarea value={form.short_description} onChange={e => setForm({ ...form, short_description: e.target.value })} rows={2}
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-zinc-400">Açıklama</label>
+                    <label className="text-xs font-medium text-zinc-400">{t('aiDescription')}</label>
                     <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={5}
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-zinc-400">Anahtar Kelimeler</label>
+                    <label className="text-xs font-medium text-zinc-400">{t('aiKeywords')}</label>
                     <input value={form.keywords} onChange={e => setForm({ ...form, keywords: e.target.value })}
                       placeholder="virgülle ayır"
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                   </div>
+                  <div>
+                    <label className="text-xs font-medium text-zinc-400">{t('aiTags')}</label>
+                    <input value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })}
+                      placeholder="virgülle ayır"
+                      className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-zinc-400">{t('aiAttributes')}</label>
+                    <textarea value={form.attributes} onChange={e => setForm({ ...form, attributes: e.target.value })} rows={4}
+                      placeholder={'renk: Siyah\nmalzeme: Deri\nmarka: Marka adı'}
+                      className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-mono text-white" />
+                    <p className="mt-1 text-[11px] text-zinc-500">{t('aiAttributesHint')}</p>
+                  </div>
 
                   {draft.confidence && Object.keys(draft.confidence).length > 0 && (
                     <details className="rounded-lg border border-zinc-700 bg-zinc-800">
-                      <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-400">AI Güven Skorları</summary>
+                      <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-400">{t('aiConfidence')}</summary>
                       <div className="border-t border-zinc-700 px-3 py-2 text-xs text-zinc-500">
                         {Object.entries(draft.confidence).map(([k, v]) => <p key={k}>{k}: {Math.round((v as number) * 100)}%</p>)}
                       </div>
@@ -467,12 +506,12 @@ export default function AiStudioPage() {
                   <button onClick={handleSaveDraft} disabled={saving}
                     className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-600 disabled:opacity-50">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                    Taslağı Kaydet
+                    {t('aiSaveDraft')}
                   </button>
 
                   {/* Channels */}
                   <div className="mt-2 border-t border-zinc-700 pt-4">
-                    <p className="text-xs font-medium text-zinc-400">Yayınlanacak Kanallar</p>
+                    <p className="text-xs font-medium text-zinc-400">{t('aiPublishChannels')}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {ALL_CHANNELS.map(o => (
                         <button key={o.key} type="button" onClick={() => toggleChannel(o.key)}
@@ -484,7 +523,7 @@ export default function AiStudioPage() {
                     <button onClick={handleValidate} disabled={validating || selectedChannels.length === 0}
                       className="mt-3 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50">
                       {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                      Kanalları Doğrula
+                      {t('aiValidateChannels')}
                     </button>
                   </div>
 
@@ -494,9 +533,12 @@ export default function AiStudioPage() {
                         const s = CHANNEL_STATUS[v.status] || CHANNEL_STATUS['missing-fields']
                         return (
                           <div key={v.channel} className="flex items-center justify-between gap-2 rounded-lg bg-zinc-800 px-3 py-2">
-                            <span className="text-xs text-zinc-300">{v.channel}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>
-                              {s.text}{v.status === 'missing-fields' && v.missingFields?.length ? ` (${v.missingFields.join(', ')})` : ''}
+                            <div>
+                              <span className="text-xs text-zinc-300">{v.channel}</span>
+                              {v.suggestion && <p className="mt-1 max-w-md text-[11px] text-zinc-500">{v.suggestion}</p>}
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>
+                              {t(s.text)}{v.status === 'missing-fields' && v.missingFields?.length ? ` (${v.missingFields.join(', ')})` : ''}
                             </span>
                           </div>
                         )
@@ -508,12 +550,12 @@ export default function AiStudioPage() {
                   <div className="mt-2 flex gap-2">
                     <button onClick={handleApprove} disabled={saving}
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
-                      <Check className="h-4 w-4" /> Onayla
+                      <Check className="h-4 w-4" /> {t('aiApprove')}
                     </button>
                     <button onClick={handlePublish} disabled={publishing || selectedChannels.length === 0}
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-50">
                       {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      {publishing ? 'Yayınlanıyor...' : 'Yayınla'}
+                      {publishing ? t('aiPublishing') : t('aiPublish')}
                     </button>
                   </div>
 
@@ -525,7 +567,7 @@ export default function AiStudioPage() {
                           <div key={r.channel} className="flex items-center justify-between gap-2 rounded-lg bg-zinc-800 px-3 py-2">
                             <span className="text-xs text-zinc-300">{r.channel}</span>
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>
-                              {s.text}{r.error ? ` — ${r.error}` : r.externalId ? ` (${r.externalId})` : ''}
+                              {t(s.text)}{r.error ? ` — ${r.error}` : r.externalId ? ` (${r.externalId})` : ''}
                             </span>
                           </div>
                         )
@@ -537,12 +579,12 @@ export default function AiStudioPage() {
                   {listings.length > 0 && (
                     <div className="mt-2 border-t border-zinc-700 pt-3">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-medium text-zinc-400">Yayın Durumu</p>
+                        <p className="text-xs font-medium text-zinc-400">{t('aiPublishStatus')}</p>
                         {failedCount > 0 && (
                           <button onClick={handleRetry} disabled={retrying}
                             className="flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-amber-500 disabled:opacity-50">
                             {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                            Tekrar Dene ({failedCount})
+                            {t('aiRetry')} ({failedCount})
                           </button>
                         )}
                       </div>
@@ -553,7 +595,7 @@ export default function AiStudioPage() {
                             <div key={l.id} className="flex items-center justify-between gap-2 rounded-lg bg-zinc-800 px-3 py-2">
                               <span className="text-xs text-zinc-300">{l.channel || l.platform}{l.externalId ? ` · ${l.externalId}` : ''}</span>
                               <div className="flex items-center gap-2">
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>{s.text}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>{t(s.text)}</span>
                                 {l.retryCount > 0 && <span className="text-[10px] text-zinc-500">×{l.retryCount}</span>}
                               </div>
                             </div>
@@ -562,7 +604,7 @@ export default function AiStudioPage() {
                       </div>
                       {listings.some(l => l.lastError) && (
                         <details className="mt-2 rounded-lg border border-zinc-700 bg-zinc-800">
-                          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-400">Son Hatalar</summary>
+                          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-400">{t('aiFailed')}</summary>
                           <div className="border-t border-zinc-700 px-3 py-2 text-xs text-red-400">
                             {listings.filter(l => l.lastError).map(l => (
                               <p key={l.id} className="mt-1">{l.channel || l.platform}: {l.lastError}</p>
@@ -584,22 +626,22 @@ export default function AiStudioPage() {
           <div className="w-[420px] max-w-full rounded-lg border border-zinc-700 bg-zinc-900 p-6 shadow-xl">
             <div className="mb-2 flex items-center gap-3">
               {gate === 'credits' ? <Coins className="h-6 w-6 text-indigo-400" /> : <Wand2 className="h-6 w-6 text-indigo-400" />}
-              <h3 className="text-lg font-semibold text-white">{gate === 'credits' ? 'AI Kredisi Yetersiz' : 'Ürün Limiti Doldu'}</h3>
+              <h3 className="text-lg font-semibold text-white">{gate === 'credits' ? t('aiCreditsInsufficient') : t('aiProductLimitReached')}</h3>
             </div>
             <p className="mb-4 text-sm text-zinc-400">
               {gate === 'credits'
-                ? 'Devam etmek için yeterli AI krediniz yok. Kredi satın alın veya üst pakete geçin.'
-                : 'Planınızdaki ürün limitine ulaştınız. Daha fazla ürün eklemek için üst pakete geçin.'}
+                ? t('aiCreditsMessage')
+                : t('aiProductLimitMessage')}
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setGate(null)} className="rounded border border-zinc-600 px-4 py-1.5 text-sm text-zinc-300">Vazgeç</button>
+              <button onClick={() => setGate(null)} className="rounded border border-zinc-600 px-4 py-1.5 text-sm text-zinc-300">{t('cancel')}</button>
               {gate === 'credits' && (
                 <button onClick={() => router.push('/credits')} className="flex items-center gap-1 rounded bg-indigo-600 px-4 py-1.5 text-sm text-white">
-                  Kredi Satın Al <ArrowUpRight className="h-4 w-4" />
+                  {t('aiBuyCredits')} <ArrowUpRight className="h-4 w-4" />
                 </button>
               )}
               <button onClick={() => router.push('/billing')} className="flex items-center gap-1 rounded bg-white px-4 py-1.5 text-sm text-black">
-                Üst Pakete Geç <ArrowUpRight className="h-4 w-4" />
+                {t('aiUpgradePlan')} <ArrowUpRight className="h-4 w-4" />
               </button>
             </div>
           </div>

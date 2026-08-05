@@ -1028,10 +1028,10 @@ Kabul kriterleri:
 
 ### P1 — Faz 9 web AI studio
 
-- [ ] Web studio mobil ile aynı alanları ve validation sözleşmesini kullanacak.
-- [ ] Sert kodlanmış metinler i18n kapsamına alınacak.
+- [x] Web studio mobil ile aynı alanları ve temel validation sözleşmesini kullanıyor.
+- [x] Web AI Studio ana kullanıcı metinleri ve durum etiketleri i18n kapsamına alındı; sabit kategori/pazaryeri adları sonraki içerik düzenlemesinde ayrıştırılacak.
 - [ ] Web upload, draft edit, approve, publish, retry ve publish status için E2E test yazılacak.
-- [ ] Kanal bazlı hata mesajları kullanıcıya çözüm önerisiyle gösterilecek.
+- [x] Kanal bazlı hata mesajları web ve mobilde çözüm önerisiyle gösterilecek.
 
 ### P2 — Faz 10 müşteri deneyimi ve ticari özellikler
 
