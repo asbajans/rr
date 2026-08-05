@@ -304,21 +304,24 @@ export const startServer = async (): Promise<void> => {
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');
   try {
-    const { createImportWorker, createSyncWorker, createWebhookWorker, createPublicationWorker } = await import('./queues/index.js');
+    const { createImportWorker, createSyncWorker, createWebhookWorker, createPublicationWorker, createAiProductWorker } = await import('./queues/index.js');
     const importWorker = await createImportWorker();
     const syncWorker = await createSyncWorker();
     const webhookWorker = await createWebhookWorker();
     const publicationWorker = await createPublicationWorker();
+    const aiProductWorker = await createAiProductWorker();
 
     importWorker.on('error', (err) => logger.error({ err }, 'Import worker error'));
     syncWorker.on('error', (err) => logger.error({ err }, 'Sync worker error'));
     webhookWorker.on('error', (err) => logger.error({ err }, 'Webhook worker error'));
     publicationWorker.on('error', (err) => logger.error({ err }, 'Publication worker error'));
+    aiProductWorker.on('error', (err) => logger.error({ err }, 'AI product worker error'));
 
     importWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Import job failed'));
     syncWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Sync job failed'));
     webhookWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Webhook job failed'));
     publicationWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Publication job failed'));
+    aiProductWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'AI product job failed'));
   } catch (err) {
     logger.error({ err }, 'Failed to start workers (Redis may be unavailable)');
   }

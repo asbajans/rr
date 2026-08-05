@@ -36,6 +36,13 @@ export const publicationQueue = new Queue('publication-queue', {
   defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: 100, removeOnFail: 50 },
 });
 
+// AI Product Studio analysis jobs. The API persists a session first and the
+// worker performs the slow vision/LLM call without holding the HTTP request.
+export const aiProductQueue = new Queue('ai-product-analysis', {
+  connection: { url: config.redis.url },
+  defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: 100, removeOnFail: 100 },
+});
+
 interface SyncJobData {
   productId: number;
   storeId: number;
@@ -1087,5 +1094,14 @@ export async function createPublicationWorker() {
       return handleMarketplacePublication(job);
     },
     { connection: { url: config.redis.url }, concurrency: 5 }
+  );
+}
+
+export async function createAiProductWorker() {
+  const { processAiProductSession } = await import('../modules/ai/draftRoutes.js');
+  return new Worker(
+    'ai-product-analysis',
+    async (job: any) => processAiProductSession(job),
+    { connection: { url: config.redis.url }, concurrency: 2 }
   );
 }

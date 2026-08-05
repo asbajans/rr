@@ -959,13 +959,13 @@ Kabul kriterleri:
 
 ### P1 — Faz 0–5 AI Product Studio tamamlaması
 
-- [ ] AI session gerçekten asenkron worker/job modeliyle çalışacak; `uploaded → analyzing → review/failed` geçişleri kalıcı tutulacak.
-- [ ] AI başarısız olduğunda `failed` session ve kullanıcıya gösterilecek hata kaydedilecek.
+- [x] AI session gerçekten asenkron worker/job modeliyle çalışacak; `uploaded → analyzing → review/failed` geçişleri kalıcı tutulacak. (BullMQ `ai-product-analysis`, API `202 queued`, web/mobil polling)
+- [x] AI başarısız olduğunda `failed` session ve kullanıcıya gösterilecek hata kaydedilecek.
 - [ ] Görsel kalite, bulanıklık, kadraj ve ürün tespiti sonuçları kullanıcıya gösterilecek.
-- [ ] Kategori adayları Rahatio kategori ağacındaki gerçek `categoryId`/alt kategori ile eşleştirilecek.
+- [x] Kategori adayları Rahatio kategori ağacındaki gerçek `categoryId`/alt kategori ile eşleştirilecek. (exact/token eşleşmesi)
 - [ ] Kullanıcı kategori, alt kategori ve kanal mapping'i mobilde seçebilecek.
 - [ ] Marketplace zorunlu attribute'ları gerçek kategori metadata'sından okunacak; sabit genel alan listesiyle sınırlı kalınmayacak.
-- [ ] Marka zorunluluğu, title/description/price/quantity gibi alanlar gerçekten kontrol edilecek.
+- [x] Marka zorunluluğu, title/description/price/quantity gibi alanlar gerçekten kontrol edilecek. (channel `requiredFields` + brand)
 - [ ] AI çıktısında bulunmayan özellikler otomatik olarak uydurulmayacak; riskli sağlık/kozmetik/gıda iddiaları filtrelenecek.
 - [ ] Web ve mobilde aynı validation sonucu için ortak fixture testleri eklenecek.
 

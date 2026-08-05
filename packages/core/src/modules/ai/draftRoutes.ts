@@ -3,6 +3,7 @@ import { body, param, validationResult } from 'express-validator';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { AiProductSession } from '../../models/AiProductSession.model.js';
 import { AiProductDraft } from '../../models/AiProductDraft.model.js';
+import { Category } from '../../models/Category.model.js';
 import {
   resolveScenarioConfig,
   buildProviderPayload,
@@ -28,7 +29,50 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-function mapToDraft(analysis: AiAnalysisResult, sourceImageUrl: string): Partial<AiProductDraftDTO> {
+function categoryLabel(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return '';
+  const obj = value as Record<string, unknown>;
+  return String(obj.tr || obj.en || obj.name || Object.values(obj)[0] || '');
+}
+
+function normalizeCategoryLabel(value: string): string {
+  return value.toLocaleLowerCase('tr-TR').trim().replace(/[^a-z0-9ğüşıöç]+/gi, ' ');
+}
+
+async function resolveCategoryId(storeId: number, analysis: AiAnalysisResult): Promise<number | null> {
+  const candidates = [
+    ...(analysis.categoryCandidates || []).sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0)).map((c) => c.name),
+    analysis.category,
+  ].filter((value): value is string => Boolean(value && value.trim()));
+  if (candidates.length === 0) return null;
+
+  const categories = await Category.findAll({
+    where: { storeId, isActive: true },
+    attributes: ['id', 'name', 'slug'],
+    limit: 1000,
+  });
+  const normalizedCandidates = candidates.map(normalizeCategoryLabel);
+  const exact = categories.find((category) => {
+    const name = normalizeCategoryLabel(categoryLabel(category.name));
+    return normalizedCandidates.includes(name) || normalizedCandidates.includes(normalizeCategoryLabel(category.slug));
+  });
+  if (exact) return exact.id;
+
+  let best: { id: number; score: number } | null = null;
+  for (const category of categories) {
+    const name = normalizeCategoryLabel(categoryLabel(category.name));
+    const score = normalizedCandidates.reduce((max, candidate) => {
+      const tokens = candidate.split(' ').filter(Boolean);
+      const overlap = tokens.filter((token) => name.includes(token)).length;
+      return Math.max(max, tokens.length ? overlap / tokens.length : 0);
+    }, 0);
+    if (score >= 0.6 && (!best || score > best.score)) best = { id: category.id, score };
+  }
+  return best?.id || null;
+}
+
+function mapToDraft(analysis: AiAnalysisResult, sourceImageUrl: string, categoryId: number | null): Partial<AiProductDraftDTO> {
   const suggestedPrice = analysis.priceSuggestion
     ? Number(analysis.priceSuggestion.max || analysis.priceSuggestion.min) || undefined
     : undefined;
@@ -37,6 +81,7 @@ function mapToDraft(analysis: AiAnalysisResult, sourceImageUrl: string): Partial
     description: analysis.description,
     shortDescription: analysis.shortDescription,
     slug: analysis.slug,
+    categoryId: categoryId || undefined,
     categoryPath: analysis.category ? [analysis.category] : [],
     attributes: analysis.attributes,
     tags: analysis.tags ?? [],
@@ -55,11 +100,12 @@ function mapToDraft(analysis: AiAnalysisResult, sourceImageUrl: string): Partial
  * shared JSON schema, persists an AiProductSession + AiProductDraft and
  * deducts credits atomically.
  */
-async function analyzeAndCreateSession(
+export async function analyzeAndCreateSession(
   user: any,
   store: any,
   input: any,
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  existingSession?: AiProductSession
 ): Promise<{ session?: AiProductSession; draft?: AiProductDraft; error?: { status: number; body: any } }> {
   const { provider, model, scenario, costCredits, keys } = await resolveScenarioConfig('agentic_listing');
   let credits = costCredits || 12;
@@ -94,7 +140,21 @@ async function analyzeAndCreateSession(
     };
   }
 
+  let session: AiProductSession | null = existingSession || null;
   try {
+    if (!session) {
+      session = await AiProductSession.create({
+        storeId: store.id,
+        userId: user.id,
+        status: 'analyzing',
+        sourceImageUrl: input.sourceImageUrl,
+        creditsUsed: credits,
+        idempotencyKey: idempotencyKey || null,
+      });
+    } else if (session.status !== 'analyzing' || session.creditsUsed !== credits) {
+      await session.update({ status: 'analyzing', errorMessage: null, creditsUsed: credits });
+    }
+
     const providerPayload = buildProviderPayload(provider, model, scenario, keys);
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
@@ -114,22 +174,15 @@ async function analyzeAndCreateSession(
 
     const analysis = parseAiResponse(normalizeAiResponse(response.data));
 
-    const session = await AiProductSession.create({
-      storeId: store.id,
-      userId: user.id,
-      status: 'review',
-      sourceImageUrl: input.sourceImageUrl,
-      creditsUsed: credits,
-      idempotencyKey: idempotencyKey || null,
-    });
+    const categoryId = await resolveCategoryId(store.id, analysis);
 
     const draft = await AiProductDraft.create({
       sessionId: session.id,
       storeId: store.id,
-      ...mapToDraft(analysis, input.sourceImageUrl),
+      ...mapToDraft(analysis, input.sourceImageUrl, categoryId),
     });
 
-    await session.update({ draftId: draft.id });
+    await session.update({ draftId: draft.id, status: 'review' });
 
     await deductCredits(user.id, store.id, credits, 'agentic_listing', 'ai');
     await logAiUsage(
@@ -141,6 +194,9 @@ async function analyzeAndCreateSession(
 
     return { session, draft };
   } catch (error: any) {
+    if (session) {
+      await session.update({ status: 'failed', errorMessage: String(error?.response?.data?.error || error?.message || 'AI analysis failed').slice(0, 2000) }).catch(() => undefined);
+    }
     logger.error({ err: error, message: error?.message, status: error?.response?.status }, 'AI session creation failed');
     const status = error?.response?.status || 500;
     const upstream = error?.response?.data?.error || error.message;
@@ -172,9 +228,16 @@ draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
     }
   }
 
-  let result;
+  let session: AiProductSession;
   try {
-    result = await analyzeAndCreateSession(user, store, req.body, idempotencyKey);
+    session = await AiProductSession.create({
+      storeId: store.id,
+      userId: user.id,
+      status: 'uploaded',
+      sourceImageUrl: req.body.sourceImageUrl,
+      creditsUsed: 0,
+      idempotencyKey: idempotencyKey || null,
+    });
   } catch (error: any) {
     // A concurrent request may win the unique idempotency index between the
     // initial lookup and session creation. Return that winner instead of
@@ -188,9 +251,46 @@ draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
     }
     throw error;
   }
-  if (result.error) return res.status(result.error.status).json(result.error.body);
-  res.status(201).json({ session: result.session, draft: result.draft });
+
+  try {
+    const { aiProductQueue } = await import('../../queues/index.js');
+    await aiProductQueue.add('analyze-product-session', {
+      sessionId: session.id,
+      userId: user.id,
+      storeId: store.id,
+      input: req.body,
+      idempotencyKey,
+    }, { jobId: `ai-session-${session.id}` });
+    res.status(202).json({ session, draft: null, queued: true });
+  } catch (error: any) {
+    await session.update({ status: 'failed', errorMessage: `AI job enqueue failed: ${error?.message || 'Unknown error'}` });
+    res.status(503).json({ error: 'AI_QUEUE_UNAVAILABLE', message: 'AI işlemi kuyruğa alınamadı. Lütfen tekrar deneyin.' });
+  }
 });
+
+/** BullMQ handler: runs the AI pipeline for a persisted session. */
+export async function processAiProductSession(job: {
+  data: { sessionId: string; userId: number; storeId: number; input: any; idempotencyKey?: string };
+  attemptsMade?: number;
+  opts?: { attempts?: number };
+}) {
+  const { User } = await import('../../models/User.model.js');
+  const { Store } = await import('../../models/Store.model.js');
+  const session = await AiProductSession.findOne({ where: { id: job.data.sessionId, storeId: job.data.storeId } });
+  const user = await User.findOne({ where: { id: job.data.userId, storeId: job.data.storeId } });
+  const store = await Store.findByPk(job.data.storeId);
+  if (!session || !user || !store) throw new Error('AI session context not found');
+
+  const result = await analyzeAndCreateSession(user, store, job.data.input, job.data.idempotencyKey, session);
+  if (result.error) {
+    await session.update({
+      status: 'failed',
+      errorMessage: String(result.error.body?.message || result.error.body?.error || 'AI analysis failed').slice(0, 2000),
+    });
+    return { success: false, error: result.error.body };
+  }
+  return { success: true, sessionId: session.id, draftId: result.draft?.id };
+}
 
 // GET /api/ai/product-sessions/:id
 draftRoutes.get('/product-sessions/:id', authMiddleware, requireStore, [

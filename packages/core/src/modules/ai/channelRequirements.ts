@@ -23,12 +23,14 @@ export const MARKETPLACE_CHANNEL_KEYS: AiChannel[] = [
   'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy',
 ];
 
-function missingFieldsFor(draft: AiProductDraft): string[] {
+function missingFieldsFor(draft: AiProductDraft, requiredFields: string[]): string[] {
   const missing: string[] = [];
-  if (!draft.title || !draft.title.trim()) missing.push('title');
-  if (!draft.description || !draft.description.trim()) missing.push('description');
-  if (draft.suggestedPrice == null || Number(draft.suggestedPrice) <= 0) missing.push('price');
-  if (draft.quantity == null || Number(draft.quantity) < 0) missing.push('quantity');
+  for (const field of requiredFields) {
+    if (field === 'title' && !draft.title?.trim()) missing.push(field);
+    if (field === 'description' && !draft.description?.trim()) missing.push(field);
+    if (field === 'price' && (draft.suggestedPrice == null || Number(draft.suggestedPrice) <= 0)) missing.push(field);
+    if (field === 'quantity' && (draft.quantity == null || Number(draft.quantity) < 0)) missing.push(field);
+  }
   return missing;
 }
 
@@ -47,11 +49,9 @@ export async function validateDraftForChannels(
   channels: AiChannel[]
 ): Promise<ChannelValidationResult[]> {
   const results: ChannelValidationResult[] = [];
-  const missing = missingFieldsFor(draft);
-
   for (const channel of channels) {
     const rule = CHANNEL_RULES[channel];
-    const channelMissing = [...missing];
+    const channelMissing = missingFieldsFor(draft, rule.requiredFields);
 
     if (rule.requiresBrand && !draftBrand(draft)) {
       channelMissing.push('brand');
