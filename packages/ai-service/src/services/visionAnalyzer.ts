@@ -44,12 +44,66 @@ Return ONLY a valid JSON object (no markdown, no extra text) with these fields:
 Be precise and descriptive. Use Turkish for values.`;
 }
 
-function parseJsonResponse(text: string): any {
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error(`Vision API did not return valid JSON: ${text.slice(0, 200)}`);
+function extractJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (c === '\\') { escaped = true; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
   }
-  return JSON.parse(jsonMatch[0]);
+  return null;
+}
+
+function repairJson(s: string): string {
+  return s
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/\u00a0/g, ' ');
+}
+
+function tryParse(s: string): any | null {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+// Models often wrap/append text around the JSON. Try progressively:
+// direct → balanced-object extraction → repair (curly quotes/trailing commas) →
+// longest valid prefix (handles trailing prose/truncation).
+function parseJsonResponse(text: string): any {
+  const direct = tryParse(text);
+  if (direct) return direct;
+
+  const extracted = extractJsonObject(text);
+  const candidates = extracted ? [extracted, repairJson(extracted)] : [];
+  for (const c of candidates) {
+    const parsed = tryParse(c);
+    if (parsed) return parsed;
+  }
+
+  if (extracted) {
+    for (let i = extracted.length - 1; i >= 0; i--) {
+      if (extracted[i] === '}' || extracted[i] === ']') {
+        const parsed = tryParse(extracted.slice(0, i + 1));
+        if (parsed) return parsed;
+      }
+    }
+  }
+
+  throw new Error(`Vision API did not return valid JSON: ${(extracted || text).slice(0, 300)}`);
 }
 
 export async function analyzeProductImage(
@@ -80,7 +134,7 @@ export async function analyzeProductImage(
     },
   ];
 
-  const text = await callLlm(config, messages, { temperature: 0.1, maxTokens: 1024 });
+  const text = await callLlm(config, messages, { temperature: 0.1, maxTokens: 2048 });
   const parsed = parseJsonResponse(text);
 
   return {
