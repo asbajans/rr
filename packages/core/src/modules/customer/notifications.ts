@@ -6,9 +6,9 @@ export interface EmailProvider { send(to: string, subject: string, body: string)
 export interface SmsProvider { send(to: string, body: string): Promise<void>; }
 export interface PushProvider { send(customerId: number, title: string, body: string, metadata?: object): Promise<void>; }
 
-class NoopEmailProvider implements EmailProvider { async send() {} }
-class NoopSmsProvider implements SmsProvider { async send() {} }
-class NoopPushProvider implements PushProvider { async send() {} }
+class NoopEmailProvider implements EmailProvider { async send(_to: string, _subject: string, _body: string) {} }
+class NoopSmsProvider implements SmsProvider { async send(_to: string, _body: string) {} }
+class NoopPushProvider implements PushProvider { async send(_customerId: number, _title: string, _body: string, _metadata?: object) {} }
 
 export function notificationProviders() {
   return { email: new NoopEmailProvider(), sms: new NoopSmsProvider(), push: new NoopPushProvider() };
