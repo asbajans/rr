@@ -117,6 +117,8 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15,2) DEFAULT 0`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "shippingAmount" DECIMAL(15,2) DEFAULT 0`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(15,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL(15,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "couponCode" VARCHAR(80)`);
   } catch (e) {
     // Ignore if columns already exist
   }
@@ -165,6 +167,16 @@ export const createApp = async (): Promise<Express> => {
   }
 
   await sequelize.sync({ alter: false });
+
+  // Faz 10 â€” customer accounts and storefront commerce tables/links.
+  try {
+    await sequelize.query(`ALTER TABLE customer_addresses ADD COLUMN IF NOT EXISTS "customerId" BIGINT`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "customerId" BIGINT`);
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS customer_addresses_customer_id ON customer_addresses ("customerId")`);
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS dropshipping_orders_customer_id ON dropshipping_orders ("customerId")`);
+  } catch (e) {
+    // Fresh databases get these columns from the models; existing databases are upgraded when available.
+  }
 
   // AI Product Studio tables are created by sync; add future-safe columns here
   try {

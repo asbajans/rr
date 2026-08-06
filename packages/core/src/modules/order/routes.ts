@@ -14,6 +14,7 @@ import { StorePaymentMethod } from '../../models/ContentModels.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/env.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
+import { createInvoiceProvider, createShippingLabelProvider } from './providers.js';
 
 const INTEGRATION_SERVICE_URL = process.env.INTEGRATION_SERVICE_URL || 'http://localhost:3002';
 
@@ -571,6 +572,28 @@ orderRoutes.get('/:id/label', authMiddleware, requireStore, [
     logger.error({ err: error }, 'Get order label error');
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+orderRoutes.post('/:id/invoice', authMiddleware, requireRole('owner', 'admin'), requireStore, [param('id').isInt()], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    const result = await createInvoiceProvider(String(req.body?.provider || 'manual')).issue(order);
+    if (result.invoiceUrl) await order.update({ invoiceUrl: result.invoiceUrl });
+    res.json({ ...result, order });
+  } catch (error: any) { res.status(400).json({ error: error?.message || 'Invoice provider failed' }); }
+});
+
+orderRoutes.post('/:id/shipping-label', authMiddleware, requireRole('owner', 'admin'), requireStore, [param('id').isInt()], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const order = await DropshippingOrder.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    const result = await createShippingLabelProvider(String(req.body?.provider || 'manual')).create(order);
+    await order.update({ labelUrl: result.labelUrl || order.labelUrl, labelZpl: result.labelZpl || order.labelZpl, cargoCompany: result.cargoCompany || order.cargoCompany });
+    res.json({ ...result, order });
+  } catch (error: any) { res.status(400).json({ error: error?.message || 'Shipping label provider failed' }); }
 });
 
 orderRoutes.post('/:id/refund', authMiddleware, requireRole('owner', 'admin'), requireStore, [

@@ -161,10 +161,12 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
   const { sequelize } = await import('../../config/database.js');
   const results: PublishResult[] = [];
   const jobs: Array<{ type: string; listingId: number; productId: number; storeId: number; channel: string }> = [];
+  let publishedProductId: number | null = null;
 
   try {
     await sequelize.transaction(async (transaction: any) => {
       const { product, created } = await resolveProduct(store.id, draft, transaction);
+      publishedProductId = product.id;
 
       for (const channel of channels) {
         const platform = channel === 'storefront' ? 'storefront' : channel;
@@ -216,7 +218,7 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
       }
     }
 
-    res.json({ ok: true, productId: draft.productId, results });
+    res.json({ ok: true, productId: publishedProductId, results });
   } catch (error: any) {
     logger.error({ err: error, draftId: draft.id }, 'Publish failed');
     if (error?.code === 'PLAN_PRODUCT_LIMIT') {
@@ -236,6 +238,9 @@ publishRoutes.post('/product-drafts/:id/publish/retry', authMiddleware, requireS
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
   if (!draft) return res.status(404).json({ error: 'Draft not found' });
   if (!draft.productId) return res.status(409).json({ error: 'Draft has no product yet — publish first' });
+  if (!['converted', 'approved'].includes(draft.status)) {
+    return res.status(409).json({ error: 'DRAFT_STATE_INVALID', message: 'Bu taslak için yayın tekrar denenemez.' });
+  }
 
   const channels = (req.body.channels as AiChannel[] | undefined) ?? ALL_CHANNELS;
   const invalid = channels.filter((c) => !ALL_CHANNELS.includes(c));

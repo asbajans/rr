@@ -14,6 +14,7 @@ import {
   Index,
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
+import { Customer } from './Customer.model.js';
 
 @Table({
   tableName: 'customer_addresses',
@@ -22,6 +23,7 @@ import { Store } from './Store.model.js';
     { fields: ['storeId'] },
     { fields: ['ownerTokenHash'] },
     { fields: ['userId'] },
+    { fields: ['customerId'] },
   ],
 })
 export class CustomerAddress extends Model {
@@ -39,6 +41,12 @@ export class CustomerAddress extends Model {
   @AllowNull(true)
   @Column(DataType.BIGINT)
   declare userId: number | null;
+
+  @ForeignKey(() => Customer)
+  @AllowNull(true)
+  @Index
+  @Column(DataType.BIGINT)
+  declare customerId: number | null;
 
   @AllowNull(true)
   @Index

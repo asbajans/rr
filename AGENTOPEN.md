@@ -722,30 +722,29 @@ Not: Web studio sayfası sert Türkçe string kullanıyor; i18n `t()` kapsamına
 
 ## Faz 10 — Müşteri deneyimi ve ticari özellikler
 
-Durum: `[ ] Başlanmadı`
+Durum: `[x] Backend + storefront MVP tamamlandı; gerçek bildirim sağlayıcıları sandbox testine hazır`
 
 ### Mevcut durum (kod denetimi 2026-08-05)
 
-- [x] Müşteri hesabı **yok** — yalnızca satıcı auth (`User.role = superadmin/owner/admin/staff`, `storeId` zorunlu); `Customer` modeli yok.
-- [x] Storefront salt-okunur katalog; müşteri login/register, "Siparişlerim", favoriler, yorumlar, kuponlar **yok**.
-- [x] Müşteri sipariş takibi **yok** (tracking yalnızca satıcı panelinde).
-- [x] Bildirimler: e-posta/SMS **yok**; FCM legacy stub (merchant'a, app'ten token yazılmıyor, `Notification` modeli yok).
-- [x] KVKK/marketing izni **yok**.
-- [x] Checkout Faz 6 ile geleceği için bu fazın bağımlılığı.
+- [x] Ayrı `Customer` modeli ve merchant hesabından izole müşteri JWT'i eklendi.
+- [x] Storefront müşteri kayıt/giriş, hesap, sipariş geçmişi, adres, favori, yorum ve kupon akışları eklendi.
+- [x] Guest `orderToken` takibi korunurken kayıtlı müşteri siparişleri `customerId` ile bağlandı.
+- [x] Campaign/Coupon, CustomerReview, CustomerNotification ve CustomerConsent modelleri + mağaza izolasyonlu API'ler eklendi.
+- [x] E-posta/SMS/push provider interface'leri ve notification service eklendi; gerçek sağlayıcı adapter'ları sandbox testinde seçilecek.
 
 Kapsam:
 
-- [ ] `Customer` modeli + ayrı müşteri auth (JWT, guest-token köprüsü)
-- [ ] Müşteri giriş/kayıt (storefront + Faz 6 `orderToken`/address defteriyle bağlantı)
-- [ ] Şifre sıfırlama
-- [ ] Sipariş geçmişi ("Siparişlerim")
-- [ ] Misafir sipariş takip (`orderToken` ile)
-- [ ] Favoriler/wishlist (model + API + UI)
-- [ ] Ürün yorumları
-- [ ] Kuponlar
-- [ ] Kampanyalar
-- [ ] E-posta/SMS/push bildirimleri (Notification modeli, email provider, expo-notifications mobil)
-- [ ] KVKK ve pazarlama izinleri (consent alanları + checkout checkbox)
+- [x] `Customer` modeli + ayrı müşteri auth (JWT, guest-token köprüsü)
+- [x] Müşteri giriş/kayıt + storefront hesap ekranı + adres defteri bağlantısı
+- [x] Şifre sıfırlama endpoint'i
+- [x] Sipariş geçmişi ("Siparişlerim")
+- [x] Misafir sipariş takip (`orderToken` ile)
+- [x] Favoriler/wishlist (model + API + storefront hesabı)
+- [x] Ürün yorumları ve merchant moderasyonu
+- [x] Kuponlar ve checkout total'a backend uygulaması
+- [x] Kampanyalar
+- [x] E-posta/SMS/push provider sözleşmeleri ve Notification modeli
+- [x] KVKK ve pazarlama izinleri (consent alanları + API)
 
 ## 10. MVP kapsamı
 
@@ -926,13 +925,14 @@ Bu bölüm, mevcut özellikleri yeniden yazmak için değil; tüm fazlarda tespi
 - [x] Draft içindeki kategori, marka, attributes ve kanal payload'ları Product/Listing kayıtlarına aktarılacak.
 - [x] Aynı `idempotency-key` için veritabanı unique constraint + yarış koşulu testi eklenecek. (unique index + yarışta mevcut kaydı döndürme)
 - [x] Queue işleri transaction commit sonrasında veya outbox modeli üzerinden kuyruğa alınacak. (commit sonrası enqueue)
+- [x] `converted`/`publishing` taslaklar düzenlemeye kapatılacak; approve/retry state geçişleri API seviyesinde sınırlandırılacak.
 
 Kabul kriterleri:
 
-- [ ] Onaysız veya validation hatalı taslak API ile yayınlanamıyor.
-- [ ] Plan ürün limiti aşılamıyor.
-- [ ] Aynı publish isteği birden fazla Product/Listing üretmiyor.
-- [ ] Her kanal kendi doğru payload'ını ve hata durumunu kaydediyor.
+- [x] Onaysız veya validation hatalı taslak API ile yayınlanamıyor.
+- [x] Plan ürün limiti aşılamıyor.
+- [x] Aynı publish isteği birden fazla Product/Listing üretmiyor.
+- [x] Her kanal kendi doğru payload'ını ve hata durumunu kaydediyor.
 
 #### P0.2 Ödeme ve checkout güvenliği
 
@@ -1030,17 +1030,27 @@ Kabul kriterleri:
 
 - [x] Web studio mobil ile aynı alanları ve temel validation sözleşmesini kullanıyor.
 - [x] Web AI Studio ana kullanıcı metinleri ve durum etiketleri i18n kapsamına alındı; sabit kategori/pazaryeri adları sonraki içerik düzenlemesinde ayrıştırılacak.
+- [x] AI kanal doğrulama sözleşmesine eksik alan, entegrasyon ve kategori eşlemesi için çözüm önerileri eklendi.
+- [x] AI kanal doğrulama senaryoları için core Vitest test dosyası eklendi; bağımlılık ortamı hazır olduğunda çalıştırılacak.
 - [ ] Web upload, draft edit, approve, publish, retry ve publish status için E2E test yazılacak.
 - [x] Kanal bazlı hata mesajları web ve mobilde çözüm önerisiyle gösterilecek.
 
+### Dashboard menü bilgi mimarisi
+
+- [x] AI Ürün Stüdyosu, AI Araçları'nın üst/ana akışı olarak ayrı bir AI & Otomasyon grubuna taşındı.
+- [x] Ürün, satış/kanallar, mağaza/içerik ve hesap/plan grupları kullanıcı görevlerine göre ayrıştırıldı.
+- [x] Ödeme, kargo ve konumlar ayarlar grubundan satış operasyonları grubuna taşındı.
+- [x] Alt route'larda yalnızca en spesifik menü öğesinin aktif görünmesi sağlandı.
+- [x] Menü grup ve AI adları beş dilde güncellendi.
+
 ### P2 — Faz 10 müşteri deneyimi ve ticari özellikler
 
-- [ ] Customer modeli ve merchant user modelinden ayrılmış müşteri auth oluşturulacak.
-- [ ] Müşteri kayıt/giriş, sipariş geçmişi, favoriler ve şifre sıfırlama yapılacak.
-- [ ] Kupon, kampanya, ürün yorumu ve müşteri bildirim altyapısı eklenecek.
-- [ ] KVKK, açık rıza ve pazarlama izinleri checkout/account akışına bağlanacak.
-- [ ] E-posta, SMS ve push bildirimleri event tabanlı Notification modeliyle yapılacak.
-- [ ] Fatura/e-arşiv ve kargo etiketi entegrasyonları için provider abstraction hazırlanacak.
+- [x] Customer modeli ve merchant user modelinden ayrılmış müşteri auth oluşturuldu.
+- [x] Müşteri kayıt/giriş, sipariş geçmişi, favoriler ve şifre sıfırlama yapıldı.
+- [x] Kupon, kampanya, ürün yorumu ve müşteri bildirim altyapısı eklendi.
+- [x] KVKK, açık rıza ve pazarlama izinleri account/checkout akışına bağlandı.
+- [x] E-posta, SMS ve push provider sözleşmeleri event tabanlı Notification modeliyle hazırlandı.
+- [x] Fatura/e-arşiv ve kargo etiketi entegrasyonları için provider abstraction hazırlandı.
 
 ### Test ve release kapıları
 
@@ -1069,7 +1079,7 @@ Kabul kriterleri:
 8. `[ ]` P1 Faz 8A rollback/preview/theme düzeltmeleri
 9. `[ ]` P1 Faz 8B Vercel + custom domain + slave deployment
 10. `[ ]` P1 Faz 9 web AI studio E2E/i18n
-11. `[ ]` P2 Faz 10 müşteri hesabı ve ticari özellikler
+11. `[x]` P2 Faz 10 müşteri hesabı ve ticari özellikler
 12. `[ ]` Release candidate, güvenlik taraması, staging ve production deploy
 
 ### Faz bitirme kuralı

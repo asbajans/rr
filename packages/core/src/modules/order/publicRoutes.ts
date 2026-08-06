@@ -5,6 +5,7 @@ import { Store } from '../../models/Store.model.js';
 import { StorePaymentMethod } from '../../models/ContentModels.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
+import { resolveCustomer } from '../customer/middleware.js';
 import {
   createCheckoutOrder,
   verifyOrderToken,
@@ -39,6 +40,8 @@ publicOrderRoutes.post('/:siteCode/checkout', [
   try {
     const store = await resolveStore(req, res);
     if (!store) return;
+    (req as any).store = store;
+    const customer = await resolveCustomer(req);
 
     let payload;
     try {
@@ -58,7 +61,7 @@ publicOrderRoutes.post('/:siteCode/checkout', [
       return res.status(400).json({ error: 'Geçersiz ödeme yöntemi' });
     }
 
-    const result = await createCheckoutOrder(store, payload);
+    const result = await createCheckoutOrder(store, payload, customer?.id || null);
 
     res.status(201).json({
       orderId: result.order.id,

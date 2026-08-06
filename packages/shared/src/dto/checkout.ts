@@ -48,6 +48,7 @@ export const CheckoutPayloadSchema = z.object({
   items: z.array(CheckoutItemSchema).min(1),
   customer: CheckoutCustomerSchema.default({}),
   payment_method: z.enum(PAYMENT_METHODS),
+  coupon_code: z.string().trim().max(80).optional(),
   address_id: z.number().int().positive().optional(),
   address_owner_token: z.string().min(16).max(256).optional(),
   shipping_address: CheckoutShippingAddressSchema.optional(),
@@ -68,6 +69,7 @@ export type CheckoutTotals = {
   totalAmount: number;
   taxMode: 'included' | 'excluded' | 'none';
   taxRate: number;
+  discountAmount: number;
 };
 
 export type CheckoutResult = {

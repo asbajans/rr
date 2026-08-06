@@ -33,6 +33,8 @@ import { brandRoutes } from './modules/brand/routes.js';
 import { pixelRoutes } from './modules/pixels/routes.js';
 import { supplierRoutes } from './modules/supplier/routes.js';
 import { siteRoutes } from './modules/site/routes.js';
+import { customerRoutes } from './modules/customer/routes.js';
+import { adminCommercialRoutes } from './modules/customer/adminRoutes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -60,6 +62,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/pixels', pixelRoutes);
   app.use('/api/admin', supplierRoutes);
   app.use('/api/admin/site', siteRoutes);
+  app.use('/api/admin/commercial', adminCommercialRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/ai', draftRoutes);
   app.use('/api/ai', publishRoutes);
@@ -71,4 +74,5 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/store', publicOrderRoutes);
   app.use('/api/store', publicAddressRoutes);
   app.use('/api/store', paymentWebhookRoutes);
+  app.use('/api/store', customerRoutes);
 };

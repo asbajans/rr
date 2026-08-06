@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { type ReactNode, useState, useEffect } from 'react'
 import { CartProvider, useCart } from '@/lib/cart'
-import { ShoppingCart, MapPin } from 'lucide-react'
+import { ShoppingCart, MapPin, UserRound } from 'lucide-react'
 import AiChat from '@/components/store/AiChat'
 import PixelInjector from '@/components/store/PixelInjector'
 import StoreThemeInjector from '@/components/store/StoreTheme'
@@ -40,6 +40,9 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
         <nav className="flex shrink-0 items-center gap-4">
           <Link href={`/stores/${siteCode}/locations`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
             <MapPin className="h-4 w-4" /> Mağazalar
+          </Link>
+          <Link href={`/stores/${siteCode}/account`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
+            <UserRound className="h-4 w-4" /> Hesabım
           </Link>
           <Link href={`/stores/${siteCode}/cart`} className="relative flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
             <ShoppingCart className="h-5 w-5" />

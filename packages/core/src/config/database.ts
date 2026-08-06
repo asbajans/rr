@@ -27,12 +27,19 @@ import { CustomerAddress } from '../models/CustomerAddress.model.js';
 import { Supplier } from '../models/Supplier.model.js';
 import { SupplierSettlement } from '../models/SupplierSettlement.model.js';
 import { SiteDeployment } from '../models/SiteDeployment.model.js';
+import { Customer } from '../models/Customer.model.js';
+import { CustomerFavorite } from '../models/CustomerFavorite.model.js';
+import { Campaign } from '../models/Campaign.model.js';
+import { Coupon } from '../models/Coupon.model.js';
+import { CustomerReview } from '../models/CustomerReview.model.js';
+import { CustomerNotification } from '../models/CustomerNotification.model.js';
+import { CustomerConsent } from '../models/CustomerConsent.model.js';
 
 export const sequelize = new Sequelize(config.database.url, {
   dialect: 'postgres',
   logging: config.env === 'development' ? (msg) => console.log(msg) : false,
   pool: config.database.pool,
-  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement, SiteDeployment],
+  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement, SiteDeployment, Customer, CustomerFavorite, Campaign, Coupon, CustomerReview, CustomerNotification, CustomerConsent],
   define: {
     timestamps: true,
     underscored: false,

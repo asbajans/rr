@@ -16,6 +16,7 @@ import {
 } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
 import { OrderStatusHistory } from './OrderStatusHistory.model.js';
+import { Customer } from './Customer.model.js';
 
 @Table({
   tableName: 'dropshipping_orders',
@@ -25,6 +26,7 @@ import { OrderStatusHistory } from './OrderStatusHistory.model.js';
     { fields: ['storeId'] },
     { fields: ['status'] },
     { fields: ['parentOrderId'] },
+    { fields: ['customerId'] },
   ],
 })
 export class DropshippingOrder extends Model {
@@ -38,6 +40,12 @@ export class DropshippingOrder extends Model {
   @Index
   @Column(DataType.BIGINT)
   declare storeId: number;
+
+  @ForeignKey(() => Customer)
+  @AllowNull(true)
+  @Index
+  @Column(DataType.BIGINT)
+  declare customerId: number | null;
 
   @AllowNull(false)
   @Column(DataType.STRING(100))
@@ -155,6 +163,14 @@ export class DropshippingOrder extends Model {
   @Default(0)
   @Column(DataType.DECIMAL(15, 2))
   declare taxAmount: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(15, 2))
+  declare discountAmount: number;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(80))
+  declare couponCode: string | null;
 
   @AllowNull(true)
   @Index

@@ -1,5 +1,6 @@
 type FetchOptions = RequestInit & {
   params?: Record<string, string | number | undefined>
+  customerAuth?: boolean
 }
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
@@ -167,10 +168,12 @@ function mapOrder(o: any): any {
 
 class ApiClient {
   private token: string | null = null
+  private customerToken: string | null = null
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('auth_token')
+      this.customerToken = localStorage.getItem('customer_auth_token')
     }
   }
 
@@ -187,8 +190,16 @@ class ApiClient {
     return this.token
   }
 
+  setCustomerToken(token: string | null) {
+    this.customerToken = token
+    if (typeof window !== 'undefined') {
+      if (token) localStorage.setItem('customer_auth_token', token)
+      else localStorage.removeItem('customer_auth_token')
+    }
+  }
+
   private async request<T>(path: string, options: FetchOptions & { isFormData?: boolean } = {}): Promise<T> {
-    const { params, isFormData, ...fetchOptions } = options
+    const { params, isFormData, customerAuth, ...fetchOptions } = options
     const url = new URL(`${API_BASE}${path}`)
     if (params) {
       Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') url.searchParams.set(k, String(v)) })
@@ -203,8 +214,9 @@ class ApiClient {
       headers['Content-Type'] = 'application/json'
     }
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+    const authToken = customerAuth ? this.customerToken : this.token
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`
     }
 
     const res = await fetch(url.toString(), { ...fetchOptions, headers })
@@ -1284,6 +1296,14 @@ class ApiClient {
   }
 
   // Storefront (Public)
+  customerRegister(siteCode: string, data: Record<string, any>) { return this.post<any>(`/api/store/${siteCode}/customer/register`, data) }
+  customerLogin(siteCode: string, data: Record<string, any>) { return this.post<any>(`/api/store/${siteCode}/customer/login`, data) }
+  customerMe(siteCode: string) { return this.get<any>(`/api/store/${siteCode}/customer/me`, { customerAuth: true }) }
+  customerOrders(siteCode: string) { return this.get<any>(`/api/store/${siteCode}/customer/orders`, { customerAuth: true }) }
+  customerFavorites(siteCode: string) { return this.get<any>(`/api/store/${siteCode}/customer/favorites`, { customerAuth: true }) }
+  addCustomerFavorite(siteCode: string, productId: number) { return this.post<any>(`/api/store/${siteCode}/customer/favorites/${productId}`, undefined, { customerAuth: true }) }
+  removeCustomerFavorite(siteCode: string, productId: number) { return this.delete<any>(`/api/store/${siteCode}/customer/favorites/${productId}`, { customerAuth: true }) }
+  validateCoupon(siteCode: string, code: string, subtotal: number) { return this.post<any>(`/api/store/${siteCode}/customer/coupons/validate`, { code, subtotal }) }
   getPublicBlog(type: string) {
     return this.get<{ id: number; title: string; slug: string; meta_title: string | null; meta_description: string | null; created_at: string }[]>(`/api/store/platform/pages`, { params: { type } })
   }

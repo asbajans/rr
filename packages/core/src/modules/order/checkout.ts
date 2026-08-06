@@ -6,6 +6,7 @@ import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { Product } from '../../models/Product.model.js';
 import { CustomerAddress } from '../../models/CustomerAddress.model.js';
+import { Coupon } from '../../models/Coupon.model.js';
 import { logger } from '../../utils/logger.js';
 import {
   CheckoutPayloadSchema,
@@ -42,7 +43,7 @@ export interface PricedOrderItem extends CheckoutItem {
  * Server-side order total calculation. The client never supplies prices.
  * Pure function — unit-testable.
  */
-export function calculateTotals(items: { quantity: number; unitPrice: number }[], store: Pick<Store, 'taxSettings' | 'shippingSettings'>): CheckoutTotals {
+export function calculateTotals(items: { quantity: number; unitPrice: number }[], store: Pick<Store, 'taxSettings' | 'shippingSettings'>, discountAmount = 0): CheckoutTotals {
   const subtotal = round2(items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0));
 
   const shippingSettings = (store.shippingSettings as any) || {};
@@ -61,9 +62,10 @@ export function calculateTotals(items: { quantity: number; unitPrice: number }[]
   if (taxMode === 'excluded') taxAmount = round2((subtotal * taxRate) / 100);
   else if (taxMode === 'included') taxAmount = round2((subtotal * taxRate) / (100 + taxRate));
 
-  const totalAmount = round2(subtotal + shippingAmount + (taxMode === 'excluded' ? taxAmount : 0));
+  const safeDiscount = round2(Math.min(Math.max(0, discountAmount), subtotal + shippingAmount));
+  const totalAmount = round2(Math.max(0, subtotal - safeDiscount + shippingAmount + (taxMode === 'excluded' ? taxAmount : 0)));
 
-  return { subtotal, shippingAmount, taxAmount, totalAmount, taxMode, taxRate };
+  return { subtotal, shippingAmount, taxAmount, totalAmount, taxMode, taxRate, discountAmount: safeDiscount };
 }
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -119,7 +121,8 @@ export const normalizeCustomer = (cust: unknown) => CheckoutCustomerSchema.parse
  */
 export async function createCheckoutOrder(
   store: Store,
-  payload: CheckoutPayload
+  payload: CheckoutPayload,
+  customerId: number | null = null
 ): Promise<{
   order: DropshippingOrder;
   orderToken: string;
@@ -127,7 +130,7 @@ export async function createCheckoutOrder(
   requiresGateway: boolean;
   paymentStatus: 'pending' | 'awaiting';
 }> {
-  const { items, shipping_address, customer, payment_method, address_id, address_owner_token, note, website } = payload;
+  const { items, shipping_address, customer, payment_method, address_id, address_owner_token, note, website, coupon_code } = payload;
 
   if (website && website.trim().length > 0) {
     throw new CheckoutError(400, 'Spam detected');
@@ -138,9 +141,14 @@ export async function createCheckoutOrder(
 
   // Resolve a previously saved address book entry when the client references one
   if (address_id) {
-    if (!address_owner_token) throw new CheckoutError(403, 'address_owner_token is required for a saved address');
-    const ownerTokenHash = crypto.createHash('sha256').update(address_owner_token).digest('hex');
-    const saved = await CustomerAddress.findOne({ where: { id: address_id, storeId: store.id, ownerTokenHash } });
+    let saved: CustomerAddress | null = null;
+    if (customerId) {
+      saved = await CustomerAddress.findOne({ where: { id: address_id, storeId: store.id, customerId } });
+    } else {
+      if (!address_owner_token) throw new CheckoutError(403, 'address_owner_token is required for a saved address');
+      const ownerTokenHash = crypto.createHash('sha256').update(address_owner_token).digest('hex');
+      saved = await CustomerAddress.findOne({ where: { id: address_id, storeId: store.id, ownerTokenHash } });
+    }
     if (!saved) throw new CheckoutError(403, 'Saved address does not belong to this customer');
     addr = CheckoutShippingAddressSchema.parse({
         full_name: saved.fullName,
@@ -199,12 +207,22 @@ export async function createCheckoutOrder(
       });
     }
 
-    const totals = calculateTotals(pricedItems, store);
+    let discountAmount = 0;
+    let coupon: Coupon | null = null;
+    if (coupon_code) {
+      coupon = await Coupon.findOne({ where: { storeId: store.id, code: coupon_code.toUpperCase(), isActive: true }, transaction });
+      const now = new Date();
+      if (!coupon || (coupon.startsAt && coupon.startsAt > now) || (coupon.endsAt && coupon.endsAt < now) || (coupon.usageLimit != null && coupon.usedCount >= coupon.usageLimit) || pricedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) < Number(coupon?.minimumAmount || 0)) throw new CheckoutError(400, 'Coupon is invalid or expired');
+      discountAmount = coupon.discountType === 'percent' ? pricedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) * Number(coupon.discountValue) / 100 : Number(coupon.discountValue);
+      if (coupon.maxDiscount != null) discountAmount = Math.min(discountAmount, Number(coupon.maxDiscount));
+    }
+    const totals = calculateTotals(pricedItems, store, discountAmount);
     const orderNumber = `ORD-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
     const order = await DropshippingOrder.create(
       {
         storeId: store.id,
+        customerId,
         orderNumber,
         marketplace: 'storefront',
         marketplaceOrderId: `SF-${orderNumber}`,
@@ -215,6 +233,8 @@ export async function createCheckoutOrder(
         subtotal: totals.subtotal,
         shippingAmount: totals.shippingAmount,
         taxAmount: totals.taxAmount,
+        discountAmount: totals.discountAmount,
+        couponCode: coupon?.code || null,
         totalAmount: totals.totalAmount,
         currency: store.currency || 'TRY',
         shippingAddress: {
@@ -227,10 +247,12 @@ export async function createCheckoutOrder(
         customerName: addr.full_name,
         customerEmail: cust.email || null,
         customerPhone: addr.phone,
-        note: note || null,
+        note: coupon ? `${note || ''}${note ? ' | ' : ''}Coupon: ${coupon.code}` : (note || null),
       },
       { transaction }
     );
+
+    if (coupon) await coupon.increment('usedCount', { by: 1, transaction });
 
     await OrderStatusHistory.create(
       {
@@ -305,6 +327,9 @@ export async function releaseExpiredCheckoutReservations(maxAgeMinutes = 30): Pr
         paymentStatus: 'failed',
         note: 'Payment session expired; stock reservation released',
       }, { transaction });
+      if (order.couponCode) {
+        await Coupon.decrement('usedCount', { by: 1, where: { storeId: order.storeId, code: order.couponCode, usedCount: { [Op.gt]: 0 } }, transaction });
+      }
       await OrderStatusHistory.create({
         dropshippingOrderId: order.id,
         fromStatus: 'pending',

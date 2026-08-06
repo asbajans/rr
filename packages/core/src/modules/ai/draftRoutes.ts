@@ -372,6 +372,9 @@ draftRoutes.put('/product-drafts/:id', authMiddleware, requireStore, [
   const store = (req as any).store;
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
   if (!draft) return res.status(404).json({ error: 'Draft not found' });
+  if (['converted', 'publishing'].includes(draft.status)) {
+    return res.status(409).json({ error: 'DRAFT_LOCKED', message: 'Yayın sürecine alınmış taslak düzenlenemez.' });
+  }
 
   const EDITABLE_FIELDS = [
     'title', 'description', 'shortDescription', 'slug', 'sku', 'categoryId',
@@ -402,6 +405,10 @@ draftRoutes.post('/product-drafts/:id/approve', authMiddleware, requireStore, [
   const store = (req as any).store;
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
   if (!draft) return res.status(404).json({ error: 'Draft not found' });
+  if (!['review', 'rejected'].includes(draft.status)) {
+    if (draft.status === 'approved') return res.json({ draft });
+    return res.status(409).json({ error: 'DRAFT_STATE_INVALID', message: 'Bu taslak mevcut durumundan onaylanamaz.' });
+  }
 
   await draft.update({ status: 'approved' });
   await AiProductSession.update({ status: 'approved' }, { where: { id: draft.sessionId } });
