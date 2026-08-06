@@ -166,16 +166,40 @@ export const createApp = async (): Promise<Express> => {
     // Ignore
   }
 
-  await sequelize.sync({ alter: false });
-
-  // Faz 10 â€” customer accounts and storefront commerce tables/links.
+  // Faz 10 — customer accounts and storefront commerce tables/links.
+  // The customerId columns must exist BEFORE sequelize.sync(): DropshippingOrder
+  // and CustomerAddress define indexes on customerId, and sync() (alter:false)
+  // creates missing indexes on existing tables. If the column is added after sync,
+  // CREATE INDEX fails with "column customerId does not exist".
   try {
     await sequelize.query(`ALTER TABLE customer_addresses ADD COLUMN IF NOT EXISTS "customerId" BIGINT`);
+  } catch (e) {
+    // Fresh databases create the column from the model definition.
+  }
+  try {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "customerId" BIGINT`);
+  } catch (e) {
+    // Fresh databases create the column from the model definition.
+  }
+  // The remaining customer tables also index customerId — if they already exist
+  // (created by an earlier deploy) ensure the column is present before sync.
+  for (const table of ['customer_consents', 'customer_favorites', 'customer_reviews', 'customer_notifications']) {
+    try {
+      await sequelize.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "customerId" BIGINT`);
+    } catch (e) {
+      // Fresh databases create the column from the model definition.
+    }
+  }
+
+  await sequelize.sync({ alter: false });
+
+  // Idempotent index creation. On existing databases the model sync above already
+  // created these indexes now that the columns exist, so these are no-ops.
+  try {
     await sequelize.query(`CREATE INDEX IF NOT EXISTS customer_addresses_customer_id ON customer_addresses ("customerId")`);
     await sequelize.query(`CREATE INDEX IF NOT EXISTS dropshipping_orders_customer_id ON dropshipping_orders ("customerId")`);
   } catch (e) {
-    // Fresh databases get these columns from the models; existing databases are upgraded when available.
+    // Ignore if the indexes already exist.
   }
 
   // AI Product Studio tables are created by sync; add future-safe columns here
