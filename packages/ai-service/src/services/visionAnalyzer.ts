@@ -12,6 +12,7 @@ export interface VisionProviderConfig {
   apiKey?: string;
   authType?: string;
   maxTokens?: number;
+  reasoningEffort?: string;
 }
 
 function mimeFromPath(p: string): string {
@@ -122,6 +123,7 @@ export async function analyzeProductImage(
         apiKey: providerConfig.apiKey,
         authType: (providerConfig.authType as 'bearer' | 'api-key' | 'none') || 'bearer',
         maxTokens: providerConfig.maxTokens,
+        reasoningEffort: providerConfig.reasoningEffort,
       }
     : { baseUrl: OLLAMA_URL, model: VISION_MODEL };
 
@@ -136,7 +138,12 @@ export async function analyzeProductImage(
     },
   ];
 
-  const text = await callLlm(config, messages, { temperature: 0.1, maxTokens: config.maxTokens });
+  const text = await callLlm(config, messages, {
+    temperature: 0.1,
+    maxTokens: config.maxTokens,
+    reasoningEffort: config.reasoningEffort,
+    responseFormatJson: true,
+  });
   const parsed = parseJsonResponse(text);
 
   return {

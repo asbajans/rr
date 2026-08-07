@@ -107,6 +107,8 @@ export async function generateListings(
         model: providerConfig.model || process.env.OLLAMA_LLM_MODEL || 'llama3',
         apiKey: providerConfig.apiKey,
         authType: 'bearer',
+        maxTokens: providerConfig.maxTokens,
+        reasoningEffort: providerConfig.reasoningEffort,
       }
     : {
         baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
@@ -116,7 +118,7 @@ export async function generateListings(
   const raw = await callLlm(config, [
     { role: 'system', content: buildSystemPrompt() },
     { role: 'user', content: prompt },
-  ], { temperature: 0.3, topP: 0.95 });
+  ], { temperature: 0.3, topP: 0.95, maxTokens: config.maxTokens, reasoningEffort: config.reasoningEffort });
 
   const data = parseJsonResponse(raw);
 

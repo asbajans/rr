@@ -6,6 +6,7 @@ export interface ProviderConfig {
   apiKey?: string;
   authType?: 'bearer' | 'api-key' | 'none';
   maxTokens?: number;
+  reasoningEffort?: string;
 }
 
 export type ChatContentPart =
@@ -21,6 +22,8 @@ interface LlmOptions {
   temperature?: number;
   maxTokens?: number;
   topP?: number;
+  reasoningEffort?: string;
+  responseFormatJson?: boolean;
 }
 
 const DEFAULT_TIMEOUT = 180000;
@@ -77,6 +80,18 @@ function isOpenAiCompatible(baseUrl: string): boolean {
 }
 
 /**
+ * Reasoning models (OpenAI GPT-5 family, o1/o3/o4, etc.) bill hidden
+ * reasoning/thinking tokens against the output token cap. They also reject
+ * `max_tokens` and require `max_completion_tokens`. Detecting the family lets
+ * us (a) use the correct parameter and (b) cap reasoning effort so the visible
+ * answer is not starved by thinking tokens.
+ */
+function isReasoningModel(model: string): boolean {
+  const m = model.toLowerCase().replace(/^[^/]*\//, '');
+  return /^(o1|o3|o4|gpt-5)(-|$)/.test(m);
+}
+
+/**
  * Resolve the chat-completions endpoint from a provider base URL.
  * Handles the common convention where the stored baseUrl may or may not
  * include the trailing `/v1` (e.g. "https://api.openai.com/v1" vs
@@ -112,13 +127,21 @@ async function callOpenAiCompatible(
     ? baseUrl
     : resolveChatEndpoint(baseUrl);
 
+  const reasoning = isReasoningModel(config.model);
+
   const body: any = {
     model: config.model,
     messages,
     temperature: options?.temperature ?? 0.7,
-    max_tokens: options?.maxTokens ?? config.maxTokens ?? 2048,
   };
+  if (reasoning) {
+    body.max_completion_tokens = options?.maxTokens ?? config.maxTokens ?? 2048;
+    body.reasoning_effort = options?.reasoningEffort ?? config.reasoningEffort ?? 'minimal';
+  } else {
+    body.max_tokens = options?.maxTokens ?? config.maxTokens ?? 2048;
+  }
   if (options?.topP !== undefined) body.top_p = options?.topP;
+  if (options?.responseFormatJson) body.response_format = { type: 'json_object' };
 
   const headers = buildHeaders(config);
 
