@@ -124,6 +124,7 @@ async function generateListingDraft(
         model: providerConfig.model || process.env.OLLAMA_LLM_MODEL || 'llama3',
         apiKey: providerConfig.apiKey,
         authType: providerConfig.authType || 'bearer',
+        maxTokens: providerConfig.maxTokens,
       }
     : {
         baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
@@ -135,7 +136,7 @@ async function generateListingDraft(
     { role: 'user', content: buildPrompt(specs, input) },
   ];
 
-  const raw = await callLlm(config, messages, { temperature: 0.4, maxTokens: 2048 });
+  const raw = await callLlm(config, messages, { temperature: 0.4, maxTokens: config.maxTokens });
   const data = parseJsonResponse(raw);
 
   const category = CATEGORY_LIST.includes(data.category) ? data.category : specs.category;

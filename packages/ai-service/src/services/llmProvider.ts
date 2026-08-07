@@ -5,6 +5,7 @@ export interface ProviderConfig {
   model: string;
   apiKey?: string;
   authType?: 'bearer' | 'api-key' | 'none';
+  maxTokens?: number;
 }
 
 export type ChatContentPart =
@@ -115,7 +116,7 @@ async function callOpenAiCompatible(
     model: config.model,
     messages,
     temperature: options?.temperature ?? 0.7,
-    max_tokens: options?.maxTokens ?? 2048,
+    max_tokens: options?.maxTokens ?? config.maxTokens ?? 2048,
   };
   if (options?.topP !== undefined) body.top_p = options?.topP;
 
@@ -138,7 +139,7 @@ async function callOpenAiCompatible(
     }));
     const res = await postWithRetry(
       `${endpoint}/v1beta/models/${config.model}:generateContent${key}`,
-      { contents, generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 2048 } },
+      { contents, generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? config.maxTokens ?? 2048 } },
       headers
     );
     return (res.data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('') || '';

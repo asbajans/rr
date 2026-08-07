@@ -180,6 +180,7 @@ export function buildProviderPayload(provider: any, model: any, scenario: any, g
     apiKey = globalKeys[provider.code];
   }
 
+  const scenarioParams = (scenario?.parameters as any) || {};
   return {
     provider: {
       baseUrl: provider.baseUrl,
@@ -187,7 +188,8 @@ export function buildProviderPayload(provider: any, model: any, scenario: any, g
       authType: (provider.authConfig as any)?.authType || 'bearer',
     },
     model: model.modelId,
-    parameters: scenario?.parameters || {},
+    parameters: scenarioParams,
+    maxTokens: Number(model.maxTokens) || Number(scenarioParams.max_tokens) || undefined,
   };
 }
 

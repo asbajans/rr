@@ -38,11 +38,13 @@ function isUnavailableError(err: any): boolean {
 
 function extractProviderConfig(body: any): ProviderConfig {
   if (body.provider) {
+    const maxTokens = Number(body.maxTokens || body.provider.maxTokens) || undefined;
     return {
       baseUrl: body.provider.baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434',
       model: body.model || body.provider.model || process.env.OLLAMA_LLM_MODEL || 'llama3',
       apiKey: body.provider.apiKey,
       authType: body.provider.authType || 'bearer',
+      maxTokens,
     };
   }
   return buildDefaultConfig();
