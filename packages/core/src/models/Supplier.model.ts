@@ -74,6 +74,30 @@ export class Supplier extends Model {
   @Column(DataType.STRING(20))
   declare payoutMethod: string;
 
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare applicationDocuments: {
+    taxDocument?: string;
+    signatureDocument?: string;
+    tradeRegistryDocument?: string;
+  };
+
+  @Default('draft')
+  @Column(DataType.STRING(20))
+  declare applicationStatus: string;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare applicationSubmittedAt: Date;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare applicationReviewedAt: Date;
+
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare rejectionNote: string;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

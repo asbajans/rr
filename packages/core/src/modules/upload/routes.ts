@@ -33,6 +33,7 @@ uploadRoutes.post('/', authMiddleware, requireStore, async (req: Request, res: R
       'image/webp',
       'image/gif',
       'image/bmp',
+      'application/pdf',
     ]);
 
     const upload = multer({

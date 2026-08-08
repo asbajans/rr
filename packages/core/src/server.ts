@@ -244,6 +244,17 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Faz 7C — supplier application & approval workflow columns
+  try {
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "applicationStatus" VARCHAR(20) DEFAULT 'draft'`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "applicationDocuments" JSONB`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "applicationSubmittedAt" TIMESTAMP`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "applicationReviewedAt" TIMESTAMP`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "rejectionNote" TEXT`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Faz 8 — site publish state + deployment history
   try {
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS published BOOLEAN DEFAULT true`);

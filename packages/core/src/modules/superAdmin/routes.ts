@@ -5,6 +5,7 @@ import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
 import { Setting } from '../../models/Setting.model.js';
+import { Supplier } from '../../models/Supplier.model.js';
 import { authMiddleware, requireRole } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 import { serializePlans, serializePlan } from '../planSerializer.js';
@@ -370,6 +371,88 @@ router.put('/settings/:key', superAdminOnly, [
     res.json({ key, value });
   } catch (error) {
     logger.error({ err: error }, 'Update setting error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/supplier/applications
+ * List all supplier approval applications (superadmin review). Optional ?status=
+ * filter (draft | submitted | approved | rejected). Only suppliers that have
+ * submitted an application are returned unless an explicit status is given.
+ */
+router.get('/supplier/applications', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status as string | undefined;
+    const where: any = {};
+    if (status) {
+      where.applicationStatus = status;
+    } else {
+      where.applicationStatus = { [require('sequelize').Op.ne]: 'draft' };
+    }
+    const suppliers = await Supplier.findAll({
+      where,
+      include: [{ model: Store, as: 'store', attributes: ['id', 'name', 'siteCode', 'domain', 'email', 'phone'] }],
+      order: [['applicationSubmittedAt', 'DESC']],
+    });
+    res.json({ data: suppliers });
+  } catch (error) {
+    logger.error({ err: error }, 'List supplier applications error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/supplier/applications/:id/approve
+ * Approve a supplier application → supplier becomes active.
+ */
+router.post('/supplier/applications/:id/approve', superAdminOnly, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const supplier = await Supplier.findByPk(req.params.id);
+    if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+    if (supplier.applicationStatus === 'approved') {
+      return res.status(409).json({ error: 'Supplier already approved' });
+    }
+    await supplier.update({
+      applicationStatus: 'approved',
+      applicationReviewedAt: new Date(),
+      rejectionNote: null,
+      contractStatus: 'active',
+    });
+    logger.info(`Supplier application ${supplier.id} approved by ${(req as any).user?.email}`);
+    res.json({ supplier });
+  } catch (error) {
+    logger.error({ err: error }, 'Approve supplier application error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/supplier/applications/:id/reject
+ * Reject a supplier application with an optional note. The supplier can re-apply.
+ */
+router.post('/supplier/applications/:id/reject', superAdminOnly, [
+  param('id').isInt(),
+  body('note').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const supplier = await Supplier.findByPk(req.params.id);
+    if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+    if (supplier.applicationStatus === 'approved') {
+      return res.status(409).json({ error: 'Supplier already approved' });
+    }
+    await supplier.update({
+      applicationStatus: 'rejected',
+      applicationReviewedAt: new Date(),
+      rejectionNote: req.body.note || null,
+      contractStatus: 'invited',
+    });
+    logger.info(`Supplier application ${supplier.id} rejected by ${(req as any).user?.email}`);
+    res.json({ supplier });
+  } catch (error) {
+    logger.error({ err: error }, 'Reject supplier application error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

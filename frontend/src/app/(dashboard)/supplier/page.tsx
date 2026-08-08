@@ -2,11 +2,42 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
-import { api } from '@/lib/api-client'
+import { api, API_BASE } from '@/lib/api-client'
 import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
-import { Building2, Truck, Wallet, PackageCheck, XCircle, ArrowUpRight, CheckCircle2, RefreshCw } from 'lucide-react'
+import { Building2, Truck, Wallet, PackageCheck, XCircle, ArrowUpRight, CheckCircle2, RefreshCw, Pencil, FileText, ExternalLink, Upload } from 'lucide-react'
 
 type Tab = 'profile' | 'orders' | 'settlements'
+
+const docFields = [
+  { key: 'taxDocument', label: 'Vergi Levhası', required: true },
+  { key: 'signatureDocument', label: 'İmza Sirküleri', required: true },
+  { key: 'tradeRegistryDocument', label: 'Ticaret Sicil Gazetesi (varsa)', required: false },
+] as const
+
+const applyBadge = (s?: string) => {
+  const map: Record<string, string> = {
+    draft: 'bg-zinc-100 text-zinc-600',
+    submitted: 'bg-amber-50 text-amber-700',
+    approved: 'bg-emerald-50 text-emerald-700',
+    rejected: 'bg-red-50 text-red-700',
+  }
+  return map[s || 'draft'] || 'bg-zinc-100 text-zinc-600'
+}
+
+const applyLabel = (s?: string) => {
+  const map: Record<string, string> = {
+    draft: 'Başvuru yok',
+    submitted: 'Onay bekliyor',
+    approved: 'Onaylandı',
+    rejected: 'Reddedildi',
+  }
+  return map[s || 'draft'] || s || '—'
+}
+
+function absUrl(url?: string) {
+  if (!url) return ''
+  return url.startsWith('http') ? url : `${API_BASE}${url}`
+}
 
 const fmt = (n: number | string | null | undefined) =>
   n === null || n === undefined ? '—' : Number(n).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -39,6 +70,16 @@ export default function SupplierPage() {
   // Profile
   const [profile, setProfile] = useState<any>(null)
   const [profileForm, setProfileForm] = useState<any>({})
+  const [editingProfile, setEditingProfile] = useState(false)
+
+  // Application
+  const [applicationForm, setApplicationForm] = useState<Record<string, { name: string; url: string } | null>>({
+    taxDocument: null,
+    signatureDocument: null,
+    tradeRegistryDocument: null,
+  })
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
 
   // Orders
   const [orders, setOrders] = useState<any[]>([])
@@ -62,6 +103,13 @@ export default function SupplierPage() {
         taxId: r.supplier.taxId || '', bankName: r.supplier.bankName || '', iban: r.supplier.iban || '',
         bankOwner: r.supplier.bankOwner || '', commissionRate: Number(r.supplier.commissionRate || 0),
         payoutMethod: r.supplier.payoutMethod || 'bank',
+      })
+      const docs = r.supplier.applicationDocuments || {}
+      const docUrl = (url?: string) => url ? { name: url.split('/').pop() || 'Dosya', url } : null
+      setApplicationForm({
+        taxDocument: docUrl(docs.taxDocument),
+        signatureDocument: docUrl(docs.signatureDocument),
+        tradeRegistryDocument: docUrl(docs.tradeRegistryDocument),
       })
     } catch { /* ignore */ }
   }, [])
@@ -97,8 +145,37 @@ export default function SupplierPage() {
       const r = await api.updateSupplierProfile(profileForm)
       setProfile(r.supplier)
       setMessage('Profil güncellendi')
+      setEditingProfile(false)
     } catch (err: any) { setMessage(err.message || 'Hata') }
     finally { setSaving(false) }
+  }
+
+  async function uploadDoc(key: string, file: File) {
+    setUploadingDoc(key); setMessage('')
+    try {
+      const uploaded = await api.uploadImage(file)
+      setApplicationForm((prev) => ({ ...prev, [key]: { name: file.name, url: uploaded.url } }))
+    } catch (err: any) { setMessage(err.message || 'Yükleme hatası') }
+    finally { setUploadingDoc(null) }
+  }
+
+  async function submitApplication() {
+    const missing = docFields.filter((d) => d.required && !applicationForm[d.key]?.url)
+    if (missing.length > 0) {
+      setMessage(`Zorunlu belge: ${missing.map((d) => d.label).join(', ')}`)
+      return
+    }
+    setApplying(true); setMessage('')
+    try {
+      await api.applySupplierApplication({
+        taxDocument: applicationForm.taxDocument?.url,
+        signatureDocument: applicationForm.signatureDocument?.url,
+        tradeRegistryDocument: applicationForm.tradeRegistryDocument?.url,
+      })
+      setMessage('Başvuru gönderildi')
+      loadProfile()
+    } catch (err: any) { setMessage(err.message || 'Başvuru gönderilemedi') }
+    finally { setApplying(false) }
   }
 
   async function runAction(fn: () => Promise<any>, okMsg: string) {
@@ -152,49 +229,130 @@ export default function SupplierPage() {
                 <h2 className="text-sm font-semibold text-zinc-900">Mağaza Profili</h2>
                 <p className="mt-1 text-xs text-zinc-500">Tedarikçi olarak görünen bilgilerin.</p>
                 <dl className="mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-zinc-500">Başvuru</dt>
+                    <dd><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${applyBadge(profile?.applicationStatus)}`}>{applyLabel(profile?.applicationStatus)}</span></dd>
+                  </div>
                   <div className="flex justify-between"><dt className="text-zinc-500">Sözleşme</dt><dd className="capitalize font-medium text-zinc-900">{profile?.contractStatus || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">Komisyon</dt><dd className="font-medium text-zinc-900">%{fmt(profile?.commissionRate)}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">Ödeme</dt><dd className="capitalize font-medium text-zinc-900">{profile?.payoutMethod || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">IBAN</dt><dd className="font-medium text-zinc-900 font-mono text-xs">{profile?.iban || '—'}</dd></div>
                 </dl>
+                {profile?.rejectionNote && (
+                  <p className="mt-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">{profile.rejectionNote}</p>
+                )}
               </div>
 
               <div className="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Profil Düzenle</h2>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {([
-                    { k: 'name', label: 'Ad / Firma' },
-                    { k: 'email', label: 'E-posta' },
-                    { k: 'phone', label: 'Telefon' },
-                    { k: 'taxId', label: 'Vergi No' },
-                    { k: 'bankName', label: 'Banka' },
-                    { k: 'iban', label: 'IBAN' },
-                    { k: 'bankOwner', label: 'IBAN Sahibi' },
-                  ] as const).map((f) => (
-                    <div key={f.k}>
-                      <label className="block text-xs font-medium text-zinc-700">{f.label}</label>
-                      <input value={profileForm[f.k] ?? ''} onChange={e => setProfileForm({ ...profileForm, [f.k]: e.target.value })}
-                        className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+                {!editingProfile ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-semibold text-zinc-900">Profil Bilgileri</h2>
+                      <button onClick={() => setEditingProfile(true)}
+                        className="flex items-center gap-1 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50">
+                        <Pencil className="h-3 w-3" /> Profil Düzenle
+                      </button>
                     </div>
-                  ))}
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-700">Komisyon (%)</label>
-                    <input type="number" min={0} max={100} value={profileForm.commissionRate}
-                      onChange={e => setProfileForm({ ...profileForm, commissionRate: Number(e.target.value) || 0 })}
-                      className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-700">Ödeme Yöntemi</label>
-                    <select value={profileForm.payoutMethod} onChange={e => setProfileForm({ ...profileForm, payoutMethod: e.target.value })}
-                      className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-                      <option value="bank">Banka Havalesi</option>
-                      <option value="manual">Manuel</option>
-                    </select>
-                  </div>
+                    <dl className="mt-4 space-y-2 text-sm">
+                      {([
+                        { k: 'name', label: 'Ad / Firma' },
+                        { k: 'email', label: 'E-posta' },
+                        { k: 'phone', label: 'Telefon' },
+                        { k: 'taxId', label: 'Vergi No' },
+                        { k: 'bankName', label: 'Banka' },
+                        { k: 'iban', label: 'IBAN' },
+                        { k: 'bankOwner', label: 'IBAN Sahibi' },
+                      ] as const).map((f) => (
+                        <div key={f.k} className="flex justify-between">
+                          <dt className="text-zinc-500">{f.label}</dt>
+                          <dd className="font-medium text-zinc-900">{profileForm[f.k] || '—'}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-semibold text-zinc-900">Profil Düzenle</h2>
+                      <button onClick={() => setEditingProfile(false)} className="text-xs text-zinc-500 hover:text-zinc-700">İptal</button>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {([
+                        { k: 'name', label: 'Ad / Firma' },
+                        { k: 'email', label: 'E-posta' },
+                        { k: 'phone', label: 'Telefon' },
+                        { k: 'taxId', label: 'Vergi No' },
+                        { k: 'bankName', label: 'Banka' },
+                        { k: 'iban', label: 'IBAN' },
+                        { k: 'bankOwner', label: 'IBAN Sahibi' },
+                      ] as const).map((f) => (
+                        <div key={f.k}>
+                          <label className="block text-xs font-medium text-zinc-700">{f.label}</label>
+                          <input value={profileForm[f.k] ?? ''} onChange={e => setProfileForm({ ...profileForm, [f.k]: e.target.value })}
+                            className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+                        </div>
+                      ))}
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700">Komisyon (%)</label>
+                        <input type="number" min={0} max={100} value={profileForm.commissionRate}
+                          onChange={e => setProfileForm({ ...profileForm, commissionRate: Number(e.target.value) || 0 })}
+                          className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700">Ödeme Yöntemi</label>
+                        <select value={profileForm.payoutMethod} onChange={e => setProfileForm({ ...profileForm, payoutMethod: e.target.value })}
+                          className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+                          <option value="bank">Banka Havalesi</option>
+                          <option value="manual">Manuel</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button onClick={saveProfile} disabled={saving}
+                      className="mt-5 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+                      {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-3">
+                <h2 className="text-sm font-semibold text-zinc-900">Onay Başvurusu</h2>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {profile?.applicationStatus === 'approved'
+                    ? 'Tedarikçi başvurunuz onaylandı.'
+                    : profile?.applicationStatus === 'submitted'
+                      ? 'Başvurunuz süper admin onayına gönderildi. Belgeleri güncelleyip yeniden gönderebilirsiniz.'
+                      : profile?.applicationStatus === 'rejected'
+                        ? 'Başvurunuz reddedildi. Belgeleri düzenleyip yeniden başvurun.'
+                        : 'Vergi levhası, imza sirküleri ve varsa ticaret sicil gazetesini yükleyerek tedarikçi onayı için başvuru yapın.'}
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {docFields.map((d) => {
+                    const uploaded = applicationForm[d.key]
+                    return (
+                      <div key={d.key}>
+                        <label className="block text-xs font-medium text-zinc-700">{d.label}{d.required ? ' *' : ''}</label>
+                        <label className="mt-1 flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-xs">
+                          <span className={uploaded ? 'truncate font-medium text-emerald-700' : 'text-zinc-500'}>
+                            {uploaded ? `✓ ${uploaded.name}` : uploadingDoc === d.key ? 'Yükleniyor...' : 'Dosya seç'}
+                          </span>
+                          <Upload className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                          <input type="file" accept="image/*,.pdf" className="hidden"
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(d.key, f) }} />
+                        </label>
+                        {uploaded && (
+                          <a href={absUrl(uploaded.url)} target="_blank" rel="noreferrer"
+                            className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-600 hover:text-sky-500">
+                            <FileText className="h-3 w-3" /> Görüntüle <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-                <button onClick={saveProfile} disabled={saving}
+                <button onClick={submitApplication} disabled={applying}
                   className="mt-5 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
-                  {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                  {applying ? 'Gönderiliyor...' : profile?.applicationStatus === 'submitted' ? 'Başvuruyu Güncelle' : profile?.applicationStatus === 'rejected' ? 'Yeniden Başvur' : 'Başvuruyu Gönder'}
                 </button>
               </div>
             </div>

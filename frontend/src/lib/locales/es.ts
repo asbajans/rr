@@ -34,6 +34,7 @@ export const es: Record<string, string> = {
   superStores: 'Tiendas',
   superUsers: 'Usuarios',
   superPlans: 'Planes',
+  superSupplierApps: 'Solicitudes de proveedores',
   superCategories: 'Categorías',
   superAi: 'Gestión IA',
   superApi: 'Ajustes API',

@@ -39,6 +39,7 @@ export const tr: Record<string, string> = {
   superStores: 'Mağazalar',
   superUsers: 'Kullanıcılar',
   superPlans: 'Planlar',
+  superSupplierApps: 'Tedarikçi Başvuruları',
   superCategories: 'Kategoriler',
   superAi: 'AI Yönetimi',
   superApi: 'API Ayarları',

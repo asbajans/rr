@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert,
   ActivityIndicator, TextInput, Modal,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 
@@ -24,13 +25,32 @@ const statusColor = (s?: string) => {
   }
 }
 
+const docFields = [
+  { key: 'taxDocument', labelKey: 'supplierTaxDoc', required: true },
+  { key: 'signatureDocument', labelKey: 'supplierSignatureDoc', required: true },
+  { key: 'tradeRegistryDocument', labelKey: 'supplierTradeRegistryDoc', required: false },
+] as const
+
+type DocKey = typeof docFields[number]['key']
+
 export default function SupplierScreen() {
   const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('profile')
   const [loading, setLoading] = useState(true)
 
   // Profile
+  const [profile, setProfile] = useState<any>(null)
   const [form, setForm] = useState<any>({})
+  const [editing, setEditing] = useState(false)
+
+  // Application (başvuru) documents
+  const [applicationForm, setApplicationForm] = useState<Record<DocKey, { name: string; url: string } | null>>({
+    taxDocument: null,
+    signatureDocument: null,
+    tradeRegistryDocument: null,
+  })
+  const [uploadingDoc, setUploadingDoc] = useState<DocKey | null>(null)
+  const [applying, setApplying] = useState(false)
 
   // Orders
   const [orders, setOrders] = useState<any[]>([])
@@ -52,10 +72,18 @@ export default function SupplierScreen() {
   async function loadProfile() {
     try {
       const p = await api.getSupplierProfile()
+      setProfile(p)
       setForm({
         name: p.name || '', email: p.email || '', phone: p.phone || '', taxId: p.taxId || '',
         bankName: p.bankName || '', iban: p.iban || '', bankOwner: p.bankOwner || '',
         commissionRate: Number(p.commissionRate || 0), payoutMethod: p.payoutMethod || 'bank',
+      })
+      const docs = p.applicationDocuments || {}
+      const docUrl = (url?: string) => url ? { name: url.split('/').pop() || t('supplierChooseFile'), url } : null
+      setApplicationForm({
+        taxDocument: docUrl(docs.taxDocument),
+        signatureDocument: docUrl(docs.signatureDocument),
+        tradeRegistryDocument: docUrl(docs.tradeRegistryDocument),
       })
     } catch { /* ignore */ }
   }
@@ -96,8 +124,10 @@ export default function SupplierScreen() {
 
   async function saveProfile() {
     try {
-      await api.updateSupplierProfile(form)
+      const r: any = await api.updateSupplierProfile(form)
+      setProfile(r.supplier || r.data || r)
       Alert.alert(t('success'), t('saved'))
+      setEditing(false)
       loadProfile()
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
@@ -143,6 +173,66 @@ export default function SupplierScreen() {
     }
   }
 
+  function pickDocSource(key: DocKey, source: 'camera' | 'gallery') {
+    const run = async () => {
+      const perm = source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (!perm.granted) {
+        Alert.alert(t('error'), source === 'camera' ? t('cameraPermission') : t('galleryPermission'))
+        return
+      }
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 })
+      if (result.canceled || !result.assets[0]) return
+      const asset = result.assets[0]
+      const ext = asset.fileName?.split('.').pop()?.toLowerCase()
+      const mime = asset.mimeType || (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
+      const name = asset.fileName || `doc-${Date.now()}.jpg`
+      setUploadingDoc(key)
+      try {
+        const uploaded = await api.uploadImage(asset.uri, name, mime)
+        setApplicationForm((prev) => ({ ...prev, [key]: { name, url: uploaded.url } }))
+      } catch (e: any) {
+        Alert.alert(t('error'), e.message)
+      } finally {
+        setUploadingDoc(null)
+      }
+    }
+    run()
+  }
+
+  function chooseDoc(key: DocKey) {
+    Alert.alert(t('supplierDocSource'), '', [
+      { text: t('takePhoto'), onPress: () => pickDocSource(key, 'camera') },
+      { text: t('chooseFromGallery'), onPress: () => pickDocSource(key, 'gallery') },
+      { text: t('cancel'), style: 'cancel' },
+    ])
+  }
+
+  async function submitApplication() {
+    const missing = docFields.filter((d) => d.required && !applicationForm[d.key]?.url)
+    if (missing.length > 0) {
+      Alert.alert(t('error'), `${t('required')}: ${missing.map((d) => t(d.labelKey)).join(', ')}`)
+      return
+    }
+    setApplying(true)
+    try {
+      await api.applySupplierApplication({
+        taxDocument: applicationForm.taxDocument?.url,
+        signatureDocument: applicationForm.signatureDocument?.url,
+        tradeRegistryDocument: applicationForm.tradeRegistryDocument?.url,
+      })
+      Alert.alert(t('success'), t('supplierApplySent'))
+      loadProfile()
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message)
+    } finally {
+      setApplying(false)
+    }
+  }
+
   const profileFields = [
     { k: 'name', label: t('supplierCompany'), kb: 'default' as const },
     { k: 'email', label: t('email'), kb: 'email-address' as const },
@@ -152,6 +242,8 @@ export default function SupplierScreen() {
     { k: 'iban', label: t('supplierIban'), kb: 'default' as const },
     { k: 'bankOwner', label: t('supplierIbanOwner'), kb: 'default' as const },
   ]
+
+  const applyStatus = profile?.applicationStatus || 'draft'
 
   return (
     <View style={styles.container}>
@@ -183,23 +275,100 @@ export default function SupplierScreen() {
           ListHeaderComponent={
             <View>
               {tab === 'profile' && (
-                <View>
-                  <Text style={styles.sectionTitle}>{t('supplierProfile')}</Text>
-                  {profileFields.map((f) => (
-                    <View key={f.k} style={styles.field}>
-                      <Text style={styles.label}>{f.label}</Text>
-                      <TextInput style={styles.input} value={form[f.k] || ''} keyboardType={f.kb}
-                        onChangeText={(v) => setForm({ ...form, [f.k]: v })} />
-                    </View>
-                  ))}
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('supplierCommission')}</Text>
-                    <TextInput style={styles.input} keyboardType="numeric" value={String(form.commissionRate ?? 0)}
-                      onChangeText={(v) => setForm({ ...form, commissionRate: Number(v) || 0 })} />
+                <View style={styles.profileWrap}>
+                  <View style={styles.cardFlat}>
+                    {applyStatus === 'approved' && (
+                      <View style={[styles.statusBanner, styles.statusApproved]}>
+                        <Text style={styles.statusBannerText}>{t('supplierApproved')}</Text>
+                      </View>
+                    )}
+                    {applyStatus === 'submitted' && (
+                      <View style={[styles.statusBanner, styles.statusSubmitted]}>
+                        <Text style={styles.statusBannerText}>{t('supplierPending')}</Text>
+                      </View>
+                    )}
+                    {applyStatus === 'rejected' && (
+                      <View style={[styles.statusBanner, styles.statusRejected]}>
+                        <Text style={styles.statusBannerText}>
+                          {t('supplierRejected')}{profile?.rejectionNote ? ` · ${profile.rejectionNote}` : ''}
+                        </Text>
+                      </View>
+                    )}
+
+                    {!editing ? (
+                      <>
+                        <Text style={styles.sectionTitle}>{t('supplierProfile')}</Text>
+                        {profileFields.map((f) => (
+                          <View key={f.k} style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>{f.label}</Text>
+                            <Text style={styles.summaryValue}>{form[f.k] || '—'}</Text>
+                          </View>
+                        ))}
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>{t('supplierCommission')}</Text>
+                          <Text style={styles.summaryValue}>%{fmt(form.commissionRate)}</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>{t('supplierBank')}</Text>
+                          <Text style={styles.summaryValue}>{form.payoutMethod === 'manual' ? t('manual') : t('bankTransfer')}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.primaryBtn} onPress={() => setEditing(true)}>
+                          <Text style={styles.primaryBtnText}>{t('editProfile')}</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.sectionTitle}>{t('editProfile')}</Text>
+                        {profileFields.map((f) => (
+                          <View key={f.k} style={styles.field}>
+                            <Text style={styles.label}>{f.label}</Text>
+                            <TextInput style={styles.input} value={form[f.k] || ''} keyboardType={f.kb}
+                              onChangeText={(v) => setForm({ ...form, [f.k]: v })} />
+                          </View>
+                        ))}
+                        <View style={styles.field}>
+                          <Text style={styles.label}>{t('supplierCommission')}</Text>
+                          <TextInput style={styles.input} keyboardType="numeric" value={String(form.commissionRate ?? 0)}
+                            onChangeText={(v) => setForm({ ...form, commissionRate: Number(v) || 0 })} />
+                        </View>
+                        <View style={styles.rowBtns}>
+                          <TouchableOpacity style={[styles.ghostBtn, styles.flex1]} onPress={() => setEditing(false)}>
+                            <Text style={styles.ghostBtnText}>{t('cancel')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.primaryBtn, styles.flex1]} onPress={saveProfile}>
+                            <Text style={styles.primaryBtnText}>{t('save')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
                   </View>
-                  <TouchableOpacity style={styles.primaryBtn} onPress={saveProfile}>
-                    <Text style={styles.primaryBtnText}>{t('save')}</Text>
-                  </TouchableOpacity>
+
+                  <View style={styles.cardFlat}>
+                    <Text style={styles.sectionTitle}>{t('supplierApplyTitle')}</Text>
+                    <Text style={styles.sectionDesc}>{t('supplierApplyDesc')}</Text>
+                    {docFields.map((d) => {
+                      const uploaded = applicationForm[d.key]
+                      return (
+                        <View key={d.key} style={styles.field}>
+                          <Text style={styles.label}>{t(d.labelKey)}{d.required ? ` · ${t('required')}` : ''}</Text>
+                          <TouchableOpacity style={styles.docBtn} onPress={() => chooseDoc(d.key)} disabled={uploadingDoc === d.key}>
+                            {uploadingDoc === d.key ? (
+                              <ActivityIndicator size="small" color="#18181b" />
+                            ) : (
+                              <Text style={[styles.docBtnText, uploaded && styles.docBtnTextDone]}>
+                                {uploaded ? `✓ ${uploaded.name}` : t('supplierChooseFile')}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )
+                    })}
+                    <TouchableOpacity style={[styles.primaryBtn, applying && styles.disabled]} disabled={applying} onPress={submitApplication}>
+                      <Text style={styles.primaryBtnText}>
+                        {applying ? t('sending') : applyStatus === 'submitted' ? t('supplierUpdateApplication') : applyStatus === 'rejected' ? t('supplierReapply') : t('supplierSubmitApply')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 
@@ -330,7 +499,19 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: '#000' },
   tabText: { fontSize: 12, fontWeight: '600', color: '#666' },
   tabTextActive: { color: '#fff' },
+  profileWrap: { paddingHorizontal: 20 },
+  card: { marginHorizontal: 20, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e4e4e7', padding: 14 },
+  cardFlat: { marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e4e4e7', padding: 14 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: '#000', marginBottom: 8 },
+  sectionDesc: { fontSize: 12, color: '#666', marginBottom: 10 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  summaryLabel: { fontSize: 12, color: '#666' },
+  summaryValue: { fontSize: 13, fontWeight: '600', color: '#000', maxWidth: '60%' },
+  statusBanner: { borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, marginBottom: 12 },
+  statusApproved: { backgroundColor: '#ecfdf5' },
+  statusSubmitted: { backgroundColor: '#fffbeb' },
+  statusRejected: { backgroundColor: '#fef2f2' },
+  statusBannerText: { fontSize: 12, fontWeight: '700', color: '#000' },
   field: { marginBottom: 10 },
   label: { fontSize: 11, color: '#666', marginBottom: 4 },
   input: { borderWidth: 1, borderColor: '#e4e4e7', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#000' },
@@ -338,8 +519,12 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   ghostBtn: { borderWidth: 1, borderColor: '#d4d4d8', borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 6 },
   ghostBtnText: { color: '#18181b', fontSize: 13, fontWeight: '600' },
+  rowBtns: { flexDirection: 'row', gap: 10 },
+  flex1: { flex: 1 },
+  docBtn: { borderWidth: 1, borderColor: '#d4d4d8', borderRadius: 8, paddingVertical: 11, alignItems: 'center', backgroundColor: '#fafafa' },
+  docBtnText: { color: '#71717a', fontSize: 13, fontWeight: '600' },
+  docBtnTextDone: { color: '#059669' },
   disabled: { opacity: 0.5 },
-  card: { marginHorizontal: 20, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e4e4e7', padding: 14 },
   orderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   orderLeft: { flex: 1 },
   orderNumber: { fontSize: 14, fontWeight: '600', color: '#000' },

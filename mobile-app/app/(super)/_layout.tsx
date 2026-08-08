@@ -45,6 +45,13 @@ export default function SuperLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="pricetags-outline" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="suppliers"
+        options={{
+          title: t('supplierApplications'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="briefcase-outline" size={size} color={color} />,
+        }}
+      />
     </Tabs>
   )
 }

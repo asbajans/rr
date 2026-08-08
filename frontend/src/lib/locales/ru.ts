@@ -34,6 +34,7 @@ export const ru: Record<string, string> = {
   superStores: 'Магазины',
   superUsers: 'Пользователи',
   superPlans: 'Планы',
+  superSupplierApps: 'Заявки поставщиков',
   superCategories: 'Категории',
   superAi: 'Управление AI',
   superApi: 'Настройки API',

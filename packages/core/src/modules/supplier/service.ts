@@ -20,9 +20,11 @@ export async function ensureSupplierForStore(storeId: number): Promise<Supplier>
     name: store?.name || null,
     email: store?.email || null,
     phone: (store as any)?.phone || null,
-    contractStatus: 'active',
+    contractStatus: 'invited',
     commissionRate: 0,
     payoutMethod: 'bank',
+    applicationStatus: 'draft',
+    applicationDocuments: null,
   });
 
   logger.info(`Supplier profile auto-created for store ${storeId} (id=${supplier.id})`);

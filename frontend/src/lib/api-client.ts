@@ -905,6 +905,23 @@ class ApiClient {
     return this.post<{ settlement: any }>(`/api/admin/supplier/settlements/${id}/mark-paid`, { payoutRef })
   }
 
+  applySupplierApplication(documents: { taxDocument?: string; signatureDocument?: string; tradeRegistryDocument?: string }) {
+    return this.post<any>('/api/admin/supplier/profile/apply', documents).then((r) => r.supplier || r.data || r)
+  }
+
+  getSupplierApplications(status?: string) {
+    const params = status ? { status } : undefined
+    return this.get<any>('/api/admin/supplier/applications', { params }).then((r) => r.data || r)
+  }
+
+  approveSupplierApplication(id: number) {
+    return this.post<any>(`/api/admin/supplier/applications/${id}/approve`).then((r) => r.supplier || r.data || r)
+  }
+
+  rejectSupplierApplication(id: number, note?: string) {
+    return this.post<any>(`/api/admin/supplier/applications/${id}/reject`, { note }).then((r) => r.supplier || r.data || r)
+  }
+
   // Integration Webhooks
   webhookOrder(marketplace: string, payload: any) {
     return this.post<{ order: any; created: boolean }>(`/api/admin/integration/webhook/order`, { marketplace, payload })

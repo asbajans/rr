@@ -26,7 +26,7 @@ const validate = (req: Request, res: Response, next: Function) => {
 };
 
 // My own supplier profile (lazily created when the store first acts as a supplier)
-supplierRoutes.get('/profile', authMiddleware, requireStore, async (req: Request, res: Response) => {
+supplierRoutes.get('/supplier/profile', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const supplier = await ensureSupplierForStore(store.id);
@@ -37,7 +37,7 @@ supplierRoutes.get('/profile', authMiddleware, requireStore, async (req: Request
   }
 });
 
-supplierRoutes.put('/profile', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+supplierRoutes.put('/supplier/profile', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   body('name').optional().isString(),
   body('email').optional().isEmail(),
   body('phone').optional().isString(),
@@ -67,6 +67,41 @@ supplierRoutes.put('/profile', authMiddleware, requireRole('owner', 'admin'), re
   }
 });
 
+// Supplier submits its supplier-approval application together with the legal
+// documents (vergi levhası, imza sirküleri, ticaret sicil gazetesi). A
+// superadmin reviews the application afterwards. Re-applying is allowed while
+// the application is draft, rejected, or still pending (documents can be
+// updated); approved suppliers cannot re-apply.
+supplierRoutes.post('/supplier/profile/apply', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('taxDocument').optional().isString(),
+  body('signatureDocument').optional().isString(),
+  body('tradeRegistryDocument').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const supplier = await ensureSupplierForStore(store.id);
+    if (supplier.applicationStatus === 'approved') {
+      return res.status(409).json({ error: 'Supplier already approved' });
+    }
+    const docs: Record<string, string> = { ...((supplier.applicationDocuments as any) || {}) };
+    for (const f of ['taxDocument', 'signatureDocument', 'tradeRegistryDocument'] as const) {
+      if (req.body[f] !== undefined) docs[f] = req.body[f];
+    }
+    await supplier.update({
+      applicationDocuments: docs,
+      applicationStatus: 'submitted',
+      applicationSubmittedAt: new Date(),
+      applicationReviewedAt: null,
+      rejectionNote: null,
+    });
+    logger.info(`Supplier store ${store.id} submitted approval application`);
+    res.json({ supplier });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Apply supplier approval error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Buyer view: stores I source from (derived from my B2B listed clones)
 supplierRoutes.get('/suppliers', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
@@ -89,7 +124,7 @@ supplierRoutes.get('/suppliers', authMiddleware, requireStore, async (req: Reque
 });
 
 // Supplier view: incoming sub-orders to fulfill (orders routed to my store as a vendor)
-supplierRoutes.get('/orders', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+supplierRoutes.get('/supplier/orders', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const page = parseInt(req.query.page as string) || 1;
