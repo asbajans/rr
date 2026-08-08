@@ -58,6 +58,18 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // StoreLocation schema alignment with frontend (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE store_locations ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)`);
+    await sequelize.query(`ALTER TABLE store_locations ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)`);
+    await sequelize.query(`ALTER TABLE store_locations ADD COLUMN IF NOT EXISTS city VARCHAR(100)`);
+    await sequelize.query(`ALTER TABLE store_locations ADD COLUMN IF NOT EXISTS country VARCHAR(100)`);
+    await sequelize.query(`ALTER TABLE store_locations ADD COLUMN IF NOT EXISTS working_hours JSONB`);
+    await sequelize.query(`ALTER TABLE store_locations ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT false`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Add superadmin to role ENUM if not exists (safe migration)
   try {
     await sequelize.query(`ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'superadmin'`);

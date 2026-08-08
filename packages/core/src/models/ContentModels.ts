@@ -25,8 +25,14 @@ export class StoreLocation extends Model {
   @ForeignKey(() => Store) @AllowNull(false) @Index @Column(DataType.BIGINT) declare storeId: number;
   @AllowNull(false) @Column(DataType.STRING(255)) declare name: string;
   @AllowNull(true) @Column(DataType.TEXT) declare address: string;
-  @AllowNull(true) @Column(DataType.JSONB) declare coordinates: object;
+  @AllowNull(true) @Column(DataType.DECIMAL(10, 7)) declare latitude: number;
+  @AllowNull(true) @Column(DataType.DECIMAL(10, 7)) declare longitude: number;
+  @AllowNull(true) @Column(DataType.STRING(100)) declare city: string;
+  @AllowNull(true) @Column(DataType.STRING(100)) declare country: string;
   @AllowNull(true) @Column(DataType.STRING(50)) declare phone: string;
+  @AllowNull(true) @Column(DataType.JSONB) declare working_hours: string[] | null;
+  @Default(false) @Column(DataType.BOOLEAN) declare is_primary: boolean;
+  @AllowNull(true) @Column(DataType.JSONB) declare coordinates: object;
   @AllowNull(true) @Column(DataType.JSONB) declare hours: object;
   @Default(true) @Column(DataType.BOOLEAN) declare isActive: boolean;
   @CreatedAt @Column(DataType.DATE) declare createdAt: Date;

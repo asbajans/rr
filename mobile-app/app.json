@@ -17,6 +17,7 @@
     "android": {
       "package": "com.rahatio.mobile",
       "permissions": [
+        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -39,6 +40,9 @@
         "projectId": "6bb13aed-b1f2-482f-9327-86b5eb6c6315"
       }
     },
-    "owner": "ahmedsaidbuluts-team"
+    "owner": "ahmedsaidbuluts-team",
+    "updates": {
+      "url": "https://u.expo.dev/6bb13aed-b1f2-482f-9327-86b5eb6c6315"
+    }
   }
 }

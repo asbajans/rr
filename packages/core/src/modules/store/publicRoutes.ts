@@ -4,6 +4,7 @@ import { Product } from '../../models/Product.model.js';
 import { Category } from '../../models/Category.model.js';
 import { Page, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
 import { StoreMenu } from '../../models/Menu.model.js';
+import { serializeLocation } from '../location/routes.js';
 import { config } from '../../config/index.js';
 
 export const publicStoreRoutes: Router = Router();
@@ -87,7 +88,7 @@ publicStoreRoutes.get('/:siteCode/locations', async (req: Request, res: Response
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const locations = await StoreLocation.findAll({ where: { storeId: store.id, isActive: true } });
-    res.json({ locations });
+    res.json({ locations: locations.map(serializeLocation) });
   } catch (error) {
     console.error('Public locations error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -55,10 +55,12 @@ export default function LocationMap({
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
 
-    const center: [number, number] = coordsRef.current.lat != null && coordsRef.current.lng != null
-      ? [coordsRef.current.lat, coordsRef.current.lng]
-      : (markersRef.current && markersRef.current[0]
-          ? [markersRef.current[0].lat, markersRef.current[0].lng]
+    const validMarkers = (markersRef.current || []).filter(p => p.lat != null && p.lng != null && isFinite(Number(p.lat)) && isFinite(Number(p.lng)))
+    const firstMarker = validMarkers[0]
+    const center: [number, number] = coordsRef.current.lat != null && coordsRef.current.lng != null && isFinite(Number(coordsRef.current.lat)) && isFinite(Number(coordsRef.current.lng))
+      ? [Number(coordsRef.current.lat), Number(coordsRef.current.lng)]
+      : (firstMarker
+          ? [Number(firstMarker.lat), Number(firstMarker.lng)]
           : [41.0082, 28.9784])
 
     const map = L.map(mapRef.current).setView(center, zoomRef.current)
@@ -66,15 +68,14 @@ export default function LocationMap({
       attribution: '&copy; OpenStreetMap',
     }).addTo(map)
 
-    const points = markersRef.current || []
-    if (points.length > 0) {
-      points.forEach(p => {
-        L.marker([p.lat, p.lng])
+    if (validMarkers.length > 0) {
+      validMarkers.forEach(p => {
+        L.marker([Number(p.lat), Number(p.lng)])
           .addTo(map)
           .bindPopup(`<b>${p.name || 'Mağaza'}</b><br>${p.address || ''} ${p.city || ''}`)
       })
       if (fitToMarkersRef.current) {
-        const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng] as L.LatLngTuple))
+        const bounds = L.latLngBounds(validMarkers.map(p => [Number(p.lat), Number(p.lng)] as L.LatLngTuple))
         map.fitBounds(bounds, { padding: [50, 50] })
       }
     } else if (onMoveRef.current) {
