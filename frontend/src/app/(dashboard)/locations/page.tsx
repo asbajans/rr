@@ -6,7 +6,7 @@ import { api } from '@/lib/api-client'
 import { MapPin, Plus, Pencil, Trash2, Clock } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
 import { CardSkeleton } from '@/components/ui/skeleton'
-import L from 'leaflet'
+import type * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
@@ -15,30 +15,44 @@ function LocationMap({ lat, lng, onMove }: { lat: number; lng: number; onMove?: 
   const mapRef = useRef<HTMLDivElement>(null)
   const markerRef = useRef<L.Marker | null>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
+  const coordsRef = useRef({ lat, lng })
+  coordsRef.current = { lat, lng }
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
+    let disposed = false
+    let map: L.Map | null = null
 
-    const map = L.map(mapRef.current).setView([lat, lng], 15)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map)
+    async function init() {
+      if (!mapRef.current || mapInstanceRef.current) return
+      const Leaflet = await import('leaflet')
+      if (disposed || !mapRef.current) return
+      const { lat, lng } = coordsRef.current
 
-    const marker = L.marker([lat, lng], { draggable: !!onMove }).addTo(map)
-    markerRef.current = marker
+      map = Leaflet.map(mapRef.current).setView([lat, lng], 15)
+      Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map)
 
-    if (onMove) {
-      marker.on('dragend', () => {
-        const pos = marker.getLatLng()
-        onMove(pos.lat, pos.lng)
-      })
+      const marker = Leaflet.marker([lat, lng], { draggable: !!onMove }).addTo(map)
+      markerRef.current = marker
+
+      if (onMove) {
+        marker.on('dragend', () => {
+          const pos = marker.getLatLng()
+          onMove(pos.lat, pos.lng)
+        })
+      }
+
+      mapInstanceRef.current = map
     }
 
-    mapInstanceRef.current = map
+    init()
 
     return () => {
-      map.remove()
+      disposed = true
+      if (map) map.remove()
       mapInstanceRef.current = null
+      markerRef.current = null
     }
   }, [])
 

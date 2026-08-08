@@ -6,12 +6,27 @@ import { ProductVariant } from '../../models/ProductVariant.model.js';
 import { ProductB2bSetting } from '../../models/ProductB2bSetting.model.js';
 import { B2BRequest, B2BListedProduct } from '../../models/B2BModels.js';
 import { Store } from '../../models/Store.model.js';
+import { Supplier } from '../../models/Supplier.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { requireModule, assertProductQuota } from '../plan/access.js';
 import { ensureSupplierForStore } from '../supplier/service.js';
 import { logger } from '../../utils/logger.js';
 
 export const b2bRoutes: Router = Router();
+
+/**
+ * Load supplier profiles (rating + max shipment days) for a set of store ids so
+ * B2B listings can display the supplier's score and delivery commitment.
+ */
+async function loadSupplierMap(storeIds: number[]): Promise<Map<number, any>> {
+  const ids = [...new Set(storeIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  const suppliers = await Supplier.findAll({
+    where: { storeId: { [Op.in]: ids } },
+    attributes: ['storeId', 'name', 'ratingAvg', 'ratingCount', 'ratingEnabled', 'maxShipmentDays'],
+  });
+  return new Map(suppliers.map((s) => [s.storeId, s]));
+}
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -52,11 +67,14 @@ b2bRoutes.get('/discover', authMiddleware, requireStore, requireModule('b2b'), a
       ],
     });
 
+    const supplierMap = await loadSupplierMap(rows.map((p) => p.storeId));
+
     const enriched = rows.map(p => ({
       ...p.toJSON(),
       b2bPrice: p.b2bSetting?.b2bPrice || p.priceTRY,
       b2bDiscount: p.b2bSetting?.b2bDiscount || 0,
       canRequest: true,
+      supplier: supplierMap.get(p.storeId) || null,
     }));
 
     res.json({
@@ -408,8 +426,14 @@ b2bRoutes.get('/listed', authMiddleware, requireStore, requireModule('b2b'), asy
       ],
     });
 
+    const supplierMap = await loadSupplierMap(rows.map((l) => l.originalStoreId));
+    const enriched = rows.map((l) => {
+      const json = l.toJSON();
+      return { ...json, supplier: supplierMap.get(l.originalStoreId) || null };
+    });
+
     res.json({
-      products: rows,
+      products: enriched,
       pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     });
   } catch (error) {

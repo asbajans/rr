@@ -103,6 +103,7 @@ export default function SupplierPage() {
         taxId: r.supplier.taxId || '', bankName: r.supplier.bankName || '', iban: r.supplier.iban || '',
         bankOwner: r.supplier.bankOwner || '', commissionRate: Number(r.supplier.commissionRate || 0),
         payoutMethod: r.supplier.payoutMethod || 'bank',
+        maxShipmentDays: Number(r.supplier.maxShipmentDays ?? 3),
       })
       const docs = r.supplier.applicationDocuments || {}
       const docUrl = (url?: string) => url ? { name: url.split('/').pop() || 'Dosya', url } : null
@@ -236,6 +237,7 @@ export default function SupplierPage() {
                   <div className="flex justify-between"><dt className="text-zinc-500">Sözleşme</dt><dd className="capitalize font-medium text-zinc-900">{profile?.contractStatus || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">Komisyon</dt><dd className="font-medium text-zinc-900">%{fmt(profile?.commissionRate)}</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">Ödeme</dt><dd className="capitalize font-medium text-zinc-900">{profile?.payoutMethod || '—'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-zinc-500">Max. Gönderim</dt><dd className="font-medium text-zinc-900">{profile?.maxShipmentDays ?? 3} gün</dd></div>
                   <div className="flex justify-between"><dt className="text-zinc-500">IBAN</dt><dd className="font-medium text-zinc-900 font-mono text-xs">{profile?.iban || '—'}</dd></div>
                 </dl>
                 {profile?.rejectionNote && (
@@ -305,6 +307,13 @@ export default function SupplierPage() {
                           <option value="bank">Banka Havalesi</option>
                           <option value="manual">Manuel</option>
                         </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700">Max. Gönderim Süresi (gün)</label>
+                        <input type="number" min={1} max={60} value={profileForm.maxShipmentDays}
+                          onChange={e => setProfileForm({ ...profileForm, maxShipmentDays: Number(e.target.value) || 3 })}
+                          className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+                        <p className="mt-1 text-[11px] text-zinc-400">Tüm ürünlerinde kargolama taahhüdü olarak görünür.</p>
                       </div>
                     </div>
                     <button onClick={saveProfile} disabled={saving}

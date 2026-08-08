@@ -77,6 +77,18 @@ export default function B2bDiscoverScreen() {
               <View style={styles.cardBody}>
                 <Text style={styles.name}>{item.label}</Text>
                 <Text style={styles.code}>{item.code}{item.store_name ? ` · ${item.store_name}` : ''}</Text>
+                {item.supplier && (
+                  <View style={styles.supplierRow}>
+                    <Text style={styles.supplierRating}>
+                      {item.supplier.ratingCount && Number(item.supplier.ratingAvg) > 0
+                        ? `★ ${Number(item.supplier.ratingAvg).toFixed(1)} (${item.supplier.ratingCount})`
+                        : t('supplierNoRating')}
+                    </Text>
+                    {item.supplier.maxShipmentDays != null && (
+                      <Text style={styles.supplierDays}>≤ {item.supplier.maxShipmentDays} {t('days')}</Text>
+                    )}
+                  </View>
+                )}
                 <View style={styles.meta}>
                   <Text style={styles.price}>{item.price != null ? `${item.price} ₺` : '-'}</Text>
                   <Text style={styles.stock}>{t('stock')}: {item.stock}</Text>
@@ -131,6 +143,9 @@ const styles = StyleSheet.create({
   cardBody: { flex: 1 },
   name: { fontSize: 15, fontWeight: '600' },
   code: { fontSize: 12, color: '#999', marginTop: 2 },
+  supplierRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' },
+  supplierRating: { fontSize: 11, color: '#b45309', fontWeight: '600' },
+  supplierDays: { fontSize: 11, color: '#0369a1', fontWeight: '600' },
   meta: { flexDirection: 'row', gap: 12, marginTop: 4 },
   price: { fontSize: 14, fontWeight: '600' },
   stock: { fontSize: 13, color: '#666' },

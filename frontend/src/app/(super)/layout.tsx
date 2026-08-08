@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Store, Users, CreditCard, LogOut, FolderTree, Sparkles, Settings, Cpu, Gauge, Layers, Shield, ChevronLeft, ChevronRight, Truck } from 'lucide-react'
+import { Store, Users, CreditCard, LogOut, FolderTree, Sparkles, Settings, Cpu, Gauge, Layers, Shield, ChevronLeft, ChevronRight, Truck, Star } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/users', labelKey: 'superUsers', icon: Users },
   { href: '/plans', labelKey: 'superPlans', icon: CreditCard },
   { href: '/supplier-applications', labelKey: 'superSupplierApps', icon: Truck },
+  { href: '/supplier-ratings', labelKey: 'superSupplierRatings', icon: Star },
   { href: '/super/categories', labelKey: 'superCategories', icon: FolderTree },
   { href: '/super-ai', labelKey: 'superAi', icon: Sparkles },
   { href: '/api-settings', labelKey: 'superApi', icon: Settings },

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { MapPin, Clock, Phone } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
-import L from 'leaflet'
+import type * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
@@ -27,28 +27,39 @@ export default function StoreLocationsPage() {
   }, [siteCode])
 
   useEffect(() => {
-    if (loading || locations.length === 0 || mapInstanceRef.current || !mapRef.current) return
+    let disposed = false
+    let map: L.Map | null = null
 
-    const map = L.map(mapRef.current).setView([locations[0].latitude, locations[0].longitude], 12)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map)
+    async function init() {
+      if (loading || locations.length === 0 || mapInstanceRef.current || !mapRef.current) return
+      const Leaflet = await import('leaflet')
+      if (disposed || loading || locations.length === 0 || !mapRef.current) return
+      const locs = locations
 
-    locations.forEach(loc => {
-      L.marker([loc.latitude, loc.longitude])
-        .addTo(map)
-        .bindPopup(`<b>${loc.name || 'Mağaza'}</b><br>${loc.address}, ${loc.city}`)
-    })
+      map = Leaflet.map(mapRef.current).setView([locs[0].latitude, locs[0].longitude], 12)
+      Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map)
 
-    if (locations.length > 1) {
-      const bounds = L.latLngBounds(locations.map(l => [l.latitude, l.longitude] as L.LatLngTuple))
-      map.fitBounds(bounds, { padding: [50, 50] })
+      locs.forEach(loc => {
+        Leaflet.marker([loc.latitude, loc.longitude])
+          .addTo(map!)
+          .bindPopup(`<b>${loc.name || 'Mağaza'}</b><br>${loc.address}, ${loc.city}`)
+      })
+
+      if (locs.length > 1) {
+        const bounds = Leaflet.latLngBounds(locs.map(l => [l.latitude, l.longitude] as L.LatLngTuple))
+        map.fitBounds(bounds, { padding: [50, 50] })
+      }
+
+      mapInstanceRef.current = map
     }
 
-    mapInstanceRef.current = map
+    init()
 
     return () => {
-      map.remove()
+      disposed = true
+      if (map) map.remove()
       mapInstanceRef.current = null
     }
   }, [loading, locations])

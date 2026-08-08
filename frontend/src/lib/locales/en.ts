@@ -40,6 +40,7 @@ export const en: Record<string, string> = {
   superUsers: 'Users',
   superPlans: 'Plans',
   superSupplierApps: 'Supplier Applications',
+  superSupplierRatings: 'Supplier Ratings',
   superCategories: 'Categories',
   superAi: 'AI Management',
   superApi: 'API Settings',

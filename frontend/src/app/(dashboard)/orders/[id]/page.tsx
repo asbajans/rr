@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { DropshippingOrderDetail } from '@/lib/types'
-import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock, ThumbsUp, Barcode, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Package, Truck, CheckCircle, XCircle, RotateCcw, Clock, ThumbsUp, Barcode, ChevronDown, ChevronUp, Star, X } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
@@ -51,6 +51,13 @@ export default function OrderDetailPage() {
   const [refundId, setRefundId] = useState('')
   const [capabilities, setCapabilities] = useState<{ integrationConnected: boolean; unsupported: string[] } | null>(null)
 
+  // Supplier ratings
+  const [ratings, setRatings] = useState<Record<number, { id: number; rating: number; comment: string }>>({})
+  const [ratingOpen, setRatingOpen] = useState<number | null>(null)
+  const [ratingScore, setRatingScore] = useState(5)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingSaving, setRatingSaving] = useState(false)
+
   useEffect(() => {
     if (!id || !user) return
     api.getOrder(parseInt(id))
@@ -64,7 +71,30 @@ export default function OrderDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
     api.getOrderCapabilities(parseInt(id)).then(setCapabilities).catch(() => setCapabilities(null))
+    api.getMySupplierRatings({ orderId: parseInt(id) }).then((list) => {
+      const map: Record<number, { id: number; rating: number; comment: string }> = {}
+      for (const r of list || []) if (r.supplierId) map[r.supplierId] = { id: r.id, rating: r.rating, comment: r.comment || '' }
+      setRatings(map)
+    }).catch(() => {})
   }, [id, user])
+
+  async function submitRating(supplierId: number) {
+    if (!ratingOpen || ratingScore < 1) return
+    setRatingSaving(true)
+    try {
+      await api.rateSupplier({ orderId: parseInt(id), supplierId, rating: ratingScore, comment: ratingComment || undefined })
+      const list = await api.getMySupplierRatings({ orderId: parseInt(id) })
+      const map: Record<number, { id: number; rating: number; comment: string }> = {}
+      for (const r of list || []) if (r.supplierId) map[r.supplierId] = { id: r.id, rating: r.rating, comment: r.comment || '' }
+      setRatings(map)
+      setMessage('Tedarikçi puanlaması kaydedildi')
+      setRatingOpen(null)
+    } catch (err: any) {
+      setMessage(err.message || 'Puanlama kaydedilemedi')
+    } finally {
+      setRatingSaving(false)
+    }
+  }
 
   async function updateStatus(status: string) {
     setUpdating(true)
@@ -416,21 +446,44 @@ export default function OrderDetailPage() {
             <div className="rounded-xl border border-zinc-200 bg-white p-6">
               <h3 className="text-sm font-semibold text-zinc-900">Tedarikçi Alt Siparişleri</h3>
               <div className="mt-4 space-y-3">
-                {order.sub_orders.map((sub: any) => (
-                  <Link key={sub.id} href={`/orders/${sub.id}`}
-                    className="flex items-center justify-between rounded-lg border border-zinc-100 p-3 hover:bg-zinc-50">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-900">#{sub.external_id || sub.id}</p>
-                      <p className="text-xs text-zinc-500">{sub.items?.length || 0} ürün</p>
+                {order.sub_orders.map((sub: any) => {
+                  const sup = sub.supplier
+                  const existing = sup ? ratings[sup.id] : null
+                  const canRate = order.status === 'delivered' && !!sup
+                  return (
+                    <div key={sub.id} className="rounded-lg border border-zinc-100 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-zinc-900">#{sub.external_id || sub.id}</p>
+                          <p className="text-xs text-zinc-500">{sub.items?.length || 0} ürün{sup ? ` · ${sup.name || 'Tedarikçi'}` : ''}</p>
+                          {existing && (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-0.5 text-xs text-amber-600">
+                                {[1, 2, 3, 4, 5].map((n) => (
+                                  <Star key={n} className={`h-3.5 w-3.5 ${n <= existing.rating ? 'fill-amber-400 text-amber-400' : 'text-zinc-300'}`} />
+                                ))}
+                              </span>
+                              <span className="text-[11px] text-zinc-400">{existing.comment || 'Puanlandı'}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 text-right">
+                          <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[sub.status]?.color || 'bg-zinc-100 text-zinc-700'}`}>
+                            {STATUS_CONFIG[sub.status]?.label || sub.status}
+                          </span>
+                          {canRate && (
+                            <button
+                              onClick={() => { setRatingOpen(sup.id); setRatingScore(existing?.rating || 5); setRatingComment(existing?.comment || '') }}
+                              className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
+                            >
+                              {existing ? 'Puanı Düzenle' : 'Tedarikçiyi Puanla'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[sub.status]?.color || 'bg-zinc-100 text-zinc-700'}`}>
-                        {STATUS_CONFIG[sub.status]?.label || sub.status}
-                      </span>
-                      <p className="mt-1 text-xs text-zinc-500">{parseFloat(sub.grand_total || sub.totalAmount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {order.currency}</p>
-                    </div>
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -516,6 +569,43 @@ export default function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      {ratingOpen != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setRatingOpen(null)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">Tedarikçiyi Puanla</h3>
+              <button onClick={() => setRatingOpen(null)} className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-1">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} onClick={() => setRatingScore(n)} className="p-1">
+                  <Star className={`h-8 w-8 ${n <= ratingScore ? 'fill-amber-400 text-amber-400' : 'text-zinc-300'}`} />
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-center text-xs text-zinc-500">
+              {['Çok kötü', 'Kötü', 'Orta', 'İyi', 'Mükemmel'][ratingScore - 1]}
+            </p>
+            <textarea
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Yorum (opsiyonel)"
+              rows={3}
+              className="mt-4 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+            />
+            <button
+              onClick={() => submitRating(ratingOpen)}
+              disabled={ratingSaving}
+              className="mt-4 w-full rounded-lg bg-amber-600 py-2.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              {ratingSaving ? 'Kaydediliyor...' : 'Puanı Kaydet'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

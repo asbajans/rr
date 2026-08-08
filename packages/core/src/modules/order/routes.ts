@@ -7,6 +7,7 @@ import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { Product } from '../../models/Product.model.js';
+import { Supplier } from '../../models/Supplier.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { createSplitOrder } from './orderSplit.js';
 import { createGateway } from '../payment/gateways/index.js';
@@ -192,6 +193,16 @@ orderRoutes.get('/:id', authMiddleware, requireStore, [
       include: [{ model: OrderStatusHistory, as: 'statusHistory', order: [['createdAt', 'ASC']] }],
     });
 
+    const subOrderStoreIds = [...new Set(subOrders.map((s) => s.storeId))];
+    const suppliers = subOrderStoreIds.length > 0
+      ? await Supplier.findAll({
+          where: { storeId: { [Op.in]: subOrderStoreIds } },
+          attributes: ['id', 'storeId', 'name', 'ratingAvg', 'ratingCount', 'ratingEnabled', 'maxShipmentDays'],
+        })
+      : [];
+    const supplierByStore = new Map(suppliers.map((s) => [s.storeId, s]));
+    const enrichedSubs = subOrders.map((s) => ({ ...s.toJSON(), supplier: supplierByStore.get(s.storeId) || null }));
+
     let parentOrder = null;
     if (order.parentOrderId) {
       parentOrder = await DropshippingOrder.findByPk(order.parentOrderId, {
@@ -199,7 +210,7 @@ orderRoutes.get('/:id', authMiddleware, requireStore, [
       });
     }
 
-    res.json({ order: { ...order.toJSON(), subOrders, parentOrder } });
+    res.json({ order: { ...order.toJSON(), subOrders: enrichedSubs, parentOrder } });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get order error');
     res.status(500).json({ error: 'Internal server error' });

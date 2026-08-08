@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { B2bProductItem } from '@/lib/types'
-import { Search, Package, Store, Tag, Percent, PlusCircle, Eye, CheckCircle, Clock, XCircle, X } from 'lucide-react'
+import { Search, Package, Store, Tag, Percent, PlusCircle, Eye, CheckCircle, Clock, XCircle, X, Star, Truck } from 'lucide-react'
 import { CardSkeleton, EmptyState, TableSkeleton } from '@/components/ui/skeleton'
 
 type Tab = 'discover' | 'listed'
@@ -97,6 +97,31 @@ export default function B2bPage() {
     rejected: { color: 'text-red-600 bg-red-50', icon: <XCircle className="h-3 w-3" />, label: 'Reddedildi' },
   }
 
+  function SupplierRatingBadge({ supplier }: { supplier: any }) {
+    if (!supplier) return null
+    const hasRating = supplier.ratingCount > 0 && Number(supplier.ratingAvg) > 0
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {hasRating && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+            {Number(supplier.ratingAvg).toFixed(1)} ({supplier.ratingCount})
+          </span>
+        )}
+        {!hasRating && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
+            <Star className="h-3 w-3" /> Henüz puan yok
+          </span>
+        )}
+        {supplier.maxShipmentDays != null && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+            <Truck className="h-3 w-3" /> ≤ {supplier.maxShipmentDays} gün
+          </span>
+        )}
+      </div>
+    )
+  }
+
   if (!user) return null
 
   return (
@@ -179,7 +204,8 @@ export default function B2bPage() {
                       <Store className="h-3 w-3 text-amber-600" />
                       <span className="text-xs text-zinc-500">{item.store.name}</span>
                     </div>
-                    <h3 className="truncate text-sm font-semibold text-zinc-900">{item.product.label}</h3>
+                    <SupplierRatingBadge supplier={item.supplier} />
+                    <h3 className="mt-1.5 truncate text-sm font-semibold text-zinc-900">{item.product.label}</h3>
                     {item.b2b_discount && (
                       <div className="mt-2 rounded-lg bg-green-50 p-2">
                         <div className="flex justify-between text-xs text-zinc-500">
@@ -299,6 +325,7 @@ export default function B2bPage() {
                     <div>
                       <p className="text-sm font-medium text-zinc-900">{detailProduct.store.name}</p>
                       <p className="text-xs text-zinc-500">Mağaza Kodu: {detailProduct.store.site_code}</p>
+                      <SupplierRatingBadge supplier={detailProduct.supplier} />
                     </div>
                   </div>
                   <div className="mt-4 flex gap-3">
@@ -394,7 +421,10 @@ export default function B2bPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-zinc-500">{lp.original_store?.name || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-500">
+                        <div className="font-medium text-zinc-700">{lp.original_store?.name || '-'}</div>
+                        <SupplierRatingBadge supplier={lp.supplier} />
+                      </td>
                       <td className="px-6 py-4 text-sm text-zinc-500">
                         {lp.created_at ? new Date(lp.created_at).toLocaleDateString('tr-TR') : '-'}
                       </td>

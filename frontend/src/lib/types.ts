@@ -556,6 +556,13 @@ export type B2bProductItem = {
   b2b_price: number | null
   my_request_status: string | null
   my_request_id: number | null
+  supplier: {
+    name: string
+    ratingAvg: number
+    ratingCount: number
+    ratingEnabled: boolean
+    maxShipmentDays: number
+  } | null
 }
 
 export type B2bProduct = B2bProductItem

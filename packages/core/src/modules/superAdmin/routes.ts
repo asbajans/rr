@@ -6,7 +6,9 @@ import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
 import { Setting } from '../../models/Setting.model.js';
 import { Supplier } from '../../models/Supplier.model.js';
+import { SupplierRating } from '../../models/SupplierRating.model.js';
 import { authMiddleware, requireRole } from '../auth/middleware.js';
+import { getRatingSettings, setRatingSettings, recomputeSupplierRating } from '../supplier/rating.js';
 import { logger } from '../../utils/logger.js';
 import { serializePlans, serializePlan } from '../planSerializer.js';
 
@@ -392,7 +394,7 @@ router.get('/supplier/applications', superAdminOnly, async (req: Request, res: R
     }
     const suppliers = await Supplier.findAll({
       where,
-      include: [{ model: Store, as: 'store', attributes: ['id', 'name', 'siteCode', 'domain', 'email', 'phone'] }],
+      include: [{ model: Store, as: 'store', attributes: ['id', 'name', 'siteCode', 'domain', 'email'] }],
       order: [['applicationSubmittedAt', 'DESC']],
     });
     res.json({ data: suppliers });
@@ -453,6 +455,109 @@ router.post('/supplier/applications/:id/reject', superAdminOnly, [
     res.json({ supplier });
   } catch (error) {
     logger.error({ err: error }, 'Reject supplier application error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/supplier/ratings-admin
+ * List every supplier rating across the platform (superadmin). Optional
+ * filters: ?storeId= (rating store), ?supplierId=, ?rating=.
+ */
+router.get('/supplier/ratings-admin', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const where: any = {};
+    if (req.query.storeId) where.storeId = parseInt(req.query.storeId as string);
+    if (req.query.supplierId) where.supplierId = parseInt(req.query.supplierId as string);
+    if (req.query.rating) where.rating = parseInt(req.query.rating as string);
+
+    const ratings = await SupplierRating.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: 200,
+      include: [
+        { model: Supplier, as: 'supplier', include: [{ model: Store, as: 'store', attributes: ['id', 'name', 'siteCode'] }] },
+        { model: Store, as: 'store', attributes: ['id', 'name', 'siteCode'] },
+      ],
+    });
+    res.json({ ratings });
+  } catch (error) {
+    logger.error({ err: error }, 'List all supplier ratings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/supplier/ratings-admin/settings
+ * Read the global rating system toggle.
+ */
+router.get('/supplier/ratings-admin/settings', superAdminOnly, async (_req: Request, res: Response) => {
+  try {
+    res.json({ settings: await getRatingSettings() });
+  } catch (error) {
+    logger.error({ err: error }, 'Get rating settings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/admin/supplier/ratings-admin/settings
+ * Toggle the global rating system on/off.
+ */
+router.put('/supplier/ratings-admin/settings', superAdminOnly, [
+  body('enabled').isBoolean(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const settings = await setRatingSettings(req.body.enabled);
+    logger.info(`Supplier rating system ${settings.enabled ? 'enabled' : 'disabled'} by ${(req as any).user?.email}`);
+    res.json({ settings });
+  } catch (error) {
+    logger.error({ err: error }, 'Set rating settings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/admin/supplier/ratings-admin/:id
+ * Correct a rating (score or comment) as superadmin.
+ */
+router.put('/supplier/ratings-admin/:id', superAdminOnly, [
+  param('id').isInt(),
+  body('rating').optional().isInt({ min: 1, max: 5 }),
+  body('comment').optional({ values: 'null' }).isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const rating = await SupplierRating.findByPk(req.params.id);
+    if (!rating) return res.status(404).json({ error: 'Rating not found' });
+    const updateData: any = {};
+    if (req.body.rating !== undefined) updateData.rating = req.body.rating;
+    if (req.body.comment !== undefined) updateData.comment = req.body.comment || null;
+    if (Object.keys(updateData).length > 0) await rating.update(updateData);
+    await recomputeSupplierRating(rating.supplierId);
+    res.json({ rating });
+  } catch (error) {
+    logger.error({ err: error }, 'Update supplier rating error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/admin/supplier/ratings-admin/:id
+ * Remove an inappropriate rating (superadmin moderation).
+ */
+router.delete('/supplier/ratings-admin/:id', superAdminOnly, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const rating = await SupplierRating.findByPk(req.params.id);
+    if (!rating) return res.status(404).json({ error: 'Rating not found' });
+    const supplierId = rating.supplierId;
+    await rating.destroy();
+    await recomputeSupplierRating(supplierId);
+    logger.info(`Rating ${rating.id} deleted by ${(req as any).user?.email}`);
+    res.json({ message: 'Rating deleted' });
+  } catch (error) {
+    logger.error({ err: error }, 'Delete supplier rating error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

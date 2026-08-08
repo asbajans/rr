@@ -949,6 +949,13 @@ class ApiClient {
       b2b_discount: p.b2bDiscount ?? p.b2bSetting?.b2bDiscount ?? null,
       b2b_price: p.b2bPrice ?? p.b2bSetting?.b2bPrice ?? p.priceTRY ?? null,
       is_b2b_enabled: !!p.isB2BEnabled,
+      supplier: p.supplier ? {
+        name: p.supplier.name || '',
+        ratingAvg: Number(p.supplier.ratingAvg ?? 0),
+        ratingCount: Number(p.supplier.ratingCount ?? 0),
+        ratingEnabled: p.supplier.ratingEnabled !== false,
+        maxShipmentDays: Number(p.supplier.maxShipmentDays ?? 3),
+      } : null,
     }))
     return {
       data: products,
@@ -1021,6 +1028,13 @@ class ApiClient {
         b2b_discount: null,
         b2b_price: p.priceTRY ?? null,
         is_b2b_enabled: true,
+        supplier: lp.supplier ? {
+          name: lp.supplier.name || '',
+          ratingAvg: Number(lp.supplier.ratingAvg ?? 0),
+          ratingCount: Number(lp.supplier.ratingCount ?? 0),
+          ratingEnabled: lp.supplier.ratingEnabled !== false,
+          maxShipmentDays: Number(lp.supplier.maxShipmentDays ?? 3),
+        } : null,
       }
     })
     return { data: products }
@@ -1103,6 +1117,19 @@ class ApiClient {
 
   rejectSupplierApplication(id: number, note?: string) {
     return this.post<any>(`/api/admin/supplier/applications/${id}/reject`, { note }).then((r) => r.supplier || r.data || r)
+  }
+
+  // Supplier ratings (buyer -> supplier)
+  rateSupplier(data: { supplierId: number; orderId: number; rating: number; comment?: string }) {
+    return this.post<{ rating: any }>('/api/admin/supplier/ratings', data)
+  }
+
+  getMySupplierRatings() {
+    return this.get<any>('/api/admin/supplier/ratings').then((r) => r.ratings || r.data || [])
+  }
+
+  deleteMySupplierRating(id: number) {
+    return this.delete<any>(`/api/admin/supplier/ratings/${id}`)
   }
 
   // Store Frontend

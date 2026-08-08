@@ -27,6 +27,10 @@ export default function OrderDetailScreen() {
   const [invoiceLink, setInvoiceLink] = useState('')
   const [refundId, setRefundId] = useState('')
   const [marketplaceBusy, setMarketplaceBusy] = useState(false)
+  const [ratingFor, setRatingFor] = useState<{ supplierId: number; supplierName: string } | null>(null)
+  const [rating, setRating] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingBusy, setRatingBusy] = useState(false)
 
   async function load() {
     try {
@@ -41,6 +45,21 @@ export default function OrderDetailScreen() {
   }
 
   useEffect(() => { load() }, [id])
+
+  async function submitRating() {
+    if (!ratingFor || rating < 1) return Alert.alert(t('error'), t('supplierRateHint'))
+    setRatingBusy(true)
+    try {
+      await api.rateSupplier({ supplierId: ratingFor.supplierId, orderId: parseInt(id, 10), rating, comment: ratingComment || undefined })
+      Alert.alert(t('ok'), t('supplierRated'))
+      setRatingFor(null); setRating(0); setRatingComment('')
+      load()
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message)
+    } finally {
+      setRatingBusy(false)
+    }
+  }
 
   async function sendInvoice() {
     if (!invoiceLink) return Alert.alert(t('error'), 'Fatura bağlantısı gerekli')
@@ -144,6 +163,41 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
+      {(order as any).subOrders && (order as any).subOrders.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Tedarikçi Siparişleri</Text>
+          {(order as any).subOrders.map((sub: any) => (
+            <View key={sub.id} style={styles.subRow}>
+              <View style={styles.itemLeft}>
+                <Text style={styles.itemName}>
+                  {sub.supplier?.name || sub.supplierName || `#${sub.id}`}
+                </Text>
+                {sub.supplier ? (
+                  <Text style={styles.meta}>
+                    {sub.supplier.ratingCount && Number(sub.supplier.ratingAvg) > 0
+                      ? `★ ${Number(sub.supplier.ratingAvg).toFixed(1)} (${sub.supplier.ratingCount})`
+                      : t('supplierNoRating')}
+                    {sub.supplier.maxShipmentDays != null ? ` · ≤ ${sub.supplier.maxShipmentDays} ${t('days')}` : ''}
+                  </Text>
+                ) : null}
+                <Text style={styles.meta}>{sub.status ? t('status_' + sub.status) : ''}</Text>
+              </View>
+              <View style={styles.subRight}>
+                <Text style={styles.itemPrice}>{formatPrice(sub.totalAmount ?? 0, sub.currency || order.currency)}</Text>
+                {order.status === 'delivered' && sub.supplier && sub.supplier.ratingEnabled !== false ? (
+                  <TouchableOpacity
+                    style={styles.rateBtn}
+                    onPress={() => setRatingFor({ supplierId: Number(sub.supplier.id ?? sub.supplier.storeId), supplierName: sub.supplier.name || 'Tedarikçi' })}
+                  >
+                    <Text style={styles.rateBtnText}>{t('supplierRate')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t('totals')}</Text>
         <View style={styles.totalRow}><Text style={styles.meta}>{t('subtotal')}</Text><Text style={styles.meta}>{formatPrice(order.subtotal ?? 0, order.currency)}</Text></View>
@@ -189,6 +243,34 @@ export default function OrderDetailScreen() {
           ))}
         </View>
       )}
+
+      {ratingFor && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('supplierRate')} — {ratingFor.supplierName}</Text>
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <TouchableOpacity key={s} onPress={() => setRating(s)}>
+                <Text style={[styles.star, rating >= s ? styles.starActive : null]}>{'★'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            value={ratingComment}
+            onChangeText={setRatingComment}
+            placeholder={t('supplierRateComment')}
+            style={styles.input}
+            multiline
+          />
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.rejectBtn} onPress={() => { setRatingFor(null); setRating(0); setRatingComment('') }}>
+              <Text style={styles.rejectText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.approveBtn} onPress={submitRating} disabled={ratingBusy || rating < 1}>
+              <Text style={styles.actionText}>{t('ok')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </ScrollView>
   )
 }
@@ -230,4 +312,11 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, marginRight: 10 },
   historyBody: { flex: 1 },
   historyStatus: { fontSize: 14, fontWeight: '600', textTransform: 'capitalize' },
+  subRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  subRight: { alignItems: 'flex-end', marginLeft: 12 },
+  rateBtn: { backgroundColor: '#3949ab', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, marginTop: 6 },
+  rateBtnText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+  starsRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  star: { fontSize: 28, color: '#ccc' },
+  starActive: { color: '#f59e0b' },
 })

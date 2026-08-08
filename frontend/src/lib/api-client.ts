@@ -662,6 +662,13 @@ class ApiClient {
         b2b_price: p.b2bPrice ?? p.b2bSetting?.b2bPrice ?? p.priceTRY ?? null,
         my_request_status: null,
         my_request_id: null,
+        supplier: p.supplier ? {
+          name: p.supplier.name || '',
+          ratingAvg: Number(p.supplier.ratingAvg ?? 0),
+          ratingCount: Number(p.supplier.ratingCount ?? 0),
+          ratingEnabled: p.supplier.ratingEnabled !== false,
+          maxShipmentDays: Number(p.supplier.maxShipmentDays ?? 3),
+        } : null,
       }
     })
     return {
@@ -782,6 +789,13 @@ class ApiClient {
           name: originalStore.name || '',
           site_code: originalStore.siteCode || '',
         },
+        supplier: lp.supplier ? {
+          name: lp.supplier.name || '',
+          ratingAvg: Number(lp.supplier.ratingAvg ?? 0),
+          ratingCount: Number(lp.supplier.ratingCount ?? 0),
+          ratingEnabled: lp.supplier.ratingEnabled !== false,
+          maxShipmentDays: Number(lp.supplier.maxShipmentDays ?? 3),
+        } : null,
       }
     })
     return {
@@ -920,6 +934,40 @@ class ApiClient {
 
   rejectSupplierApplication(id: number, note?: string) {
     return this.post<any>(`/api/admin/supplier/applications/${id}/reject`, { note }).then((r) => r.supplier || r.data || r)
+  }
+
+  // Supplier ratings (buyer)
+  rateSupplier(data: { orderId: number; supplierId: number; rating: number; comment?: string }) {
+    return this.post<any>(`/api/admin/supplier/ratings`, data).then((r) => r.rating || r.data || r)
+  }
+
+  getMySupplierRatings(params?: { orderId?: number; supplierId?: number }) {
+    return this.get<any>(`/api/admin/supplier/ratings`, { params }).then((r) => r.ratings || r.data || [])
+  }
+
+  deleteMySupplierRating(id: number) {
+    return this.delete<any>(`/api/admin/supplier/ratings/${id}`).then((r) => r.data || r)
+  }
+
+  // Supplier ratings (superadmin)
+  getSupplierRatingsAdmin(params?: { storeId?: number; supplierId?: number; rating?: number }) {
+    return this.get<any>(`/api/admin/supplier/ratings-admin`, { params }).then((r) => r.ratings || r.data || [])
+  }
+
+  updateSupplierRatingAdmin(id: number, data: { rating?: number; comment?: string | null }) {
+    return this.put<any>(`/api/admin/supplier/ratings-admin/${id}`, data).then((r) => r.rating || r.data || r)
+  }
+
+  deleteSupplierRatingAdmin(id: number) {
+    return this.delete<any>(`/api/admin/supplier/ratings-admin/${id}`).then((r) => r.data || r)
+  }
+
+  getRatingSettingsAdmin() {
+    return this.get<any>(`/api/admin/supplier/ratings-admin/settings`).then((r) => r.settings || r.data || { enabled: true })
+  }
+
+  updateRatingSettingsAdmin(enabled: boolean) {
+    return this.put<any>(`/api/admin/supplier/ratings-admin/settings`, { enabled }).then((r) => r.settings || r.data || { enabled })
   }
 
   // Integration Webhooks

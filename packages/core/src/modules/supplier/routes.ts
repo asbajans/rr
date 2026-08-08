@@ -7,8 +7,10 @@ import { Product } from '../../models/Product.model.js';
 import { B2BListedProduct } from '../../models/B2BModels.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.model.js';
+import { SupplierRating } from '../../models/SupplierRating.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { ensureSupplierForStore } from './service.js';
+import { isRatingEnabled, recomputeSupplierRating } from './rating.js';
 import { SUPPLIER_STATUS, deriveParentStatus, latestSupplierTracking, toRestockMap } from './fulfillment.js';
 import { computePeriod, requestSettlement } from './settlement.js';
 import { SupplierSettlement } from '../../models/SupplierSettlement.model.js';
@@ -48,11 +50,12 @@ supplierRoutes.put('/supplier/profile', authMiddleware, requireRole('owner', 'ad
   body('contractStatus').optional().isIn(['invited', 'active', 'suspended']),
   body('commissionRate').optional().isFloat({ min: 0, max: 100 }),
   body('payoutMethod').optional().isIn(['bank', 'manual']),
+  body('maxShipmentDays').optional().isInt({ min: 1, max: 60 }),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const supplier = await ensureSupplierForStore(store.id);
-    const fields = ['name', 'email', 'phone', 'taxId', 'bankName', 'iban', 'bankOwner', 'contractStatus', 'commissionRate', 'payoutMethod'];
+    const fields = ['name', 'email', 'phone', 'taxId', 'bankName', 'iban', 'bankOwner', 'contractStatus', 'commissionRate', 'payoutMethod', 'maxShipmentDays'];
     const updateData: Record<string, unknown> = {};
     for (const f of fields) {
       if (req.body[f] !== undefined) updateData[f] = req.body[f];
@@ -428,6 +431,98 @@ supplierRoutes.post('/supplier/settlements/:id/mark-paid', authMiddleware, requi
     res.json({ settlement });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Mark settlement paid error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ---------------------------------------------------------------- Ratings ---
+// Buyer store rates a supplier for a completed B2B order. The supplier must
+// have fulfilled a sub-order of the given order. One rating per (supplier,
+// order); submitting again updates the existing rating.
+
+supplierRoutes.get('/supplier/ratings', authMiddleware, requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const where: Record<string, unknown> = { storeId: store.id };
+    if (req.query.supplierId) where.supplierId = parseInt(req.query.supplierId as string);
+    if (req.query.orderId) where.orderId = parseInt(req.query.orderId as string);
+    const ratings = await SupplierRating.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [{ model: Supplier, as: 'supplier', include: [{ model: Store, as: 'store', attributes: ['id', 'name', 'siteCode'] }] }],
+    });
+    res.json({ ratings });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'List my supplier ratings error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+supplierRoutes.post('/supplier/ratings', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('orderId').isInt(),
+  body('supplierId').isInt(),
+  body('rating').isInt({ min: 1, max: 5 }),
+  body('comment').optional({ values: 'null' }).isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { orderId, supplierId, rating, comment } = req.body;
+
+    if (!(await isRatingEnabled())) {
+      return res.status(403).json({ error: 'Rating system disabled' });
+    }
+
+    const supplier = await Supplier.findByPk(supplierId);
+    if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+    if (!supplier.ratingEnabled) {
+      return res.status(403).json({ error: 'Ratings disabled for this supplier' });
+    }
+
+    const order = await DropshippingOrder.findByPk(orderId);
+    if (!order || order.storeId !== store.id) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.status !== 'delivered') {
+      return res.status(400).json({ error: 'Order must be delivered before rating' });
+    }
+
+    const sub = await DropshippingOrder.findOne({
+      where: { parentOrderId: order.id, storeId: supplier.storeId },
+    });
+    if (!sub) {
+      return res.status(400).json({ error: 'Order was not fulfilled by this supplier' });
+    }
+
+    const [ratingRow] = await SupplierRating.upsert({
+      supplierId: supplier.id,
+      storeId: store.id,
+      orderId: order.id,
+      rating,
+      comment: comment || null,
+    }, { returning: true });
+
+    await recomputeSupplierRating(supplier.id);
+    logger.info(`Store ${store.id} rated supplier ${supplier.id} ${rating}/5 for order ${order.id}`);
+    res.json({ rating: ratingRow });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Submit supplier rating error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+supplierRoutes.delete('/supplier/ratings/:id', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  param('id').isInt(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const rating = await SupplierRating.findOne({ where: { id: req.params.id, storeId: store.id } });
+    if (!rating) return res.status(404).json({ error: 'Rating not found' });
+    const supplierId = rating.supplierId;
+    await rating.destroy();
+    await recomputeSupplierRating(supplierId);
+    res.json({ message: 'Rating deleted' });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Delete supplier rating error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

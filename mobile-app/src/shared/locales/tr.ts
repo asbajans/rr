@@ -218,6 +218,12 @@
   b2bNoRequests: 'Henüz talep yok',
   b2bNoProducts: 'Keşfedilecek B2B ürünü yok',
   b2bSendRequest: 'Talep Gönder',
+  supplierNoRating: 'Henüz puan yok',
+  days: 'gün',
+  supplierRate: 'Tedarikçiyi Puanla',
+  supplierRated: 'Tedarikçi puanlandı',
+  supplierRateHint: 'Puan seçmelisiniz (1-5)',
+  supplierRateComment: 'Yorum (opsiyonel)',
 
   allProducts: 'Tüm Ürünler',
   b2bProducts: 'B2B Ürünleri',

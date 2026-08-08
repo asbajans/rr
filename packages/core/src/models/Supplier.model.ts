@@ -98,6 +98,22 @@ export class Supplier extends Model {
   @Column(DataType.TEXT)
   declare rejectionNote: string;
 
+  @Default(3)
+  @Column(DataType.INTEGER)
+  declare maxShipmentDays: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(3, 2))
+  declare ratingAvg: number;
+
+  @Default(0)
+  @Column(DataType.INTEGER)
+  declare ratingCount: number;
+
+  @Default(true)
+  @Column(DataType.BOOLEAN)
+  declare ratingEnabled: boolean;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

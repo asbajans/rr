@@ -255,6 +255,16 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Faz 7D — supplier rating system: max shipment days + rating aggregates
+  try {
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "maxShipmentDays" INTEGER DEFAULT 3`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "ratingAvg" DECIMAL(3,2) DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "ratingCount" INTEGER DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS "ratingEnabled" BOOLEAN DEFAULT true`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Faz 8 — site publish state + deployment history
   try {
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS published BOOLEAN DEFAULT true`);

@@ -259,6 +259,13 @@ export type B2bProductItem = {
   b2b_discount?: number | null
   b2b_price?: number | null
   is_b2b_enabled?: boolean
+  supplier?: {
+    name?: string
+    ratingAvg?: number
+    ratingCount?: number
+    ratingEnabled?: boolean
+    maxShipmentDays?: number
+  } | null
 }
 
 export type B2bRequest = {
