@@ -1426,7 +1426,7 @@ class ApiClient {
   }
 
   getStoreLocations(siteCode: string) {
-    return this.get<import('./types').StoreLocation[]>(`/api/store/${siteCode}/locations`)
+    return this.get<{ locations: import('./types').StoreLocation[] }>(`/api/store/${siteCode}/locations`).then(r => r.locations || [])
   }
 
   getStoreMenus(siteCode: string) {

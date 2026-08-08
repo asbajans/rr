@@ -1,15 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { MapPin, Clock, Phone } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
-import type * as L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import iconUrl from 'leaflet/dist/images/marker-icon.png'
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
+
+const LocationMap = dynamic(() => import('@/components/map/LocationMap'), { ssr: false })
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
 
@@ -18,8 +16,6 @@ export default function StoreLocationsPage() {
   const [locations, setLocations] = useState<StoreLocation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
     if (!siteCode) return
@@ -29,46 +25,6 @@ export default function StoreLocationsPage() {
       .finally(() => setLoading(false))
   }, [siteCode])
 
-  useEffect(() => {
-    let disposed = false
-    let map: L.Map | null = null
-
-    async function init() {
-      if (loading || locations.length === 0 || mapInstanceRef.current || !mapRef.current) return
-      const Leaflet = await import('leaflet')
-      if (disposed || loading || locations.length === 0 || !mapRef.current) return
-      const locs = locations
-
-      Leaflet.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl })
-
-      map = Leaflet.map(mapRef.current).setView([locs[0].latitude, locs[0].longitude], 12)
-      Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
-      }).addTo(map)
-
-      locs.forEach(loc => {
-        Leaflet.marker([loc.latitude, loc.longitude])
-          .addTo(map!)
-          .bindPopup(`<b>${loc.name || 'Mağaza'}</b><br>${loc.address}, ${loc.city}`)
-      })
-
-      if (locs.length > 1) {
-        const bounds = Leaflet.latLngBounds(locs.map(l => [l.latitude, l.longitude] as L.LatLngTuple))
-        map.fitBounds(bounds, { padding: [50, 50] })
-      }
-
-      mapInstanceRef.current = map
-    }
-
-    init()
-
-    return () => {
-      disposed = true
-      if (map) map.remove()
-      mapInstanceRef.current = null
-    }
-  }, [loading, locations])
-
   if (loading) return <div className="mx-auto max-w-4xl px-4 py-16 text-sm text-zinc-500">Yükleniyor...</div>
   if (error) return <div className="mx-auto max-w-4xl px-4 py-16 text-sm text-red-600">{error}</div>
 
@@ -77,7 +33,14 @@ export default function StoreLocationsPage() {
       <h1 className="text-2xl font-bold text-zinc-900">Mağazalarımız</h1>
       <p className="mt-1 text-sm text-zinc-600">Bizi ziyaret edin!</p>
 
-      <div ref={mapRef} className="mt-6 h-80 w-full rounded-xl border border-zinc-200" />
+      {locations.length > 0 && (
+        <LocationMap
+          className="mt-6 h-80 w-full rounded-xl border border-zinc-200"
+          markers={locations.map(l => ({ lat: l.latitude, lng: l.longitude, name: l.name, address: l.address, city: l.city }))}
+          fitToMarkers
+          zoom={12}
+        />
+      )}
 
       <div className="mt-6 space-y-4">
         {locations.map(loc => (

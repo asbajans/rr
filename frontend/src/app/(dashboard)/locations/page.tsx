@@ -1,78 +1,16 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { MapPin, Plus, Pencil, Trash2, Clock } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
 import { CardSkeleton } from '@/components/ui/skeleton'
-import type * as L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import iconUrl from 'leaflet/dist/images/marker-icon.png'
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
+
+const LocationMap = dynamic(() => import('@/components/map/LocationMap'), { ssr: false })
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
-
-function LocationMap({ lat, lng, onMove }: { lat: number; lng: number; onMove?: (lat: number, lng: number) => void }) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const markerRef = useRef<L.Marker | null>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
-  const coordsRef = useRef({ lat, lng })
-
-  useEffect(() => {
-    coordsRef.current = { lat, lng }
-  }, [lat, lng])
-
-  useEffect(() => {
-    let disposed = false
-    let map: L.Map | null = null
-
-    async function init() {
-      if (!mapRef.current || mapInstanceRef.current) return
-      const Leaflet = await import('leaflet')
-      if (disposed || !mapRef.current) return
-      const { lat, lng } = coordsRef.current
-
-      Leaflet.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl })
-
-      map = Leaflet.map(mapRef.current).setView([lat, lng], 15)
-      Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
-      }).addTo(map)
-
-      const marker = Leaflet.marker([lat, lng], { draggable: !!onMove }).addTo(map)
-      markerRef.current = marker
-
-      if (onMove) {
-        marker.on('dragend', () => {
-          const pos = marker.getLatLng()
-          onMove(pos.lat, pos.lng)
-        })
-      }
-
-      mapInstanceRef.current = map
-    }
-
-    init()
-
-    return () => {
-      disposed = true
-      if (map) map.remove()
-      mapInstanceRef.current = null
-      markerRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    if (markerRef.current && mapInstanceRef.current) {
-      markerRef.current.setLatLng([lat, lng])
-      mapInstanceRef.current.setView([lat, lng])
-    }
-  }, [lat, lng])
-
-  return <div ref={mapRef} className="h-64 w-full rounded-lg" />
-}
 
 export default function LocationsPage() {
   const { user } = useAuth()
