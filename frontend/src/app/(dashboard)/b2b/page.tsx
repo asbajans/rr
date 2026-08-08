@@ -9,6 +9,31 @@ import { CardSkeleton, EmptyState, TableSkeleton } from '@/components/ui/skeleto
 
 type Tab = 'discover' | 'listed'
 
+function SupplierRatingBadge({ supplier }: { supplier: any }) {
+  if (!supplier) return null
+  const hasRating = supplier.ratingCount > 0 && Number(supplier.ratingAvg) > 0
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {hasRating && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+          {Number(supplier.ratingAvg).toFixed(1)} ({supplier.ratingCount})
+        </span>
+      )}
+      {!hasRating && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
+          <Star className="h-3 w-3" /> Henüz puan yok
+        </span>
+      )}
+      {supplier.maxShipmentDays != null && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+          <Truck className="h-3 w-3" /> ≤ {supplier.maxShipmentDays} gün
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function B2bPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('discover')
@@ -95,31 +120,6 @@ export default function B2bPage() {
     pending: { color: 'text-amber-600 bg-amber-50', icon: <Clock className="h-3 w-3" />, label: 'Beklemede' },
     approved: { color: 'text-green-600 bg-green-50', icon: <CheckCircle className="h-3 w-3" />, label: 'Onaylandı' },
     rejected: { color: 'text-red-600 bg-red-50', icon: <XCircle className="h-3 w-3" />, label: 'Reddedildi' },
-  }
-
-  function SupplierRatingBadge({ supplier }: { supplier: any }) {
-    if (!supplier) return null
-    const hasRating = supplier.ratingCount > 0 && Number(supplier.ratingAvg) > 0
-    return (
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        {hasRating && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-            {Number(supplier.ratingAvg).toFixed(1)} ({supplier.ratingCount})
-          </span>
-        )}
-        {!hasRating && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
-            <Star className="h-3 w-3" /> Henüz puan yok
-          </span>
-        )}
-        {supplier.maxShipmentDays != null && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
-            <Truck className="h-3 w-3" /> ≤ {supplier.maxShipmentDays} gün
-          </span>
-        )}
-      </div>
-    )
   }
 
   if (!user) return null

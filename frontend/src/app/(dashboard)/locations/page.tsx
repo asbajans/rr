@@ -8,6 +8,9 @@ import type { StoreLocation } from '@/lib/types'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import type * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import iconUrl from 'leaflet/dist/images/marker-icon.png'
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
 
@@ -16,7 +19,10 @@ function LocationMap({ lat, lng, onMove }: { lat: number; lng: number; onMove?: 
   const markerRef = useRef<L.Marker | null>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const coordsRef = useRef({ lat, lng })
-  coordsRef.current = { lat, lng }
+
+  useEffect(() => {
+    coordsRef.current = { lat, lng }
+  }, [lat, lng])
 
   useEffect(() => {
     let disposed = false
@@ -27,6 +33,8 @@ function LocationMap({ lat, lng, onMove }: { lat: number; lng: number; onMove?: 
       const Leaflet = await import('leaflet')
       if (disposed || !mapRef.current) return
       const { lat, lng } = coordsRef.current
+
+      Leaflet.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl })
 
       map = Leaflet.map(mapRef.current).setView([lat, lng], 15)
       Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

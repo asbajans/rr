@@ -7,6 +7,9 @@ import { MapPin, Clock, Phone } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
 import type * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import iconUrl from 'leaflet/dist/images/marker-icon.png'
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
 
@@ -35,6 +38,8 @@ export default function StoreLocationsPage() {
       const Leaflet = await import('leaflet')
       if (disposed || loading || locations.length === 0 || !mapRef.current) return
       const locs = locations
+
+      Leaflet.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl })
 
       map = Leaflet.map(mapRef.current).setView([locs[0].latitude, locs[0].longitude], 12)
       Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
