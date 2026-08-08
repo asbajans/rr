@@ -4,12 +4,20 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { api } from '@/lib/api-client'
-import { MapPin, Clock, Phone } from 'lucide-react'
+import { MapPin, Clock, Phone, Navigation } from 'lucide-react'
 import type { StoreLocation } from '@/lib/types'
 
 const LocationMap = dynamic(() => import('@/components/map/LocationMap'), { ssr: false })
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+
+function directionsUrl(loc: StoreLocation): string {
+  if (loc.latitude != null && loc.longitude != null) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(loc.latitude + ',' + loc.longitude)}`
+  }
+  const q = [loc.address, loc.city, loc.country].filter(Boolean).join(', ')
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`
+}
 
 export default function StoreLocationsPage() {
   const { siteCode } = useParams<{ siteCode: string }>()
@@ -67,6 +75,14 @@ export default function StoreLocationsPage() {
                     ))}
                   </div>
                 )}
+                <a
+                  href={directionsUrl(loc)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+                >
+                  <Navigation className="h-3.5 w-3.5" /> Yol Tarifi
+                </a>
               </div>
             </div>
           </div>
