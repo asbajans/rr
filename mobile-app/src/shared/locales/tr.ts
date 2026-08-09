@@ -142,6 +142,7 @@
   manageSubscription: 'Aboneliği Yönet',
   cancelPlan: 'Paketi İptal Et',
   planIncludes: 'İçerir',
+  includedModules: 'Dahil Olan Modüller',
   productsLimit: 'Ürün Limiti',
   b2bEnabled: 'B2B Satışa Aç',
   b2bDiscount: 'B2B İndirim (%)',

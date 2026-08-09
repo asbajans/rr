@@ -70,9 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const can = useCallback((moduleKey: string): boolean => {
     const modules = store?.plan?.modules
-    if (!modules) return true // missing plan/module config → enabled (non-breaking)
+    if (!modules) return false // selected-modules-only: unlisted modules are disabled
     const mod = (modules as Record<string, unknown>)[moduleKey]
-    if (mod === undefined || mod === null) return true
+    if (mod === undefined || mod === null) return false
     if (typeof mod === 'boolean') return mod
     return (mod as { enabled?: boolean }).enabled === true
   }, [store])

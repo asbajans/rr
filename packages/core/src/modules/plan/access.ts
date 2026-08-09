@@ -53,7 +53,10 @@ export async function getPlanForStore(store: Store): Promise<Plan | null> {
 
 export function isModuleEnabled(plan: Plan | null, key: ModuleKey): boolean {
   const mod = getModuleSettings(plan, key);
-  if (!mod) return true; // missing module config → enabled (non-breaking)
+  // Selected-modules-only: a module is enabled only when it is explicitly
+  // listed in the plan (enabled: true). Unlisted modules are disabled so
+  // plans actually behave according to what the super admin configured.
+  if (!mod) return false;
   return mod.enabled;
 }
 

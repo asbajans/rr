@@ -284,12 +284,11 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
-  // Normalize plan.modules: default all-enabled for unconfigured plans, convert legacy boolean values
+  // Normalize plan.modules: NULL → {} (empty means no modules selected → all
+  // module-gated features are disabled; see isModuleEnabled). Also convert
+  // legacy boolean module values into { enabled } objects.
   try {
-    await sequelize.query(
-      `UPDATE plans SET modules = '{"b2b":{"enabled":true},"marketplace":{"enabled":true},"ai_product_create":{"enabled":true},"ai_image_generate":{"enabled":true},"xml_feed":{"enabled":true},"variations":{"enabled":true},"blog":{"enabled":true},"custom_domain":{"enabled":true},"shipping":{"enabled":true},"static_pages":{"enabled":true}}'::jsonb
-       WHERE modules IS NULL OR modules = '{}'::jsonb`
-    );
+    await sequelize.query(`UPDATE plans SET modules = '{}'::jsonb WHERE modules IS NULL`);
     const { Plan } = await import('./models/Plan.model.js');
     const plans = await Plan.findAll();
     for (const plan of plans) {
@@ -311,6 +310,16 @@ export const createApp = async (): Promise<Express> => {
     }
   } catch (e) {
     // Ignore if plans table/modules column not ready
+  }
+
+  // Product policy: the default Free plan must not include the B2B module.
+  // This keeps the seed data honest for existing installs too.
+  try {
+    await sequelize.query(
+      `UPDATE plans SET modules = jsonb_set(modules, '{b2b}', '{"enabled": false}'::jsonb, true) WHERE name = 'Free'`
+    );
+  } catch (e) {
+    // Ignore if plans table not ready
   }
 
   // Migrate existing admin user to superadmin role

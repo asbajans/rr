@@ -142,6 +142,7 @@ export const en: Record<string, string> = {
   manageSubscription: 'Manage Subscription',
   cancelPlan: 'Cancel Plan',
   planIncludes: 'Includes',
+  includedModules: 'Included Modules',
   productsLimit: 'Product Limit',
   b2bEnabled: 'Enable B2B Sale',
   b2bDiscount: 'B2B Discount (%)',

@@ -142,6 +142,7 @@ export const ar: Record<string, string> = {
   manageSubscription: 'إدارة الاشتراك',
   cancelPlan: 'إلغاء الباقة',
   planIncludes: 'تشمل',
+  includedModules: 'الوحدات المضمنة',
   productsLimit: 'حد المنتجات',
   b2bEnabled: 'تفعيل البيع B2B',
   b2bDiscount: 'خصم B2B (٪)',

@@ -52,6 +52,7 @@ export const en: Record<string, string> = {
   billingTitle: 'Plan',
   billingSubtitle: 'Manage your subscription and AI credits.',
   moduleComparison: 'Module Comparison',
+  includedModules: 'Included Modules',
   loading: 'Loading...',
   loadFailed: 'Failed to load billing info',
   paymentFailed: 'Could not start payment',

@@ -142,6 +142,7 @@ export const es: Record<string, string> = {
   manageSubscription: 'Gestionar suscripción',
   cancelPlan: 'Cancelar plan',
   planIncludes: 'Incluye',
+  includedModules: 'Módulos incluidos',
   productsLimit: 'Límite de productos',
   b2bEnabled: 'Activar venta B2B',
   b2bDiscount: 'Descuento B2B (%)',

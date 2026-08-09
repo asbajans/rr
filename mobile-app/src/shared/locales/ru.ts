@@ -142,6 +142,7 @@ export const ru: Record<string, string> = {
   manageSubscription: 'Управление подпиской',
   cancelPlan: 'Отменить план',
   planIncludes: 'Включает',
+  includedModules: 'Включенные модули',
   productsLimit: 'Лимит товаров',
   b2bEnabled: 'Включить продажи B2B',
   b2bDiscount: 'Скидка B2B (%)',

@@ -15,6 +15,29 @@ const CREDIT_PACKAGES = [
   { credits: 500, price: 300 },
 ]
 
+const MODULE_LABELS: Record<string, string> = {
+  ai_product_create: 'AI Ürün Oluşturma',
+  ai_image_generate: 'AI Görsel Üretme',
+  b2b: 'B2B / Beatby',
+  marketplace: 'Pazaryeri Entegrasyonu',
+  xml_feed: 'XML Feed',
+  variations: 'Varyasyonlar',
+  blog: 'Blog',
+  custom_domain: 'Özel Domain',
+  shipping: 'Kargo Yönetimi',
+  static_pages: 'Statik Sayfalar',
+}
+
+type PlanModule = { enabled: boolean; credit_cost?: number; limit?: number }
+
+function enabledModules(plan: Plan | null): { key: string; label: string }[] {
+  const modules = plan?.modules as Record<string, PlanModule> | null | undefined
+  if (!modules) return []
+  return Object.entries(modules)
+    .filter(([, v]) => v?.enabled === true)
+    .map(([key]) => ({ key, label: MODULE_LABELS[key] || key }))
+}
+
 export default function BillingScreen() {
   const router = useRouter()
   const { user } = useAuth()
@@ -155,6 +178,16 @@ export default function BillingScreen() {
           <Text style={styles.creditLabel}>{t('remainingCredits')}</Text>
           <Text style={styles.creditValue}>{user?.ai_credits ?? 0}</Text>
         </View>
+        {currentPlan && enabledModules(currentPlan).length > 0 && (
+          <View style={styles.modulesBox}>
+            <Text style={styles.moduleTitle}>{t('includedModules')}</Text>
+            <View style={styles.moduleChips}>
+              {enabledModules(currentPlan).map(m => (
+                <Text key={m.key} style={styles.moduleChip}>{m.label}</Text>
+              ))}
+            </View>
+          </View>
+        )}
         {subscription && subscription.stripe_id && (
           <View style={styles.row}>
             <TouchableOpacity style={[styles.btn, styles.outlineBtn]} onPress={handleManage} disabled={!!busy}>
@@ -183,6 +216,13 @@ export default function BillingScreen() {
               <Text style={styles.planFeatText}>{t('planIncludes')}: {p.ai_credits} {t('aiCredits')}</Text>
               <Text style={styles.planFeatText}>{t('productsLimit')}: {p.product_limit < 0 ? '∞' : p.product_limit}</Text>
             </View>
+            {enabledModules(p).length > 0 && (
+              <View style={styles.planFeat}>
+                {enabledModules(p).map(m => (
+                  <Text key={m.key} style={styles.planFeatText}>✓ {m.label}</Text>
+                ))}
+              </View>
+            )}
             <TouchableOpacity
               style={[styles.btn, active ? styles.disabledBtn : styles.primaryBtn]}
               onPress={() => handlePlan(p)}
@@ -230,6 +270,10 @@ const styles = StyleSheet.create({
   creditBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f9f4', borderRadius: 10, padding: 14, marginTop: 14 },
   creditLabel: { fontSize: 14, color: '#059669', fontWeight: '600' },
   creditValue: { fontSize: 22, fontWeight: '700', color: '#059669' },
+  modulesBox: { marginTop: 14 },
+  moduleTitle: { fontSize: 13, color: '#059669', fontWeight: '600', marginBottom: 8 },
+  moduleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  moduleChip: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#059669', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, fontSize: 12, color: '#059669' },
   row: { flexDirection: 'row', gap: 12, marginTop: 14 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginHorizontal: 20, marginTop: 24, marginBottom: 8 },
   planCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginHorizontal: 20, marginBottom: 12 },
