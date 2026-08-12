@@ -25,6 +25,11 @@ export const createApp = async (): Promise<Express> => {
   }
   const app = express();
 
+  // The API runs behind a reverse proxy (Portainer/Caddy/Nginx/Cloudflare).
+  // Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+  // when the X-Forwarded-For header is present, breaking login/checkout routes.
+  app.set('trust proxy', 1);
+
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
@@ -106,6 +111,7 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS modules JSONB`);
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true`);
     await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS hosting VARCHAR(20) DEFAULT 'rahatio'`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "aiScenarioModels" JSONB`);
     // Backfill empty slugs from name
     await sequelize.query(
       `UPDATE plans SET slug = LOWER(REPLACE(REPLACE(name, ' ', '-'), 'ı', 'i')) WHERE slug IS NULL OR slug = ''`
