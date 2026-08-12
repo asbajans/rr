@@ -271,9 +271,27 @@ export default function AiStudioPage() {
     setError('')
     setSuccess('')
     try {
-      const res = await api.publishAiProductDraft(draft.id, selectedChannels)
+      const price = form.price ? Number(form.price) : undefined
+      const stock = form.stock ? Number(form.stock) : undefined
+      if (!form.title.trim() || !form.description.trim()) { setError(t('aiTitleDescriptionRequired')); setPublishing(false); return }
+      if (form.price && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) { setError(t('aiPriceInvalid')); setPublishing(false); return }
+      if (form.stock && (typeof stock !== 'number' || !Number.isInteger(stock) || stock < 0)) { setError(t('aiStockInvalid')); setPublishing(false); return }
+      const saved = await api.updateAiProductDraft(draft.id, {
+        title: form.title,
+        description: form.description,
+        shortDescription: form.short_description,
+        categoryPath: form.category.split(' > ').map(s => s.trim()).filter(Boolean),
+        sku: form.sku,
+        suggestedPrice: price,
+        quantity: stock,
+        keywords: form.keywords.split(',').map(s => s.trim()).filter(Boolean),
+        tags: form.tags.split(',').map(s => s.trim()).filter(Boolean),
+        attributes: parseAttributes(form.attributes),
+      })
+      setDraft(saved)
+      const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels)
       setPublishResults(res.results || [])
-      loadPublishState(draft.id)
+      loadPublishState(saved.id || draft.id)
       loadDrafts()
       refreshMe()
       setSuccess(t('aiPublishQueuedMessage'))
