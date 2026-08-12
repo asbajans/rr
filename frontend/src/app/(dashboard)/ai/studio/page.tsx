@@ -233,7 +233,7 @@ function toggleChannel(c: string) {
     // Fetch category attributes when a marketplace is selected
     if (c !== 'storefront') {
       const catId = selections[c]?.categoryId
-      if (catId !== undefined) fetchCategoryAttrs(c, catId)
+      if (catId != null) fetchCategoryAttrs(c, catId)
     }
   }
 
