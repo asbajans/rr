@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { useI18n } from '@/lib/i18n'
+import { MarketplaceCategory, Brand, Category } from '@/lib/types'
 import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send } from 'lucide-react'
+
+type ChannelSelection = { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }
 
 const ALL_CHANNELS = [
   { key: 'storefront', n: 'Mağaza' },
@@ -85,6 +88,13 @@ export default function AiStudioPage() {
   const [listings, setListings] = useState<any[]>([])
   const [retrying, setRetrying] = useState(false)
 
+  // Per-channel marketplace category/brand selections (like the manual product form)
+  const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
+  const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [selections, setSelections] = useState<Record<string, ChannelSelection>>({})
+  const [loadingSelectionData, setLoadingSelectionData] = useState(false)
+
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -99,6 +109,65 @@ export default function AiStudioPage() {
   useEffect(() => {
     if (can('ai_product_create')) loadDrafts()
   }, [can, loadDrafts])
+
+  // Load marketplace category trees + universal categories + brands (for per-channel selectors)
+  useEffect(() => {
+    setLoadingSelectionData(true)
+    ;(async () => {
+      try {
+        const res = await api.getMarketplaceTrees()
+        setMarketplaceTrees(res.trees ?? {})
+      } catch { /* ignore */ }
+      try {
+        const res = await api.getCategoriesFlat()
+        setCategoriesFlat(res.data ?? [])
+      } catch { /* ignore */ }
+      try {
+        const res = await api.getBrands()
+        setBrands(res ?? [])
+      } catch { /* ignore */ }
+    })().finally(() => setLoadingSelectionData(false))
+  }, [])
+
+  // category options per marketplace (marketplace trees; storefront = universal categories)
+  const catOptionsFor = useCallback((mp: string): { id: string; name: string }[] => {
+    if (mp === 'storefront') {
+      return (categoriesFlat ?? []).map((c) => {
+        const catName = typeof c.name === 'object' ? ((c.name as Record<string, string>).tr || (c.name as Record<string, string>).en || '') : c.name
+        return { id: String(c.id), name: c.path || catName }
+      })
+    }
+    const tree = marketplaceTrees[mp] ?? []
+    const opts: { id: string; name: string }[] = []
+    const walk = (nodes: MarketplaceCategory[], prefix: string) => {
+      nodes.forEach((n) => {
+        const name = prefix ? `${prefix} / ${n.name}` : n.name
+        opts.push({ id: String(n.marketplace_category_id), name })
+        if (n.children?.length) walk(n.children, name)
+      })
+    }
+    walk(tree, '')
+    const seen = new Set<string>()
+    return opts.filter((o) => {
+      if (seen.has(o.id)) return false
+      seen.add(o.id)
+      return true
+    })
+  }, [marketplaceTrees, categoriesFlat])
+
+  // brand options per marketplace
+  const brandsFor = useCallback((mp: string): { id: string; name: string }[] => {
+    return brands
+      .filter((b) => {
+        if (!b.isActive) return false
+        if (mp === 'storefront') return !b.marketplace || b.marketplace === 'storefront'
+        return b.marketplace === mp && !!b.marketplaceBrandId
+      })
+      .map((b) => ({ id: b.marketplaceBrandId!, name: b.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+  }, [brands])
+
+  const marketplaceChannels = useMemo(() => selectedChannels.filter((c) => c !== 'storefront'), [selectedChannels])
 
   const loadPublishState = useCallback(async (draftId: number) => {
     try {
@@ -127,6 +196,16 @@ export default function AiStudioPage() {
 
   function toggleChannel(c: string) {
     setSelectedChannels(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+    setValidation([])
+    setSelections(prev => {
+      const next = { ...prev }
+      delete next[c]
+      return next
+    })
+  }
+
+  function setChannelSelection(channel: string, patch: Partial<ChannelSelection>) {
+    setSelections(prev => ({ ...prev, [channel]: { ...(prev[channel] || {}), ...patch } }))
     setValidation([])
   }
 
@@ -242,7 +321,14 @@ export default function AiStudioPage() {
     setValidating(true)
     setError('')
     try {
-      setValidation(await api.validateAiProductChannels(draft.id, selectedChannels))
+      const allowed = selectedChannels.filter((c) => c !== 'storefront')
+      const cleanSelections: Record<string, ChannelSelection> = {}
+      for (const c of allowed) {
+        const s = selections[c] || {}
+        if (s.categoryId != null || s.brandId || s.brand) cleanSelections[c] = s
+      }
+      const res = await api.validateAiProductChannels(draft.id, selectedChannels, cleanSelections)
+      setValidation(res || [])
     } catch (err: any) {
       setError(err instanceof Error ? err.message : t('aiValidationFailed'))
     } finally {
@@ -289,7 +375,13 @@ export default function AiStudioPage() {
         attributes: parseAttributes(form.attributes),
       })
       setDraft(saved)
-      const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels)
+      const allowed = selectedChannels.filter((c) => c !== 'storefront')
+      const cleanSelections: Record<string, ChannelSelection> = {}
+      for (const c of allowed) {
+        const s = selections[c] || {}
+        if (s.categoryId != null || s.brandId || s.brand) cleanSelections[c] = s
+      }
+      const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels, cleanSelections)
       setPublishResults(res.results || [])
       loadPublishState(saved.id || draft.id)
       loadDrafts()
@@ -542,6 +634,58 @@ export default function AiStudioPage() {
                         </button>
                       ))}
                     </div>
+
+                    {/* Per-channel marketplace category + brand selectors */}
+                    {marketplaceChannels.length > 0 && (
+                      <div className="mt-3 space-y-3">
+                        {loadingSelectionData && <p className="text-[11px] text-zinc-500">Kategori/marka listesi yükleniyor...</p>}
+                        {marketplaceChannels.map((c) => {
+                          const catOpts = catOptionsFor(c)
+                          const brOpts = brandsFor(c)
+                          const sel = selections[c] || {}
+                          return (
+                            <div key={c} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3">
+                              <p className="mb-2 text-xs font-semibold text-zinc-300">{c}</p>
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <div>
+                                  <label className="text-[11px] text-zinc-500">{t('aiCategoryPath')}</label>
+                                  <select
+                                    value={sel.categoryId != null ? String(sel.categoryId) : ''}
+                                    onChange={(e) => {
+                                      const opt = catOpts.find((o) => o.id === e.target.value)
+                                      if (opt) setChannelSelection(c, { categoryId: opt.id })
+                                    }}
+                                    disabled={catOpts.length === 0}
+                                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                                    <option value="">{catOpts.length === 0 ? t('aiNoCategories') : '— Kategori seç —'}</option>
+                                    {catOpts.map((o) => (
+                                      <option key={o.id} value={o.id}>{o.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[11px] text-zinc-500">{t('aiBrand')}</label>
+                                  <select
+                                    value={sel.brandId ? String(sel.brandId) : ''}
+                                    onChange={(e) => {
+                                      const opt = brOpts.find((o) => o.id === e.target.value)
+                                      setChannelSelection(c, { brandId: opt ? opt.id : null, brand: opt ? opt.name : null })
+                                    }}
+                                    disabled={brOpts.length === 0}
+                                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                                    <option value="">{brOpts.length === 0 ? '— Marka yok —' : '— Marka seç —'}</option>
+                                    {brOpts.map((o) => (
+                                      <option key={o.id} value={o.id}>{o.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
                     <button onClick={handleValidate} disabled={validating || selectedChannels.length === 0}
                       className="mt-3 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50">
                       {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}

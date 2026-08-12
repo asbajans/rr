@@ -40,20 +40,34 @@ function draftBrand(draft: AiProductDraft): string | null {
   return typeof brand === 'string' && brand.trim() ? brand.trim() : null;
 }
 
+export interface ChannelSelections {
+  [channel: string]: {
+    categoryId?: string | number | null;
+    brandId?: string | null;
+    brand?: string | null;
+  };
+}
+
 /**
  * Validates a draft against a list of target channels. A missing field or
  * mapping only blocks publishing — never draft persistence (AGENTOPEN Faz 3).
+ * When `selections` is provided (per-channel marketplace category/brand chosen
+ * by the user right before publishing, e.g. in AI Studio), those selections
+ * satisfy the category/brand requirements instead of requiring a category
+ * mapping row or a brand attribute on the draft.
  */
 export async function validateDraftForChannels(
   draft: AiProductDraft,
-  channels: AiChannel[]
+  channels: AiChannel[],
+  selections?: ChannelSelections
 ): Promise<ChannelValidationResult[]> {
   const results: ChannelValidationResult[] = [];
   for (const channel of channels) {
     const rule = CHANNEL_RULES[channel];
+    const sel = selections?.[channel] ?? {};
     const channelMissing = missingFieldsFor(draft, rule.requiredFields);
 
-    if (rule.requiresBrand && !draftBrand(draft)) {
+    if (rule.requiresBrand && !draftBrand(draft) && !sel.brandId && !sel.brand) {
       channelMissing.push('brand');
     }
 
@@ -71,12 +85,12 @@ export async function validateDraftForChannels(
         continue;
       }
 
-      const mapping = draft.categoryId
-        ? await MarketplaceCategoryMapping.findOne({
+      const hasMapping = !!sel.categoryId || (draft.categoryId
+        ? !!(await MarketplaceCategoryMapping.findOne({
             where: { categoryId: draft.categoryId, marketplace: channel },
-          })
-        : null;
-      if (!draft.categoryId || !mapping) {
+          }))
+        : false);
+      if (!hasMapping) {
         results.push({
           channel,
           status: 'category-mapping-needed',

@@ -420,6 +420,7 @@ draftRoutes.post('/product-drafts/:id/approve', authMiddleware, requireStore, [
 draftRoutes.post('/product-drafts/:id/validate-channels', authMiddleware, requireStore, [
   param('id').isInt({ min: 1 }),
   body('channels').isArray().notEmpty(),
+  body('selections').optional().isObject(),
 ], validate, async (req: Request, res: Response) => {
   const store = (req as any).store;
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
@@ -429,7 +430,7 @@ draftRoutes.post('/product-drafts/:id/validate-channels', authMiddleware, requir
   const invalid = channels.filter((c) => !['storefront', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy'].includes(c));
   if (invalid.length) return res.status(400).json({ error: `Invalid channel(s): ${invalid.join(', ')}` });
 
-  const results = await validateDraftForChannels(draft, channels as any);
+  const results = await validateDraftForChannels(draft, channels as any, req.body.selections);
   res.json({ results });
 });
 

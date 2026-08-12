@@ -7,7 +7,7 @@ import { Product } from '../../models/Product.model.js';
 import { ProductMarketplaceListing } from '../../models/ProductMarketplaceListing.model.js';
 import { assertProductQuota } from '../plan/access.js';
 import { MarketplaceCategoryMapping } from '../../models/Category.model.js';
-import { validateDraftForChannels } from './channelRequirements.js';
+import { validateDraftForChannels, type ChannelSelections } from './channelRequirements.js';
 import { logger } from '../../utils/logger.js';
 import type { AiChannel, PublishResult } from '@rahatio/shared';
 
@@ -49,7 +49,8 @@ async function makeUniqueSku(storeId: number, sku: string | null | undefined): P
 async function resolveProduct(
   storeId: number,
   draft: AiProductDraft,
-  transaction: any
+  transaction: any,
+  selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }>
 ): Promise<{ product: Product; created: boolean }> {
   if (draft.productId) {
     const existing = await Product.findOne({ where: { id: draft.productId, storeId }, transaction });
@@ -88,9 +89,11 @@ async function resolveProduct(
           transaction,
         })
       : null;
+    const selection = (selections || {})[channel] || {};
     marketplaceConfig[channel] = {
-      categoryId: mapping?.marketplaceCategoryId || null,
-      brand: attributes.brand || attributes.brandName || attributes.marka || null,
+      categoryId: selection.categoryId ?? mapping?.marketplaceCategoryId ?? null,
+      brandId: selection.brandId ?? null,
+      brand: selection.brand || attributes.brand || attributes.brandName || attributes.marka || null,
       attributes: genericAttributes,
       aiAttributes: attributes,
       keywords: draft.keywords || [],
@@ -140,6 +143,7 @@ async function queuePublication(
 publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, [
   param('id').isInt({ min: 1 }),
   body('channels').isArray().notEmpty(),
+  body('selections').optional().isObject(),
 ], validate, async (req: Request, res: Response) => {
   const store = (req as any).store;
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
@@ -152,7 +156,8 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
   const invalid = channels.filter((c) => !ALL_CHANNELS.includes(c));
   if (invalid.length) return res.status(400).json({ error: `Invalid channel(s): ${invalid.join(', ')}` });
 
-  const validation = await validateDraftForChannels(draft, channels);
+  const selections: ChannelSelections | undefined = req.body.selections;
+  const validation = await validateDraftForChannels(draft, channels, selections);
   const blocked = validation.filter((result) => result.status !== 'ready');
   if (blocked.length) {
     return res.status(422).json({ error: 'DRAFT_CHANNEL_VALIDATION_FAILED', results: validation });
@@ -165,7 +170,7 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
 
   try {
     await sequelize.transaction(async (transaction: any) => {
-      const { product, created } = await resolveProduct(store.id, draft, transaction);
+      const { product, created } = await resolveProduct(store.id, draft, transaction, selections);
       publishedProductId = product.id;
 
       for (const channel of channels) {
