@@ -102,6 +102,9 @@ export default function AiStudioPage() {
   const [brands, setBrands] = useState<Brand[]>([])
   const [selections, setSelections] = useState<Record<string, ChannelSelection>>({})
   const [loadingSelectionData, setLoadingSelectionData] = useState(false)
+  // Marketplace category attributes (for AI product creation)
+  const [categoryAttrs, setCategoryAttrs] = useState<Record<string, any[]>>({})
+  const [loadingCategoryAttrs, setLoadingCategoryAttrs] = useState<Record<string, boolean>>({})
 
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -187,6 +190,23 @@ export default function AiStudioPage() {
     }
   }, [])
 
+  // Fetch marketplace category attributes for AI product creation
+  const fetchCategoryAttrs = useCallback(async (mp: string, catId: string | number | undefined) => {
+    setLoadingCategoryAttrs(prev => ({ ...prev, [mp]: true }))
+    try {
+      if (catId !== undefined) {
+        const res = await api.getMarketplaceCategoryAttributes(mp, catId)
+        setCategoryAttrs(prev => ({ ...prev, [mp]: res.attributes ?? [] }))
+      } else {
+        setCategoryAttrs(prev => ({ ...prev, [mp]: [] }))
+      }
+    } catch {
+      setCategoryAttrs(prev => ({ ...prev, [mp]: [] }))
+    } finally {
+      setLoadingCategoryAttrs(prev => ({ ...prev, [mp]: false }))
+    }
+  }, [])
+
   if (!user) return null
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -202,7 +222,7 @@ export default function AiStudioPage() {
     setSuccess('')
   }
 
-  function toggleChannel(c: string) {
+function toggleChannel(c: string) {
     setSelectedChannels(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
     setValidation([])
     setSelections(prev => {
@@ -210,6 +230,12 @@ export default function AiStudioPage() {
       delete next[c]
       return next
     })
+    // Fetch category attributes when a marketplace is selected
+    if (c !== 'storefront') {
+      const catId = selections[c]?.categoryId
+      if (catId !== undefined) fetchCategoryAttrs(c, catId)
+    }
+  }
   }
 
   function setChannelSelection(channel: string, patch: Partial<ChannelSelection>) {
@@ -677,6 +703,34 @@ export default function AiStudioPage() {
                       placeholder={'renk: Siyah\nmalzeme: Deri\nmarka: Marka adı'}
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-mono text-white" />
                     <p className="mt-1 text-[11px] text-zinc-500">{t('aiAttributesHint')}</p>
+                  </div>
+
+                  {/* Marketplace category attributes */}
+                  <div className="mt-3 border-t border-zinc-700 pt-3">
+                    <p className="text-xs font-medium text-zinc-400">Pazaryerinde kategori öznitelikleri</p>
+                    {selectedChannels.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {selectedChannels.map((c) => {
+                          const attrs = categoryAttrs[c] ?? []
+                          if (attrs.length === 0) return null
+                          return (
+                            <div key={c} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3">
+                              <p className="mb-2 text-xs font-semibold text-zinc-300">{c}</p>
+                              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400">
+                                {attrs.map((attr, i) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <span>{attr}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {selectedChannels.length === 0 && (
+                      <p className="mt-2 text-[11px] text-zinc-500">Pazaryeri seçince öznitelikler görünür</p>
+                    )}
                   </div>
 
                   {/* Images: AI edit + generate new (per-image credit) */}

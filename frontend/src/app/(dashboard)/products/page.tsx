@@ -777,14 +777,14 @@ export default function ProductsPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/ai-creator')}
-            className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap flex items-center gap-2"
-          >
-            <Sparkles className="h-4 w-4" />
-            <Camera className="h-4 w-4" />
-            AI ile Ürün Ekle
-          </button>
+<button
+  onClick={() => router.push('/ai/studio')}
+  className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap flex items-center gap-2"
+>
+  <Sparkles className="h-4 w-4" />
+  <Camera className="h-4 w-4" />
+  AI ile Ürün Ekle
+</button>
           <button
             onClick={openCreateModal}
             className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 whitespace-nowrap"
