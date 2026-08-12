@@ -7,6 +7,7 @@ import { AiProvider, AiModel, AiScenario, AiUsageLog } from '../../models/AiMode
 import { sequelize } from '../../config/database.js';
 import { parseAiResponse, AiResponseValidationError } from '@rahatio/shared';
 import { normalizeAiResponse } from './aiResponse.js';
+import { resolvePlanModel } from './planModelResolution.js';
 
 export const aiRoutes: Router = Router();
 
@@ -110,7 +111,7 @@ export async function getGlobalAiSettings(): Promise<{
   }
 }
 
-export async function resolveScenarioConfig(scenarioCode: string): Promise<{
+export async function resolveScenarioConfig(scenarioCode: string, opts?: { plan?: any }): Promise<{
   provider: any | null;
   model: any | null;
   scenario: any | null;
@@ -128,22 +129,54 @@ export async function resolveScenarioConfig(scenarioCode: string): Promise<{
       ],
     });
 
-    let provider = scenario?.provider || null;
-    let model = scenario?.model || null;
-
     const globals = await getGlobalAiSettings();
 
-    // Fallback: scenario has no provider/model → use global defaults
-    if ((!provider || !model) && (globals.defaultModelId || globals.defaultProviderId)) {
-      if (!model && globals.defaultModelId) {
-        model = await AiModel.findByPk(globals.defaultModelId, {
-          include: [{ model: AiProvider, as: 'provider' }],
-        });
+    // Plan-level override: plan.aiScenarioModels[code] wins over the scenario
+    // default. Falls through silently when the override model is missing/disabled.
+    const planOverrideId = opts?.plan?.aiScenarioModels?.[scenarioCode] ?? null;
+    let overrideModel: any = null;
+    if (planOverrideId) {
+      const m = await AiModel.findByPk(planOverrideId, {
+        include: [{ model: AiProvider, as: 'provider' }],
+      });
+      if (m && m.isActive !== false) overrideModel = m;
+    }
+
+    // Global default model — only loaded when it can actually become the winner.
+    let globalModel: any = null;
+    if (!overrideModel && !scenario?.model && globals.defaultModelId) {
+      const m = await AiModel.findByPk(globals.defaultModelId, {
+        include: [{ model: AiProvider, as: 'provider' }],
+      });
+      if (m && m.isActive !== false) globalModel = m;
+    }
+
+    const decision = resolvePlanModel({
+      overrideModelId: overrideModel ? overrideModel.id : null,
+      overrideProviderId: overrideModel?.provider?.id ?? null,
+      scenarioModelId: scenario?.model?.id ?? null,
+      scenarioProviderId: scenario?.provider?.id ?? null,
+      globalModelId: globalModel ? globalModel.id : null,
+      globalProviderId: globalModel?.provider?.id ?? globals.defaultProviderId ?? null,
+    });
+
+    let provider: any = null;
+    let model: any = null;
+    if (decision.modelId != null) {
+      if (overrideModel && decision.modelId === overrideModel.id) {
+        model = overrideModel;
+        provider = overrideModel.provider || null;
+      } else if (scenario?.model && decision.modelId === scenario.model.id) {
+        model = scenario.model;
+        provider = scenario.provider || null;
+      } else if (globalModel && decision.modelId === globalModel.id) {
+        model = globalModel;
+        provider = globalModel.provider || null;
       }
-      if (!provider && model?.provider) provider = model.provider;
-      if (!provider && globals.defaultProviderId) {
-        provider = await AiProvider.findByPk(globals.defaultProviderId);
-      }
+    }
+    // Fall back to the global default provider when the resolved model has none.
+    if (model && !provider && globals.defaultProviderId) {
+      provider = await AiProvider.findByPk(globals.defaultProviderId);
     }
 
     if (!scenario) {
@@ -197,11 +230,11 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
   const user = (req as any).user;
   const store = (req as any).store;
 
-  const { provider, model, scenario, costCredits, keys } = await resolveScenarioConfig(scenarioCode);
+  // Per-plan credit cost + model override (modules[key].credit_cost, aiScenarioModels)
+  const plan = await getPlanForStore(store);
+  const { provider, model, scenario, costCredits, keys } = await resolveScenarioConfig(scenarioCode, { plan });
   let credits = costCredits || defaultCredits;
 
-  // Per-plan credit cost override (modules[key].credit_cost)
-  const plan = await getPlanForStore(store);
   const moduleKey = scenarioCode === 'analyze_product' || scenarioCode === 'generate_description' || scenarioCode === 'agentic_listing'
     ? 'ai_product_create'
     : scenarioCode === 'process_image' || scenarioCode === 'generate_image' ? 'ai_image_generate' : null;

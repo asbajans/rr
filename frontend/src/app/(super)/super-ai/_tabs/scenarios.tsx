@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
+import { SCENARIO_CODES } from '@/lib/ai-hub'
 import { Plus, Edit, Trash2, Loader2, X } from 'lucide-react'
 
 type Scenario = {
@@ -24,17 +25,7 @@ type Model = {
   provider?: { code: string; name: string }
 }
 
-const SCENARIO_CODES = [
-  { code: 'analyze_product', name: 'Ürün Analizi', desc: 'Görselden kategori/özellik çıkarma' },
-  { code: 'generate_description', name: 'Açıklama Üretimi', desc: 'Başlık+özelliklerden SEO açıklama' },
-  { code: 'process_image', name: 'Resim İşleme', desc: 'Arka plan temizleme / resim üretim' },
-  { code: 'agentic_listing', name: 'Agentik İlan Akışı', desc: 'Fotoğraf → ilan hazırlama → yayınlama' },
-  { code: 'chat', name: 'Sohbet/Chat', desc: 'Müşteri destek asistanı' },
-  { code: 'search', name: 'Semantik Arama', desc: 'Ürünler arası anlam bazlı arama' },
-  { code: 'recommend', name: 'Öneri Sistemi', desc: 'Cross-sell / Up-sell önerileri' },
-] as const
-
-export default function AiScenariosPage() {
+export function ScenariosTab() {
   const { user } = useAuth()
   const [scenarios, setScenarios] = useState<Scenario[]>([])
   const [models, setModels] = useState<Model[]>([])

@@ -32,7 +32,7 @@ const SCOPE_OPTIONS = [
   { value: 'per_day', label: 'Günde' },
 ]
 
-export default function AiRateLimitsPage() {
+export function RateLimitsTab() {
   const { user } = useAuth()
   const [limits, setLimits] = useState<RateLimit[]>([])
   const [providers, setProviders] = useState<Provider[]>([])

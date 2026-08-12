@@ -17,7 +17,7 @@ const KEY_PROVIDERS = [
   { code: 'google', label: 'Google Gemini' },
 ]
 
-export default function AiSettingsPage() {
+export function SettingsTab() {
   const { user } = useAuth()
   const [providers, setProviders] = useState<Provider[]>([])
   const [models, setModels] = useState<ModelItem[]>([])

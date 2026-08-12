@@ -107,6 +107,7 @@ export type Plan = {
   store_limit: number
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null
   hosting: string
+  ai_scenario_models?: Record<string, number> | null
   is_active: boolean
   created_at: string
   updated_at: string

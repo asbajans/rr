@@ -107,10 +107,10 @@ export async function analyzeAndCreateSession(
   idempotencyKey?: string,
   existingSession?: AiProductSession
 ): Promise<{ session?: AiProductSession; draft?: AiProductDraft; error?: { status: number; body: any } }> {
-  const { provider, model, scenario, costCredits, keys } = await resolveScenarioConfig('agentic_listing');
+  const plan = await getPlanForStore(store);
+  const { provider, model, scenario, costCredits, keys } = await resolveScenarioConfig('agentic_listing', { plan });
   let credits = costCredits || 12;
 
-  const plan = await getPlanForStore(store);
   const override = getModuleCreditCost(plan, 'ai_product_create');
   if (override != null) credits = override;
 

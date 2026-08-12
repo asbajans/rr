@@ -237,6 +237,13 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // AI model tier (free/paid) — plan-level model selection support
+  try {
+    await sequelize.query(`ALTER TABLE ai_models ADD COLUMN IF NOT EXISTS tier VARCHAR(10) DEFAULT 'paid'`);
+  } catch (e) {
+    // Ignore if column already exists
+  }
+
   // Checkout (Faz 6) — product stock reservation + order payment/amount columns
   try {
     await sequelize.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS "reservedQuantity" INTEGER DEFAULT 0`);
@@ -320,6 +327,14 @@ export const createApp = async (): Promise<Express> => {
     );
   } catch (e) {
     // Ignore if plans table not ready
+  }
+
+  // Seed default AI provider/models/scenarios + Free-plan model overrides (idempotent)
+  try {
+    const { seedAiDefaults } = await import('./modules/ai/defaults.js');
+    await seedAiDefaults();
+  } catch (e) {
+    logger.warn({ err: e }, 'AI defaults seed failed');
   }
 
   // Migrate existing admin user to superadmin role

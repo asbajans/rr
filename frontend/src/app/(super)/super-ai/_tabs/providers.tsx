@@ -23,11 +23,12 @@ type Model = {
   modality?: string
   maxTokens?: number
   pricing?: any
+  tier?: string
   isActive: boolean
   provider?: { id: number; code: string; name: string }
 }
 
-export default function AiProvidersPage() {
+export function ProvidersTab() {
   const { user } = useAuth()
   const [providers, setProviders] = useState<Provider[]>([])
   const [models, setModels] = useState<Model[]>([])
@@ -54,6 +55,7 @@ export default function AiProvidersPage() {
     modelId: '',
     displayName: '',
     modality: 'chat',
+    tier: 'paid',
     maxTokens: 4096,
     pricing: {},
     isActive: true,
@@ -117,6 +119,7 @@ export default function AiProvidersPage() {
       modelId: '',
       displayName: '',
       modality: 'chat',
+      tier: 'paid',
       maxTokens: 4096,
       pricing: {},
       isActive: true,
@@ -320,6 +323,7 @@ export default function AiProvidersPage() {
                           <tr className="text-left text-xs font-medium text-zinc-500">
                             <th className="pb-2">Model Kodu</th>
                             <th className="pb-2">Görünen İsim</th>
+                            <th className="pb-2">Tier</th>
                             <th className="pb-2">Yetenek</th>
                             <th className="pb-2">Parametreler</th>
                             <th className="pb-2">Durum</th>
@@ -331,6 +335,13 @@ export default function AiProvidersPage() {
                             <tr key={model.id} className="hover:bg-zinc-50">
                               <td className="py-3 font-mono text-zinc-900">{model.modelId}</td>
                               <td className="py-3 text-zinc-900">{model.displayName}</td>
+                              <td className="py-3">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  model.tier === 'free' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                  {model.tier === 'free' ? 'Free' : 'Ücretli'}
+                                </span>
+                              </td>
                               <td className="py-3">
                                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700">
                                   {model.modality || '—'}
@@ -355,6 +366,7 @@ export default function AiProvidersPage() {
                                       modelId: model.modelId,
                                       displayName: model.displayName,
                                       modality: model.modality || 'chat',
+                                      tier: model.tier || 'paid',
                                       maxTokens: model.maxTokens || 4096,
                                       pricing: model.pricing || {},
                                       isActive: model.isActive,
@@ -567,6 +579,18 @@ export default function AiProvidersPage() {
                     placeholder="GPT-4o"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Tier</label>
+                <select
+                  value={modelForm.tier}
+                  onChange={e => setModelForm({...modelForm, tier: e.target.value})}
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="free">Free (ücretsiz, tüm planlar)</option>
+                  <option value="paid">Ücretli (üst planlar)</option>
+                </select>
+                <p className="mt-1 text-xs text-zinc-400">Free modeller ücretsiz planda da kullanılabilir.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">Yetenek</label>

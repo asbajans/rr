@@ -45,6 +45,7 @@ export interface PlanPublic {
   product_limit: number;
   store_limit: number;
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null;
+  ai_scenario_models: Record<string, number | null> | null;
   hosting: string;
   is_active: boolean;
   created_at: string;
@@ -64,6 +65,7 @@ export function serializePlan(plan: Plan): PlanPublic {
     product_limit: p.productLimit ?? p.product_limit ?? 0,
     store_limit: p.storeLimit ?? p.store_limit ?? 1,
     modules: p.modules ?? null,
+    ai_scenario_models: p.aiScenarioModels ?? p.ai_scenario_models ?? null,
     hosting: p.hosting ?? 'rahatio',
     is_active: p.isActive ?? p.is_active ?? true,
     created_at: p.createdAt ? new Date(p.createdAt).toISOString() : '',

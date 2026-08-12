@@ -1731,7 +1731,7 @@ class ApiClient {
     return this.get<{ models: any[] }>('/api/admin/ai/models')
   }
 
-  createAiModel(data: { providerId: number; modelId: string; displayName: string; modality?: string; maxTokens?: number; pricing?: any; isActive?: boolean }) {
+  createAiModel(data: { providerId: number; modelId: string; displayName: string; modality?: string; tier?: string; maxTokens?: number; pricing?: any; isActive?: boolean }) {
     return this.post<{ model: any }>('/api/admin/ai/models', data)
   }
 

@@ -70,6 +70,10 @@ export class Plan extends Model {
   declare modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }> | null;
 
   @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare aiScenarioModels: Record<string, number | null> | null; // { scenarioCode: modelId } — plan-level AI model overrides per scenario
+
+  @AllowNull(true)
   @Default(true)
   @Column(DataType.BOOLEAN)
   declare isActive: boolean;

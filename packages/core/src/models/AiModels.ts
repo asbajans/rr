@@ -36,6 +36,7 @@ export class AiModel extends Model {
   @AllowNull(false) @Column(DataType.STRING(100)) declare modelId: string; // e.g. 'gpt-4o', 'nvidia/nemotron-3-ultra'
   @AllowNull(false) @Column(DataType.STRING(200)) declare displayName: string;
   @AllowNull(true) @Column(DataType.STRING(50)) declare modality: string; // 'chat' | 'vision' | 'embedding' | 'image' | 'multimodal'
+  @AllowNull(false) @Default('paid') @Column(DataType.STRING(10)) declare tier: string; // 'free' | 'paid'
   @AllowNull(true) @Column(DataType.INTEGER) declare maxTokens: number;
   @AllowNull(true) @Column(DataType.JSONB) declare pricing: object; // { input: 0.001, output: 0.002, currency: 'USD' }
   @Default(true) @Column(DataType.BOOLEAN) declare isActive: boolean;

@@ -36,6 +36,8 @@ function mapPlanBody(body: any): any {
   if ('ai_credits' in body && !('aiCredits' in body)) mapped.aiCredits = body.ai_credits;
   else if (body.aiCredits !== undefined) mapped.aiCredits = body.aiCredits;
   if (body.modules !== undefined) mapped.modules = body.modules;
+  if (body.aiScenarioModels !== undefined) mapped.aiScenarioModels = body.aiScenarioModels;
+  if (body.ai_scenario_models !== undefined) mapped.aiScenarioModels = body.ai_scenario_models;
   if ('is_active' in body && !('isActive' in body)) mapped.isActive = body.is_active;
   else if (body.isActive !== undefined) mapped.isActive = body.isActive;
   if (body.stripePriceId !== undefined) mapped.stripePriceId = body.stripePriceId;
@@ -241,6 +243,8 @@ router.post('/plans', superAdminOnly, [
   body('aiCredits').optional().isInt({ min: -1 }),
   body('ai_credits').optional().isInt({ min: -1 }),
   body('modules').optional().isObject(),
+  body('aiScenarioModels').optional().isObject(),
+  body('ai_scenario_models').optional().isObject(),
   body('isActive').optional().isBoolean(),
   body('is_active').optional().isBoolean(),
   body('stripePriceId').optional().isString(),
@@ -294,6 +298,8 @@ router.put('/plans/:id', superAdminOnly, [
   body('aiCredits').optional({ values: 'falsy' }).isInt({ min: -1 }),
   body('ai_credits').optional({ values: 'falsy' }).isInt({ min: -1 }),
   body('modules').optional({ values: 'falsy' }).isObject(),
+  body('aiScenarioModels').optional({ values: 'falsy' }).isObject(),
+  body('ai_scenario_models').optional({ values: 'falsy' }).isObject(),
   body('isActive').optional({ values: 'falsy' }).isBoolean(),
   body('is_active').optional({ values: 'falsy' }).isBoolean(),
   body('stripePriceId').optional({ values: 'falsy' }).isString(),

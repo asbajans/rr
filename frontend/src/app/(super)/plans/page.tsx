@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { Plan } from '@/lib/types'
+import { SCENARIO_CODES } from '@/lib/ai-hub'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 const MODULE_LABELS: Record<string, string> = {
@@ -30,6 +31,7 @@ interface PlanForm {
   hosting: 'rahatio' | 'vercel' | 'custom'
   is_active: boolean
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }>
+  ai_scenario_models: Record<string, number>
 }
 
 const HOSTING_LABELS: Record<string, string> = {
@@ -42,6 +44,7 @@ const defaultForm: PlanForm = {
   name: '', slug: '', description: '', price: '0', currency: 'TRY',
   ai_credits: '10', product_limit: '100', store_limit: '1', hosting: 'rahatio', is_active: true,
   modules: {},
+  ai_scenario_models: {},
 }
 
 export default function SuperPlansPage() {
@@ -53,13 +56,15 @@ export default function SuperPlansPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [form, setForm] = useState<PlanForm>(defaultForm)
+  const [models, setModels] = useState<{ id: number; modelId: string; displayName: string; tier?: string; isActive?: boolean; provider?: { code: string; name: string } }[]>([])
 
   useEffect(() => {
     api.getAdminPlans().then(setPlans).catch(err => setError(err.message)).finally(() => setLoading(false))
+    api.getAiModels().then(r => setModels(r.models || [])).catch(() => {})
   }, [])
 
   function openNew() {
-    setForm({ ...defaultForm, modules: {} })
+    setForm({ ...defaultForm, modules: {}, ai_scenario_models: {} })
     setEditingId(null)
     setShowForm(true)
   }
@@ -77,6 +82,7 @@ export default function SuperPlansPage() {
       hosting: (plan.hosting ?? 'rahatio') as PlanForm['hosting'],
       is_active: plan.is_active,
       modules: plan.modules || {},
+      ai_scenario_models: plan.ai_scenario_models || {},
     })
     setEditingId(plan.id)
     setShowForm(true)
@@ -95,6 +101,7 @@ export default function SuperPlansPage() {
         is_active: form.is_active,
         hosting: form.hosting,
         modules: form.modules,
+        ai_scenario_models: form.ai_scenario_models,
       }
       if (form.slug) data.slug = form.slug
       if (form.description) data.description = form.description
@@ -186,6 +193,9 @@ export default function SuperPlansPage() {
                 {plan.modules && Object.entries(plan.modules).filter(([, v]) => v.enabled).map(([k]) => (
                   <p key={k} className="text-green-400">✓ {MODULE_LABELS[k] || k}{'credit_cost' in (plan.modules?.[k] || {}) ? ` (${(plan.modules?.[k] as any)?.credit_cost} kredi)` : ''}</p>
                 ))}
+                {plan.ai_scenario_models && Object.keys(plan.ai_scenario_models).length > 0 && (
+                  <p className="text-amber-400">AI model override: {Object.keys(plan.ai_scenario_models).length} senaryo</p>
+                )}
               </div>
               {!plan.is_active && <p className="mt-3 text-xs font-medium text-red-400">Pasif</p>}
             </div>
@@ -267,6 +277,41 @@ export default function SuperPlansPage() {
                   <option value="custom">Kendi Sunucu</option>
                 </select>
                 <p className="mt-1 text-xs text-zinc-500">Rahatio hosting'de mağaza siteniz otomatik olarak bu domain altında yayınlanır.</p>
+              </div>
+
+              {/* AI Scenario Models */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400">AI Modelleri (senaryo başına)</label>
+                <p className="mt-1 text-xs text-zinc-500">Seçilen senaryolar için bu planın mağazalarında kullanılacak model. "Varsayılan" bırakılırsa senaryonun kendi modeli / global default geçerli olur.</p>
+                <div className="mt-2 space-y-2">
+                  {SCENARIO_CODES.map(sc => {
+                    const selected = form.ai_scenario_models[sc.code] || 0
+                    return (
+                      <div key={sc.code} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-zinc-300">{sc.name}</p>
+                          <p className="truncate text-xs text-zinc-500">{sc.code}</p>
+                        </div>
+                        <select
+                          value={selected}
+                          onChange={e => setForm(prev => {
+                            const ai_scenario_models = { ...prev.ai_scenario_models }
+                            const v = Number(e.target.value)
+                            if (v) ai_scenario_models[sc.code] = v
+                            else delete ai_scenario_models[sc.code]
+                            return { ...prev, ai_scenario_models }
+                          })}
+                          className="w-56 rounded-lg border border-zinc-600 bg-zinc-700 px-2 py-1.5 text-xs text-white"
+                        >
+                          <option value={0}>— Senaryo varsayılanı —</option>
+                          {models.filter(m => m.isActive).map(m => (
+                            <option key={m.id} value={m.id}>{m.displayName} ({m.modelId}){m.tier === 'free' ? ' · Free' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Modules */}
