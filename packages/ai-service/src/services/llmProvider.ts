@@ -92,6 +92,22 @@ function isReasoningModel(model: string): boolean {
 }
 
 /**
+ * Hard upper bound for requested output tokens. Model records sometimes store
+ * the full context window (e.g. 1048576) in maxTokens; sending that as the
+ * output cap makes OpenAI/OpenRouter reject the request because contextLength
+ * == requested tokens. Always clamp the output request to a sane maximum.
+ */
+const MAX_OUTPUT_TOKENS = 65536;
+
+function resolveMaxTokens(...candidates: Array<number | undefined>): number {
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isFinite(n) && n > 0) return Math.min(n, MAX_OUTPUT_TOKENS);
+  }
+  return 2048;
+}
+
+/**
  * Resolve the chat-completions endpoint from a provider base URL.
  * Handles the common convention where the stored baseUrl may or may not
  * include the trailing `/v1` (e.g. "https://api.openai.com/v1" vs
@@ -135,10 +151,10 @@ async function callOpenAiCompatible(
     temperature: options?.temperature ?? 0.7,
   };
   if (reasoning) {
-    body.max_completion_tokens = options?.maxTokens ?? config.maxTokens ?? 2048;
+    body.max_completion_tokens = resolveMaxTokens(options?.maxTokens, config.maxTokens);
     body.reasoning_effort = options?.reasoningEffort ?? config.reasoningEffort ?? 'minimal';
   } else {
-    body.max_tokens = options?.maxTokens ?? config.maxTokens ?? 2048;
+    body.max_tokens = resolveMaxTokens(options?.maxTokens, config.maxTokens);
   }
   if (options?.topP !== undefined) body.top_p = options?.topP;
   if (options?.responseFormatJson) body.response_format = { type: 'json_object' };
@@ -162,7 +178,7 @@ async function callOpenAiCompatible(
     }));
     const res = await postWithRetry(
       `${endpoint}/v1beta/models/${config.model}:generateContent${key}`,
-      { contents, generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? config.maxTokens ?? 2048 } },
+      { contents, generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: resolveMaxTokens(options?.maxTokens, config.maxTokens) } },
       headers
     );
     return (res.data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('') || '';

@@ -214,6 +214,12 @@ export function buildProviderPayload(provider: any, model: any, scenario: any, g
   }
 
   const scenarioParams = (scenario?.parameters as any) || {};
+  const modelMax = Number(model.maxTokens) || undefined;
+  const scenarioMax = Number(scenarioParams.max_tokens) || undefined;
+  const maxTokens = scenarioMax
+    ? Math.min(scenarioMax, modelMax ?? scenarioMax)
+    : modelMax;
+
   return {
     provider: {
       baseUrl: provider.baseUrl,
@@ -222,7 +228,7 @@ export function buildProviderPayload(provider: any, model: any, scenario: any, g
     },
     model: model.modelId,
     parameters: scenarioParams,
-    maxTokens: Number(model.maxTokens) || Number(scenarioParams.max_tokens) || undefined,
+    maxTokens,
   };
 }
 
