@@ -279,6 +279,10 @@ export default function AiStudioPage() {
       setSuccess(t('aiPublishQueuedMessage'))
     } catch (err: any) {
       if (err?.code === 'PLAN_PRODUCT_LIMIT') setGate('product')
+      else if (err?.code === 'DRAFT_CHANNEL_VALIDATION_FAILED') {
+        setValidation(err?.data?.results || [])
+        setError(t('aiPublishBlocked'))
+      }
       else setError(err instanceof Error ? err.message : t('aiPublishFailedMessage'))
     } finally {
       setPublishing(false)
