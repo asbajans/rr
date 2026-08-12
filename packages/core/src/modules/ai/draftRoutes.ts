@@ -332,10 +332,14 @@ draftRoutes.get('/product-sessions/:id/draft', authMiddleware, requireStore, [
 });
 
 // GET /api/ai/product-drafts
+// Only unpublished drafts are visible — once a draft is published (status
+// 'converted') it leaves the drafts list; the row is kept only so the
+// publish-state/retry endpoints can still operate on it.
 draftRoutes.get('/product-drafts', authMiddleware, requireStore, async (req: Request, res: Response) => {
   const store = (req as any).store;
+  const { Op } = await import('sequelize');
   const drafts = await AiProductDraft.findAll({
-    where: { storeId: store.id },
+    where: { storeId: store.id, status: { [Op.notIn]: ['converted'] } },
     order: [['createdAt', 'DESC']],
   });
   res.json({ drafts });

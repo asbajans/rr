@@ -1042,7 +1042,7 @@ class ApiClient {
   }
 
   getAiStatus(sessionId: string) {
-    return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
+    return this.get<{ sessionId: string; images: number; ready: string[]; error?: string }>(`/api/ai/status/${sessionId}`)
   }
 
   async analyzeProduct(formData: FormData) {
@@ -1671,11 +1671,40 @@ class ApiClient {
   }
 
   editProductImage(data: { image_urls: string[]; prompt: string; category?: string }) {
-    return this.post<{ sessionId: string }>(`/api/ai/process-image`, { imageUrl: data.image_urls[0], prompt: data.prompt, category: data.category || 'diger' })
+    return this.post<{ sessionId: string }>(`/api/ai/image-edit`, { imageUrl: data.image_urls[0], prompt: data.prompt, category: data.category || 'diger' })
+  }
+
+  imageEdit(data: { imageUrl: string; prompt: string; category?: string }) {
+    return this.post<{ sessionId: string }>(`/api/ai/image-edit`, { imageUrl: data.imageUrl, prompt: data.prompt, category: data.category || 'diger' })
+  }
+
+  imageGenerate(data: { prompt: string; count?: number; category?: string }) {
+    return this.post<{ sessionId: string }>(`/api/ai/image-generate`, { prompt: data.prompt, count: data.count || 1, category: data.category || 'diger' })
   }
 
   getAiOutputUrl(sessionId: string, filename: string) {
     return `${API_BASE}/api/ai/output/${sessionId}/${filename}`
+  }
+
+  /**
+   * Polls an AI image session (edit/generate) until its PNGs are ready or it
+   * fails. Returns the ready file names, or throws with the session error.
+   */
+  async pollAiImageSession(sessionId: string, maxTries = 60): Promise<string[]> {
+    for (let i = 0; i < maxTries; i++) {
+      await new Promise((r) => setTimeout(r, 3000))
+      const st = await this.getAiStatus(sessionId)
+      if (st.error) throw new Error(st.error)
+      if (st.ready && st.ready.length > 0) return st.ready
+    }
+    throw new Error('Görsel üretilemedi (zaman aşımı)')
+  }
+
+  /** Fetches a generated AI image and uploads it to the store, returning its public URL. */
+  async takeAiResultImage(sessionId: string, filename: string): Promise<{ url: string; path: string }> {
+    const outUrl = this.getAiOutputUrl(sessionId, filename)
+    const blob = await fetch(outUrl).then((r) => r.blob())
+    return this.uploadImage(new File([blob], filename, { type: blob.type || 'image/png' }))
   }
 
   updateB2bSettings(data: { product_id: string | number; is_b2b_enabled: boolean; b2b_discount: number | null; b2b_price: number | null }) {

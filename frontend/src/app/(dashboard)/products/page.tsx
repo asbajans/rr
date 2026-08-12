@@ -121,6 +121,11 @@ export default function ProductsPage() {
   const [uploading, setUploading] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
 
+  // AI image edit (per-image prompt)
+  const [aiEditIndex, setAiEditIndex] = useState<number | null>(null)
+  const [aiEditPrompt, setAiEditPrompt] = useState('')
+  const [aiEditing, setAiEditing] = useState(false)
+
   // bulk B2B modal
   const [bulkB2bOpen, setBulkB2bOpen] = useState(false)
   const [bulkB2bDiscount, setBulkB2bDiscount] = useState<string>('')
@@ -589,41 +594,45 @@ export default function ProductsPage() {
     }
   }
 
+  function startAiEdit(index: number) {
+    if (!product) return
+    if (!product.images[index]?.trim()) {
+      setError('Önce görsel URL girin veya "Bilgisayardan yükle" ile görsel ekleyin')
+      setAiEditIndex(index)
+      return
+    }
+    setAiEditIndex(index)
+    setAiEditPrompt('beyaz arka plan, daha parlak, profesyonel ürün fotoğrafı')
+    setError('')
+  }
+
   async function handleImageAiEdit(index: number) {
     if (!product) return
     const url = product.images[index]?.trim()
     if (!url) {
-      setError('Önce bir görsel URL girin')
+      setError('Önce görsel URL girin')
+      setAiEditIndex(index)
       return
     }
-    const prompt = window.prompt(
-      'Görsel için AI düzenleme talimatı (örn: beyaz arka plan, profesyonel ürün fotoğrafı):',
-      'beyaz arka plan, daha parlak, profesyonel ürün fotoğrafı'
-    )
-    if (prompt === null) return
+    const prompt = aiEditPrompt.trim()
+    if (prompt.length < 3) {
+      setError('AI düzenleme talimatı girin (en az 3 karakter)')
+      return
+    }
+    setAiEditing(true)
+    setError('')
     try {
       const md = product.marketplace_data ? Object.values(product.marketplace_data)[0] : undefined
-      const res = await api.editProductImage({
-        image_urls: [url],
+      const res = await api.imageEdit({
+        imageUrl: url,
         prompt,
         category: md?.category || product.category || undefined,
       })
       const sid = res.sessionId
       if (!sid) throw new Error('AI oturumu başlatılamadı')
-      let files: string[] = []
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 3000))
-        const st = await api.getAiStatus(sid)
-        if (st.ready && st.ready.length > 0) {
-          files = st.ready
-          break
-        }
-      }
-      if (files.length === 0) throw new Error('Görsel üretilemedi')
+      const files = await api.pollAiImageSession(sid)
       for (const file of files) {
-        const outUrl = api.getAiOutputUrl(sid, file)
-        const blob = await fetch(outUrl).then((r) => r.blob())
-        const uploaded = await api.uploadImage(new File([blob], file, { type: blob.type }))
+        const uploaded = await api.takeAiResultImage(sid, file)
         if (uploaded.url) {
           setProduct((prev) => {
             if (!prev) return prev
@@ -633,9 +642,15 @@ export default function ProductsPage() {
           })
         }
       }
+      setAiEditIndex(null)
+      setAiEditPrompt('')
+      refreshMe()
     } catch (e: any) {
       if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); refreshMe(); }
+      else if (e?.code === 'PLAN_MODULE_DISABLED') setError(e.message)
       else setError(e.message)
+    } finally {
+      setAiEditing(false)
     }
   }
 
@@ -1242,16 +1257,15 @@ export default function ProductsPage() {
                         {img.trim() && (
                           <img src={img} alt="" className="h-10 w-10 object-cover rounded border flex-shrink-0" />
                         )}
-                        {img.trim() && (
-                          <button
-                            type="button"
-                            onClick={() => handleImageAiEdit(idx)}
-                            className="text-xs text-indigo-600 hover:underline whitespace-nowrap"
-                            title="Yapay zeka ile düzenle"
-                          >
-                            AI Düzenle
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => startAiEdit(idx)}
+                          disabled={aiEditing}
+                          className="text-xs text-indigo-600 hover:underline whitespace-nowrap disabled:opacity-40"
+                          title="Yapay zeka ile düzenle"
+                        >
+                          {aiEditing && aiEditIndex === idx ? 'Yükleniyor...' : 'AI Düzenle'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => setProduct((prev) => (prev ? { ...prev, images: prev.images.filter((_, i) => i !== idx) } : prev))}
@@ -1262,6 +1276,40 @@ export default function ProductsPage() {
                       </div>
                     )
                   })}
+                  {aiEditIndex !== null && (
+                    <div className="pt-1">
+                      <label className="block text-[11px] text-gray-500">
+                        AI düzenleme talimatı (görsel #{aiEditIndex + 1})
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={aiEditPrompt}
+                          onChange={(e) => setAiEditPrompt(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !aiEditing) handleImageAiEdit(aiEditIndex) }}
+                          disabled={aiEditing}
+                          placeholder="örn: beyaz arka plan, profesyonel ürün fotoğrafı"
+                          className="flex-1 border rounded px-2 py-1.5 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleImageAiEdit(aiEditIndex)}
+                          disabled={aiEditing}
+                          className="px-2.5 py-1.5 rounded-md text-xs font-medium border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40"
+                        >
+                          {aiEditing ? 'İşleniyor...' : 'Uygula'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setAiEditIndex(null); setAiEditPrompt('') }}
+                          disabled={aiEditing}
+                          className="px-2 py-1.5 rounded-md text-xs font-medium text-gray-500 hover:text-gray-700"
+                        >
+                          Vazgeç
+                        </button>
+                      </div>
+                      {aiEditing && <p className="mt-1 text-[11px] text-indigo-600">Görsel AI ile düzenleniyor (~1-2 dk), kredi düşülür...</p>}
+                    </div>
+                  )}
                 </div>
               </div>
 

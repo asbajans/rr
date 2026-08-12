@@ -130,6 +130,79 @@ router.post(
   }
 );
 
+function writeSessionError(sessionId: string, message: string): void {
+  const outputDir = path.resolve('output', sessionId);
+  try {
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(path.join(outputDir, 'error.txt'), message.length > 2000 ? message.slice(0, 2000) : message, 'utf-8');
+  } catch { /* best-effort */ }
+}
+
+// image-edit: AI with an instruction on an existing image (ComfyUI edit workflow).
+// Async: returns 202 { sessionId }, output is polled via /ai/status/:id then served
+// by /ai/output/:id/:file. Credits are billed by the core API on 202.
+router.post(
+  '/image-edit',
+  upload.single('image'),
+  async (req: Request, res: Response) => {
+    const prompt = String(req.body.prompt || '').trim();
+    if (!prompt) {
+      res.status(400).json({ error: 'prompt zorunludur' });
+      return;
+    }
+
+    let filePath: string;
+    try {
+      filePath = await resolveSingleFile(req, path.resolve('uploads'));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+      return;
+    }
+
+    const sessionId = uuid();
+    sendUpdate(sessionId, 'queued', 'Görsel düzenleme sıraya alındı');
+    res.status(202).json({ sessionId, message: 'Görsel düzenleme başlatıldı' });
+
+    try {
+      const { runImageEdit } = await import('../services/imageStudio.js');
+      await runImageEdit({ imagePath: filePath, prompt, category: req.body.category, sessionId });
+      fs.unlink(filePath, () => {});
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
+      sendUpdate(sessionId, 'failed', errorMsg);
+      writeSessionError(sessionId, errorMsg);
+      fs.unlink(filePath, () => {});
+    }
+  }
+);
+
+// image-generate: brand-new product images from a prompt (ComfyUI text-to-image).
+// count ∈ {1..4}; the core API bills count × per-image credit on the 202.
+router.post(
+  '/image-generate',
+  async (req: Request, res: Response) => {
+    const prompt = String(req.body.prompt || '').trim();
+    const count = Math.max(1, Math.min(4, Math.floor(Number(req.body.count) || 1)));
+    if (!prompt) {
+      res.status(400).json({ error: 'prompt zorunludur' });
+      return;
+    }
+
+    const sessionId = uuid();
+    sendUpdate(sessionId, 'queued', `Görsel üretimi sıraya alındı (${count})`);
+    res.status(202).json({ sessionId, message: 'Görsel üretimi başlatıldı' });
+
+    try {
+      const { runImageGenerate } = await import('../services/imageStudio.js');
+      await runImageGenerate({ prompt, category: req.body.category, count, sessionId });
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
+      sendUpdate(sessionId, 'failed', errorMsg);
+      writeSessionError(sessionId, errorMsg);
+    }
+  }
+);
+
 // analyze-product: accepts multipart image OR JSON { imageUrl, category, provider?, model? }
 router.post(
   '/analyze-product',
@@ -337,7 +410,27 @@ router.get('/status/:sessionId', (req: Request, res: Response) => {
   }
 
   const files = fs.readdirSync(outputDir).filter((f) => f.endsWith('.png'));
-  res.json({ sessionId, images: files.length, ready: files });
+  const errorFile = path.join(outputDir, 'error.txt');
+  const error = fs.existsSync(errorFile) ? fs.readFileSync(errorFile, 'utf-8') : undefined;
+
+  res.json({ sessionId, images: files.length, ready: files, error });
+});
+
+// Serve generated/edited images for a session. The core API streams this through
+// GET /api/ai/output/:id/:file.
+router.get('/output/:sessionId/:file', (req: Request, res: Response) => {
+  const { sessionId, file } = req.params;
+  const safeFile = path.basename(file);
+  const filePath = path.resolve('output', sessionId, safeFile);
+  if (!filePath.startsWith(path.resolve('output'))) {
+    res.status(400).json({ error: 'Invalid path' });
+    return;
+  }
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Session bulunamadı' });
+    return;
+  }
+  res.sendFile(filePath);
 });
 
 // AI Search: semantic product search

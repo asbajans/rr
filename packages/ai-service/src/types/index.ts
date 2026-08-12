@@ -13,12 +13,26 @@ export type ProductCategory =
   | 'spor'
   | 'diger';
 
+export const productCategories: ProductCategory[] = [
+  'giyim',
+  'taki',
+  'kozmetik',
+  'ayakkabi',
+  'canta',
+  'elektronik',
+  'ev_dekorasyon',
+  'spor',
+  'diger',
+];
+
 export type ProcessStatus =
   | 'queued'
   | 'background_removal'
   | 'background_complete'
   | 'comfyui_generating'
   | 'comfyui_complete'
+  | 'editing'
+  | 'generating'
   | 'vision_analyzing'
   | 'vision_complete'
   | 'llm_generating'

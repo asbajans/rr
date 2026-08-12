@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
-import { getPlanForStore, getModuleCreditCost } from '../plan/access.js';
+import { getPlanForStore, getModuleCreditCost, requireModule } from '../plan/access.js';
 import { logger } from '../../utils/logger.js';
 import { AiProvider, AiModel, AiScenario, AiUsageLog } from '../../models/AiModels.js';
 import { sequelize } from '../../config/database.js';
@@ -313,12 +313,78 @@ aiRoutes.get('/credits', authMiddleware, requireStore, async (req: Request, res:
   res.json({ credits: user.aiCredits });
 });
 
-aiRoutes.post('/process-image', authMiddleware, requireStore, [
+aiRoutes.post('/process-image', authMiddleware, requireStore, requireModule('ai_image_generate'), [
   body('imageUrl').isURL(),
+  body('prompt').optional().isString(),
   body('category').optional().isString(),
 ], validate, async (req: Request, res: Response) => {
   return proxyToAiService(req, res, '/ai/process-image', 'process_image', 5);
 });
+
+// Default per-image credit cost for AI image edit / generation. Plans can
+// override via the ai_image_generate module credit_cost.
+const IMAGE_GEN_CREDIT_PER_IMAGE = 5;
+
+async function proxyImageGen(req: Request, res: Response, path: string, opts: { count?: number }) {
+  const user = (req as any).user;
+  const store = (req as any).store;
+  const plan = await getPlanForStore(store);
+
+  const moduleOverride = plan ? getModuleCreditCost(plan, 'ai_image_generate') : null;
+  const perImage = moduleOverride ?? IMAGE_GEN_CREDIT_PER_IMAGE;
+  const credits = Math.max(1, perImage) * (opts.count || 1);
+
+  if ((user.aiCredits ?? 0) < credits) {
+    return res.status(402).json({
+      error: 'INSUFFICIENT_CREDITS',
+      credits: user.aiCredits ?? 0,
+      required: credits,
+      message: 'AI krediniz yetersiz. Kredi satın alın veya üst pakete geçin.',
+    });
+  }
+
+  try {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
+    const axios = (await import('axios')).default;
+
+    const response = await axios.post(`${aiServiceUrl}${path}`, req.body, { timeout: AI_TIMEOUT_MS });
+
+    // Billed on acceptance (202): the generation runs async on ComfyUI.
+    if (response.status >= 200 && response.status < 300) {
+      await deductCredits(user.id, store.id, credits, 'ai_image_generate', 'ai');
+      await logAiUsage(
+        user.id, store.id, 'ai_image_generate',
+        null, null, credits,
+        { path, bodyKeys: Object.keys(req.body) },
+        { status: response.status }
+      );
+    }
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    logger.error(
+      { path, message: error?.message, code: error?.code, status: error?.response?.status },
+      'AI image proxy error'
+    );
+    const status = error?.response?.status || 502;
+    const upstream = error?.response?.data?.error || error.message;
+    res.status(status).json({ error: upstream });
+  }
+}
+
+// AI ile görsel düzenleme (mevcut ürün görseline talimatla): 1 düzenleme = 1 görsel hakkı
+aiRoutes.post('/image-edit', authMiddleware, requireStore, requireModule('ai_image_generate'), [
+  body('imageUrl').isURL(),
+  body('prompt').isString().isLength({ min: 3, max: 1000 }),
+  body('category').optional().isString(),
+], validate, (req: Request, res: Response) => proxyImageGen(req, res, '/ai/image-edit', { count: 1 }));
+
+// AI ile yeni görsel üretme: count başına kredi düşer (1-4)
+aiRoutes.post('/image-generate', authMiddleware, requireStore, requireModule('ai_image_generate'), [
+  body('prompt').isString().isLength({ min: 3, max: 1000 }),
+  body('count').optional().isInt({ min: 1, max: 4 }),
+  body('category').optional().isString(),
+], validate, (req: Request, res: Response) => proxyImageGen(req, res, '/ai/image-generate', { count: Number(req.body.count) || 1 }));
 
 aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
   body('imageUrl').isURL(),
