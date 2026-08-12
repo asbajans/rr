@@ -8,7 +8,7 @@ import {
   Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban,
   MapPin, Truck, FileText, Camera, Palette, MenuIcon,
   FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2, GitMerge,
-  Coins, Wand2,
+  Coins, Wand2, Newspaper,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
@@ -56,6 +56,7 @@ const navGroups = [
     labelKey: 'groupSite',
     items: [
       { href: '/pages', labelKey: 'pages', icon: FileText },
+      { href: '/blog-posts', labelKey: 'blog', icon: Newspaper },
       { href: '/menus', labelKey: 'menus', icon: MenuIcon },
       { href: '/site-builder', labelKey: 'siteBuilder', icon: Palette },
       { href: '/pixels', labelKey: 'pixels', icon: Tag },
@@ -83,6 +84,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     ...group,
     items: group.items.filter((item) => {
       if (item.href === '/b2b' || item.href === '/b2b/requests') return can('b2b')
+      if (item.href === '/blog') return can('blog')
       return true
     }),
   }))

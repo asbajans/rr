@@ -12,6 +12,7 @@ export const MODULE_DEFINITIONS: Record<string, { label: string }> = {
   xml_feed: { label: 'XML Feed' },
   variations: { label: 'Varyasyonlar' },
   blog: { label: 'Blog' },
+  blog_generation: { label: 'AI Blog Üretimi' },
   custom_domain: { label: 'Özel Domain' },
   shipping: { label: 'Kargo Yönetimi' },
   static_pages: { label: 'Statik Sayfalar' },

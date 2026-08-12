@@ -18,7 +18,7 @@ import { ApiKey } from '../models/ApiKey.model.js';
 import { CreditLog } from '../models/CreditLog.model.js';
 import { Setting } from '../models/Setting.model.js';
 import { AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog } from '../models/AiModels.js';
-import { Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption } from '../models/ContentModels.js';
+import { Page, BlogPost, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption } from '../models/ContentModels.js';
 import { StoreMenu } from '../models/Menu.model.js';
 import { Brand } from '../models/Brand.model.js';
 import { AiProductSession } from '../models/AiProductSession.model.js';
@@ -40,7 +40,7 @@ export const sequelize = new Sequelize(config.database.url, {
   dialect: 'postgres',
   logging: config.env === 'development' ? (msg) => console.log(msg) : false,
   pool: config.database.pool,
-  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement, SupplierRating, SiteDeployment, Customer, CustomerFavorite, Campaign, Coupon, CustomerReview, CustomerNotification, CustomerConsent],
+  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement, SupplierRating, SiteDeployment, Customer, CustomerFavorite, Campaign, Coupon, CustomerReview, CustomerNotification, CustomerConsent, BlogPost],
   define: {
     timestamps: true,
     underscored: false,

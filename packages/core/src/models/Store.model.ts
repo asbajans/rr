@@ -26,6 +26,7 @@ import { B2BRequest } from './B2BModels.js';
 import { B2BListedProduct } from './B2BModels.js';
 import { DropshippingOrder } from './DropshippingOrder.model.js';
 import { Page } from './ContentModels.js';
+import { BlogPost } from './ContentModels.js';
 import { StoreLocation } from './ContentModels.js';
 import { StorePaymentMethod } from './ContentModels.js';
 import { ExternalFeed } from './ContentModels.js';
@@ -78,6 +79,10 @@ export class Store extends Model {
   @AllowNull(true)
   @Column(DataType.JSONB)
   declare theme: object;
+
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare homepage: object;
 
   @Default('TRY')
   @Column(DataType.STRING(3))
@@ -149,6 +154,9 @@ export class Store extends Model {
 
   @HasMany(() => Page)
   declare pages: Page[];
+
+  @HasMany(() => BlogPost)
+  declare blogPosts: BlogPost[];
 
   @HasMany(() => StoreLocation)
   declare locations: StoreLocation[];

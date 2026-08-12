@@ -14,6 +14,7 @@ export const tr: Record<string, string> = {
   supplier: 'Tedarikçi',
   marketplaces: 'Pazaryerleri',
   pages: 'Sayfalar',
+  blog: 'Blog',
   menus: 'Menüler',
   siteBuilder: 'Site Tasarım',
   pixels: 'Piksel & Takip',

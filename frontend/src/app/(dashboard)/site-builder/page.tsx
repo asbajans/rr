@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
-import type { Store, StoreTheme, SiteDeployment } from '@/lib/types'
+import type { Store, StoreTheme, StoreHomepage, SiteDeployment } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Palette, Type, Code, Upload, Image, Rocket, Undo2, History } from 'lucide-react'
+import { Palette, Type, Code, Upload, Image, Rocket, Undo2, History, LayoutTemplate } from 'lucide-react'
 
 const FONT_OPTIONS = ['Inter', 'Playfair Display', 'Roboto', 'Open Sans']
 
@@ -20,6 +20,7 @@ export default function SiteBuilderPage() {
   const { user } = useAuth()
   const [store, setStore] = useState<Store | null>(null)
   const [theme, setTheme] = useState<StoreTheme>({})
+  const [homepage, setHomepage] = useState<StoreHomepage>({ enabled: false, type: 'none' })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState<'logo' | 'favicon' | null>(null)
   const [message, setMessage] = useState('')
@@ -34,7 +35,7 @@ export default function SiteBuilderPage() {
 
   useEffect(() => {
     api.getSettings()
-      .then((s) => { setStore(s); setTheme(s.theme ?? {}); setPublished(s.published !== false) })
+      .then((s) => { setStore(s); setTheme(s.theme ?? {}); setHomepage(s.homepage ?? { enabled: false, type: 'none' }); setPublished(s.published !== false) })
       .catch(() => {})
     api.getSiteDeployments()
       .then((r) => { setPublished(r.published); setDeployments(r.deployments) })
@@ -57,6 +58,31 @@ export default function SiteBuilderPage() {
 
   function updateTheme(partial: Partial<StoreTheme>) {
     setTheme((prev) => ({ ...prev, ...partial }))
+  }
+
+  function updateHomepage(partial: Partial<StoreHomepage>) {
+    setHomepage((prev) => ({ ...prev, ...partial }))
+  }
+
+  async function handleHeroUpload() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      setUploading('logo') // reuse busy indicator slot
+      try {
+        const { url } = await api.uploadImage(file)
+        updateHomepage({ image_url: url })
+        setMessage('Hero görseli yüklendi.')
+      } catch (err) {
+        setMessage(err instanceof Error ? err.message : 'Yükleme hatası')
+      } finally {
+        setUploading(null)
+      }
+    }
+    input.click()
   }
 
   async function handleUpload(field: 'logo_url' | 'favicon_url') {
@@ -84,7 +110,7 @@ export default function SiteBuilderPage() {
     setSaving(true)
     setMessage('')
     try {
-      await api.updateSettings({ theme })
+      await api.updateSettings({ theme, homepage })
       setMessage('Tema ayarları kaydedildi.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Hata oluştu')
@@ -98,7 +124,7 @@ export default function SiteBuilderPage() {
     setMessage('')
     try {
       // Kaydedilmemiş tema değişikliklerini önce kaydet
-      await api.updateSettings({ theme })
+      await api.updateSettings({ theme, homepage })
       await api.publishSite(publishNote || undefined)
       setPublished(true)
       setPublishNote('')
@@ -114,7 +140,7 @@ export default function SiteBuilderPage() {
   async function handleManagedDeploy() {
     setDeploying(true); setMessage('')
     try {
-      await api.updateSettings({ theme })
+      await api.updateSettings({ theme, homepage })
       const result = await api.deployManagedSite(publishNote || undefined)
       setPublishNote('')
       await refreshDeployments()
@@ -359,6 +385,112 @@ export default function SiteBuilderPage() {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Homepage Hero */}
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <LayoutTemplate className="h-5 w-5 text-zinc-500" />
+              <h2 className="text-lg font-semibold text-zinc-900">Ana Sayfa Hero Alanı</h2>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+              <input type="checkbox" checked={homepage.enabled !== false}
+                onChange={(e) => updateHomepage({ enabled: e.target.checked })}
+                className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+              Hero alanını göster
+            </label>
+          </div>
+          {homepage.enabled !== false && (
+            <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Hero Türü</label>
+                <select
+                  value={homepage.type || 'image'}
+                  onChange={(e) => updateHomepage({ type: e.target.value as 'image' | 'youtube' })}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                  <option value="image">Görsel / Arka Plan</option>
+                  <option value="youtube">YouTube Videosu</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Yükseklik</label>
+                <select
+                  value={homepage.min_height || 'min-h-[420px]'}
+                  onChange={(e) => updateHomepage({ min_height: e.target.value })}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                  <option value="min-h-[300px]">Kısa (300px)</option>
+                  <option value="min-h-[420px]">Orta (420px)</option>
+                  <option value="min-h-[560px]">Uzun (560px)</option>
+                </select>
+              </div>
+              {homepage.type === 'youtube' ? (
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-zinc-900">YouTube Video URL</label>
+                  <input
+                    value={homepage.youtube_url || ''}
+                    onChange={(e) => updateHomepage({ youtube_url: e.target.value })}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                </div>
+              ) : (
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-zinc-900">Hero Görseli (Arka Plan)</label>
+                  {homepage.image_url && (
+                    <img src={homepage.image_url} alt="Hero" className="mt-2 mb-2 max-h-40 rounded border border-zinc-200 object-cover" />
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      value={homepage.image_url || ''}
+                      onChange={(e) => updateHomepage({ image_url: e.target.value })}
+                      placeholder="https://... veya yükle"
+                      className="block flex-1 min-w-48 rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                    <Button size="sm" variant="outline" onClick={handleHeroUpload} disabled={uploading !== null}>
+                      <Upload className="mr-1 h-3 w-3" />{uploading !== null ? 'Yükleniyor...' : 'Görsel Yükle'}
+                    </Button>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-zinc-900">Karartma / Opaklık (%{homepage.overlay_opacity ?? 40})</label>
+                    <input type="range" min="0" max="90" value={homepage.overlay_opacity ?? 40}
+                      onChange={(e) => updateHomepage({ overlay_opacity: parseInt(e.target.value, 10) })}
+                      className="mt-1 w-full" />
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Başlık</label>
+                <input
+                  value={homepage.heading || ''}
+                  onChange={(e) => updateHomepage({ heading: e.target.value })}
+                  placeholder="Mağazanızın sloganı..."
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Alt Metin</label>
+                <input
+                  value={homepage.subtitle || ''}
+                  onChange={(e) => updateHomepage({ subtitle: e.target.value })}
+                  placeholder="Kısa açıklama..."
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Buton Metni</label>
+                <input
+                  value={homepage.button_text || ''}
+                  onChange={(e) => updateHomepage({ button_text: e.target.value })}
+                  placeholder="Alışverişe Başla"
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-900">Buton Linki</label>
+                <input
+                  value={homepage.button_url || ''}
+                  onChange={(e) => updateHomepage({ button_url: e.target.value })}
+                  placeholder="#"
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Colors */}

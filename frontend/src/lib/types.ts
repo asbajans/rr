@@ -39,8 +39,23 @@ export type Store = {
   is_active: boolean
   published?: boolean
   theme?: StoreTheme | null
+  homepage?: StoreHomepage | null
   tax_settings?: Record<string, any> | null
   shipping_settings?: Record<string, any> | null
+}
+
+export type StoreHomepage = {
+  enabled?: boolean
+  type?: 'image' | 'youtube' | 'none'
+  image_url?: string
+  youtube_url?: string
+  heading?: string
+  subtitle?: string
+  button_text?: string
+  button_url?: string
+  overlay_opacity?: number
+  min_height?: string
+  [key: string]: any
 }
 
 export type StoreTheme = {
@@ -269,6 +284,7 @@ export type StoreFrontData = {
     domain: string | null
     email: string | null
     theme?: object | null
+    homepage?: StoreHomepage | null
   }
   products: StoreProduct[]
   total: number
@@ -636,6 +652,24 @@ export type Page = {
   content: PageBlock[] | null
   meta: Record<string, string> | null
   is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type BlogPost = {
+  id: number
+  store_id: number
+  slug: string
+  title: string
+  excerpt: string | null
+  content: string | null
+  cover_image: string | null
+  author: string | null
+  tags: string[] | null
+  meta: Record<string, string> | null
+  product_id: number | null
+  is_active: boolean
+  published_at: string | null
   created_at: string
   updated_at: string
 }

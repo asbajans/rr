@@ -3,6 +3,7 @@ export const SCENARIO_CODES = [
   { code: 'generate_description', name: 'Açıklama Üretimi', desc: 'Başlık+özelliklerden SEO açıklama' },
   { code: 'process_image', name: 'Resim İşleme', desc: 'Arka plan temizleme / resim üretim' },
   { code: 'agentic_listing', name: 'Agentik İlan Akışı', desc: 'Fotoğraf → ilan hazırlama → yayınlama' },
+  { code: 'blog_generation', name: 'Blog Üretimi', desc: 'Konu/ürün → SEO blog yazısı' },
   { code: 'chat', name: 'Sohbet/Chat', desc: 'Müşteri destek asistanı' },
   { code: 'search', name: 'Semantik Arama', desc: 'Ürünler arası anlam bazlı arama' },
   { code: 'recommend', name: 'Öneri Sistemi', desc: 'Cross-sell / Up-sell önerileri' },

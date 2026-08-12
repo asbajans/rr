@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Search, X } from 'lucide-react'
 import { api } from '@/lib/api-client'
-import type { StoreProduct } from '@/lib/types'
+import type { StoreProduct, StoreHomepage } from '@/lib/types'
+import StoreHero from '@/components/store/StoreHero'
 
 function toStoreProduct(p: any): StoreProduct {
   const images = Array.isArray(p.images) ? p.images : p.images ?? []
@@ -28,6 +29,7 @@ export default function StoreFrontPage() {
   const { siteCode } = useParams<{ siteCode: string }>()
   const pageSize = 24
   const [storeName, setStoreName] = useState('')
+  const [homepage, setHomepage] = useState<StoreHomepage | null>(null)
   const [products, setProducts] = useState<StoreProduct[]>([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -61,7 +63,10 @@ export default function StoreFrontPage() {
 
   useEffect(() => {
     api.getStoreFront(siteCode)
-      .then(r => setStoreName(r.store?.name ?? ''))
+      .then(r => {
+        setStoreName(r.store?.name ?? '')
+        setHomepage(r.store?.homepage ?? null)
+      })
       .catch(() => {})
     setLoading(true)
     fetchProducts(1, '', false)
@@ -123,10 +128,13 @@ export default function StoreFrontPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-zinc-900">{storeName}</h1>
-      </div>
+    <div>
+      <StoreHero homepage={homepage} siteCode={siteCode} />
+
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-zinc-900">{storeName}</h1>
+        </div>
 
       <form onSubmit={handleSearch} className="relative mb-4">
         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
@@ -190,6 +198,7 @@ export default function StoreFrontPage() {
       {!loadingMore && !searching && products.length > 0 && Math.ceil(total / pageSize) > page && (
         <div className="py-8 text-center text-sm text-zinc-400">Aşağı kaydırın daha fazla ürün yüklensin...</div>
       )}
+      </div>
     </div>
   )
 }

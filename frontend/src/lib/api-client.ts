@@ -76,6 +76,7 @@ function normalizeStore(s: any): any {
     site_code: s.siteCode ?? s.site_code,
     site_url: s.siteUrl ?? s.site_url ?? null,
     is_active: s.isActive ?? s.is_active,
+    homepage: s.homepage ?? null,
     tax_settings: s.taxSettings ?? s.tax_settings,
     shipping_settings: s.shippingSettings ?? s.shipping_settings,
   }
@@ -127,6 +128,21 @@ function mapPage(p: any): any {
     ...p,
     store_id: p.storeId ?? p.store_id,
     is_active: p.isActive ?? p.is_active,
+    created_at: p.createdAt ?? p.created_at,
+    updated_at: p.updatedAt ?? p.updated_at,
+  }
+}
+
+function mapBlog(p: any): any {
+  if (!p) return p
+  return {
+    ...p,
+    id: Number(p.id),
+    store_id: p.storeId ?? p.store_id,
+    cover_image: p.coverImage ?? p.cover_image,
+    product_id: p.productId ?? p.product_id,
+    is_active: p.isActive ?? p.is_active,
+    published_at: p.publishedAt ?? p.published_at,
     created_at: p.createdAt ?? p.created_at,
     updated_at: p.updatedAt ?? p.updated_at,
   }
@@ -1253,6 +1269,49 @@ class ApiClient {
     return this.delete<void>(`/api/admin/pages/${id}`)
   }
 
+  // Blog
+  async getBlogs(filters?: { page?: number; limit?: number; search?: string }) {
+    const r = await this.get<{ posts: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/blogs`, { params: filters })
+    return { data: (r.posts || []).map(mapBlog), total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }
+  }
+
+  getBlog(id: number) {
+    return this.get<any>(`/api/admin/blogs/${id}`).then(r => mapBlog(r.post ?? r))
+  }
+
+  createBlog(data: Record<string, any>) {
+    const body = { ...data, isActive: data.is_active, is_active: undefined, publishedAt: data.published_at, published_at: undefined }
+    return this.post<any>(`/api/admin/blogs`, body).then(r => mapBlog(r.post ?? r))
+  }
+
+  updateBlog(id: number, data: Record<string, any>) {
+    const body = { ...data, isActive: data.is_active, is_active: undefined, publishedAt: data.published_at, published_at: undefined }
+    return this.put<any>(`/api/admin/blogs/${id}`, body).then(r => mapBlog(r.post ?? r))
+  }
+
+  deleteBlog(id: number) {
+    return this.delete<void>(`/api/admin/blogs/${id}`)
+  }
+
+  generateBlog(data: {
+    topic?: string
+    productId?: number | null
+    imageUrl?: string
+    notes?: string
+    keywords?: string[]
+  }) {
+    return this.post<{
+      title: string
+      excerpt: string
+      content: string
+      seo_title: string
+      seo_description: string
+      slug: string
+      keywords: string[]
+      tags: string[]
+    }>(`/api/admin/blogs/generate`, data)
+  }
+
   // External Feeds
   async getFeeds() {
     const r = await this.get<{ feeds: import('./types').ExternalFeed[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/feeds`)
@@ -1390,6 +1449,7 @@ class ApiClient {
         domain: flat.domain ?? null,
         email: flat.email ?? null,
         theme: flat.theme ?? null,
+        homepage: flat.homepage ?? null,
       },
       products,
       total: flat.total ?? products.length,
@@ -1439,6 +1499,15 @@ class ApiClient {
 
   getStorePage(siteCode: string, slug: string) {
     return this.get<any>(`/api/store/${siteCode}/pages/${slug}`).then(r => mapPage(r.page ?? r))
+  }
+
+  async getStoreBlogs(siteCode: string, filters?: { page?: number; limit?: number }) {
+    const r = await this.get<{ posts: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/store/${siteCode}/blogs`, { params: filters })
+    return { data: (r.posts || []).map(mapBlog), total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }
+  }
+
+  getStoreBlog(siteCode: string, slug: string) {
+    return this.get<any>(`/api/store/${siteCode}/blogs/${slug}`).then(r => mapBlog(r.post ?? r))
   }
 
   getStorePaymentMethods(siteCode: string) {

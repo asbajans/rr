@@ -14,6 +14,7 @@ export const en: Record<string, string> = {
   supplier: 'Supplier',
   marketplaces: 'Marketplaces',
   pages: 'Pages',
+  blog: 'Blog',
   menus: 'Menus',
   siteBuilder: 'Site Builder',
   pixels: 'Pixel & Tracking',

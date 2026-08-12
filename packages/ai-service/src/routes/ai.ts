@@ -237,6 +237,30 @@ router.post(
   }
 );
 
+// Blog post generation: topic OR product info → SEO-friendly HTML article
+router.post('/blog', async (req: Request, res: Response) => {
+  const { topic, product, imageUrl, notes, keywords } = req.body;
+
+  if (!topic && !product) {
+    res.status(400).json({ error: 'topic or product object required' });
+    return;
+  }
+
+  try {
+    const providerConfig = extractProviderConfig(req.body);
+    const { generateBlogPost } = await import('../services/blogWriter.js');
+
+    const result = await generateBlogPost(
+      { topic, product, imageUrl, notes, keywords },
+      providerConfig
+    );
+
+    res.json(result);
+  } catch (err: any) {
+    handleLlmError(res, err);
+  }
+});
+
 // Generate product description from title/category/attributes
 router.post('/generate-description', async (req: Request, res: Response) => {
   const { title, category, attributes, keywords } = req.body;

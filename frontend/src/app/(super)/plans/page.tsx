@@ -14,6 +14,7 @@ const MODULE_LABELS: Record<string, string> = {
   xml_feed: 'XML Feed',
   variations: 'Varyasyonlar',
   blog: 'Blog',
+  blog_generation: 'AI Blog Üretimi',
   custom_domain: 'Özel Domain',
   shipping: 'Kargo Yönetimi',
   static_pages: 'Statik Sayfalar',
@@ -327,7 +328,7 @@ export default function SuperPlansPage() {
                             className="rounded border-zinc-600 bg-zinc-800" />
                           {label}
                         </label>
-                        {key === 'ai_product_create' || key === 'ai_image_generate' ? (
+                        {key === 'ai_product_create' || key === 'ai_image_generate' || key === 'blog_generation' ? (
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-zinc-500">Kredi:</span>
                             <input type="number" min="0" value={mod.credit_cost ?? 1}

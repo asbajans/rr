@@ -19,6 +19,31 @@ export class Page extends Model {
   @BelongsTo(() => Store) declare store: Store;
 }
 
+@Table({ tableName: 'blog_posts', timestamps: true, indexes: [
+  { fields: ['storeId'] },
+  { unique: true, fields: ['storeId', 'slug'] },
+  { fields: ['publishedAt'] },
+] })
+export class BlogPost extends Model {
+  @PrimaryKey @AutoIncrement @Column(DataType.BIGINT) declare id: number;
+  @ForeignKey(() => Store) @AllowNull(false) @Index @Column(DataType.BIGINT) declare storeId: number;
+  @AllowNull(false) @Column(DataType.STRING(200)) declare slug: string;
+  @AllowNull(false) @Column(DataType.STRING(300)) declare title: string;
+  @AllowNull(true) @Column(DataType.TEXT) declare excerpt: string;
+  @AllowNull(true) @Column(DataType.TEXT) declare content: string; // HTML
+  @AllowNull(true) @Column(DataType.STRING(500)) declare coverImage: string;
+  @AllowNull(true) @Column(DataType.STRING(100)) declare author: string;
+  @AllowNull(true) @Column(DataType.JSONB) declare tags: string[];
+  @AllowNull(true) @Column(DataType.JSONB) declare meta: object;
+  @AllowNull(true) @Column(DataType.BIGINT) declare productId: number;
+  @Default(true) @Column(DataType.BOOLEAN) declare isActive: boolean;
+  @AllowNull(true) @Column(DataType.DATE) declare publishedAt: Date;
+  @CreatedAt @Column(DataType.DATE) declare createdAt: Date;
+  @UpdatedAt @Column(DataType.DATE) declare updatedAt: Date;
+
+  @BelongsTo(() => Store) declare store: Store;
+}
+
 @Table({ tableName: 'store_locations', timestamps: true, indexes: [{ fields: ['storeId'] }] })
 export class StoreLocation extends Model {
   @PrimaryKey @AutoIncrement @Column(DataType.BIGINT) declare id: number;

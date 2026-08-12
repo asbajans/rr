@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
+import { Op } from 'sequelize';
 import { Store } from '../../models/Store.model.js';
 import { Product } from '../../models/Product.model.js';
 import { Category } from '../../models/Category.model.js';
-import { Page, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
+import { Page, BlogPost, StoreLocation, StorePaymentMethod } from '../../models/ContentModels.js';
 import { StoreMenu } from '../../models/Menu.model.js';
 import { serializeLocation } from '../location/routes.js';
 import { config } from '../../config/index.js';
@@ -55,6 +56,7 @@ publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
         currency: store.currency,
         published: store.published,
         theme: store.theme,
+        homepage: store.homepage,
         taxSettings: store.taxSettings,
         shippingSettings: store.shippingSettings,
       },
@@ -165,6 +167,55 @@ publicStoreRoutes.get('/:siteCode/pages/:slug', async (req: Request, res: Respon
     res.json({ page });
   } catch (error) {
     console.error('Public page error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+publicStoreRoutes.get('/:siteCode/blogs', async (req: Request, res: Response) => {
+  try {
+    const { siteCode } = req.params;
+    const store = await resolveStore(siteCode, req);
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '12'), 10) || 12));
+
+    const where: any = { storeId: store.id, isActive: true };
+    where.publishedAt = { [Op.lte]: new Date() };
+
+    const { rows, count } = await BlogPost.findAndCountAll({
+      where,
+      attributes: ['id', 'slug', 'title', 'excerpt', 'coverImage', 'tags', 'author', 'publishedAt', 'createdAt'],
+      order: [['publishedAt', 'DESC']],
+      offset: (page - 1) * limit,
+      limit,
+    });
+
+    res.json({
+      posts: rows,
+      pagination: { page, limit, total: count, totalPages: Math.max(1, Math.ceil(count / limit)) },
+    });
+  } catch (error) {
+    console.error('Public blog list error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+publicStoreRoutes.get('/:siteCode/blogs/:slug', async (req: Request, res: Response) => {
+  try {
+    const { siteCode, slug } = req.params;
+    const store = await resolveStore(siteCode, req);
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    const where: any = { storeId: store.id, slug, isActive: true };
+    where.publishedAt = { [Op.lte]: new Date() };
+
+    const post = await BlogPost.findOne({ where });
+    if (!post) return res.status(404).json({ error: 'Blog post not found' });
+
+    res.json({ post });
+  } catch (error) {
+    console.error('Public blog post error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

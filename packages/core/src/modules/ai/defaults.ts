@@ -62,6 +62,13 @@ const SCENARIO_DEFAULTS: Record<string, { name: string; description: string; pai
     freeModel: 'google/gemma-4-31b-it:free',
     costCredits: 12,
   },
+  blog_generation: {
+    name: 'Blog Üretimi',
+    description: 'Konu/ürün bilgisinden SEO uyumlu blog yazısı oluşturma',
+    paidModel: 'google/gemini-3-flash-preview',
+    freeModel: 'google/gemma-4-31b-it:free',
+    costCredits: 8,
+  },
   generate_description: {
     name: 'Açıklama Üretme',
     description: 'Başlık ve özelliklerden SEO açıklama',

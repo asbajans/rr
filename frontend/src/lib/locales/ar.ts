@@ -14,6 +14,7 @@ export const ar: Record<string, string> = {
   supplier: 'المورد',
   marketplaces: 'الأسواق',
   pages: 'الصفحات',
+  blog: 'المدونة',
   menus: 'القوائم',
   siteBuilder: 'مصمم الموقع',
   pixels: 'البكسل والتتبع',

@@ -297,6 +297,13 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Homepage hero config (image/youtube hero, CTA) stored on the store row.
+  try {
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS homepage JSONB`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Normalize plan.modules: NULL → {} (empty means no modules selected → all
   // module-gated features are disabled; see isModuleEnabled). Also convert
   // legacy boolean module values into { enabled } objects.

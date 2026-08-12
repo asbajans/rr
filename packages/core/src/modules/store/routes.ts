@@ -62,7 +62,7 @@ storeRoutes.get('/me', authMiddleware, requireStore, async (req: Request, res: R
     store: {
       id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain, siteUrl: store.siteUrl,
       email: store.email, isActive: store.isActive, published: store.published, currency: store.currency,
-      theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
+      theme: store.theme, homepage: store.homepage, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
     },
     subscription: subscription ? serializeSubscription(subscription) : null,
   });
@@ -88,13 +88,14 @@ storeRoutes.put('/me', authMiddleware, requireRole('owner', 'admin'), requireSto
   body('email').optional().isEmail(),
   body('currency').optional().isString().isLength({ min: 3, max: 3 }),
   body('theme').optional().isObject(),
+  body('homepage').optional().isObject(),
   body('taxSettings').optional().isObject(),
   body('shippingSettings').optional().isObject(),
   body('siteCode').optional().isString().isLength({ min: 2, max: 50 }).matches(/^[a-z0-9-]+$/),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { name, domain, email, currency, theme, taxSettings, shippingSettings, siteCode } = req.body;
+    const { name, domain, email, currency, theme, homepage, taxSettings, shippingSettings, siteCode } = req.body;
 
     if (domain && domain !== store.domain) {
       const existing = await Store.findOne({ where: { domain } });
@@ -110,14 +111,14 @@ storeRoutes.put('/me', authMiddleware, requireRole('owner', 'admin'), requireSto
       store.siteCode = normalized;
     }
 
-    await store.update({ name, domain, email, currency, theme, taxSettings, shippingSettings, siteCode: store.siteCode });
+    await store.update({ name, domain, email, currency, theme, homepage, taxSettings, shippingSettings, siteCode: store.siteCode });
     logger.info(`Store updated: ${store.id}`);
     res.json({
       message: 'Settings updated',
       store: {
         id: store.id, name: store.name, siteCode: store.siteCode, domain: store.domain, siteUrl: store.siteUrl,
         email: store.email, isActive: store.isActive, published: store.published, currency: store.currency,
-        theme: store.theme, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
+        theme: store.theme, homepage: store.homepage, taxSettings: store.taxSettings, shippingSettings: store.shippingSettings,
       },
     });
   } catch (error: unknown) {

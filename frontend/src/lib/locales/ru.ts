@@ -14,6 +14,7 @@ export const ru: Record<string, string> = {
   supplier: 'Поставщик',
   marketplaces: 'Площадки',
   pages: 'Страницы',
+  blog: 'Блог',
   menus: 'Меню',
   siteBuilder: 'Конструктор сайта',
   pixels: 'Пиксель и трекинг',
