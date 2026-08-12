@@ -236,7 +236,6 @@ function toggleChannel(c: string) {
       if (catId !== undefined) fetchCategoryAttrs(c, catId)
     }
   }
-  }
 
   function setChannelSelection(channel: string, patch: Partial<ChannelSelection>) {
     setSelections(prev => ({ ...prev, [channel]: { ...(prev[channel] || {}), ...patch } }))
