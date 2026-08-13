@@ -70,6 +70,7 @@ export async function runImageGenerate(opts: {
   count: number;
   sessionId: string;
   provider?: ProviderConfig;
+  referenceImagePath?: string;
 }): Promise<void> {
   const category = normalizeCategory(opts.category);
   const outputDir = sessionOutputDir(opts.sessionId);
@@ -79,8 +80,19 @@ export async function runImageGenerate(opts: {
   let generated: string[];
   const provider = opts.provider;
   if (provider && provider.model && isImageGenerationModel(provider.model)) {
-    sendUpdate(opts.sessionId, 'generating', `Görseller harici AI sağlayıcısıyla üretiliyor (${opts.count})...`);
-    generated = await generateImagesExternal(provider, opts.prompt, opts.count, outputDir);
+    if (opts.referenceImagePath) {
+      // Existing product image is used as a reference (image-to-image generation).
+      sendUpdate(opts.sessionId, 'editing', 'Mevcut görsel referans alınarak üretiliyor...');
+      const results: string[] = [];
+      for (let i = 0; i < opts.count; i++) {
+        const edited = await editImageExternal(provider, opts.referenceImagePath, opts.prompt, outputDir);
+        results.push(...edited);
+      }
+      generated = results;
+    } else {
+      sendUpdate(opts.sessionId, 'generating', `Görseller harici AI sağlayıcısıyla üretiliyor (${opts.count})...`);
+      generated = await generateImagesExternal(provider, opts.prompt, opts.count, outputDir);
+    }
   } else {
     generated = await generateTextToImage(opts.prompt, category, opts.count, outputDir, (msg) =>
       sendUpdate(opts.sessionId, 'generating', msg)

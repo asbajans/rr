@@ -404,6 +404,8 @@ aiRoutes.post('/image-generate', authMiddleware, requireStore, requireModule('ai
   body('prompt').isString().isLength({ min: 3, max: 1000 }),
   body('count').optional().isInt({ min: 1, max: 4 }),
   body('category').optional().isString(),
+  body('imageUrl').optional().isURL(),
+  body('referenceImageUrl').optional().isURL(),
 ], validate, (req: Request, res: Response) => proxyImageGen(req, res, '/ai/image-generate', { count: Number(req.body.count) || 1 }));
 
 aiRoutes.post('/analyze-product', authMiddleware, requireStore, [
@@ -476,6 +478,10 @@ aiRoutes.get('/output/:id/:file', authMiddleware, requireStore, async (req: Requ
       responseType: 'stream',
       timeout: 30000,
     });
+    const upstreamContentType = (response.headers as Record<string, string>)['content-type'];
+    if (upstreamContentType) {
+      res.set('Content-Type', upstreamContentType);
+    }
     response.data.pipe(res);
   } catch (error: any) {
     logger.error({ err: error }, 'AI output proxy error');

@@ -4,10 +4,41 @@ import {
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
+import * as FileSystem from 'expo-file-system'
 import { useI18n } from '../../../src/shared/i18n'
 import { api } from '../../../src/shared/api-client'
 import SearchablePicker from '../../../src/shared/SearchablePicker'
 import type { ProductDetail, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '../../../src/shared/types'
+
+async function saveAiImageToCache(url: string, token?: string): Promise<string> {
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(url, { headers })
+  if (!res.ok) {
+    let msg = `Görsel alınamadı (${res.status})`
+    try {
+      const data = await res.json()
+      if (data && data.error) msg = data.error
+    } catch {}
+    throw new Error(msg)
+  }
+  const contentType = res.headers.get('content-type') || ''
+  if (!contentType.startsWith('image/')) {
+    throw new Error('AI çıktısı görsel değil (oturum başarısız olmuş olabilir).')
+  }
+  const fs: any = FileSystem
+  if (fs.File && typeof fs.File.downloadFileAsync === 'function') {
+    const dest = new fs.File(fs.Paths.cache, `ai_${Date.now()}.png`)
+    await fs.File.downloadFileAsync(url, dest, headers)
+    return dest.uri
+  }
+  if (typeof fs.downloadAsync === 'function') {
+    const dest = `${fs.cacheDirectory}ai_${Date.now()}.png`
+    const r = await fs.downloadAsync(url, dest)
+    return r.uri
+  }
+  throw new Error('Dosya indirme desteklenmiyor')
+}
 
 export default function ProductDetailScreen() {
   const router = useRouter()
@@ -215,14 +246,18 @@ export default function ProductDetailScreen() {
       const sid = res.sessionId
       if (!sid) throw new Error(t('aiSessionFailed'))
       let files: string[] = []
+      let sessionError: string | undefined
       for (let i = 0; i < 40; i++) {
         await new Promise((r) => setTimeout(r, 3000))
         const st = await api.getAiStatus(sid)
+        if (st.error) { sessionError = st.error; break }
         if (st.ready && st.ready.length > 0) { files = st.ready; break }
       }
+      if (sessionError) throw new Error(sessionError)
       if (files.length === 0) throw new Error(t('uploadImageDesc'))
       const outUrl = api.getAiOutputUrl(sid, files[0])
-      const up = await api.uploadImage(outUrl, `ai_${Date.now()}.png`, 'image/png')
+      const localPath = await saveAiImageToCache(outUrl, api.getToken() || undefined)
+      const up = await api.uploadImage(localPath, `ai_${Date.now()}.png`, 'image/png')
       if (up.url) {
         setImages((prev) => { const n = [...prev]; n[index] = up.url; return n })
       }

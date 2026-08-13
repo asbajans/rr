@@ -1696,8 +1696,13 @@ class ApiClient {
     return this.post<{ sessionId: string }>(`/api/ai/image-edit`, { imageUrl: data.imageUrl, prompt: data.prompt, category: data.category || 'diger' })
   }
 
-  imageGenerate(data: { prompt: string; count?: number; category?: string }) {
-    return this.post<{ sessionId: string }>(`/api/ai/image-generate`, { prompt: data.prompt, count: data.count || 1, category: data.category || 'diger' })
+  imageGenerate(data: { prompt: string; count?: number; category?: string; referenceImageUrl?: string }) {
+    return this.post<{ sessionId: string }>(`/api/ai/image-generate`, {
+      prompt: data.prompt,
+      count: data.count || 1,
+      category: data.category || 'diger',
+      imageUrl: data.referenceImageUrl || undefined,
+    })
   }
 
   getAiOutputUrl(sessionId: string, filename: string) {
@@ -1721,8 +1726,23 @@ class ApiClient {
   /** Fetches a generated AI image and uploads it to the store, returning its public URL. */
   async takeAiResultImage(sessionId: string, filename: string): Promise<{ url: string; path: string }> {
     const outUrl = this.getAiOutputUrl(sessionId, filename)
-    const blob = await fetch(outUrl).then((r) => r.blob())
-    return this.uploadImage(new File([blob], filename, { type: blob.type || 'image/png' }))
+    const headers: Record<string, string> = {}
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`
+    const res = await fetch(outUrl, { headers })
+    if (!res.ok) {
+      let msg = `Görsel alınamadı (${res.status})`
+      try {
+        const data = await res.json()
+        if (data && data.error) msg = data.error
+      } catch {}
+      throw new Error(msg)
+    }
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.startsWith('image/')) {
+      throw new Error('AI çıktısı görsel değil (oturum başarısız olmuş olabilir).')
+    }
+    const blob = await res.blob()
+    return this.uploadImage(new File([blob], filename, { type: contentType }))
   }
 
   updateB2bSettings(data: { product_id: string | number; is_b2b_enabled: boolean; b2b_discount: number | null; b2b_price: number | null }) {

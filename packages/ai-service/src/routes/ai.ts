@@ -196,7 +196,23 @@ router.post(
     try {
       const { runImageGenerate } = await import('../services/imageStudio.js');
       const providerConfig = extractProviderConfig(req.body);
-      await runImageGenerate({ prompt, category: req.body.category, count, sessionId, provider: providerConfig });
+
+      // Existing product image used as a reference for generation (image-to-image)
+      // when provided: download it to the session output dir and pass it along.
+      let referenceImagePath: string | undefined;
+      const referenceUrl = req.body.imageUrl || req.body.referenceImageUrl;
+      if (referenceUrl) {
+        try {
+          referenceImagePath = await downloadImage(referenceUrl, path.resolve('output', sessionId));
+        } catch (e: any) {
+          const errMsg = e instanceof Error ? e.message : 'Referans görsel indirilemedi.';
+          sendUpdate(sessionId, 'failed', errMsg);
+          writeSessionError(sessionId, errMsg);
+          return;
+        }
+      }
+
+      await runImageGenerate({ prompt, category: req.body.category, count, sessionId, provider: providerConfig, referenceImagePath });
     } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
       sendUpdate(sessionId, 'failed', errorMsg);
@@ -411,7 +427,7 @@ router.get('/status/:sessionId', (req: Request, res: Response) => {
     return;
   }
 
-  const files = fs.readdirSync(outputDir).filter((f) => f.endsWith('.png'));
+  const files = fs.readdirSync(outputDir).filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
   const errorFile = path.join(outputDir, 'error.txt');
   const error = fs.existsSync(errorFile) ? fs.readFileSync(errorFile, 'utf-8') : undefined;
 

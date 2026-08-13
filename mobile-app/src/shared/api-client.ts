@@ -580,7 +580,7 @@ class ApiClient {
   }
 
   getAiStatus(sessionId: string) {
-    return this.get<{ sessionId: string; images: number; ready: string[] }>(`/api/ai/status/${sessionId}`)
+    return this.get<{ sessionId: string; images: number; ready: string[]; error?: string }>(`/api/ai/status/${sessionId}`)
   }
 
   getAiOutputUrl(sessionId: string, file: string) {

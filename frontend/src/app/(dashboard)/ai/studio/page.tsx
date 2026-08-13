@@ -427,6 +427,7 @@ function toggleChannel(c: string) {
         prompt,
         count,
         category: draft?.categoryPath?.[0] ? String(draft.categoryPath[0]).toLowerCase() : undefined,
+        referenceImageUrl: draftImages.length > 0 ? draftImages[draftImages.length - 1] : undefined,
       })
       const files = await api.pollAiImageSession(res.sessionId)
       if (files.length === 0) throw new Error('Görsel üretilemedi')

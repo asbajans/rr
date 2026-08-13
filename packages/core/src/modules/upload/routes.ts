@@ -3,6 +3,7 @@ import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 import path from 'path';
 import fs from 'fs';
+import { uploadToS3 } from '../../utils/s3Storage.js';
 
 export const uploadRoutes: Router = Router();
 
@@ -58,10 +59,23 @@ uploadRoutes.post('/', authMiddleware, requireStore, async (req: Request, res: R
       }
 
       const filename = req.file.filename;
-      const url = `/uploads/${filename}`;
+      const key = `uploads/${filename}`;
+
+      // Store in MinIO/S3 when configured; fall back to local disk.
+      if (!process.env.DISABLE_S3_UPLOAD) {
+        const buffer = fs.readFileSync(req.file.path);
+        const result = await uploadToS3(buffer, key, req.file.mimetype || 'application/octet-stream');
+        if (result.ok && result.url) {
+          logger.info(`File uploaded to S3: ${key} by store ${(req as any).store?.id}`);
+          return res.json({ path: key, url: result.url });
+        }
+        if (result.error && result.error !== 'S3 not configured') {
+          logger.warn({ key, error: result.error }, 'S3 upload failed; falling back to local disk');
+        }
+      }
 
       logger.info(`File uploaded: ${filename} by store ${(req as any).store?.id}`);
-      res.json({ path: filename, url });
+      res.json({ path: key, url: `/uploads/${filename}` });
     });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Upload route error');
