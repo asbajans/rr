@@ -38,6 +38,9 @@ const DEFAULT_MODELS: DefaultModel[] = [
   { modelId: 'deepseek/deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', modality: 'chat', tier: 'paid', maxTokens: 1048576 },
   { modelId: 'google/gemini-3-flash-preview', displayName: 'Gemini 3 Flash Preview', modality: 'multimodal', tier: 'paid', maxTokens: 1048576 },
   { modelId: 'openai/gpt-oss-120b', displayName: 'GPT-OSS 120B', modality: 'chat', tier: 'paid', maxTokens: 131072 },
+  // Image generation models (external provider path; no ComfyUI required)
+  { modelId: 'openai/gpt-image-1', displayName: 'OpenAI GPT Image 1', modality: 'image', tier: 'paid', maxTokens: 0 },
+  { modelId: 'google/gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash Image', modality: 'image', tier: 'paid', maxTokens: 0 },
 ];
 
 const SCENARIO_DEFAULTS: Record<string, { name: string; description: string; paidModel: string; freeModel: string; costCredits: number }> = {
@@ -53,6 +56,13 @@ const SCENARIO_DEFAULTS: Record<string, { name: string; description: string; pai
     description: 'Görsel analiz / arka plan temizleme',
     paidModel: 'qwen/qwen3.7-flash',
     freeModel: 'google/gemma-4-31b-it:free',
+    costCredits: 5,
+  },
+  generate_image: {
+    name: 'Görsel Üretme',
+    description: 'Harici sağlayıcılarla yeni ürün görseli üretme / düzenleme',
+    paidModel: 'openai/gpt-image-1',
+    freeModel: 'google/gemini-2.5-flash-image',
     costCredits: 5,
   },
   agentic_listing: {

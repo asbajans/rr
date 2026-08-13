@@ -16,6 +16,21 @@ Portainer API Key: `<stored-in-secret-manager; rotate existing key>`
 
 ## Tamamlananlar
 
+### Harici Görsel Üretim (ComfyUI yerine LLM sağlayıcıları) ✅
+- [x] **`packages/ai-service/src/services/imageProvider.ts`** (YENİ) — dış görsel üretimi:
+  - `isImageGenerationModel()` (model adına göre görsel üreteci tespiti: gpt-image, dall-e, flux, stable-diffusion, sdxl, imagen, gemini-2.5-flash-image, nano-banana vb.)
+  - `generateImagesExternal()` — Gemini `generateContent` (inline image modality, `responseModalities:['Text','IMAGE']`) VEYA OpenAI-uyumlu `images/generations` (b64_json/url), opsiyonel param retry + n>1 tek-tek fallback
+  - `editImageExternal()` — Gemini inline görsel + talimat; OpenAI-uyumlu `images/edits` (multipart), edits endpoint'i yoksa regenerasyon fallback
+  - Dostane hata mesajları (ECONNREFUSED/ENOTFOUND → sağlayıcıya ulaşılamadı, `[status] upstream`)
+- [x] **`imageStudio.ts`** — `runImageEdit`/`runImageGenerate` opsiyonel `provider?: ProviderConfig` alır; model görsel üreteciyse harici sağlayıcı, değilse ComfyUI fallback.
+- [x] **`routes/ai.ts`** — `/image-edit` ve `/image-generate` handler'ları `extractProviderConfig(req.body)` ile provider'ı geçirir.
+- [x] **Core `proxyImageGen`** — `generate_image` senaryosunu çözer (`resolveScenarioConfig` + `buildProviderPayload`), provider/model varsa body'e enjekte eder; yoksa raw body (ComfyUI path). AiUsageLog'a provider/model kaydeder.
+- [x] **Core `defaults.ts`** — `openai/gpt-image-1` + `google/gemini-2.5-flash-image` görsel modelleri kataloğa, `generate_image` senaryosu (paid=gpt-image-1, free=gemini-2.5-flash-image, 5 kredi) eklendi.
+- [x] **Core `/api/ai/edit-image` alias** — mobil `{ image_urls: [url] }` → `imageUrl` dönüşümüyle `/ai/image-edit` akışına bağlandı (önceden 404'tü).
+- [x] **Doğrulamalar** — core build+typecheck ✅, core test 54/54 ✅, ai-service build+typecheck ✅.
+
+
+
 ### Otomatik Sipariş Çekimi + Sipariş Tarihi + Bildirim Sistemi (Web + Mobil + FCM) ✅
 - [x] **Token süresi uzatıldı**: `core/src/config/env.ts` + `config/index.ts` → access `15m→30d`, refresh `7d→90d`.
 - [x] **Checkout string→number**: `shared/dto/checkout.ts` `product_id`/`quantity`/`address_id` → `z.coerce.number()`; storefront checkout (`stores/[siteCode]/checkout/page.tsx`) payload Number(), `address_id: Number(selectedAddressId)`; api-client `getCheckoutPaymentMethods` `config` + `label` fallback; bank_transfer seçiliyken IBAN/banka/hesap sahibi kartı (backend `store/publicRoutes.ts` tam `StorePaymentMethod` döner).

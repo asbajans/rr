@@ -165,7 +165,8 @@ router.post(
 
     try {
       const { runImageEdit } = await import('../services/imageStudio.js');
-      await runImageEdit({ imagePath: filePath, prompt, category: req.body.category, sessionId });
+      const providerConfig = extractProviderConfig(req.body);
+      await runImageEdit({ imagePath: filePath, prompt, category: req.body.category, sessionId, provider: providerConfig });
       fs.unlink(filePath, () => {});
     } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
@@ -194,7 +195,8 @@ router.post(
 
     try {
       const { runImageGenerate } = await import('../services/imageStudio.js');
-      await runImageGenerate({ prompt, category: req.body.category, count, sessionId });
+      const providerConfig = extractProviderConfig(req.body);
+      await runImageGenerate({ prompt, category: req.body.category, count, sessionId, provider: providerConfig });
     } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : 'Bilinmeyen hata';
       sendUpdate(sessionId, 'failed', errorMsg);

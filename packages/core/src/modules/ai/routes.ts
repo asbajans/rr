@@ -347,14 +347,20 @@ async function proxyImageGen(req: Request, res: Response, path: string, opts: { 
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
 
-    const response = await axios.post(`${aiServiceUrl}${path}`, req.body, { timeout: AI_TIMEOUT_MS });
+    // Resolve the image-generation scenario so the ai-service can use the
+    // configured external provider/model instead of ComfyUI. Falls through to
+    // the raw body (ComfyUI path) when nothing is configured.
+    const { provider, model, scenario, keys } = await resolveScenarioConfig('generate_image', { plan });
+    const body = provider && model ? { ...req.body, ...buildProviderPayload(provider, model, scenario, keys) } : req.body;
+
+    const response = await axios.post(`${aiServiceUrl}${path}`, body, { timeout: AI_TIMEOUT_MS });
 
     // Billed on acceptance (202): the generation runs async on ComfyUI.
     if (response.status >= 200 && response.status < 300) {
       await deductCredits(user.id, store.id, credits, 'ai_image_generate', 'ai');
       await logAiUsage(
         user.id, store.id, 'ai_image_generate',
-        null, null, credits,
+        provider?.id || null, model?.id || null, credits,
         { path, bodyKeys: Object.keys(req.body) },
         { status: response.status }
       );
@@ -378,6 +384,20 @@ aiRoutes.post('/image-edit', authMiddleware, requireStore, requireModule('ai_ima
   body('prompt').isString().isLength({ min: 3, max: 1000 }),
   body('category').optional().isString(),
 ], validate, (req: Request, res: Response) => proxyImageGen(req, res, '/ai/image-edit', { count: 1 }));
+
+// Mobil uyumlu alias: { image_urls: [url] } → { imageUrl }
+aiRoutes.post('/edit-image', authMiddleware, requireStore, requireModule('ai_image_generate'), [
+  body('image_urls').isArray(),
+  body('prompt').isString().isLength({ min: 3, max: 1000 }),
+  body('category').optional().isString(),
+], validate, (req: Request, res: Response) => {
+  req.body.imageUrl = Array.isArray(req.body.image_urls) ? req.body.image_urls[0] : undefined;
+  if (!req.body.imageUrl) {
+    res.status(400).json({ error: 'image_urls[0] gerekli' });
+    return;
+  }
+  return proxyImageGen(req, res, '/ai/image-edit', { count: 1 });
+});
 
 // AI ile yeni görsel üretme: count başına kredi düşer (1-4)
 aiRoutes.post('/image-generate', authMiddleware, requireStore, requireModule('ai_image_generate'), [
