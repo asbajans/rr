@@ -26,8 +26,8 @@ export const config = {
   jwt: {
     secret: secret('JWT_SECRET', undefined, 'dev-secret-change-in-production'),
     refreshSecret: secret('JWT_REFRESH_SECRET', undefined, 'dev-refresh-secret-change-in-production'),
-    accessExpiry: '15m',
-    refreshExpiry: '7d',
+    accessExpiry: '30d',
+    refreshExpiry: '90d',
   },
 
   apiKey: {
@@ -65,6 +65,10 @@ export const config = {
   integrationService: {
     url: process.env.INTEGRATION_SERVICE_URL || 'http://localhost:3002',
     apiKey: secret('CORE_API_KEY', undefined, 'core-dev-key'),
+  },
+
+  fcm: {
+    serverKey: process.env.FCM_SERVER_KEY || '',
   },
 
   goldPrice: {

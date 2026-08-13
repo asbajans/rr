@@ -7,9 +7,9 @@
 import { z } from 'zod';
 
 export const CheckoutItemSchema = z.object({
-  product_id: z.number().int().positive(),
+  product_id: z.coerce.number().int().positive(),
   sku: z.string().trim().optional(),
-  quantity: z.number().int().positive(),
+  quantity: z.coerce.number().int().positive(),
 });
 
 export type CheckoutItem = z.infer<typeof CheckoutItemSchema>;
@@ -49,7 +49,7 @@ export const CheckoutPayloadSchema = z.object({
   customer: CheckoutCustomerSchema.default({}),
   payment_method: z.enum(PAYMENT_METHODS),
   coupon_code: z.string().trim().max(80).optional(),
-  address_id: z.number().int().positive().optional(),
+  address_id: z.coerce.number().int().positive().optional(),
   address_owner_token: z.string().min(16).max(256).optional(),
   shipping_address: CheckoutShippingAddressSchema.optional(),
   note: z.string().max(2000).optional(),

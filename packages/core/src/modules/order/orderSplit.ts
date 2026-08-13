@@ -25,6 +25,7 @@ interface SplitOptions {
   paymentMethod?: string;
   paymentStatus?: string;
   note?: string;
+  orderDate?: Date | null;
   transaction?: Transaction;
 }
 
@@ -135,6 +136,7 @@ export async function createSplitOrder(
       paymentMethod: options.paymentMethod || null,
       paymentStatus: options.paymentStatus || 'pending',
       note: options.note || null,
+      orderDate: options.orderDate || null,
     },
     { transaction: tx }
   );
@@ -159,6 +161,7 @@ export async function createSplitOrder(
       paymentMethod: options.paymentMethod,
       paymentStatus: options.paymentStatus,
       note: options.note,
+      orderDate: options.orderDate,
     });
     subOrders.push(...created);
   }
@@ -176,6 +179,7 @@ interface VendorSubOrderOptions {
   paymentProvider?: string;
   paymentStatus?: string;
   note?: string;
+  orderDate?: Date | null;
 }
 
 /**
@@ -243,6 +247,7 @@ export async function createVendorSubOrders(
         paymentProvider: opts.paymentProvider || mainOrder.paymentProvider || null,
         paymentStatus: opts.paymentStatus || mainOrder.paymentStatus || 'pending',
         note: opts.note || null,
+        orderDate: opts.orderDate || mainOrder.orderDate || null,
       },
       { transaction: tx }
     );

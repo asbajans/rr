@@ -412,6 +412,20 @@ export type DropshippingOrder = {
   currency: string
   created_at: string
   ordered_at?: string
+  order_date?: string
+}
+
+export type StoreNotification = {
+  id: number
+  storeId: number
+  userId?: number | null
+  type: string
+  title: string
+  body: string
+  data?: { orderId?: number; orderNumber?: string; marketplace?: string } | null
+  readAt?: string | null
+  createdAt: string
+  updatedAt?: string
 }
 
 export type DropshippingOrderDetail = DropshippingOrder & {

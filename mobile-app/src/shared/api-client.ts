@@ -215,6 +215,10 @@ class ApiClient {
     return this.post<void>('/api/auth/logout')
   }
 
+  registerFcmToken(token: string) {
+    return this.post<{ success: boolean }>('/api/auth/fcm-token', { token })
+  }
+
   // Dashboard
   async getDashboard() {
     const r = await this.get<any>('/api/admin/dashboard')

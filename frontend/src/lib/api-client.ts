@@ -158,6 +158,7 @@ function mapOrder(o: any): any {
     ...o,
     id: Number(o.id),
     created_at: o.createdAt ?? o.created_at,
+    order_date: o.orderDate ?? o.order_date ?? o.createdAt ?? o.created_at,
     grand_total: o.totalAmount ?? o.grand_total,
     subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
     shipping: o.shipping ?? 0,
@@ -850,6 +851,22 @@ class ApiClient {
     return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/tracking`, { trackingNumber, carrier })
   }
 
+  async getNotifications(limit = 30, offset = 0) {
+    return this.get<{ notifications: import('./types').StoreNotification[]; total: number; unreadCount: number }>(`/api/admin/notifications`, { params: { limit, offset } })
+  }
+
+  async getUnreadCount() {
+    return this.get<{ unreadCount: number }>(`/api/admin/notifications/unread-count`)
+  }
+
+  async markAllNotificationsRead() {
+    return this.post<{ success: boolean }>(`/api/admin/notifications/read-all`)
+  }
+
+  async markNotificationRead(id: number) {
+    return this.post<{ notification: import('./types').StoreNotification }>(`/api/admin/notifications/${id}/read`)
+  }
+
   async approveTrendyolOrder(id: number) {
     return this.put<{ order: import('./types').DropshippingOrderDetail }>(`/api/admin/orders/${id}/status`, { status: 'processing', note: 'Trendyol order approved' })
   }
@@ -1465,7 +1482,8 @@ class ApiClient {
     return this.get<{ paymentMethods: any[] }>(`/api/store/${siteCode}/payment-methods`).then(r => ({
       data: (r.paymentMethods || []).map((m: any) => ({
         method: m.type,
-        label: m.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        label: m.label || m.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        config: m.config || {},
       })),
     }))
   }

@@ -48,7 +48,10 @@ interface DropshippingOrder {
   grand_total: string
   currency: string
   created_at: string
+  order_date: string
 }
+
+const PAGE_SIZE = 20
 
 interface ImportStatus {
   state: 'importing' | 'success' | 'error'
@@ -67,15 +70,21 @@ export default function OrdersPage() {
   const [importing, setImporting] = useState<string | null>(null)
   const [importStatus, setImportStatus] = useState<ImportStatus | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    api.getOrders({ marketplace: tab || undefined, status: activeFilter || undefined, search: search || undefined })
-      .then(r => setOrders(r.orders))
+    api.getOrders({ page, limit: PAGE_SIZE, marketplace: tab || undefined, status: activeFilter || undefined, search: search || undefined })
+      .then(r => {
+        setOrders(r.orders)
+        setTotalPages(Math.max(1, r.pagination?.totalPages || 1))
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [user, tab, activeFilter, search, reloadKey])
+  }, [user, tab, activeFilter, search, reloadKey, page])
 
   if (!user) return null
 
@@ -150,17 +159,6 @@ export default function OrdersPage() {
     }
   }
 
-  const statsMap = new Map<string, number>()
-  filteredOrders.forEach(o => {
-    statsMap.set(o.status, (statsMap.get(o.status) || 0) + 1)
-  })
-  const stats = Array.from(statsMap.entries()).map(([status, count]) => ({
-    status,
-    label: STATUS_LABELS[status] || status,
-    color: STATUS_COLORS[status] || 'bg-zinc-100 text-zinc-700',
-    count,
-  }))
-
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -173,7 +171,7 @@ export default function OrdersPage() {
       {/* Marketplace Tabs */}
       <div className="mt-6 flex gap-1 overflow-x-auto border-b border-zinc-200">
         {Object.entries(TAB_LABELS).map(([key, label]) => (
-          <button key={key} onClick={() => { setTab(key); setActiveFilter('') }}
+          <button key={key} onClick={() => { setTab(key); setActiveFilter(''); setPage(1) }}
             className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === key
                 ? 'border-zinc-900 text-zinc-900'
@@ -222,7 +220,7 @@ export default function OrdersPage() {
         <input
           placeholder="Sipariş no, müşteri adı, takip no ara..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           className="min-w-[240px] rounded-lg border border-zinc-200 px-3 py-2 text-sm"
         />
         {tab ? (
@@ -242,19 +240,6 @@ export default function OrdersPage() {
           </span>
         )}
       </div>
-
-      {/* Status Filters */}
-      {stats.length > 0 && (
-        <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
-          {stats.map(s => (
-            <button key={s.status} onClick={() => setActiveFilter(activeFilter === s.status ? '' : s.status)}
-              className={`rounded-xl border p-3 text-left transition-colors ${activeFilter === s.status ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300'}`}>
-              <p className={`inline-block rounded px-2 py-0.5 text-[10px] font-medium ${s.color}`}>{s.label}</p>
-              <p className="mt-1 text-lg font-bold text-zinc-900">{s.count}</p>
-            </button>
-          ))}
-        </div>
-      )}
 
       {loading ? (
         <TableSkeleton rows={6} cols={6} />
@@ -290,7 +275,7 @@ export default function OrdersPage() {
                     {parseFloat(o.grand_total).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {o.currency}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-500">
-                    {new Date(o.created_at).toLocaleDateString('tr-TR')}
+                    {o.order_date ? new Date(o.order_date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                   </td>
                 </tr>
               ))}
@@ -303,6 +288,29 @@ export default function OrdersPage() {
               description="Pazaryeri siparişlerini içe aktardığınızda burada görünecek."
             />
           )}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-zinc-500">
+            Sayfa {page} / {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">
+              &larr; Önceki
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">
+              Sonraki &rarr;
+            </button>
+          </div>
         </div>
       )}
     </div>

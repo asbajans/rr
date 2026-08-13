@@ -16,7 +16,7 @@ export default function CheckoutPage() {
 
   const [step, setStep] = useState<Step>('info')
   const [addresses, setAddresses] = useState<CustomerAddress[]>([])
-  const [paymentMethods, setPaymentMethods] = useState<{ method: string; label: string }[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<{ method: string; label: string; config?: any }[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
@@ -134,13 +134,13 @@ export default function CheckoutPage() {
 
     try {
       const res = await api.checkout(siteCode, {
-        items: items.map(i => ({ product_id: i.product_id, sku: i.sku, quantity: i.quantity })),
+        items: items.map(i => ({ product_id: Number(i.product_id), sku: i.sku, quantity: Number(i.quantity) })),
         customer: {
           name: shippingAddress.full_name,
           email: shippingAddress.email || '',
           phone: shippingAddress.phone,
         },
-        address_id: selectedAddressId ?? undefined,
+        address_id: selectedAddressId != null ? Number(selectedAddressId) : undefined,
         address_owner_token: selectedAddressId ? (localStorage.getItem(ownerTokenKey) || undefined) : undefined,
         shipping_address: selectedAddressId ? undefined : shippingAddress,
         payment_method: selectedPayment,
@@ -313,6 +313,15 @@ export default function CheckoutPage() {
                       <span className="text-sm font-medium text-zinc-900">{pm.label}</span>
                       {selectedPayment === pm.method && <Check className="h-5 w-5 text-zinc-900" />}
                     </div>
+                    {selectedPayment === pm.method && pm.method === 'bank_transfer' && (pm as any).config?.iban && (
+                      <div className="mt-3 rounded-lg bg-zinc-50 p-3 text-sm">
+                        <p className="text-xs font-medium uppercase text-zinc-500">Banka Hesap Bilgileri</p>
+                        {(pm as any).config.bank_name && <p className="mt-1 font-medium text-zinc-900">{String((pm as any).config.bank_name)}</p>}
+                        <p className="mt-1 text-zinc-700"><span className="font-medium">IBAN:</span> {String((pm as any).config.iban)}</p>
+                        {(pm as any).config.account_holder && <p className="mt-1 text-zinc-700"><span className="font-medium">Alıcı:</span> {String((pm as any).config.account_holder)}</p>}
+                        {(pm as any).config.description && <p className="mt-2 text-xs text-zinc-500">{String((pm as any).config.description)}</p>}
+                      </div>
+                    )}
                   </label>
                 ))}
               </div>

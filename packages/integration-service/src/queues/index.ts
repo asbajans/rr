@@ -197,7 +197,7 @@ async function createOrderNotifyWorker() {
 
       let tokens: string[] = [];
       try {
-        const resp = await fcmClient.get(`/api/admin/users/fcm-tokens?storeId=${storeId}`);
+        const resp = await fcmClient.get(`/api/admin/integrations/fcm-tokens?storeId=${storeId}`);
         tokens = resp.data?.tokens || [];
       } catch {
         logger.warn({ storeId }, 'Failed to fetch FCM tokens');

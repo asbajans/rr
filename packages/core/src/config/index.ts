@@ -29,8 +29,8 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'rahatio-jwt-secret-change-in-production',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'rahatio-refresh-secret-change-in-production',
-    accessExpiry: '15m',
-    refreshExpiry: '7d',
+    accessExpiry: '30d',
+    refreshExpiry: '90d',
   },
 
   internal: {

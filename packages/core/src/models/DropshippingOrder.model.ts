@@ -193,6 +193,11 @@ export class DropshippingOrder extends Model {
   @Column(DataType.STRING(20))
   declare supplierStatus: string;
 
+  @AllowNull(true)
+  @Index
+  @Column(DataType.DATE)
+  declare orderDate: Date;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

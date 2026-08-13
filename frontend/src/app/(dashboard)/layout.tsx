@@ -13,6 +13,7 @@ import {
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import NotificationBell from '@/components/ui/notification-bell'
 
 const navGroups = [
   {
@@ -178,6 +179,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {/* Bottom */}
           <div className="border-t border-zinc-100 p-3 space-y-1">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{t('groupSettings')}</span>
+              <NotificationBell />
+            </div>
             {user.is_admin && (
               <Link href="/stores"
                 className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
@@ -208,7 +213,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </button>
             <img src="/logo.jpeg" alt="Rahatio" className="h-7 w-auto" />
             <span className="text-sm font-semibold text-zinc-900">Rahatio</span>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
               <LanguageSwitcher />
             </div>
           </header>

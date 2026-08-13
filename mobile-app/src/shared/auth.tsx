@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { api } from './api-client'
+import { getFcmToken } from './push'
 import type { User, StoreWithPlan } from './types'
 
 type AuthContextType = {
@@ -29,6 +30,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStore(res.store ?? null)
   }, [])
 
+  const registerPushToken = useCallback(async (): Promise<void> => {
+    const t = api.getToken()
+    if (!t) return
+    try {
+      const fcmToken = await getFcmToken()
+      if (!fcmToken) return
+      await api.registerFcmToken(fcmToken)
+    } catch {}
+  }, [])
+
   useEffect(() => {
     api.init().then(() => {
       const t = api.getToken()
@@ -40,25 +51,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setToken(null)
           })
           .finally(() => setLoading(false))
+        registerPushToken()
       } else {
         setLoading(false)
       }
     })
-  }, [refreshMe])
+  }, [refreshMe, registerPushToken])
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.login(email, password)
     await api.setToken(res.token)
     setToken(res.token)
     setUser(res.user)
-  }, [])
+    registerPushToken()
+  }, [registerPushToken])
 
   const register = useCallback(async (name: string, email: string, password: string, store_name?: string) => {
     const res = await api.register(name, email, password, store_name)
     await api.setToken(res.token)
     setToken(res.token)
     setUser(res.user)
-  }, [])
+    registerPushToken()
+  }, [registerPushToken])
 
   const logout = useCallback(async () => {
     try { await api.logout() } catch {}

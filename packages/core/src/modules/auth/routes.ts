@@ -284,6 +284,24 @@ router.post('/logout', authMiddleware, (_req: Request, res: Response) => {
   res.json({ message: 'Logged out successfully' });
 });
 
+router.post('/fcm-token', [
+  body('token').isString().isLength({ min: 10, max: 512 }),
+], authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const token = req.body.token;
+    if (!user || !user.id) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    await User.update({ fcmToken: token }, { where: { id: user.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'FCM token register error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/api-keys', authMiddleware, requireRole('owner', 'admin'), [
   body('name').isString().isLength({ min: 2, max: 100 }),
   body('allowedIps').optional().isArray(),

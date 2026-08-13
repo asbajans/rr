@@ -1,11 +1,27 @@
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import { useEffect } from 'react'
+import * as Notifications from 'expo-notifications'
 import { AuthProvider, useAuth } from '../src/shared/auth'
 import { I18nProvider } from '../src/shared/i18n'
 import { ActivityIndicator, View } from 'react-native'
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+})
+
 function RootLayout() {
   const { loading } = useAuth()
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener(() => {})
+    return () => sub.remove()
+  }, [])
 
   if (loading) {
     return (

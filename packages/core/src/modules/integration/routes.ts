@@ -9,7 +9,8 @@ import { Store } from '../../models/Store.model.js';
 import { IntegrationLog } from '../../models/LogModels.js';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { createSplitOrder } from '../order/orderSplit.js';
-import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
+import { importMarketplaceOrders } from './orderImport.js';
+import { notifyStore } from '../notification/service.js';
 import { Op } from 'sequelize';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/env.js';
@@ -25,15 +26,23 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-function statusForPazarama(os: any): string {
-  const n = Number(os);
-  if (isNaN(n)) return String(os ?? '').toLowerCase();
-  if (n <= 1) return 'pending';
-  if (n <= 3) return 'processing';
-  if (n <= 5) return 'shipped';
-  if (n <= 7) return 'delivered';
-  if (n <= 9) return 'cancelled';
-  return 'returned';
+const MP_LABELS: Record<string, string> = {
+  trendyol: 'Trendyol', hepsiburada: 'Hepsiburada', pazarama: 'Pazarama',
+  n11: 'N11', amazon: 'Amazon', etsy: 'Etsy',
+};
+
+async function importNotify(order: any, storeId: number, marketplace: string) {
+  try {
+    await notifyStore({
+      storeId,
+      type: 'new_order',
+      title: `Yeni ${MP_LABELS[marketplace] || marketplace} siparişi`,
+      body: `#${order.orderNumber} alındı`,
+      data: { marketplace, orderId: Number(order.id), orderNumber: order.orderNumber },
+    });
+  } catch (err) {
+    logger.warn({ err }, 'Webhook order notification failed (non-fatal)');
+  }
 }
 
 integrationRoutes.post('/webhook/order', [
@@ -98,9 +107,14 @@ integrationRoutes.post('/webhook/order', [
       payload.customerName || payload.customer_name,
       payload.customerEmail || payload.customer_email,
       payload.customerPhone || payload.customer_phone,
+      {
+        orderDate: payload.orderDate || payload.createdAt || payload.created_at || undefined,
+      },
     );
 
     logger.info(`Webhook order created: ${mainOrder.id} from ${marketplace}${subOrders.length > 0 ? ` with ${subOrders.length} sub-order(s)` : ''}`);
+
+    importNotify(mainOrder, store.id, marketplace);
 
     if (subOrders.length > 0) {
       const user = (req as any).user;
@@ -218,164 +232,19 @@ integrationRoutes.post('/:marketplace/import-orders', authMiddleware, requireSto
   try {
     const store = (req as any).store;
     const { marketplace } = req.params;
-    const { startDate, endDate, status, maxPages: maxPagesBody } = req.body;
-    const maxPages = maxPagesBody || 5;
+    const { startDate, endDate, status, maxPages } = req.body;
 
-    const integration = await MarketplaceIntegration.findOne({
-      where: { storeId: store.id, marketplace, isActive: true },
+    const result = await importMarketplaceOrders({
+      storeId: store.id,
+      marketplace,
+      startDate,
+      endDate,
+      status,
+      maxPages: maxPages || 5,
+      notify: true,
     });
-    if (!integration) {
-      return res.status(400).json({ error: `${marketplace} entegrasyonu aktif değil` });
-    }
 
-    const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
-    const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
-
-    const imported: any[] = [];
-    let hasMore = true;
-    let page = 0;
-
-    const params: any = { size: 100 };
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    if (status) params.status = status;
-
-    while (hasMore && page < maxPages) {
-      params.page = page;
-      const packages = await client.getOrders(params);
-      if (!packages || packages.length === 0) break;
-
-      for (const rawPkg of packages) {
-        let pkg = rawPkg;
-
-        if (marketplace === 'pazarama') {
-          const rawItems: any[] = rawPkg.items || [];
-          const firstCargo = rawItems[0]?.cargo || {};
-          const sa = rawPkg.shipmentAddress || {};
-          pkg = {
-            ...rawPkg,
-            id: rawPkg.orderId,
-            lines: rawItems.map((item: any) => ({
-              sku: item.product?.code || item.product?.stockCode || '',
-              name: item.product?.name || '',
-              quantity: Number(item.quantity || 1),
-              price: Number(item.salePrice?.value || item.totalPrice?.value || (item.salePrice?.valueInt / 100) || 0),
-              image: item.product?.imageURL || item.product?.imageUrl || '',
-              variantAttributes: item.product?.variantOptionDisplay ? [item.product.variantOptionDisplay] : [],
-              orderLineId: item.orderItemId,
-            })),
-            customerfullName: rawPkg.customerName || sa.nameSurname || '',
-            gsm: sa.phoneNumber || '',
-            customerEmail: rawPkg.customerEmail || sa.customerEmail || '',
-            address: sa.addressDetail || sa.displayAddressText || '',
-            city: sa.cityName || '',
-            district: sa.districtName || '',
-            neighborhood: sa.neighborhoodName || '',
-            zipCode: sa.postalCode || '',
-            cargoTrackingNumber: firstCargo.trackingNumber || rawItems[0]?.shipmentCode || '',
-            cargoProviderName: firstCargo.companyName || '',
-            orderNumber: String(rawPkg.orderNumber ?? ''),
-            totalAmount: Number(rawPkg.orderAmount ?? 0),
-            status: statusForPazarama(rawPkg.orderStatus),
-          };
-        }
-
-        const marketplaceOrderId = String(pkg.id);
-        const existing = await DropshippingOrder.findOne({
-          where: { storeId: store.id, marketplaceOrderId, marketplace },
-        });
-
-        const lines = pkg.lines || pkg.items || [];
-        const items = lines.map((l: any) => ({
-          sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || l.sku || '',
-          name: l.productName || l.title || l.name || l.productTitle || l.itemName || '',
-          quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
-          price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0),
-          image: l.imageUrl || l.productImageUrl || l.image || '',
-          variantAttributes: l.variantAttributes || [],
-          orderLineId: l.orderLineId || l.orderItemId || l.id,
-        }));
-
-        const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
-
-        const address = pkg.address || pkg.shippingAddress || pkg.shipmentAddress || {};
-        const fullName = (pkg.customerfullName || pkg.customerFullName)
-          || `${pkg.customerFirstName || ''} ${pkg.customerLastName || ''}`.trim()
-          || address.fullName || address.name
-          || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
-        const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || pkg.phone || '';
-        const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
-        const shippingAddress = {
-          fullName, phone,
-          email: customerEmail,
-          city: address.city || pkg.city || '',
-          district: address.district || pkg.district || '',
-          neighborhood: address.neighborhood || pkg.neighborhood || '',
-          address: address.address1 || address.address || address.fullAddress || address.line || pkg.address || '',
-          zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
-        };
-
-        const prefix = marketplace === 'pazarama' ? 'PZ' : marketplace === 'trendyol' ? 'TY' : marketplace.slice(0, 2).toUpperCase();
-        const orderNumber = pkg.orderNumber ? `${prefix}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
-        const statusMap: Record<string, string> = {
-          Created: 'pending', Picking: 'processing', Invoiced: 'processing',
-          Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
-          UnDelivered: 'cancelled', Returned: 'returned',
-          UnPacked: 'processing', UnSupplied: 'cancelled',
-          siparis_alindi: 'pending', hazirlaniyor: 'processing',
-          kargoya_verildi: 'shipped', teslim_edildi: 'delivered',
-          iptal_edildi: 'cancelled', iade_edildi: 'returned',
-        };
-        const newStatus = pkg.status ? (statusMap[pkg.status] || String(pkg.status).toLowerCase()) : 'pending';
-
-        if (existing) {
-          const changed: Record<string, any> = {};
-          if (existing.status !== newStatus) changed.status = newStatus;
-          if (JSON.stringify(existing.items || []) !== JSON.stringify(items)) changed.items = items;
-          if (JSON.stringify(existing.shippingAddress || {}) !== JSON.stringify(shippingAddress)) changed.shippingAddress = shippingAddress;
-          if (existing.totalAmount !== totalAmount) changed.totalAmount = totalAmount;
-          if (existing.customerName !== fullName) changed.customerName = fullName;
-          if (existing.customerEmail !== customerEmail) changed.customerEmail = customerEmail;
-          if (existing.customerPhone !== phone) changed.customerPhone = phone;
-          if (existing.trackingNumber !== (pkg.cargoTrackingNumber || '')) changed.trackingNumber = pkg.cargoTrackingNumber || '';
-          if (existing.carrier !== (pkg.cargoProviderName || '')) changed.carrier = pkg.cargoProviderName || '';
-          if (Object.keys(changed).length > 0) {
-            await existing.update(changed);
-            if (changed.status) {
-              await OrderStatusHistory.create({
-                dropshippingOrderId: existing.id,
-                fromStatus: existing.status === newStatus ? existing.status : existing.status,
-                toStatus: newStatus,
-                note: `Status synced from ${marketplace}: ${existing.status} -> ${newStatus}`,
-              });
-            }
-            imported.push({ id: existing.id, orderNumber: existing.orderNumber, status: newStatus, marketplaceOrderId, updated: true });
-          }
-          continue;
-        }
-
-        const { mainOrder, subOrders } = await createSplitOrder(
-          store.id, marketplace, marketplaceOrderId,
-          items, totalAmount, orderNumber, 'TRY', shippingAddress, pkg,
-          String(pkg.orderNumber || ''), fullName, customerEmail, phone,
-          {
-            status: newStatus,
-            trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
-            carrier: pkg.cargoProviderName || pkg.carrier || '',
-            paymentMethod: 'marketplace',
-            paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
-          },
-        );
-
-        imported.push({ id: mainOrder.id, orderNumber, status: mainOrder.status, marketplaceOrderId, updated: false, subOrders: subOrders.length });
-      }
-
-      page++;
-      hasMore = packages.length >= 100;
-    }
-
-    logger.info({ marketplace, storeId: store.id, imported: imported.length }, 'Orders imported from marketplace');
-    res.json({ imported: imported.length, orders: imported });
+    res.json({ imported: result.imported, orders: result.orders });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Import orders error');
     res.status(500).json({ error: 'Internal server error' });
@@ -393,150 +262,25 @@ integrationRoutes.post('/import-all', authMiddleware, requireStore, [
       where: { storeId: store.id, isActive: true },
     });
 
-    const results: { marketplace: string; imported: number }[] = [];
+    const results: { marketplace: string; imported: number; error?: string }[] = [];
+    let totalImported = 0;
 
     for (const integration of integrations) {
       try {
-        const mpConfig = getMarketplaceConfig(integration.marketplace as MarketplaceType, integration);
-        const client = createMarketplaceClient(integration.marketplace as MarketplaceType, mpConfig);
-
-        let imported = 0;
-        let hasMore = true;
-        let page = 0;
-
-        while (hasMore && page < maxPages) {
-          const packages = await client.getOrders({ page, size: 100 });
-          if (!packages || packages.length === 0) break;
-
-          for (const rawPkg of packages) {
-            let pkg = rawPkg;
-            const mp = integration.marketplace;
-
-            if (mp === 'pazarama') {
-              const rawItems: any[] = rawPkg.items || [];
-              const firstCargo = rawItems[0]?.cargo || {};
-              const sa = rawPkg.shipmentAddress || {};
-              pkg = {
-                ...rawPkg,
-                id: rawPkg.orderId,
-                lines: rawItems.map((item: any) => ({
-                  sku: item.product?.code || item.product?.stockCode || '',
-                  name: item.product?.name || '',
-                  quantity: Number(item.quantity || 1),
-                  price: Number(item.salePrice?.value || item.totalPrice?.value || (item.salePrice?.valueInt / 100) || 0),
-                  image: item.product?.imageURL || item.product?.imageUrl || '',
-                  variantAttributes: item.product?.variantOptionDisplay ? [item.product.variantOptionDisplay] : [],
-                  orderLineId: item.orderItemId,
-                })),
-                customerfullName: rawPkg.customerName || sa.nameSurname || '',
-                gsm: sa.phoneNumber || '',
-                customerEmail: rawPkg.customerEmail || sa.customerEmail || '',
-                address: sa.addressDetail || sa.displayAddressText || '',
-                city: sa.cityName || '',
-                district: sa.districtName || '',
-                neighborhood: sa.neighborhoodName || '',
-                zipCode: sa.postalCode || '',
-                cargoTrackingNumber: firstCargo.trackingNumber || rawItems[0]?.shipmentCode || '',
-                cargoProviderName: firstCargo.companyName || '',
-                orderNumber: String(rawPkg.orderNumber ?? ''),
-                totalAmount: Number(rawPkg.orderAmount ?? 0),
-                status: statusForPazarama(rawPkg.orderStatus),
-              };
-            }
-
-            const marketplaceOrderId = String(pkg.id);
-            const existing = await DropshippingOrder.findOne({
-              where: { storeId: store.id, marketplaceOrderId, marketplace: mp },
-            });
-
-            const lines = pkg.lines || pkg.items || [];
-            const items = lines.map((l: any) => ({
-              sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || '',
-              name: l.productName || l.title || l.name || l.productTitle || l.itemName || '',
-              quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
-              price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0),
-              image: l.imageUrl || l.productImageUrl || l.image || '',
-              variantAttributes: l.variantAttributes || [],
-              orderLineId: l.orderLineId || l.orderItemId || l.id,
-            }));
-
-            const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
-            const address = pkg.address || pkg.shippingAddress || pkg.shipmentAddress || {};
-            const fullName = (pkg.customerfullName || pkg.customerFullName)
-              || `${pkg.customerFirstName || ''} ${pkg.customerLastName || ''}`.trim()
-              || address.fullName || address.name
-              || `${pkg.firstName || ''} ${pkg.lastName || ''}`.trim() || '';
-            const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || '';
-            const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
-            const shippingAddress = {
-              fullName, phone, email: customerEmail,
-              city: address.city || pkg.city || '',
-              district: address.district || pkg.district || '',
-              neighborhood: address.neighborhood || pkg.neighborhood || '',
-              address: address.address1 || address.address || address.fullAddress || address.line || pkg.address || '',
-              zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
-            };
-
-            const statusMap: Record<string, string> = {
-              Created: 'pending', Picking: 'processing', Invoiced: 'processing',
-              Shipped: 'shipped', Delivered: 'delivered', Cancelled: 'cancelled',
-              UnDelivered: 'cancelled', Returned: 'returned',
-              UnPacked: 'processing', UnSupplied: 'cancelled',
-              siparis_alindi: 'pending', hazirlaniyor: 'processing',
-              kargoya_verildi: 'shipped', teslim_edildi: 'delivered',
-              iptal_edildi: 'cancelled', iade_edildi: 'returned',
-            };
-            const newStatus = pkg.status ? (statusMap[pkg.status] || statusMap[pkg.shipmentPackageStatus || pkg.status] || String(pkg.status).toLowerCase()) : 'pending';
-            const prefix = mp === 'pazarama' ? 'PZ' : mp === 'trendyol' ? 'TY' : mp.slice(0, 2).toUpperCase();
-            const orderNumber = pkg.orderNumber ? `${prefix}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
-
-            if (existing) {
-              const changed: Record<string, any> = {};
-              if (existing.status !== newStatus) changed.status = newStatus;
-              if (JSON.stringify(existing.items || []) !== JSON.stringify(items)) changed.items = items;
-              if (JSON.stringify(existing.shippingAddress || {}) !== JSON.stringify(shippingAddress)) changed.shippingAddress = shippingAddress;
-              if (existing.totalAmount !== totalAmount) changed.totalAmount = totalAmount;
-              if (existing.customerName !== fullName) changed.customerName = fullName;
-              if (existing.customerEmail !== customerEmail) changed.customerEmail = customerEmail;
-              if (existing.customerPhone !== phone) changed.customerPhone = phone;
-              if (existing.trackingNumber !== (pkg.cargoTrackingNumber || '')) changed.trackingNumber = pkg.cargoTrackingNumber || '';
-              if (existing.carrier !== (pkg.cargoProviderName || '')) changed.carrier = pkg.cargoProviderName || '';
-              if (Object.keys(changed).length > 0) {
-                await existing.update(changed);
-                imported++;
-              }
-              continue;
-            }
-
-            await createSplitOrder(
-              store.id, mp, marketplaceOrderId,
-              items, totalAmount, orderNumber, 'TRY', shippingAddress, pkg,
-              String(pkg.orderNumber || ''), fullName, customerEmail, phone,
-              {
-                status: newStatus,
-                trackingNumber: pkg.cargoTrackingNumber || pkg.trackingNumber || '',
-                carrier: pkg.cargoProviderName || pkg.carrier || '',
-                paymentMethod: 'marketplace',
-                paymentStatus: newStatus === 'cancelled' ? 'failed' : 'paid',
-              },
-            );
-
-            imported++;
-          }
-
-          page++;
-          hasMore = packages.length >= 100;
-        }
-
-        results.push({ marketplace: integration.marketplace, imported });
-        logger.info({ marketplace: integration.marketplace, storeId: store.id, imported }, 'Import-all orders from marketplace');
+        const result = await importMarketplaceOrders({
+          storeId: store.id,
+          marketplace: integration.marketplace,
+          maxPages,
+          notify: true,
+        });
+        totalImported += result.imported;
+        results.push({ marketplace: integration.marketplace, imported: result.imported, error: result.error });
       } catch (mpErr) {
         logger.warn({ marketplace: integration.marketplace, err: mpErr }, 'Import-all failed for marketplace');
-        results.push({ marketplace: integration.marketplace, imported: 0 });
+        results.push({ marketplace: integration.marketplace, imported: 0, error: String((mpErr as any)?.message || mpErr) });
       }
     }
 
-    const totalImported = results.reduce((s, r) => s + r.imported, 0);
     res.json({ imported: totalImported, results });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Import-all orders error');

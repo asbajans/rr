@@ -91,7 +91,7 @@ orderRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
       where,
       limit,
       offset,
-      order: [['createdAt', 'DESC']],
+      order: [[literal(`COALESCE("orderDate", "createdAt")`), 'DESC']],
     });
 
     res.json({

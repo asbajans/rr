@@ -137,6 +137,8 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(15,2) DEFAULT 0`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL(15,2) DEFAULT 0`);
     await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "couponCode" VARCHAR(80)`);
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS "orderDate" TIMESTAMP`);
+    await sequelize.query(`UPDATE dropshipping_orders SET "orderDate" = "createdAt" WHERE "orderDate" IS NULL`);
   } catch (e) {
     // Ignore if columns already exist
   }
@@ -418,6 +420,18 @@ export const startServer = async (): Promise<void> => {
     releaseExpiredCheckoutReservations().catch((err) => logger.error({ err }, 'Failed to release expired checkout reservations'));
   }, 5 * 60 * 1000);
   reservationTimer.unref?.();
+
+  // Auto-pull marketplace orders every 10 minutes (fire-and-forget). New orders
+  // and status changes trigger in-app + push notifications.
+  const orderAutoImportTimer = setInterval(async () => {
+    try {
+      const { importOrdersForAllStores } = await import('./modules/integration/orderImport.js');
+      await importOrdersForAllStores({ maxPages: 3 });
+    } catch (err) {
+      logger.error({ err }, 'Auto order import failed');
+    }
+  }, 10 * 60 * 1000);
+  orderAutoImportTimer.unref?.();
 
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');
