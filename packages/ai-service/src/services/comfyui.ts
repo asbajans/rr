@@ -10,9 +10,11 @@ const COMFY_URL = process.env.COMFY_URL || 'http://localhost:8188';
  * Workflows live next to this module. `path.resolve('workflows')` resolves
  * against the process CWD, which breaks inside the production container
  * (the Dockerfile copies them to packages/ai-service/workflows but the CWD is
- * /app). Resolve from __dirname so edit/generate work both in dev and Docker.
+ * /app). Resolve from __dirname so edit/generate work both in dev (src/
+ * services -> ../../workflows) and in the built Docker image
+ * (dist/services -> ../../workflows).
  */
-const WORKFLOWS_DIR = path.resolve(__dirname, '..', 'workflows');
+const WORKFLOWS_DIR = path.resolve(__dirname, '..', '..', 'workflows');
 
 const WORKFLOW_FILES: Record<ProductCategory, string> = {
   giyim: 'product-studio-giyim.json',
