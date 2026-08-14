@@ -61,9 +61,9 @@ const SCENARIO_DEFAULTS: Record<string, { name: string; description: string; pai
   generate_image: {
     name: 'Görsel Üretme',
     description: 'Harici sağlayıcılarla yeni ürün görseli üretme / düzenleme',
-    paidModel: 'openai/gpt-image-1',
+    paidModel: 'google/gemini-2.5-flash-image',
     freeModel: 'google/gemini-2.5-flash-image',
-    costCredits: 5,
+    costCredits: 3,
   },
   agentic_listing: {
     name: 'Agentik İlan',

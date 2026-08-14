@@ -323,7 +323,7 @@ aiRoutes.post('/process-image', authMiddleware, requireStore, requireModule('ai_
 
 // Default per-image credit cost for AI image edit / generation. Plans can
 // override via the ai_image_generate module credit_cost.
-const IMAGE_GEN_CREDIT_PER_IMAGE = 5;
+const IMAGE_GEN_CREDIT_PER_IMAGE = 3;
 
 async function proxyImageGen(req: Request, res: Response, path: string, opts: { count?: number }) {
   const user = (req as any).user;

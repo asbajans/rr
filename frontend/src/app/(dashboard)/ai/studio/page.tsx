@@ -84,6 +84,7 @@ export default function AiStudioPage() {
   const [imgEditPrompt, setImgEditPrompt] = useState('')
   const [imgGenPrompt, setImgGenPrompt] = useState('')
   const [imgGenCount, setImgGenCount] = useState(1)
+  const [useRefImage, setUseRefImage] = useState(false)
   const [aiImgBusy, setAiImgBusy] = useState<'edit' | 'generate' | null>(null)
   const [aiImgMsg, setAiImgMsg] = useState('')
 
@@ -404,9 +405,9 @@ function toggleChannel(c: string) {
       if (files.length === 0) throw new Error('Görsel düzenlenemedi')
       for (const file of files) {
         const up = await api.takeAiResultImage(res.sessionId, file)
-        setDraftImages(prev => { const next = [...prev]; next[idx] = up.url; return next })
+        setDraftImages(prev => [...prev, up.url])
       }
-      setAiImgMsg('Görsel düzenlendi (kredi düşüldü). Devam edin veya taslağı kaydedin.')
+      setAiImgMsg('Yeni görsel eklendi. İsterseniz eski görseli silerek sadece yenisini tutabilirsiniz.')
       refreshMe()
     } catch (e: any) {
       if (e?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
@@ -427,7 +428,7 @@ function toggleChannel(c: string) {
         prompt,
         count,
         category: draft?.categoryPath?.[0] ? String(draft.categoryPath[0]).toLowerCase() : undefined,
-        referenceImageUrl: draftImages.length > 0 ? draftImages[draftImages.length - 1] : undefined,
+        referenceImageUrl: useRefImage && draftImages.length > 0 ? draftImages[draftImages.length - 1] : undefined,
       })
       const files = await api.pollAiImageSession(res.sessionId)
       if (files.length === 0) throw new Error('Görsel üretilemedi')
@@ -437,7 +438,7 @@ function toggleChannel(c: string) {
         if (up.url) urls.push(up.url)
       }
       setDraftImages(prev => [...prev, ...urls])
-      setAiImgMsg(`${urls.length} görsel üretildi (${count} kredi düşüldü). Devam edin veya taslağı kaydedin.`)
+      setAiImgMsg(`${urls.length} görsel üretildi (${count * 3} kredi düşüldü). Devam edin veya taslağı kaydedin.`)
       refreshMe()
     } catch (e: any) {
       if (e?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
@@ -758,15 +759,15 @@ function toggleChannel(c: string) {
                       <p className="mt-2 text-[11px] text-zinc-500">Henüz görsel yok — aşağıdan yeni görsel üretebilirsiniz.</p>
                     )}
                     <div className="mt-3 space-y-2">
-                      <label className="text-[11px] text-zinc-500">Düzenleme / Üretim talimatı</label>
+                      <label className="text-[11px] text-zinc-500">AI Görsel Talimatı</label>
                       <input value={imgEditPrompt} onChange={e => setImgEditPrompt(e.target.value)}
                         placeholder="örn: beyaz arka plan, profesyonel ürün çekimi, daha parlak"
                         className="block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                       <div className="flex flex-wrap items-center gap-2">
-                        <button type="button" onClick={() => draftImages.length ? handleEditImage(0) : (setAiImgMsg('Önce görsel üretin veya kaydedilmiş taslağı açın.'))}
-                          disabled={aiImgBusy !== null}
+                        <button type="button" onClick={() => draftImages.length > 0 ? handleEditImage(draftImages.length - 1) : (setAiImgMsg('Önce görsel üretin veya kaydedilmiş taslağı açın.'))}
+                          disabled={aiImgBusy !== null || draftImages.length === 0}
                           className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-40">
-                          {aiImgBusy === 'edit' ? 'Düzenleniyor...' : 'İlk görseli Düzenle'}
+                          {aiImgBusy === 'edit' ? 'Düzenleniyor...' : 'Son Görseli Düzenle'}
                         </button>
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-zinc-500">adet</span>
@@ -774,26 +775,28 @@ function toggleChannel(c: string) {
                             onChange={e => setImgGenCount(Math.max(1, Math.min(4, Number(e.target.value) || 1)))}
                             className="w-14 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-white" />
                         </div>
-                        <button type="button"
-                          onClick={() => setImgGenPrompt(imgEditPrompt)}
-                          disabled={aiImgBusy !== null}
-                          className="rounded-lg bg-zinc-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-500 disabled:opacity-40">
-                          Yeni üretim talimatına kopyala
-                        </button>
                       </div>
                     </div>
                     <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-800/60 p-3">
-                      <p className="text-[11px] font-medium text-zinc-400">Yeni görsel (ler) üret</p>
+                      <p className="text-[11px] font-medium text-zinc-400">Yeni Görsel(ler) Üret (sıfırdan)</p>
                       <input value={imgGenPrompt} onChange={e => setImgGenPrompt(e.target.value)}
-                        placeholder="örn: ürünün mavi kadife kutu içinde çekimi"
+                        placeholder="örn: ürünün mavi kadife kutu içinde çekimi, beyaz arka plan"
                         className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
-                      <button type="button"
-                        onClick={handleGenerateImages}
-                        disabled={aiImgBusy !== null}
-                        className="mt-2 flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-medium text-black hover:bg-zinc-200 disabled:opacity-40">
-                        {aiImgBusy === 'generate' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
-                        {aiImgBusy === 'generate' ? 'Üretiliyor...' : `${imgGenCount} Görsel Üret (${imgGenCount} kredi)`}
-                      </button>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button type="button"
+                          onClick={handleGenerateImages}
+                          disabled={aiImgBusy !== null}
+                          className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-medium text-black hover:bg-zinc-200 disabled:opacity-40">
+                          {aiImgBusy === 'generate' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
+                          {aiImgBusy === 'generate' ? 'Üretiliyor...' : `${imgGenCount} Görsel Üret (${imgGenCount * 3} kredi)`}
+                        </button>
+                        {draftImages.length > 0 && (
+                          <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 cursor-pointer">
+                            <input type="checkbox" checked={useRefImage} onChange={e => setUseRefImage(e.target.checked)} className="h-3 w-3" />
+                            Son görseli referans al
+                          </label>
+                        )}
+                      </div>
                     </div>
                     {aiImgMsg && <p className="mt-2 text-[11px] text-zinc-400">{aiImgMsg}</p>}
                   </div>
