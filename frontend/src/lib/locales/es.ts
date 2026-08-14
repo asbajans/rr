@@ -10,6 +10,7 @@
   feeds: 'XML Feed',
   orders: 'Pedidos',
   customers: 'Clientes',
+  templates: 'Plantillas',
   b2b: 'Descubrir B2B',
   b2bRequests: 'Solicitudes B2B',
   supplier: 'Proveedor',

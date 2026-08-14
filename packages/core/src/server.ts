@@ -211,6 +211,19 @@ export const createApp = async (): Promise<Express> => {
     }
   }
 
+  // Add source column to customers table
+  try {
+    await sequelize.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS "source" VARCHAR(20) DEFAULT 'storefront'`);
+  } catch (e) {
+    // Fresh databases create the column from the model definition.
+  }
+  // Make passwordHash nullable for marketplace customers
+  try {
+    await sequelize.query(`ALTER TABLE customers ALTER COLUMN "passwordHash" DROP NOT NULL`);
+  } catch (e) {
+    // Column may already be nullable.
+  }
+
   await sequelize.sync({ alter: false });
 
   // Idempotent index creation. On existing databases the model sync above already

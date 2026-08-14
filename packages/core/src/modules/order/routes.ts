@@ -256,10 +256,12 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
 
     logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
 
-    // Send customer notification for storefront orders
+    // Send customer notification for storefront orders only
     if (order.marketplace === 'storefront' && order.customerEmail) {
       try {
         const customer = order.customerId ? await Customer.findOne({ where: { id: order.customerId, storeId: store.id } }) : null;
+        // Only send to storefront customers (not marketplace-sourced)
+        if (customer && customer.source !== 'storefront') return;
         const storeData = await Store.findOne({ where: { id: store.id } });
         const email = buildOrderEmail('status_change', {
           orderNumber: order.orderNumber,

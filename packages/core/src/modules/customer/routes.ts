@@ -40,7 +40,7 @@ customerRoutes.post('/:siteCode/customer/login', async (req, res) => {
   const store = await storeOf(req, res); if (!store) return;
   const email = String(req.body?.email || '').trim().toLowerCase();
   const customer = await Customer.findOne({ where: { storeId: store.id, email } });
-  if (!customer || !customer.isActive || !(await bcrypt.compare(String(req.body?.password || ''), customer.passwordHash))) return res.status(401).json({ error: 'CUSTOMER_LOGIN_FAILED' });
+  if (!customer || !customer.isActive || !customer.passwordHash || !(await bcrypt.compare(String(req.body?.password || ''), customer.passwordHash))) return res.status(401).json({ error: 'CUSTOMER_LOGIN_FAILED' });
   await customer.update({ lastLoginAt: new Date() });
   res.json({ customer: publicCustomer(customer), accessToken: signCustomerToken(customer) });
 });

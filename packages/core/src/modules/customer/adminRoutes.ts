@@ -5,6 +5,7 @@ import { Coupon } from '../../models/Coupon.model.js';
 import { CustomerReview } from '../../models/CustomerReview.model.js';
 import { Customer } from '../../models/Customer.model.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
+import { NotificationTemplate, DEFAULT_EMAIL_TEMPLATES, DEFAULT_SMS_TEMPLATES } from '../../models/NotificationTemplate.model.js';
 import { sequelize } from '../../config/database.js';
 import { Op } from 'sequelize';
 
@@ -41,6 +42,10 @@ adminCommercialRoutes.get('/customers', async (req, res) => {
   const search = (req.query.search as string || '').trim();
 
   const where: any = { storeId: store.id };
+  const source = req.query.source as string;
+  if (source && ['storefront', 'marketplace'].includes(source)) {
+    where.source = source;
+  }
   if (search) {
     where[Op.or] = [
       { name: { [Op.iLike]: `%${search}%` } },
@@ -75,6 +80,7 @@ adminCommercialRoutes.get('/customers', async (req, res) => {
       name: c.name,
       email: c.email,
       phone: c.phone,
+      source: c.source,
       isActive: c.isActive,
       lastLoginAt: c.lastLoginAt,
       createdAt: c.createdAt,
@@ -105,10 +111,55 @@ adminCommercialRoutes.get('/customers/:id', async (req, res) => {
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
+      source: customer.source,
       isActive: customer.isActive,
       lastLoginAt: customer.lastLoginAt,
       createdAt: customer.createdAt,
     },
     orders,
   });
+});
+
+// Notification templates
+adminCommercialRoutes.get('/templates', async (req, res) => {
+  const store = (req as any).store;
+  const templates = await NotificationTemplate.findAll({ where: { storeId: store.id }, order: [['channel', 'ASC'], ['type', 'ASC']] });
+
+  // Merge with defaults: if no template for a type, return the default
+  const result: any[] = [];
+  const allTypes = ['order_created', 'status_change', 'shipping_update', 'custom'] as const;
+  for (const type of allTypes) {
+    for (const channel of ['email', 'sms'] as const) {
+      const existing = templates.find(t => t.type === type && t.channel === channel);
+      if (existing) {
+        result.push({ id: existing.id, channel, type, subject: existing.subject, body: existing.body, isActive: existing.isActive, isCustom: true });
+      } else {
+        const defaults = channel === 'email' ? DEFAULT_EMAIL_TEMPLATES : DEFAULT_SMS_TEMPLATES;
+        const def = defaults[type];
+        result.push({ id: null, channel, type, subject: (def as any).subject || '', body: def.body, isActive: true, isCustom: false });
+      }
+    }
+  }
+  res.json({ templates: result });
+});
+
+adminCommercialRoutes.put('/templates', async (req, res) => {
+  const store = (req as any).store;
+  const { channel, type, subject, body, isActive } = req.body;
+  if (!channel || !type || !['email', 'sms'].includes(channel)) return res.status(400).json({ error: 'INVALID_TEMPLATE' });
+
+  const [template, created] = await NotificationTemplate.findOrCreate({
+    where: { storeId: store.id, channel, type },
+    defaults: { storeId: store.id, channel, type, subject: subject || '', body: body || '', isActive: isActive !== false },
+  });
+
+  if (!created) {
+    const patch: any = {};
+    if (subject !== undefined) patch.subject = subject;
+    if (body !== undefined) patch.body = body;
+    if (isActive !== undefined) patch.isActive = isActive;
+    await template.update(patch);
+  }
+
+  res.json({ template });
 });

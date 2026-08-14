@@ -8,7 +8,7 @@ import {
   Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban,
   MapPin, Truck, FileText, Camera, Palette, MenuIcon,
   FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2, GitMerge,
-  Coins, Wand2, Newspaper, Users,
+  Coins, Wand2, Newspaper, Users, Mail,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
@@ -69,6 +69,7 @@ const navGroups = [
     items: [
       { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
+      { href: '/templates', labelKey: 'templates', icon: Mail },
       { href: '/settings', labelKey: 'settings', icon: Settings },
     ],
   },

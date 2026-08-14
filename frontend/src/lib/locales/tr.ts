@@ -10,6 +10,7 @@
   feeds: 'XML Feed',
   orders: 'Siparişler',
   customers: 'Müşteriler',
+  templates: 'Şablonlar',
   b2b: 'B2B Keşfet',
   b2bRequests: 'B2B Talepler',
   supplier: 'Tedarikçi',

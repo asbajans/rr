@@ -1804,10 +1804,11 @@ class ApiClient {
     return this.post<{ message: string }>(`/api/admin/users/${userId}/assign-plan`, { planId })
   }
 
-  getCustomers(params?: { page?: number; limit?: number; search?: string }) {
+  getCustomers(params?: { page?: number; limit?: number; search?: string; source?: string }) {
     return this.get<any>('/api/admin/commercial/customers', { params }).then(r => ({
       customers: (r.customers || []).map((c: any) => ({
         id: c.id, name: c.name, email: c.email, phone: c.phone,
+        source: c.source || 'storefront',
         isActive: c.isActive, lastLoginAt: c.lastLoginAt, createdAt: c.createdAt,
         orderCount: c.orderCount || 0, totalSpent: c.totalSpent || 0,
       })),
@@ -1819,6 +1820,14 @@ class ApiClient {
     return this.get<any>(`/api/admin/commercial/customers/${id}`).then(r => ({
       customer: r.customer, orders: r.orders || [],
     }))
+  }
+
+  getTemplates() {
+    return this.get<any>('/api/admin/commercial/templates').then(r => r.templates || [])
+  }
+
+  updateTemplate(data: { channel: string; type: string; subject?: string; body?: string; isActive?: boolean }) {
+    return this.put<any>('/api/admin/commercial/templates', data)
   }
 
   createAdminPlan(data: Record<string, any>) {

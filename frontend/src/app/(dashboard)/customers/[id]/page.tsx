@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
-import { ArrowLeft, User, Mail, Phone, ShoppingCart, DollarSign } from 'lucide-react'
+import { ArrowLeft, User, Mail, Phone, ShoppingCart, DollarSign, Store, Globe } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -44,7 +44,13 @@ export default function CustomerDetailPage() {
           <User className="h-8 w-8 text-zinc-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">{customer.name}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">{customer.name}</h1>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${customer.source === 'storefront' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-blue-900/50 text-blue-400'}`}>
+              {customer.source === 'storefront' ? <Store className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
+              {customer.source === 'storefront' ? 'Mağaza' : 'Pazaryeri'}
+            </span>
+          </div>
           <div className="mt-1 flex flex-wrap gap-4 text-sm text-zinc-400">
             <span className="flex items-center gap-1"><Mail className="h-4 w-4" /> {customer.email}</span>
             {customer.phone && <span className="flex items-center gap-1"><Phone className="h-4 w-4" /> {customer.phone}</span>}

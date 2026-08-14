@@ -6,6 +6,7 @@ import { Supplier } from '../../models/Supplier.model.js';
 import { logger } from '../../utils/logger.js';
 import { Op } from 'sequelize';
 import { Transaction } from 'sequelize';
+import { findOrCreateCustomer } from './customerHelper.js';
 
 interface OrderItem {
   sku?: string;
@@ -110,10 +111,23 @@ export async function createSplitOrder(
 
   const status = options.status || 'pending';
 
+  // Ensure customer record exists for marketplace orders
+  let customerId: number | null = null;
+  if (email) {
+    const cust = await findOrCreateCustomer(storeId, {
+      name: fullName || undefined,
+      email,
+      phone: phone || undefined,
+      source: 'marketplace',
+    });
+    if (cust) customerId = cust.id;
+  }
+
   // Create main order for the receiving store
   const mainOrder = await DropshippingOrder.create(
     {
       storeId,
+      customerId,
       orderNumber,
       marketplace,
       marketplaceOrderId,

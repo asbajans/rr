@@ -21,6 +21,7 @@ import { detectVendors, createVendorSubOrders } from './orderSplit.js';
 import type { Store } from '../../models/Store.model.js';
 import { notifyCustomer, buildOrderEmail } from '../customer/notifications.js';
 import { Customer } from '../../models/Customer.model.js';
+import { findOrCreateCustomer } from './customerHelper.js';
 
 export class CheckoutError extends Error {
   status: number;
@@ -284,7 +285,22 @@ export async function createCheckoutOrder(
 
     await transaction.commit();
 
-    // Send order confirmation email
+    // Ensure customer record exists
+    let resolvedCustomerId = customerId;
+    if (!resolvedCustomerId && cust.email) {
+      const custRecord = await findOrCreateCustomer(store.id, {
+        name: addr.full_name,
+        email: cust.email,
+        phone: addr.phone || undefined,
+        source: 'storefront',
+      });
+      if (custRecord) {
+        resolvedCustomerId = custRecord.id;
+        await order.update({ customerId: custRecord.id });
+      }
+    }
+
+    // Send order confirmation email (storefront only)
     if (cust.email) {
       try {
         const email = buildOrderEmail('order_created', {
@@ -295,13 +311,13 @@ export async function createCheckoutOrder(
           items: pricedItems.map(i => ({ name: i.name, quantity: i.quantity, price: i.unitPrice })),
           storeName: store.name,
         });
-        const customer = customerId ? await Customer.findOne({ where: { id: customerId, storeId: store.id } }) : null;
-        if (customer) {
+        const customer = resolvedCustomerId ? await Customer.findOne({ where: { id: resolvedCustomerId, storeId: store.id } }) : null;
+        if (customer && customer.source === 'storefront') {
           await notifyCustomer(customer, { type: 'order_created', title: email.subject, body: email.html, metadata: { orderId: order.id } });
-        } else {
+        } else if (customer?.email) {
           const { notificationProviders } = await import('../customer/notifications.js');
           const providers = notificationProviders();
-          await providers.email.send(cust.email, email.subject, email.html);
+          await providers.email.send(customer.email, email.subject, email.html);
         }
       } catch (err: any) {
         logger.error({ err: err.message, orderId: order.id }, 'Failed to send order confirmation email');
