@@ -125,7 +125,7 @@ async function openRouterImages(
   referenceImagePath?: string,
 ): Promise<string[]> {
   const base = config.baseUrl.trim().replace(/\/+$/, '');
-  let url = base.replace(/\/v1\/?$/i, '') + '/api/v1/images';
+  const url = base + '/images';
   const headers = { 'Content-Type': 'application/json', ...authHeaders(config) };
   const body: any = { model: config.model, prompt, n: 1 };
   if (referenceImagePath) {
