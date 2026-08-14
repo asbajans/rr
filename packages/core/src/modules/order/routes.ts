@@ -16,6 +16,9 @@ import { logger } from '../../utils/logger.js';
 import { config } from '../../config/env.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../../marketplace/clients/index.js';
 import { createInvoiceProvider, createShippingLabelProvider } from './providers.js';
+import { notifyCustomer, buildOrderEmail } from '../customer/notifications.js';
+import { Customer } from '../../models/Customer.model.js';
+import { Store } from '../../models/Store.model.js';
 
 const INTEGRATION_SERVICE_URL = process.env.INTEGRATION_SERVICE_URL || 'http://localhost:3002';
 
@@ -252,6 +255,33 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
     });
 
     logger.info(`Order ${order.id} status: ${oldStatus} -> ${status}`);
+
+    // Send customer notification for storefront orders
+    if (order.marketplace === 'storefront' && order.customerEmail) {
+      try {
+        const customer = order.customerId ? await Customer.findOne({ where: { id: order.customerId, storeId: store.id } }) : null;
+        const storeData = await Store.findOne({ where: { id: store.id } });
+        const email = buildOrderEmail('status_change', {
+          orderNumber: order.orderNumber,
+          customerName: order.customerName || customer?.name,
+          status,
+          trackingNumber: trackingNumber || order.trackingNumber,
+          carrier: carrier || order.carrier,
+          totalAmount: Number(order.totalAmount),
+          items: (order.items as any[]) || [],
+          storeName: storeData?.name,
+        });
+        if (customer) {
+          await notifyCustomer(customer, { type: `order_${status}`, title: email.subject, body: email.html, metadata: { orderId: order.id, status } });
+        } else {
+          const { notificationProviders } = await import('../customer/notifications.js');
+          const providers = notificationProviders();
+          await providers.email.send(order.customerEmail, email.subject, email.html);
+        }
+      } catch (err: any) {
+        logger.error({ err: err.message, orderId: order.id }, 'Failed to send order notification');
+      }
+    }
 
     // Propagate status to sub-orders if this is a main order
     if (!order.parentOrderId) {

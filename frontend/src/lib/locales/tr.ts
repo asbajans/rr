@@ -9,6 +9,7 @@
   variations: 'Varyasyonlar',
   feeds: 'XML Feed',
   orders: 'Siparişler',
+  customers: 'Müşteriler',
   b2b: 'B2B Keşfet',
   b2bRequests: 'B2B Talepler',
   supplier: 'Tedarikçi',

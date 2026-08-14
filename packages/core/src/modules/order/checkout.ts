@@ -19,6 +19,8 @@ import {
 } from '@rahatio/shared';
 import { detectVendors, createVendorSubOrders } from './orderSplit.js';
 import type { Store } from '../../models/Store.model.js';
+import { notifyCustomer, buildOrderEmail } from '../customer/notifications.js';
+import { Customer } from '../../models/Customer.model.js';
 
 export class CheckoutError extends Error {
   status: number;
@@ -47,9 +49,10 @@ export function calculateTotals(items: { quantity: number; unitPrice: number }[]
   const subtotal = round2(items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0));
 
   const shippingSettings = (store.shippingSettings as any) || {};
-  const shippingEnabled = Boolean(shippingSettings.enabled);
-  const shippingCost = Number(shippingSettings.cost ?? 0) || 0;
-  const freeAbove = shippingSettings.freeAbove != null && shippingSettings.freeAbove !== '' ? Number(shippingSettings.freeAbove) : null;
+  const shippingEnabled = Boolean(shippingSettings.enabled ?? shippingSettings.is_active);
+  const shippingCost = Number(shippingSettings.cost ?? shippingSettings.flat_rate ?? 0) || 0;
+  const freeAboveRaw = shippingSettings.freeAbove ?? shippingSettings.free_shipping_threshold;
+  const freeAbove = freeAboveRaw != null && freeAboveRaw !== '' ? Number(freeAboveRaw) : null;
   const shippingAmount =
     shippingEnabled && !(freeAbove != null && subtotal >= freeAbove) ? shippingCost : 0;
 
@@ -280,6 +283,30 @@ export async function createCheckoutOrder(
     }
 
     await transaction.commit();
+
+    // Send order confirmation email
+    if (cust.email) {
+      try {
+        const email = buildOrderEmail('order_created', {
+          orderNumber,
+          customerName: addr.full_name,
+          status: 'pending',
+          totalAmount: totals.totalAmount,
+          items: pricedItems.map(i => ({ name: i.name, quantity: i.quantity, price: i.unitPrice })),
+          storeName: store.name,
+        });
+        const customer = customerId ? await Customer.findOne({ where: { id: customerId, storeId: store.id } }) : null;
+        if (customer) {
+          await notifyCustomer(customer, { type: 'order_created', title: email.subject, body: email.html, metadata: { orderId: order.id } });
+        } else {
+          const { notificationProviders } = await import('../customer/notifications.js');
+          const providers = notificationProviders();
+          await providers.email.send(cust.email, email.subject, email.html);
+        }
+      } catch (err: any) {
+        logger.error({ err: err.message, orderId: order.id }, 'Failed to send order confirmation email');
+      }
+    }
 
     logger.info(
       `Checkout: order ${order.id} (${orderNumber}), method=${payment_method}, total=${totals.totalAmount} ${store.currency || 'TRY'}`

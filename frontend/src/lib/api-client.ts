@@ -161,8 +161,8 @@ function mapOrder(o: any): any {
     order_date: o.orderDate ?? o.order_date ?? o.createdAt ?? o.created_at,
     grand_total: o.totalAmount ?? o.grand_total,
     subtotal: o.subtotal ?? (o.totalAmount ? Number(o.totalAmount) * 0.9 : 0),
-    shipping: o.shipping ?? 0,
-    tax: o.tax ?? 0,
+    shipping: o.shippingAmount ?? o.shipping ?? 0,
+    tax: o.taxAmount ?? o.tax ?? 0,
     items: o.items ?? [],
     shipping_address: addressStr,
     customer_name: o.customerName || (typeof address === 'object' ? (address.name || address.fullName || address.firstName + ' ' + address.lastName || '') : ''),
@@ -1467,6 +1467,7 @@ class ApiClient {
         email: flat.email ?? null,
         theme: flat.theme ?? null,
         homepage: flat.homepage ?? null,
+        shipping_settings: flat.shippingSettings ?? flat.shipping_settings ?? null,
       },
       products,
       total: flat.total ?? products.length,
@@ -1801,6 +1802,23 @@ class ApiClient {
 
   assignPlanToUser(userId: number, planId: number) {
     return this.post<{ message: string }>(`/api/admin/users/${userId}/assign-plan`, { planId })
+  }
+
+  getCustomers(params?: { page?: number; limit?: number; search?: string }) {
+    return this.get<any>('/api/admin/commercial/customers', { params }).then(r => ({
+      customers: (r.customers || []).map((c: any) => ({
+        id: c.id, name: c.name, email: c.email, phone: c.phone,
+        isActive: c.isActive, lastLoginAt: c.lastLoginAt, createdAt: c.createdAt,
+        orderCount: c.orderCount || 0, totalSpent: c.totalSpent || 0,
+      })),
+      total: r.total || 0, page: r.page || 1, limit: r.limit || 20,
+    }))
+  }
+
+  getCustomer(id: number) {
+    return this.get<any>(`/api/admin/commercial/customers/${id}`).then(r => ({
+      customer: r.customer, orders: r.orders || [],
+    }))
   }
 
   createAdminPlan(data: Record<string, any>) {

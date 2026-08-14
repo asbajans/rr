@@ -9,6 +9,7 @@
   variations: 'Variations',
   feeds: 'XML Feed',
   orders: 'Orders',
+  customers: 'Customers',
   b2b: 'B2B Discover',
   b2bRequests: 'B2B Requests',
   supplier: 'Supplier',

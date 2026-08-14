@@ -9,6 +9,7 @@
   variations: 'Ø§Ù„ØªÙ†ÙˆÙŠØ¹Ø§Øª',
   feeds: 'XML ÙÙŠØ¯',
   orders: 'Ø§Ù„Ø·Ù„Ø¨Ø§Øª',
+  customers: 'Ø§Ù„Ø²Ø¨Ø§Ø¡',
   b2b: 'Ø§ÙƒØªØ´Ø§Ù B2B',
   b2bRequests: 'Ø·Ù„Ø¨Ø§Øª B2B',
   supplier: 'Ø§Ù„Ù…ÙˆØ±Ø¯',

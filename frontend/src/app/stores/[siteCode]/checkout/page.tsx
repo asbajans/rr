@@ -28,6 +28,8 @@ export default function CheckoutPage() {
   const [initiatingPayment, setInitiatingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [savingAddress, setSavingAddress] = useState(false)
+  const [serverTotals, setServerTotals] = useState<{ subtotal: number; shippingAmount: number; taxAmount: number; discountAmount?: number; totalAmount: number } | null>(null)
+  const [shippingSettings, setShippingSettings] = useState<any>(null)
 
   // Form state
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
@@ -53,6 +55,7 @@ export default function CheckoutPage() {
           }).catch(() => {})
         : Promise.resolve(),
       api.getCheckoutPaymentMethods(siteCode).then(r => { setPaymentMethods(r.data); if (r.data.length > 0) setSelectedPayment(r.data[0].method) }).catch(() => {}),
+      api.getStoreFront(siteCode).then((r: any) => { setShippingSettings(r.store?.shipping_settings || r.store?.shippingSettings || null) }).catch(() => {}),
     ]).finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteCode])
@@ -104,6 +107,16 @@ export default function CheckoutPage() {
     }
   }
 
+  const estimatedShipping = (() => {
+    if (!shippingSettings) return 0
+    const enabled = shippingSettings.enabled ?? shippingSettings.is_active
+    if (!enabled) return 0
+    const cost = Number(shippingSettings.cost ?? shippingSettings.flat_rate ?? 0) || 0
+    const freeAbove = Number(shippingSettings.freeAbove ?? shippingSettings.free_shipping_threshold)
+    if (freeAbove > 0 && totalPrice >= freeAbove) return 0
+    return cost
+  })()
+
   async function handleSubmit() {
     setProcessing(true)
     setError('')
@@ -152,6 +165,7 @@ export default function CheckoutPage() {
       setOrderToken(res.orderToken)
       setRequiresPaymentGateway(res.requiresPaymentGateway)
       setPaymentMethodLabel(paymentMethods.find(pm => pm.method === res.paymentMethod)?.label || res.paymentMethod)
+      if (res.totals) setServerTotals(res.totals)
       setStep('done')
       clearCart()
 
@@ -207,6 +221,28 @@ export default function CheckoutPage() {
         </div>
         <h1 className="mt-6 text-2xl font-bold text-zinc-900">Siparişiniz Alındı!</h1>
         <p className="mt-2 text-sm text-zinc-600">Sipariş No: <span className="font-mono font-medium">{orderNumber || orderId}</span></p>
+
+        {serverTotals && (
+          <div className="mt-4 mx-auto max-w-sm rounded-lg border border-zinc-200 bg-white p-4 text-left text-sm">
+            <p className="text-xs font-medium uppercase text-zinc-500 mb-2">Sipariş Özeti</p>
+            <div className="space-y-1">
+              <div className="flex justify-between"><span className="text-zinc-600">Ara Toplam</span><span className="font-medium">{serverTotals.subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span></div>
+              {serverTotals.shippingAmount > 0 && (
+                <div className="flex justify-between"><span className="text-zinc-600">Kargo</span><span className="font-medium">{serverTotals.shippingAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span></div>
+              )}
+              {serverTotals.shippingAmount === 0 && (
+                <div className="flex justify-between"><span className="text-zinc-600">Kargo</span><span className="font-medium text-green-600">Ücretsiz</span></div>
+              )}
+              {serverTotals.taxAmount > 0 && (
+                <div className="flex justify-between"><span className="text-zinc-600">KDV</span><span className="font-medium">{serverTotals.taxAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span></div>
+              )}
+              {serverTotals.discountAmount && serverTotals.discountAmount > 0 && (
+                <div className="flex justify-between text-green-600"><span>İndirim</span><span className="font-medium">-{serverTotals.discountAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span></div>
+              )}
+              <div className="flex justify-between border-t border-zinc-200 pt-2 mt-2"><span className="font-semibold text-zinc-900">Toplam</span><span className="text-lg font-bold text-zinc-900">{serverTotals.totalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span></div>
+            </div>
+          </div>
+        )}
         {requiresPaymentGateway ? (
           <>
             <p className="mt-1 text-sm text-zinc-600">
@@ -351,9 +387,23 @@ export default function CheckoutPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex items-center justify-between border-t border-zinc-200 pt-4">
-              <span className="text-base font-semibold text-zinc-900">Toplam</span>
-              <span className="text-xl font-bold text-zinc-900">{totalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+            <div className="mt-4 space-y-2 border-t border-zinc-200 pt-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">Ara Toplam</span>
+                <span className="text-zinc-700">{totalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-500">Kargo</span>
+                {estimatedShipping > 0 ? (
+                  <span className="text-zinc-700">{estimatedShipping.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+                ) : (
+                  <span className="font-medium text-green-600">Ücretsiz</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between border-t border-zinc-200 pt-2">
+                <span className="text-base font-semibold text-zinc-900">Toplam</span>
+                <span className="text-xl font-bold text-zinc-900">{(totalPrice + estimatedShipping).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+              </div>
             </div>
 
             <button

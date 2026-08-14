@@ -3,6 +3,10 @@ import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js
 import { Campaign } from '../../models/Campaign.model.js';
 import { Coupon } from '../../models/Coupon.model.js';
 import { CustomerReview } from '../../models/CustomerReview.model.js';
+import { Customer } from '../../models/Customer.model.js';
+import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
+import { sequelize } from '../../config/database.js';
+import { Op } from 'sequelize';
 
 export const adminCommercialRoutes: Router = Router();
 adminCommercialRoutes.use(authMiddleware, requireRole('owner', 'admin'), requireStore);
@@ -27,3 +31,84 @@ adminCommercialRoutes.delete('/coupons/:id', async (req, res) => { const store =
 
 adminCommercialRoutes.get('/reviews', async (req, res) => { const store = (req as any).store; res.json({ reviews: await CustomerReview.findAll({ where: { storeId: store.id }, order: [['createdAt', 'DESC']] }) }); });
 adminCommercialRoutes.patch('/reviews/:id', async (req, res) => { const store = (req as any).store; const review = await CustomerReview.findOne({ where: { id: req.params.id, storeId: store.id } }); if (!review) return res.status(404).json({ error: 'REVIEW_NOT_FOUND' }); if (!['pending', 'approved', 'rejected'].includes(req.body?.status)) return res.status(400).json({ error: 'INVALID_REVIEW_STATUS' }); await review.update({ status: req.body.status }); res.json({ review }); });
+
+// Customer management
+adminCommercialRoutes.get('/customers', async (req, res) => {
+  const store = (req as any).store;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+  const offset = (page - 1) * limit;
+  const search = (req.query.search as string || '').trim();
+
+  const where: any = { storeId: store.id };
+  if (search) {
+    where[Op.or] = [
+      { name: { [Op.iLike]: `%${search}%` } },
+      { email: { [Op.iLike]: `%${search}%` } },
+      { phone: { [Op.iLike]: `%${search}%` } },
+    ];
+  }
+
+  const { count, rows: customers } = await Customer.findAndCountAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit,
+    offset,
+  });
+
+  const customerIds = customers.map(c => c.id);
+  const orderStats = await DropshippingOrder.findAll({
+    where: { storeId: store.id, customerId: { [Op.in]: customerIds } },
+    attributes: ['customerId', [sequelize.fn('COUNT', sequelize.col('id')), 'orderCount'], [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('totalAmount')), 0), 'totalSpent']],
+    group: ['customerId'],
+    raw: true,
+  });
+
+  const statsMap = new Map<number, { orderCount: number; totalSpent: number }>();
+  for (const s of orderStats as any[]) {
+    statsMap.set(s.customerId, { orderCount: parseInt(s.orderCount || '0'), totalSpent: parseFloat(s.totalSpent || '0') });
+  }
+
+  res.json({
+    customers: customers.map(c => ({
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      isActive: c.isActive,
+      lastLoginAt: c.lastLoginAt,
+      createdAt: c.createdAt,
+      orderCount: statsMap.get(c.id)?.orderCount || 0,
+      totalSpent: statsMap.get(c.id)?.totalSpent || 0,
+    })),
+    total: count,
+    page,
+    limit,
+  });
+});
+
+adminCommercialRoutes.get('/customers/:id', async (req, res) => {
+  const store = (req as any).store;
+  const customer = await Customer.findOne({ where: { id: req.params.id, storeId: store.id } });
+  if (!customer) return res.status(404).json({ error: 'CUSTOMER_NOT_FOUND' });
+
+  const orders = await DropshippingOrder.findAll({
+    where: { storeId: store.id, customerId: customer.id },
+    attributes: ['id', 'orderNumber', 'status', 'totalAmount', 'currency', 'paymentMethod', 'paymentStatus', 'trackingNumber', 'carrier', 'createdAt'],
+    order: [['createdAt', 'DESC']],
+    limit: 50,
+  });
+
+  res.json({
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      isActive: customer.isActive,
+      lastLoginAt: customer.lastLoginAt,
+      createdAt: customer.createdAt,
+    },
+    orders,
+  });
+});

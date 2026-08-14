@@ -71,6 +71,21 @@ export const config = {
     serverKey: process.env.FCM_SERVER_KEY || '',
   },
 
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@rahatio.com.tr',
+  },
+
+  sms: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER || '',
+  },
+
   goldPrice: {
     apiUrl: process.env.GOLD_PRICE_API || 'https://api.gold-api.com/price/XAU',
     cacheTtl: 300,

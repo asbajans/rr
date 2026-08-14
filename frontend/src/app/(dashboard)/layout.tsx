@@ -8,7 +8,7 @@ import {
   Shield, LogOut, CreditCard, Handshake, Rss, FolderKanban,
   MapPin, Truck, FileText, Camera, Palette, MenuIcon,
   FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2, GitMerge,
-  Coins, Wand2, Newspaper,
+  Coins, Wand2, Newspaper, Users,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
@@ -44,6 +44,7 @@ const navGroups = [
     labelKey: 'groupSales',
     items: [
       { href: '/orders', labelKey: 'orders', icon: ShoppingCart },
+      { href: '/customers', labelKey: 'customers', icon: Users },
       { href: '/marketplaces', labelKey: 'marketplaces', icon: ShoppingCart },
       { href: '/b2b', labelKey: 'b2b', icon: Handshake },
       { href: '/b2b/requests', labelKey: 'b2bRequests', icon: Handshake },
