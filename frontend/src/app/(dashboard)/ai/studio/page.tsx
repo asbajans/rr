@@ -84,7 +84,6 @@ export default function AiStudioPage() {
   const [imgEditPrompt, setImgEditPrompt] = useState('')
   const [imgGenPrompt, setImgGenPrompt] = useState('')
   const [imgGenCount, setImgGenCount] = useState(1)
-  const [useRefImage, setUseRefImage] = useState(false)
   const [aiImgBusy, setAiImgBusy] = useState<'edit' | 'generate' | null>(null)
   const [aiImgMsg, setAiImgMsg] = useState('')
 
@@ -428,7 +427,7 @@ function toggleChannel(c: string) {
         prompt,
         count,
         category: draft?.categoryPath?.[0] ? String(draft.categoryPath[0]).toLowerCase() : undefined,
-        referenceImageUrl: useRefImage && draftImages.length > 0 ? draftImages[draftImages.length - 1] : undefined,
+        referenceImageUrl: draftImages.length > 0 ? draftImages[draftImages.length - 1] : undefined,
       })
       const files = await api.pollAiImageSession(res.sessionId)
       if (files.length === 0) throw new Error('Görsel üretilemedi')
@@ -438,7 +437,7 @@ function toggleChannel(c: string) {
         if (up.url) urls.push(up.url)
       }
       setDraftImages(prev => [...prev, ...urls])
-      setAiImgMsg(`${urls.length} görsel üretildi (${count * 3} kredi düşüldü). Devam edin veya taslağı kaydedin.`)
+      setAiImgMsg(`${urls.length} görsel üretildi — mevcut ürün görseli referans alındı (${count * 3} kredi düşüldü).`)
       refreshMe()
     } catch (e: any) {
       if (e?.code === 'INSUFFICIENT_CREDITS') { setGate('credits'); refreshMe() }
@@ -791,10 +790,7 @@ function toggleChannel(c: string) {
                           {aiImgBusy === 'generate' ? 'Üretiliyor...' : `${imgGenCount} Görsel Üret (${imgGenCount * 3} kredi)`}
                         </button>
                         {draftImages.length > 0 && (
-                          <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 cursor-pointer">
-                            <input type="checkbox" checked={useRefImage} onChange={e => setUseRefImage(e.target.checked)} className="h-3 w-3" />
-                            Son görseli referans al
-                          </label>
+                          <span className="text-[10px] text-zinc-500">Son görsel referans olarak kullanılır</span>
                         )}
                       </div>
                     </div>

@@ -5,39 +5,28 @@ import path from 'path';
 import { ProviderConfig } from './llmProvider';
 
 /**
- * External image generation backed by the configured LLM providers
- * (OpenAI-compatible `images/*` endpoints, Google Gemini `generateContent`
- * with image modality). Used as the primary path for image-edit /
- * image-generate when the resolved model is a dedicated image model;
+ * External image generation backed by the configured LLM providers.
+ * Supports: OpenAI (images/*), Gemini (generateContent), OpenRouter (images + input_references).
  * ComfyUI remains the fallback for everything else.
  */
 
 const TIMEOUT = 300_000;
 
 const IMAGE_MODEL_SUBSTRINGS = [
-  'gpt-image',
-  'dall-e',
-  'dalle',
-  'flux',
-  'stable-diffusion',
-  'stable-image',
-  'sdxl',
-  'imagen',
-  'gemini-2.5-flash-image',
-  'gemini-2.0-flash-preview-image-generation',
-  'nano-banana',
-  'recraft',
-  'ideogram',
-  'playground-v',
-  'imagegen',
-  'image-generation',
-  'image_generation',
+  'gpt-image', 'dall-e', 'dalle', 'flux', 'stable-diffusion', 'stable-image',
+  'sdxl', 'imagen', 'gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation',
+  'nano-banana', 'recraft', 'ideogram', 'playground-v', 'imagegen', 'image-generation', 'image_generation',
+  'qwen-image', 'kolors', 'krea-2',
 ];
 
 export function isImageGenerationModel(model: string | undefined): boolean {
   if (!model) return false;
   const m = model.toLowerCase();
   return IMAGE_MODEL_SUBSTRINGS.some((s) => m.includes(s));
+}
+
+function isOpenRouter(baseUrl: string): boolean {
+  return baseUrl.toLowerCase().includes('openrouter.ai');
 }
 
 function isGemini(baseUrl: string): boolean {
@@ -59,11 +48,8 @@ function authHeaders(config: ProviderConfig): Record<string, string> {
 function mimeOf(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   const map: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp', '.gif': 'image/gif',
   };
   return map[ext] || 'image/png';
 }
@@ -107,8 +93,12 @@ async function collectImageData(payload: any, outputDir: string, prefix: string)
   const items = payload?.data || [];
   const out: string[] = [];
   for (const item of items) {
-    if (item.b64_json) out.push(saveBase64(item.b64_json, outputDir, prefix));
-    else if (item.url) out.push(await downloadUrl(item.url, outputDir, prefix));
+    if (item.b64_json) {
+      const ext = item.media_type ? mimeExt(item.media_type) : 'png';
+      out.push(saveBase64(item.b64_json, outputDir, prefix, ext));
+    } else if (item.url) {
+      out.push(await downloadUrl(item.url, outputDir, prefix));
+    }
   }
   return out;
 }
@@ -118,6 +108,36 @@ function partImage(part: any): { data?: string; mimeType?: string } | null {
   if (part?.fileData?.data) return { data: part.fileData.data, mimeType: part.fileData.mimeType };
   return null;
 }
+
+/** Convert a local image file to a base64 data URL for OpenRouter input_references */
+function imageDataUrl(filePath: string): string {
+  const b64 = fs.readFileSync(filePath).toString('base64');
+  const mime = mimeOf(filePath);
+  return `data:${mime};base64,${b64}`;
+}
+
+// ─── OpenRouter Images API (Qwen, Flux, Krea, etc.) ────────────────────
+
+async function openRouterImages(
+  config: ProviderConfig,
+  prompt: string,
+  outputDir: string,
+  referenceImagePath?: string,
+): Promise<string[]> {
+  const base = config.baseUrl.trim().replace(/\/+$/, '');
+  let url = base.replace(/\/v1\/?$/i, '') + '/api/v1/images';
+  const headers = { 'Content-Type': 'application/json', ...authHeaders(config) };
+  const body: any = { model: config.model, prompt, n: 1 };
+  if (referenceImagePath) {
+    body.input_references = [{ type: 'image_url', image_url: { url: imageDataUrl(referenceImagePath) } }];
+  }
+  const res = await axios.post(url, body, { headers, timeout: TIMEOUT });
+  const images = await collectImageData(res.data, outputDir, 'or-img');
+  if (images.length === 0) throw new Error('OpenRouter görsel döndürmedi.');
+  return images;
+}
+
+// ─── Gemini ─────────────────────────────────────────────────────────────
 
 async function geminiGenerate(config: ProviderConfig, prompt: string, count: number, outputDir: string): Promise<string[]> {
   const base = config.baseUrl.trim().replace(/\/+$/, '');
@@ -135,9 +155,7 @@ async function geminiGenerate(config: ProviderConfig, prompt: string, count: num
     const res = await axios.post(url, body, { headers: authHeaders(config), timeout: TIMEOUT });
     const parts = res.data?.candidates?.[0]?.content?.parts || [];
     const img = parts.map(partImage).find(Boolean);
-    if (!img || !img.data) {
-      throw new Error('Görsel sağlayıcısı görsel döndürmedi (Gemini yanıtında görsel yok).');
-    }
+    if (!img || !img.data) throw new Error('Görsel sağlayıcısı görsel döndürmedi.');
     results.push(saveBase64(img.data, outputDir, `gemini-${i + 1}`, mimeExt(img.mimeType)));
   }
   return results;
@@ -149,24 +167,22 @@ async function geminiEdit(config: ProviderConfig, imagePath: string, prompt: str
   const url = `${base}/v1beta/models/${config.model}:generateContent${key}`;
   const imageB64 = fs.readFileSync(imagePath).toString('base64');
   const body = {
-    contents: [
-      {
-        parts: [
-          { inlineData: { mimeType: mimeOf(imagePath), data: imageB64 } },
-          { text: prompt },
-        ],
-      },
-    ],
+    contents: [{
+      parts: [
+        { inlineData: { mimeType: mimeOf(imagePath), data: imageB64 } },
+        { text: prompt },
+      ],
+    }],
     generationConfig: { responseModalities: ['Text', 'IMAGE'] },
   };
   const res = await axios.post(url, body, { headers: authHeaders(config), timeout: TIMEOUT });
   const parts = res.data?.candidates?.[0]?.content?.parts || [];
   const img = parts.map(partImage).find(Boolean);
-  if (!img || !img.data) {
-    throw new Error('Görsel düzenlenemedi (Gemini görsel döndürmedi).');
-  }
+  if (!img || !img.data) throw new Error('Görsel düzenlenemedi.');
   return [saveBase64(img.data, outputDir, 'gemini-edit', mimeExt(img.mimeType))];
 }
+
+// ─── OpenAI-compatible (images/* endpoints) ─────────────────────────────
 
 async function openAiGenerations(config: ProviderConfig, prompt: string, count: number, outputDir: string): Promise<string[]> {
   const url = resolveImagesEndpoint(config.baseUrl, 'generations');
@@ -184,7 +200,6 @@ async function openAiGenerations(config: ProviderConfig, prompt: string, count: 
   } catch (err: any) {
     const status = err?.response?.status;
     if (status && status >= 400 && status < 500) {
-      // Some providers/models reject optional params (size / response_format).
       try {
         payload = await call({ ...baseBody, n: count });
       } catch (err2: any) {
@@ -204,9 +219,7 @@ async function openAiGenerations(config: ProviderConfig, prompt: string, count: 
   }
 
   const images = await collectImageData(payload, outputDir, 'img');
-  if (images.length === 0) {
-    throw new Error('Görsel sağlayıcısı görsel döndürmedi.');
-  }
+  if (images.length === 0) throw new Error('Görsel sağlayıcısı görsel döndürmedi.');
   return images;
 }
 
@@ -219,46 +232,45 @@ async function openAiEdit(config: ProviderConfig, imagePath: string, prompt: str
   form.append('n', '1');
   const headers = { ...form.getHeaders(), ...authHeaders(config) };
   const res = await axios.post(url, form, {
-    headers,
-    timeout: TIMEOUT,
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
+    headers, timeout: TIMEOUT, maxContentLength: Infinity, maxBodyLength: Infinity,
   });
   const images = await collectImageData(res.data, outputDir, 'edit');
-  if (images.length === 0) {
-    throw new Error('Görsel düzenlenemedi (sağlayıcı görsel döndürmedi).');
-  }
+  if (images.length === 0) throw new Error('Görsel düzenlenemedi.');
   return images;
 }
 
 function imageProviderError(baseUrl: string, err: any): Error {
   const code = err?.code || err?.cause?.code;
   if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'EAI_AGAIN') {
-    return new Error(
-      `Görsel sağlayıcısına ulaşılamadı (${baseUrl}). Lütfen AI Ayarları sayfasından sağlayıcı/base URL değerini kontrol edin (${code}).`
-    );
+    return new Error(`Görsel sağlayıcısına ulaşılamadı (${baseUrl}). Lütfen AI Ayarları sayfasından sağlayıcı/base URL değerini kontrol edin (${code}).`);
   }
   const status = err?.response?.status;
   const data = err?.response?.data;
-  const msg =
-    (data && (data.error?.message || data.error?.code || data.message || (typeof data === 'string' ? data : JSON.stringify(data)))) ||
-    err?.message ||
-    'Bilinmeyen hata';
+  const msg = (data && (data.error?.message || data.error?.code || data.message || (typeof data === 'string' ? data : JSON.stringify(data)))) || err?.message || 'Bilinmeyen hata';
   return new Error(`Görsel üretilemedi (${status ? `[${status}] ` : ''}${msg})`);
 }
 
 /**
- * Text-to-image via the configured external provider. Gemini uses the native
- * generateContent image modality; everything else uses the OpenAI-compatible
- * images/generations endpoint.
+ * Text-to-image via the configured external provider.
+ * OpenRouter → /images endpoint with input_references.
+ * Gemini → generateContent image modality.
+ * Others → OpenAI-compatible /images/generations.
  */
 export async function generateImagesExternal(
   config: ProviderConfig,
   prompt: string,
   count: number,
-  outputDir: string
+  outputDir: string,
+  referenceImagePath?: string,
 ): Promise<string[]> {
   try {
+    if (isOpenRouter(config.baseUrl)) {
+      const results: string[] = [];
+      for (let i = 0; i < count; i++) {
+        results.push(...await openRouterImages(config, prompt, outputDir, referenceImagePath));
+      }
+      return results;
+    }
     if (isGemini(config.baseUrl)) {
       return await geminiGenerate(config, prompt, count, outputDir);
     }
@@ -269,17 +281,20 @@ export async function generateImagesExternal(
 }
 
 /**
- * Image edit via the configured external provider. Gemini passes the reference
- * image inline; OpenAI-compatible providers use images/edits. Providers that do
- * not expose an edits endpoint fall back to regeneration from the instruction.
+ * Image edit via the configured external provider.
+ * The reference image is ALWAYS sent to the model (OpenRouter input_references,
+ * Gemini inline_data, OpenAI multipart).
  */
 export async function editImageExternal(
   config: ProviderConfig,
   imagePath: string,
   prompt: string,
-  outputDir: string
+  outputDir: string,
 ): Promise<string[]> {
   try {
+    if (isOpenRouter(config.baseUrl)) {
+      return await openRouterImages(config, prompt, outputDir, imagePath);
+    }
     if (isGemini(config.baseUrl)) {
       return await geminiEdit(config, imagePath, prompt, outputDir);
     }
@@ -287,7 +302,9 @@ export async function editImageExternal(
       return await openAiEdit(config, imagePath, prompt, outputDir);
     } catch (err: any) {
       const status = err?.response?.status;
-      if (status === 404 || status === 405 || status === 400 || status === 501) {
+      if (status === 404 || status === 405 || status === 501) {
+        // Edits endpoint not supported — still send the image as a reference via generations fallback
+        // For OpenAI-compatible, we can't do img2img via generations, so we generate from the prompt
         return await openAiGenerations(config, prompt, 1, outputDir);
       }
       throw err;

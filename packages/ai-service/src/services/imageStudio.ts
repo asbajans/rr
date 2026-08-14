@@ -81,14 +81,9 @@ export async function runImageGenerate(opts: {
   const provider = opts.provider;
   if (provider && provider.model && isImageGenerationModel(provider.model)) {
     if (opts.referenceImagePath) {
-      // Existing product image is used as a reference (image-to-image generation).
-      sendUpdate(opts.sessionId, 'editing', 'Mevcut görsel referans alınarak üretiliyor...');
-      const results: string[] = [];
-      for (let i = 0; i < opts.count; i++) {
-        const edited = await editImageExternal(provider, opts.referenceImagePath, opts.prompt, outputDir);
-        results.push(...edited);
-      }
-      generated = results;
+      // Product image used as reference — pass to generateImagesExternal for input_references
+      sendUpdate(opts.sessionId, 'generating', 'Mevcut görsel referans alınarak üretiliyor...');
+      generated = await generateImagesExternal(provider, opts.prompt, opts.count, outputDir, opts.referenceImagePath);
     } else {
       sendUpdate(opts.sessionId, 'generating', `Görseller harici AI sağlayıcısıyla üretiliyor (${opts.count})...`);
       generated = await generateImagesExternal(provider, opts.prompt, opts.count, outputDir);

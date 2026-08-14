@@ -61,8 +61,8 @@ const SCENARIO_DEFAULTS: Record<string, { name: string; description: string; pai
   generate_image: {
     name: 'Görsel Üretme',
     description: 'Harici sağlayıcılarla yeni ürün görseli üretme / düzenleme',
-    paidModel: 'google/gemini-2.5-flash-image',
-    freeModel: 'google/gemini-2.5-flash-image',
+    paidModel: 'qwen/qwen-image-3',
+    freeModel: 'qwen/qwen-image-3',
     costCredits: 3,
   },
   agentic_listing: {
