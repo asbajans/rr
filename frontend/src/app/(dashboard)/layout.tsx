@@ -62,6 +62,7 @@ const navGroups = [
       { href: '/menus', labelKey: 'menus', icon: MenuIcon },
       { href: '/site-builder', labelKey: 'siteBuilder', icon: Palette },
       { href: '/pixels', labelKey: 'pixels', icon: Tag },
+      { href: '/templates', labelKey: 'templates', icon: Mail },
     ],
   },
   {
@@ -69,7 +70,6 @@ const navGroups = [
     items: [
       { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
-      { href: '/templates', labelKey: 'templates', icon: Mail },
       { href: '/settings', labelKey: 'settings', icon: Settings },
     ],
   },
@@ -181,10 +181,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {/* Bottom */}
           <div className="border-t border-zinc-100 p-3 space-y-1">
-            <div className="flex items-center justify-between px-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{t('groupSettings')}</span>
-              <NotificationBell />
-            </div>
             {user.is_admin && (
               <Link href="/stores"
                 className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
@@ -208,6 +204,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* Main */}
         <div className="flex flex-1 flex-col min-w-0">
+          {/* Desktop header */}
+          <header className="sticky top-0 z-30 hidden h-14 items-center justify-end gap-3 border-b border-zinc-200 bg-white px-6 lg:flex">
+            <NotificationBell />
+            <LanguageSwitcher />
+          </header>
+
           {/* Mobile header */}
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white px-4 lg:hidden">
             <button onClick={() => setMobileOpen(true)} className="rounded-lg p-1.5 text-zinc-600 hover:bg-zinc-100">

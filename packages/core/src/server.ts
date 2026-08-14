@@ -235,6 +235,36 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if the indexes already exist.
   }
 
+  // Backfill: create Customer records from existing orders that have email but no customerId
+  try {
+    const [orphanOrders] = await sequelize.query(`
+      SELECT DISTINCT ON ("storeId", "customerEmail")
+        id, "storeId", "customerName", "customerEmail", "customerPhone", marketplace
+      FROM dropshipping_orders
+      WHERE "customerEmail" IS NOT NULL AND "customerEmail" != ''
+        AND "customerId" IS NULL
+      ORDER BY "storeId", "customerEmail", "createdAt" DESC
+    `);
+    for (const order of orphanOrders as any[]) {
+      const email = order.customerEmail.trim().toLowerCase();
+      const [cust] = await sequelize.query(`
+        INSERT INTO customers ("storeId", email, "passwordHash", name, phone, source, "isActive", "createdAt", "updatedAt")
+        VALUES ($1, $2, NULL, $3, $4, $5, true, NOW(), NOW())
+        ON CONFLICT ("storeId", email) DO UPDATE SET
+          name = COALESCE(NULLIF(EXCLUDED.name, ''), customers.name),
+          phone = COALESCE(NULLIF(EXCLUDED.phone, ''), customers.phone)
+        RETURNING id
+      `, { bind: [order.storeId, email, order.customerName || email.split('@')[0], order.customerPhone || null, order.marketplace === 'storefront' ? 'storefront' : 'marketplace'] });
+      const custId = (cust as any[])[0]?.id;
+      if (custId) {
+        await sequelize.query(`UPDATE dropshipping_orders SET "customerId" = $1 WHERE "customerEmail" = $2 AND "storeId" = $3 AND "customerId" IS NULL`, { bind: [custId, order.customerEmail, order.storeId] });
+      }
+    }
+    if ((orphanOrders as any[]).length > 0) console.log(`[migration] Backfilled ${(orphanOrders as any[]).length} customer(s) from existing orders`);
+  } catch (e: any) {
+    console.warn('[migration] Customer backfill skipped:', e.message);
+  }
+
   // AI Product Studio tables are created by sync; add future-safe columns here
   try {
     await sequelize.query(`ALTER TABLE ai_product_sessions ADD COLUMN IF NOT EXISTS "idempotencyKey" VARCHAR(128)`);
