@@ -277,7 +277,7 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
           await notifyCustomer(customer, { type: `order_${status}`, title: email.subject, body: email.html, metadata: { orderId: order.id, status } });
         } else {
           const { notificationProviders } = await import('../customer/notifications.js');
-          const providers = notificationProviders();
+          const providers = notificationProviders(store.id);
           await providers.email.send(order.customerEmail, email.subject, email.html);
         }
       } catch (err: any) {

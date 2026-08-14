@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { Customer } from '../../models/Customer.model.js';
 import { CustomerNotification } from '../../models/CustomerNotification.model.js';
+import { Setting } from '../../models/Setting.model.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
@@ -9,25 +10,51 @@ export interface EmailProvider { send(to: string, subject: string, body: string)
 export interface SmsProvider { send(to: string, body: string): Promise<void>; }
 export interface PushProvider { send(customerId: number, title: string, body: string, metadata?: object): Promise<void>; }
 
-let _transporter: nodemailer.Transporter | null = null;
+const _transporterCache = new Map<string, nodemailer.Transporter>();
 
-function getTransporter(): nodemailer.Transporter | null {
-  if (_transporter) return _transporter;
-  const { host, port, secure, user, pass } = config.smtp;
+async function getSmtpConfig(storeId: number): Promise<{ host: string; port: number; secure: boolean; user: string; pass: string; from: string }> {
+  const setting = await Setting.findOne({ where: { key: `smtp:${storeId}` } });
+  if (setting?.value?.host && setting.value.user) {
+    return { host: setting.value.host, port: Number(setting.value.port) || 587, secure: !!setting.value.secure, user: setting.value.user, pass: setting.value.pass || '', from: setting.value.from || setting.value.user };
+  }
+  return { host: config.smtp.host, port: config.smtp.port, secure: config.smtp.secure, user: config.smtp.user, pass: config.smtp.pass, from: config.smtp.from };
+}
+
+async function getSmsConfig(storeId: number): Promise<{ accountSid: string; authToken: string; phoneNumber: string }> {
+  const setting = await Setting.findOne({ where: { key: `sms:${storeId}` } });
+  if (setting?.value?.accountSid && setting.value.authToken) {
+    return { accountSid: setting.value.accountSid, authToken: setting.value.authToken, phoneNumber: setting.value.phoneNumber || '' };
+  }
+  return { accountSid: config.sms.accountSid, authToken: config.sms.authToken, phoneNumber: config.sms.phoneNumber };
+}
+
+async function getTransporter(storeId: number): Promise<nodemailer.Transporter | null> {
+  const cacheKey = String(storeId);
+  if (_transporterCache.has(cacheKey)) return _transporterCache.get(cacheKey)!;
+  const { host, port, secure, user, pass } = await getSmtpConfig(storeId);
   if (!host || !user) {
-    logger.warn('[notifications] SMTP not configured — emails will be skipped');
+    logger.warn(`[notifications] SMTP not configured for store ${storeId} — emails will be skipped`);
     return null;
   }
-  _transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
-  return _transporter;
+  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+  _transporterCache.set(cacheKey, transporter);
+  return transporter;
+}
+
+// Clear transporter cache when settings change
+export function clearSmtpCache(storeId: number) {
+  _transporterCache.delete(String(storeId));
 }
 
 class SmtpEmailProvider implements EmailProvider {
+  private storeId: number;
+  constructor(storeId: number) { this.storeId = storeId; }
   async send(to: string, subject: string, body: string): Promise<void> {
-    const transporter = getTransporter();
+    const transporter = await getTransporter(this.storeId);
     if (!transporter) return;
+    const smtp = await getSmtpConfig(this.storeId);
     try {
-      await transporter.sendMail({ from: config.smtp.from, to, subject, html: body });
+      await transporter.sendMail({ from: smtp.from, to, subject, html: body });
       logger.info(`[notifications] Email sent to ${to}: ${subject}`);
     } catch (err: any) {
       logger.error(`[notifications] Email failed to ${to}: ${err.message}`);
@@ -36,8 +63,10 @@ class SmtpEmailProvider implements EmailProvider {
 }
 
 class TwilioSmsProvider implements SmsProvider {
+  private storeId: number;
+  constructor(storeId: number) { this.storeId = storeId; }
   async send(to: string, body: string): Promise<void> {
-    const { accountSid, authToken, phoneNumber } = config.sms;
+    const { accountSid, authToken, phoneNumber } = await getSmsConfig(this.storeId);
     if (!accountSid || !authToken || !phoneNumber) return;
     try {
       const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
@@ -60,8 +89,8 @@ class NoopPushProvider implements PushProvider {
   async send(_customerId: number, _title: string, _body: string, _metadata?: object) {}
 }
 
-export function notificationProviders() {
-  return { email: new SmtpEmailProvider(), sms: new TwilioSmsProvider(), push: new NoopPushProvider() };
+export function notificationProviders(storeId: number = 0) {
+  return { email: new SmtpEmailProvider(storeId), sms: new TwilioSmsProvider(storeId), push: new NoopPushProvider() };
 }
 
 export async function notifyCustomer(customer: Customer, input: CustomerNotificationInput) {
@@ -74,7 +103,7 @@ export async function notifyCustomer(customer: Customer, input: CustomerNotifica
     metadata: input.metadata || null,
     readAt: null,
   });
-  const providers = notificationProviders();
+  const providers = notificationProviders(customer.storeId);
   await Promise.allSettled([
     providers.email.send(customer.email, input.title, input.body),
     customer.phone ? providers.sms.send(customer.phone, input.body) : Promise.resolve(),

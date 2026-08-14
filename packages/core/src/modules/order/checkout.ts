@@ -316,7 +316,7 @@ export async function createCheckoutOrder(
           await notifyCustomer(customer, { type: 'order_created', title: email.subject, body: email.html, metadata: { orderId: order.id } });
         } else if (customer?.email) {
           const { notificationProviders } = await import('../customer/notifications.js');
-          const providers = notificationProviders();
+          const providers = notificationProviders(store.id);
           await providers.email.send(customer.email, email.subject, email.html);
         }
       } catch (err: any) {

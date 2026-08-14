@@ -6,6 +6,8 @@ import { CustomerReview } from '../../models/CustomerReview.model.js';
 import { Customer } from '../../models/Customer.model.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { NotificationTemplate, DEFAULT_EMAIL_TEMPLATES, DEFAULT_SMS_TEMPLATES } from '../../models/NotificationTemplate.model.js';
+import { Setting } from '../../models/Setting.model.js';
+import { clearSmtpCache } from './notifications.js';
 import { sequelize } from '../../config/database.js';
 import { Op } from 'sequelize';
 
@@ -162,4 +164,57 @@ adminCommercialRoutes.put('/templates', async (req, res) => {
   }
 
   res.json({ template });
+});
+
+// SMTP settings
+adminCommercialRoutes.get('/smtp', async (req, res) => {
+  const store = (req as any).store;
+  const setting = await Setting.findOne({ where: { key: `smtp:${store.id}` } });
+  const value = setting?.value || {};
+  // Mask password for security
+  res.json({ smtp: { host: value.host || '', port: value.port || 587, secure: value.secure || false, user: value.user || '', pass: value.pass ? '••••••' : '', from: value.from || '' } });
+});
+
+adminCommercialRoutes.put('/smtp', async (req, res) => {
+  const store = (req as any).store;
+  const { host, port, secure, user, pass, from } = req.body || {};
+  if (!host || !user) return res.status(400).json({ error: 'SMTP host ve kullanıcı zorunludur' });
+
+  const existing = await Setting.findOne({ where: { key: `smtp:${store.id}` } });
+  const currentValue = existing?.value || {};
+  // If pass is the masked value, keep the old one
+  const resolvedPass = pass === '••••••' ? (currentValue.pass || '') : (pass || '');
+
+  const value = { host, port: Number(port) || 587, secure: !!secure, user, pass: resolvedPass, from: from || user };
+  if (existing) {
+    await existing.update({ value });
+  } else {
+    await Setting.create({ key: `smtp:${store.id}`, value });
+  }
+  clearSmtpCache(store.id);
+  res.json({ ok: true });
+});
+
+// SMS (Twilio) settings
+adminCommercialRoutes.get('/sms', async (req, res) => {
+  const store = (req as any).store;
+  const setting = await Setting.findOne({ where: { key: `sms:${store.id}` } });
+  const value = setting?.value || {};
+  res.json({ sms: { accountSid: value.accountSid || '', authToken: value.authToken ? '••••••' : '', phoneNumber: value.phoneNumber || '' } });
+});
+
+adminCommercialRoutes.put('/sms', async (req, res) => {
+  const store = (req as any).store;
+  const { accountSid, authToken, phoneNumber } = req.body || {};
+  const existing = await Setting.findOne({ where: { key: `sms:${store.id}` } });
+  const currentValue = existing?.value || {};
+  const resolvedAuthToken = authToken === '••••••' ? (currentValue.authToken || '') : (authToken || '');
+
+  const value = { accountSid: accountSid || '', authToken: resolvedAuthToken, phoneNumber: phoneNumber || '' };
+  if (existing) {
+    await existing.update({ value });
+  } else {
+    await Setting.create({ key: `sms:${store.id}`, value });
+  }
+  res.json({ ok: true });
 });

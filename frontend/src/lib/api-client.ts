@@ -1830,6 +1830,22 @@ class ApiClient {
     return this.put<any>('/api/admin/commercial/templates', data)
   }
 
+  getSmtpSettings() {
+    return this.get<any>('/api/admin/commercial/smtp').then(r => r.smtp)
+  }
+
+  updateSmtpSettings(data: { host: string; port: number; secure: boolean; user: string; pass: string; from: string }) {
+    return this.put<any>('/api/admin/commercial/smtp', data)
+  }
+
+  getSmsSettings() {
+    return this.get<any>('/api/admin/commercial/sms').then(r => r.sms)
+  }
+
+  updateSmsSettings(data: { accountSid: string; authToken: string; phoneNumber: string }) {
+    return this.put<any>('/api/admin/commercial/sms', data)
+  }
+
   createAdminPlan(data: Record<string, any>) {
     return this.post<any>('/api/admin/plans', data)
   }

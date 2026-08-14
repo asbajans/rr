@@ -5,7 +5,8 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Key, Plus, Trash2, Copy, Download, Globe, Server } from 'lucide-react'
+import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SettingsPage() {
   const { user, store, productLimit } = useAuth()
@@ -144,6 +145,17 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        <Link href="/settings/notifications"
+          className="flex items-center gap-3 rounded-xl border border-zinc-200 p-6 hover:bg-zinc-50 transition">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
+            <Bell className="h-5 w-5 text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-900">Bildirim Ayarları</h2>
+            <p className="text-sm text-zinc-600">Email (SMTP) ve SMS (Twilio) ayarlarını yapılandırın</p>
+          </div>
+        </Link>
 
         {storeSettings && (
           <div className="rounded-xl border border-zinc-200 p-6">
