@@ -259,6 +259,7 @@ export type StoreProduct = {
   price: number | null
   currency: string | null
   image: string | null
+  images: string[]
   description: string | null
 }
 

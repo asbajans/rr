@@ -778,20 +778,21 @@ function toggleChannel(c: string) {
                     </div>
                     <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-800/60 p-3">
                       <p className="text-[11px] font-medium text-zinc-400">Yeni Görsel(ler) Üret (sıfırdan)</p>
+                      {draftImages.length > 0 && (
+                        <p className="mt-1 text-[10px] text-zinc-500">Zaten görsel var — mevcut görseli düzenlemek için "Son Görseli Düzenle" butonunu kullanın.</p>
+                      )}
                       <input value={imgGenPrompt} onChange={e => setImgGenPrompt(e.target.value)}
+                        disabled={draftImages.length > 0}
                         placeholder="örn: ürünün mavi kadife kutu içinde çekimi, beyaz arka plan"
-                        className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                        className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed" />
                       <div className="mt-2 flex items-center gap-2">
                         <button type="button"
                           onClick={handleGenerateImages}
-                          disabled={aiImgBusy !== null}
-                          className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-medium text-black hover:bg-zinc-200 disabled:opacity-40">
+                          disabled={aiImgBusy !== null || draftImages.length > 0}
+                          className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-medium text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed">
                           {aiImgBusy === 'generate' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
                           {aiImgBusy === 'generate' ? 'Üretiliyor...' : `${imgGenCount} Görsel Üret (${imgGenCount * 3} kredi)`}
                         </button>
-                        {draftImages.length > 0 && (
-                          <span className="text-[10px] text-zinc-500">Son görsel referans olarak kullanılır</span>
-                        )}
                       </div>
                     </div>
                     {aiImgMsg && <p className="mt-2 text-[11px] text-zinc-400">{aiImgMsg}</p>}

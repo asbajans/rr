@@ -10,9 +10,10 @@ import StoreHero from '@/components/store/StoreHero'
 
 function toStoreProduct(p: any): StoreProduct {
   const images = Array.isArray(p.images) ? p.images : p.images ?? []
-  const firstImage = images.length > 0
-    ? (typeof images[0] === 'string' ? images[0] : images[0]?.url ?? images[0]?.src ?? null)
-    : null
+  const allImages: string[] = images
+    .map((img: any) => typeof img === 'string' ? img : img?.url ?? img?.src ?? null)
+    .filter(Boolean)
+  const firstImage = allImages.length > 0 ? allImages[0] : null
   return {
     'product.id': String(p.id ?? p['product.id'] ?? ''),
     'product.code': p.sku ?? p.code ?? '',
@@ -21,6 +22,7 @@ function toStoreProduct(p: any): StoreProduct {
     price: p.price ?? p.priceTRY ?? null,
     currency: p.price_currency ?? (p.priceTRY != null ? 'TRY' : p.priceUSD != null ? 'USD' : 'TRY'),
     image: firstImage,
+    images: allImages,
     description: p.description ?? null,
   }
 }

@@ -54,9 +54,10 @@ function mapProduct(p: any): any {
 
 function toStoreProduct(p: any): any {
   const m = mapProduct(p)
-  const firstImage = Array.isArray(m.images) && m.images.length > 0
-    ? (typeof m.images[0] === 'string' ? m.images[0] : m.images[0]?.url ?? null)
-    : null
+  const allImages: string[] = Array.isArray(m.images)
+    ? m.images.map((img: any) => typeof img === 'string' ? img : img?.url ?? null).filter(Boolean)
+    : []
+  const firstImage = allImages.length > 0 ? allImages[0] : null
   return {
     'product.id': String(m.id ?? ''),
     'product.code': m.code ?? '',
@@ -65,6 +66,7 @@ function toStoreProduct(p: any): any {
     price: m.price ?? null,
     currency: m.price_currency ?? null,
     image: firstImage,
+    images: allImages,
     description: m.description ?? null,
   }
 }

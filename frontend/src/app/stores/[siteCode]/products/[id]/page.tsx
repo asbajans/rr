@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Minus, Sparkles } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import type { StoreProduct } from '@/lib/types'
@@ -19,6 +19,8 @@ export default function StoreProductDetailPage() {
   const [added, setAdded] = useState(false)
   const [recommendations, setRecommendations] = useState<StoreProduct[]>([])
   const [loadingRecs, setLoadingRecs] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(0)
+  const [zoomImage, setZoomImage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!siteCode || !id) return
@@ -62,6 +64,12 @@ export default function StoreProductDetailPage() {
       .map(x => x.p)
   }
 
+  const allImages: string[] = product?.images?.length
+    ? product.images
+    : product?.image
+    ? [product.image]
+    : []
+
   function handleAddToCart() {
     if (!product) return
     addItem({
@@ -69,7 +77,7 @@ export default function StoreProductDetailPage() {
       sku: product['product.code'],
       name: product['product.label'],
       price: product.price ?? 0,
-      image: product.image ?? undefined,
+      image: allImages[0] ?? undefined,
       quantity,
     })
     setAdded(true)
@@ -104,14 +112,36 @@ export default function StoreProductDetailPage() {
       </Link>
 
       <div className="mt-8 grid grid-cols-1 gap-12 lg:grid-cols-2">
-        <div className="aspect-square overflow-hidden rounded-xl bg-zinc-100">
-          {product.image ? (
-            <img src={product.image} alt={product['product.label']} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full items-center justify-center text-zinc-300">
-              <svg className="h-24 w-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+        <div>
+          <div
+            className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-100 cursor-zoom-in"
+            onClick={() => allImages[selectedImage] && setZoomImage(allImages[selectedImage])}
+          >
+            {allImages[selectedImage] ? (
+              <img src={allImages[selectedImage]} alt={product['product.label']}
+                className="h-full w-full object-contain" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-zinc-300">
+                <svg className="h-24 w-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            )}
+            <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/50 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity">
+              <ZoomIn className="h-3 w-3" /> Tam Boyut
+            </div>
+          </div>
+
+          {allImages.length > 1 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {allImages.map((img, idx) => (
+                <button key={idx} onClick={() => setSelectedImage(idx)}
+                  className={`flex-shrink-0 h-16 w-16 overflow-hidden rounded-lg border-2 transition-colors ${
+                    idx === selectedImage ? 'border-zinc-900' : 'border-zinc-200 hover:border-zinc-400'
+                  }`}>
+                  <img src={img} alt={`Görsel ${idx + 1}`} className="h-full w-full object-contain bg-zinc-50" />
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -158,7 +188,7 @@ export default function StoreProductDetailPage() {
                 sku: product['product.code'],
                 name: product['product.label'],
                 price: product.price ?? 0,
-                image: product.image ?? undefined,
+                image: allImages[0] ?? undefined,
                 quantity,
               })
               router.push(`/stores/${siteCode}/cart`)
@@ -167,40 +197,50 @@ export default function StoreProductDetailPage() {
           >
             Hemen Al
           </button>
+        </div>
+      </div>
+
+      {recommendations.length > 0 && (
+        <div className="mt-16">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-zinc-400" />
+            <h2 className="text-lg font-semibold text-zinc-900">Benzer Ürünler</h2>
+            {loadingRecs && <span className="text-xs text-zinc-400">Yükleniyor...</span>}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {recommendations.map((p: any) => (
+              <Link key={p['product.id']} href={`/stores/${siteCode}/products/${p['product.id']}`}
+                className="group rounded-xl border border-zinc-200 p-3 transition-colors hover:border-zinc-300">
+                <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
+                  {p.image ? (
+                    <img src={p.image} alt={p['product.label']} className="h-full w-full object-contain transition-transform group-hover:scale-105" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-zinc-200">
+                      <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <h3 className="mt-2 text-sm font-medium text-zinc-900 truncate">{p['product.label']}</h3>
+                {p.price !== null && (
+                  <p className="text-sm font-semibold text-zinc-900">{p.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency ?? 'TRY'}</p>
+                )}
+              </Link>
+            ))}
           </div>
         </div>
+      )}
 
-        {recommendations.length > 0 && (
-          <div className="mt-16">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-zinc-400" />
-              <h2 className="text-lg font-semibold text-zinc-900">Benzer Ürünler</h2>
-              {loadingRecs && <span className="text-xs text-zinc-400">Yükleniyor...</span>}
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {recommendations.map((p: any) => (
-                <Link key={p['product.id']} href={`/stores/${siteCode}/products/${p['product.id']}`}
-                  className="group rounded-xl border border-zinc-200 p-3 transition-colors hover:border-zinc-300">
-                  <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
-                    {p.image ? (
-                      <img src={p.image} alt={p['product.label']} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-zinc-200">
-                        <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <h3 className="mt-2 text-sm font-medium text-zinc-900 truncate">{p['product.label']}</h3>
-                  {p.price !== null && (
-                    <p className="text-sm font-semibold text-zinc-900">{p.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency ?? 'TRY'}</p>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+      {zoomImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 cursor-zoom-out"
+          onClick={() => setZoomImage(null)}>
+          <img src={zoomImage} alt="Tam boyut"
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg" />
+          <button onClick={() => setZoomImage(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white text-3xl font-bold">&times;</button>
+        </div>
+      )}
     </div>
   )
 }
