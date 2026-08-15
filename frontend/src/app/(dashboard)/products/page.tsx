@@ -132,6 +132,14 @@ export default function ProductsPage() {
   const [bulkB2bPrice, setBulkB2bPrice] = useState<string>('')
   const [bulkB2bRunning, setBulkB2bRunning] = useState(false)
 
+  // bulk price update modal
+  const [bulkPriceOpen, setBulkPriceOpen] = useState(false)
+  const [bulkPriceMode, setBulkPriceMode] = useState<'percentage' | 'fixed'>('percentage')
+  const [bulkPriceAmount, setBulkPriceAmount] = useState<string>('')
+  const [bulkPriceCurrency, setBulkPriceCurrency] = useState<'TRY' | 'USD'>('TRY')
+  const [bulkPriceApplyTo, setBulkPriceApplyTo] = useState<'sale' | 'list' | 'both'>('sale')
+  const [bulkPriceRunning, setBulkPriceRunning] = useState(false)
+
   // per-marketplace verify
   const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
   const [syncingMp, setSyncingMp] = useState<string | null>(null)
@@ -691,6 +699,27 @@ export default function ProductsPage() {
     }
   }
 
+  async function handleBulkPriceUpdate() {
+    if (selected.length === 0 || bulkPriceAmount.trim() === '') return
+    setBulkPriceRunning(true)
+    try {
+      await api.bulkPriceUpdate(selected.map(Number), {
+        mode: bulkPriceMode,
+        amount: Number(bulkPriceAmount),
+        currency: bulkPriceCurrency,
+        applyTo: bulkPriceApplyTo,
+      })
+      setBulkPriceOpen(false)
+      setBulkPriceAmount('')
+      setSelected([])
+      setReloadKey((k) => k + 1)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setBulkPriceRunning(false)
+    }
+  }
+
   async function handleBulkAi() {
     if (selected.length === 0) return
     setBulkAiRunning(true)
@@ -914,6 +943,12 @@ export default function ProductsPage() {
                 Toplu B2B Aç
               </button>
             )}
+            <button
+              onClick={() => setBulkPriceOpen(true)}
+              className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded text-sm hover:bg-amber-50"
+            >
+              Toplu Fiyat Güncelle
+            </button>
           </div>
         )}
       </div>
@@ -1712,6 +1747,96 @@ export default function ProductsPage() {
                   className="px-3 py-1.5 bg-emerald-600 text-white rounded text-sm"
                 >
                   B2B'ye Aç
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkPriceOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-[480px] max-w-full shadow-xl">
+            <h3 className="font-semibold text-lg mb-2">Toplu Fiyat Güncelleme</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {selected.length} ürün için fiyat güncellenecek.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">İşlem Türü</label>
+                <select
+                  value={bulkPriceMode}
+                  onChange={(e) => setBulkPriceMode(e.target.value as 'percentage' | 'fixed')}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  disabled={bulkPriceRunning}
+                >
+                  <option value="percentage">Yüzde (%)</option>
+                  <option value="fixed">Sabit Tutar (₺/$)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">
+                  {bulkPriceMode === 'percentage' ? 'Oran (%)' : 'Tutar'}
+                </label>
+                <input
+                  type="number"
+                  value={bulkPriceAmount}
+                  onChange={(e) => setBulkPriceAmount(e.target.value)}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  placeholder={bulkPriceMode === 'percentage' ? 'Örn: 20 (%%20 zam)' : 'Örn: 50'}
+                  disabled={bulkPriceRunning}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {bulkPriceMode === 'percentage'
+                    ? 'Pozitif = zam, Negatif = indirim (Örn: -10 = %%10 indirim)'
+                    : 'Pozitif = zam, Negatif = indirim (Örn: -25 = 25₺ indirim)'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Para Birimi</label>
+                <select
+                  value={bulkPriceCurrency}
+                  onChange={(e) => setBulkPriceCurrency(e.target.value as 'TRY' | 'USD')}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  disabled={bulkPriceRunning}
+                >
+                  <option value="TRY">₺ TRY</option>
+                  <option value="USD">$ USD</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Nereye Uygulanacak</label>
+                <select
+                  value={bulkPriceApplyTo}
+                  onChange={(e) => setBulkPriceApplyTo(e.target.value as 'sale' | 'list' | 'both')}
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                  disabled={bulkPriceRunning}
+                >
+                  <option value="sale">Satış Fiyatı</option>
+                  <option value="list">Liste Fiyatı</option>
+                  <option value="both">Her İkisi</option>
+                </select>
+              </div>
+            </div>
+
+            {bulkPriceRunning && <div className="mb-3 text-sm text-gray-700">Güncelleniyor…</div>}
+            <div className="flex justify-end gap-2">
+              {!bulkPriceRunning && (
+                <button onClick={() => setBulkPriceOpen(false)} className="px-3 py-1.5 border rounded text-sm">
+                  Kapat
+                </button>
+              )}
+              {!bulkPriceRunning && (
+                <button
+                  onClick={handleBulkPriceUpdate}
+                  disabled={bulkPriceAmount.trim() === ''}
+                  className="px-3 py-1.5 bg-amber-600 text-white rounded text-sm disabled:opacity-40"
+                >
+                  Fiyat Güncelle
                 </button>
               )}
             </div>

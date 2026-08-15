@@ -1646,9 +1646,10 @@ class ApiClient {
     if (data.price !== undefined) {
       if (data.price_currency === 'USD') payload.priceUSD = data.price
       else payload.priceTRY = data.price
+    } else {
+      if (data.price_try != null) payload.priceTRY = data.price_try
+      if (data.price_usd != null) payload.priceUSD = data.price_usd
     }
-    if (data.price_try != null) payload.priceTRY = data.price_try
-    if (data.price_usd != null) payload.priceUSD = data.price_usd
     if (data.stock != null) payload.quantity = data.stock
     if (data.status != null) payload.isActive = data.status === '1' || data.status === true || data.status === 1
     if (data.marketplaces) payload.marketplaces = data.marketplaces
@@ -1670,6 +1671,10 @@ class ApiClient {
 
   deleteAdminProductsBulk(ids: string[]) {
     return this.post<{ success: boolean; deleted: number }>('/api/admin/products/bulk-delete', { ids: ids.map(Number) })
+  }
+
+  bulkPriceUpdate(ids: number[], data: { mode: 'percentage' | 'fixed'; amount: number; currency?: string; applyTo?: string }) {
+    return this.post<{ success: boolean; updated: number }>('/api/admin/products/bulk-price-update', { ids, ...data })
   }
 
   getMarketplaceTrees() {

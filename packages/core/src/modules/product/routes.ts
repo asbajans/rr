@@ -266,6 +266,64 @@ productRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requ
   }
 });
 
+productRoutes.post('/bulk-price-update', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('ids').isArray({ min: 1 }),
+  body('mode').isIn(['percentage', 'fixed']),
+  body('amount').isFloat(),
+  body('currency').optional().isIn(['TRY', 'USD']),
+  body('applyTo').optional().isIn(['sale', 'list', 'both']),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { ids, mode, amount, currency = 'TRY', applyTo = 'sale' } = req.body;
+
+    const products = await Product.findAll({ where: { id: ids, storeId: store.id } });
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'No matching products found' });
+    }
+
+    let updated = 0;
+    for (const product of products) {
+      const patch: Record<string, any> = {};
+
+      if (currency === 'USD') {
+        const base = product.priceUSD || product.priceTRY || 0;
+        if (mode === 'percentage') {
+          const newPrice = Math.max(0, Math.round(base * (1 + amount / 100) * 100) / 100);
+          if (applyTo === 'sale' || applyTo === 'both') patch.priceUSD = newPrice;
+          if (applyTo === 'list' || applyTo === 'both') patch.discountedPrice = newPrice;
+        } else {
+          const newPrice = Math.max(0, Math.round((base + amount) * 100) / 100);
+          if (applyTo === 'sale' || applyTo === 'both') patch.priceUSD = newPrice;
+          if (applyTo === 'list' || applyTo === 'both') patch.discountedPrice = newPrice;
+        }
+      } else {
+        const base = product.priceTRY || 0;
+        if (mode === 'percentage') {
+          const newPrice = Math.max(0, Math.round(base * (1 + amount / 100)));
+          if (applyTo === 'sale' || applyTo === 'both') patch.priceTRY = newPrice;
+          if (applyTo === 'list' || applyTo === 'both') patch.discountedPrice = newPrice;
+        } else {
+          const newPrice = Math.max(0, base + amount);
+          if (applyTo === 'sale' || applyTo === 'both') patch.priceTRY = newPrice;
+          if (applyTo === 'list' || applyTo === 'both') patch.discountedPrice = newPrice;
+        }
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await product.update(patch);
+        updated++;
+      }
+    }
+
+    logger.info(`Bulk price update (${mode}, ${amount}) for ${updated} products by store ${store.id}`);
+    res.json({ success: true, updated });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Bulk price update error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 productRoutes.post('/bulk-delete', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   body('ids').isArray({ min: 1 }),
 ], validate, async (req: Request, res: Response) => {
