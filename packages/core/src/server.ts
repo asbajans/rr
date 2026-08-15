@@ -402,6 +402,22 @@ export const createApp = async (): Promise<Express> => {
     logger.warn({ err: e }, 'AI defaults seed failed');
   }
 
+  // Seed default categories (idempotent)
+  try {
+    const { Category } = await import('./models/Category.model.js');
+    const defaultCategories = [
+      { name: { tr: 'Oto Yedek Parça', en: 'Auto Spare Parts' }, slug: 'oto-yedek-parca', sortOrder: 0 },
+    ];
+    for (const cat of defaultCategories) {
+      await Category.findOrCreate({
+        where: { storeId: null, slug: cat.slug } as any,
+        defaults: { ...cat, isActive: true } as any,
+      });
+    }
+  } catch (e) {
+    // Ignore if categories table not ready
+  }
+
   // Migrate existing admin user to superadmin role
   try {
     await sequelize.query(

@@ -11,7 +11,7 @@ import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldC
 type ChannelSelection = { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }
 
 const ALL_CHANNELS = [
-  { key: 'storefront', n: 'Mağaza' },
+  { key: 'storefront', n: 'Kendi Sitem' },
   { key: 'trendyol', n: 'Trendyol' },
   { key: 'n11', n: 'N11' },
   { key: 'hepsiburada', n: 'Hepsiburada' },
@@ -70,7 +70,7 @@ export default function AiStudioPage() {
   const [category, setCategory] = useState('diger')
   const [notes, setNotes] = useState({ short_description: '', keywords: '' })
   const [suggestPrice, setSuggestPrice] = useState(true)
-  const [targetMps, setTargetMps] = useState<string[]>(['trendyol', 'n11'])
+  const [targetMps, setTargetMps] = useState<string[]>(['storefront'])
   const [creating, setCreating] = useState(false)
 
   // Draft

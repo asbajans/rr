@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, StoreTheme, StoreHomepage, SiteDeployment } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Palette, Type, Code, Upload, Image, Rocket, Undo2, History, LayoutTemplate } from 'lucide-react'
+import { Palette, Type, Code, Upload, Image, Rocket, Undo2, History, LayoutTemplate, MessageCircle } from 'lucide-react'
 
 const FONT_OPTIONS = ['Inter', 'Playfair Display', 'Roboto', 'Open Sans']
 
@@ -554,6 +554,22 @@ export default function SiteBuilderPage() {
                 <option key={f} value={f}>{f}</option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* WhatsApp Contact */}
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-green-500" />
+            <h2 className="text-lg font-semibold text-zinc-900">WhatsApp İletişim</h2>
+          </div>
+          <div className="mt-4 max-w-md">
+            <label className="block text-sm font-medium text-zinc-900">WhatsApp Telefon Numarası</label>
+            <input type="tel" value={theme.whatsapp_number || ''}
+              onChange={(e) => updateTheme({ whatsapp_number: e.target.value })}
+              placeholder="+90 5XX XXX XX XX"
+              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+            <p className="mt-1 text-xs text-zinc-500">Ülke kodu ile birlikte girin. Boş bırakırsanız buton gösterilmez.</p>
           </div>
         </div>
 

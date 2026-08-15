@@ -6,6 +6,7 @@ import { type ReactNode, useState, useEffect } from 'react'
 import { CartProvider, useCart } from '@/lib/cart'
 import { ShoppingCart, MapPin, UserRound, Menu, X, Newspaper } from 'lucide-react'
 import AiChat from '@/components/store/AiChat'
+import WhatsAppButton from '@/components/store/WhatsAppButton'
 import PixelInjector from '@/components/store/PixelInjector'
 import StoreThemeInjector from '@/components/store/StoreTheme'
 import { StoreMenuBar, StoreFooterMenus } from '@/components/store/StoreMenuBar'
@@ -199,6 +200,7 @@ export default function StoreLayout({ children }: { children: ReactNode }) {
           </div>
         </footer>
         {siteCode && <AiChat siteCode={siteCode} />}
+        {siteCode && <WhatsAppButton siteCode={siteCode} />}
       </div>
       {siteCode && <PixelInjector siteCode={siteCode} />}
     </CartProvider>
