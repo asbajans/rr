@@ -349,6 +349,13 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Product attributes (key-value pairs shown on storefront)
+  try {
+    await sequelize.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS attributes JSONB`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Normalize plan.modules: NULL → {} (empty means no modules selected → all
   // module-gated features are disabled; see isModuleEnabled). Also convert
   // legacy boolean module values into { enabled } objects.

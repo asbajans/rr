@@ -25,7 +25,7 @@ function toStoreProduct(p: any): StoreProduct {
     images: allImages,
     description: p.description ?? null,
     tags: p.tags ?? null,
-    marketplaceConfig: p.marketplaceConfig ?? null,
+    attributes: p.attributes ?? null,
   }
 }
 

@@ -112,6 +112,7 @@ async function resolveProduct(
     images: draft.images || [],
     marketplaces: [],
     marketplaceConfig,
+    attributes: (draft.attributes || {}) as Record<string, string>,
     tags: [...(draft.tags || []), ...(draft.keywords || [])],
     isActive: true,
   }, { transaction });

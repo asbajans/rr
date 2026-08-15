@@ -69,7 +69,7 @@ function toStoreProduct(p: any): any {
     images: allImages,
     description: m.description ?? null,
     tags: m.tags ?? null,
-    marketplaceConfig: m.marketplaceConfig ?? null,
+    attributes: m.attributes ?? null,
   }
 }
 

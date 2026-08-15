@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag, Package } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import type { StoreProduct } from '@/lib/types'
@@ -174,40 +174,16 @@ export default function StoreProductDetailPage() {
               ))}
             </div>
           )}
-          {(product as any).marketplaceConfig && Object.keys((product as any).marketplaceConfig).length > 0 && (
-            <div className="mt-4">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 mb-2">
-                <Package className="h-3.5 w-3.5" /> Ürün Özellikleri
-              </div>
+          {(product as any).attributes && Object.keys((product as any).attributes).length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-zinc-900 mb-2">Ürün Özellikleri</h3>
               <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100">
-                {Object.entries((product as any).marketplaceConfig).map(([mp, config]: [string, any]) => {
-                  if (!config || typeof config !== 'object') return null
-                  const attrs = config.attributes || config.attributeValues || null
-                  if (!attrs) return null
-                  const attrList = Array.isArray(attrs) ? attrs : Object.entries(attrs)
-                  if (attrList.length === 0) return null
-                  return (
-                    <div key={mp} className="px-3 py-2">
-                      <p className="text-[10px] font-medium text-zinc-400 uppercase mb-1">{mp}</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Array.isArray(attrs)
-                          ? attrs.map((a: any, i: number) => (
-                              <div key={i} className="flex justify-between text-xs">
-                                <span className="text-zinc-500">{a.name || a.attributeName || `Özellik ${i+1}`}</span>
-                                <span className="text-zinc-900 font-medium">{a.value || a.attributeValue || a.customValue || '—'}</span>
-                              </div>
-                            ))
-                          : Object.entries(attrs).map(([k, v]: [string, any]) => (
-                              <div key={k} className="flex justify-between text-xs">
-                                <span className="text-zinc-500">{k}</span>
-                                <span className="text-zinc-900 font-medium">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
-                              </div>
-                            ))
-                        }
-                      </div>
-                    </div>
-                  )
-                })}
+                {Object.entries((product as any).attributes).map(([key, value]) => (
+                  <div key={key} className="flex justify-between px-3 py-2 text-xs">
+                    <span className="text-zinc-500">{key}</span>
+                    <span className="text-zinc-900 font-medium">{String(value)}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

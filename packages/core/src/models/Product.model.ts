@@ -156,6 +156,10 @@ export class Product extends Model {
   @Column(DataType.JSONB)
   declare tags: string[];
 
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare attributes: Record<string, string>;
+
   @Default(true)
   @Column(DataType.BOOLEAN)
   declare isActive: boolean;
