@@ -261,6 +261,8 @@ export type StoreProduct = {
   image: string | null
   images: string[]
   description: string | null
+  tags?: string[] | null
+  marketplaceConfig?: Record<string, any> | null
 }
 
 export type CreditLog = {

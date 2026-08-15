@@ -3,10 +3,18 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag, Package } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import type { StoreProduct } from '@/lib/types'
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/on\w+="[^"]*"/gi, '')
+    .replace(/on\w+='[^']*'/gi, '')
+}
 
 export default function StoreProductDetailPage() {
   const { siteCode, id } = useParams<{ siteCode: string; id: string }>()
@@ -154,7 +162,54 @@ export default function StoreProductDetailPage() {
             </p>
           )}
           {product.description && (
-            <div className="mt-6 text-sm leading-relaxed text-zinc-600">{product.description}</div>
+            <div className="mt-6 text-sm leading-relaxed text-zinc-600 prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }} />
+          )}
+          {(product as any).tags && (product as any).tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {(product as any).tags.map((tag: string, i: number) => (
+                <span key={i} className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600">
+                  <Tag className="h-3 w-3" /> {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          {(product as any).marketplaceConfig && Object.keys((product as any).marketplaceConfig).length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 mb-2">
+                <Package className="h-3.5 w-3.5" /> Ürün Özellikleri
+              </div>
+              <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100">
+                {Object.entries((product as any).marketplaceConfig).map(([mp, config]: [string, any]) => {
+                  if (!config || typeof config !== 'object') return null
+                  const attrs = config.attributes || config.attributeValues || null
+                  if (!attrs) return null
+                  const attrList = Array.isArray(attrs) ? attrs : Object.entries(attrs)
+                  if (attrList.length === 0) return null
+                  return (
+                    <div key={mp} className="px-3 py-2">
+                      <p className="text-[10px] font-medium text-zinc-400 uppercase mb-1">{mp}</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                        {Array.isArray(attrs)
+                          ? attrs.map((a: any, i: number) => (
+                              <div key={i} className="flex justify-between text-xs">
+                                <span className="text-zinc-500">{a.name || a.attributeName || `Özellik ${i+1}`}</span>
+                                <span className="text-zinc-900 font-medium">{a.value || a.attributeValue || a.customValue || '—'}</span>
+                              </div>
+                            ))
+                          : Object.entries(attrs).map(([k, v]: [string, any]) => (
+                              <div key={k} className="flex justify-between text-xs">
+                                <span className="text-zinc-500">{k}</span>
+                                <span className="text-zinc-900 font-medium">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                              </div>
+                            ))
+                        }
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
           <div className="mt-4 text-xs text-zinc-400">SKU: {product['product.code']}</div>
 
