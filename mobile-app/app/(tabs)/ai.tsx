@@ -327,6 +327,7 @@ export default function AiScreen() {
       setSuccess(t('aiPublishResult'))
       refreshMe()
       loadDrafts()
+      setTimeout(() => resetFlow(), 2000)
     } catch (err: any) {
       if (err?.code === 'PLAN_PRODUCT_LIMIT') {
         Alert.alert(t('error'), t('productLimitReached'))
