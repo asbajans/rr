@@ -19,6 +19,13 @@ function buildPrompt(
   notes: SellerNotes,
   imageUrls: string[]
 ): string {
+  const codes = specs.codes?.length
+    ? specs.codes
+        .filter((c) => c && c.value)
+        .map((c) => `  - ${c.type}: ${c.value}`)
+        .join('\n')
+    : '  - None';
+
   return `Product Specifications:
 - Material: ${specs.material}
 - Color: ${specs.color}
@@ -28,6 +35,15 @@ function buildPrompt(
 - Brand: ${specs.brand || 'N/A'}
 - Dimensions: ${specs.dimensions || 'N/A'}
 - Category: ${specs.category}
+
+Readable Text on Product:
+${specs.visibleText ? `- ${specs.visibleText}` : '- None'}
+
+Detected Codes (reproduce exactly in attributes/description, do not invent others):
+${codes}
+
+Observations:
+${specs.observations?.length ? specs.observations.map((o) => `- ${o}`).join('\n') : '- None'}
 
 Seller Notes:
 ${notes.shortDescription ? `- Short Description: ${notes.shortDescription}` : ''}

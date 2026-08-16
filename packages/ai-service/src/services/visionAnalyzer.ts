@@ -1,10 +1,31 @@
 import fs from 'fs';
 import path from 'path';
-import { ProductSpecs, ProductCategory } from '../types';
+import { ProductCode, ProductSpecs, ProductCategory } from '../types';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
+import { getSectorConfig } from './sectorConfig.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const VISION_MODEL = process.env.VISION_MODEL || 'llama3.2-vision';
+
+const CODE_TYPES = ['barcode', 'part_code', 'model', 'serial', 'label_text'];
+
+function parseCodes(raw: unknown): ProductCode[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c) => c && typeof c === 'object')
+    .map((c: any) => {
+      const type = CODE_TYPES.includes(c.type) ? c.type : 'label_text';
+      const value = typeof c.value === 'string' ? c.value.trim() : '';
+      const confidence =
+        typeof c.confidence === 'number' ? Math.max(0, Math.min(1, c.confidence)) : undefined;
+      return { type, value, confidence };
+    })
+    .filter((c) => c.value.length > 0);
+}
+
+function parseStrings(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((s): s is string => typeof s === 'string' && s.trim().length > 0) : [];
+}
 
 export interface VisionProviderConfig {
   baseUrl?: string;
@@ -27,11 +48,23 @@ function mimeFromPath(p: string): string {
 }
 
 function buildVisionPrompt(category: ProductCategory): string {
-  return `You are a professional product analyst. Analyze this product image carefully.
+  const sector = getSectorConfig(category);
+  const focus = sector.focus.map((f) => `- ${f}`).join('\n');
+  const schema = Object.entries(sector.attributeSchema)
+    .map(([name, what]) => `"${name}": "${what}"`)
+    .join(',\n  ');
 
-Category: ${category}
+  return `You are a professional product analyst specializing in ${sector.label} products. Analyze this product image carefully and thoroughly.
 
-Return ONLY a valid JSON object (no markdown, no extra text) with these fields:
+This category's key details to look for:
+${focus}
+
+Additionally, ALWAYS:
+- Transcribe EVERY piece of readable text visible in the image: care labels, size tags, ingredient lists, model/part numbers, brand logos, engraving, "Made in ..." marks. Reproduce codes and numbers EXACTLY as shown.
+- If a barcode, part code, model number or serial number is visible, report it separately in "codes" with its type.
+- Do NOT invent text that is not legible; if a code is partly illegible, note it in "observations" and mark low confidence.
+
+Extract the following attributes from the photo:
 {
   "material": "main material of the product",
   "color": "dominant color(s)",
@@ -40,10 +73,17 @@ Return ONLY a valid JSON object (no markdown, no extra text) with these fields:
   "pattern": "pattern if any",
   "brand": "brand name if visible on product",
   "dimensions": "estimated dimensions if inferrable",
+  "weight": "weight if inferrable",
+  ${schema},
+  "visibleText": "single string with ALL readable text transcribed, joined with ' | '",
+  "codes": [
+    { "type": "barcode|part_code|model|serial|label_text", "value": "exact code", "confidence": 0.0 }
+  ],
+  "observations": ["any other notable detail visible in the photo (engraving, contents, condition, markings)"],
   "category": "${category}"
 }
 
-Be precise and descriptive. Use Turkish for values.`;
+Be precise and descriptive. Use Turkish for values. If a fixed field (material, style, etc.) is not determinable, use an empty string.`;
 }
 
 function extractJsonObject(text: string): string | null {
@@ -156,5 +196,8 @@ export async function analyzeProductImage(
     dimensions: parsed.dimensions,
     weight: parsed.weight,
     category,
+    visibleText: typeof parsed.visibleText === 'string' ? parsed.visibleText : '',
+    codes: parseCodes(parsed.codes),
+    observations: parseStrings(parsed.observations),
   };
 }

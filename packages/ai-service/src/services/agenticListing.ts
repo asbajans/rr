@@ -1,6 +1,7 @@
-import { ProductCategory, ProductSpecs } from '../types';
+import { ProductCategory, ProductSpecs, ProductCode } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
+import { getSectorConfig, SectorConfig, formatCodes } from './sectorConfig.js';
 
 export interface AgenticListingInput {
   category?: ProductCategory;
@@ -31,31 +32,84 @@ export interface AgenticListingResult {
 
 const CATEGORY_LIST = ['giyim', 'taki', 'kozmetik', 'ayakkabi', 'canta', 'elektronik', 'ev_dekorasyon', 'spor', 'diger'];
 
-function buildSystemPrompt(): string {
-  return `You are an expert e-commerce listing agent for the Turkish market. You turn a product photo + detected specs into a complete, publish-ready listing draft.
+const CODE_ATTRIBUTE_LABELS: Record<string, string> = {
+  barcode: 'Barkod',
+  part_code: 'Parça Kodu',
+  model: 'Model No',
+  serial: 'Seri No',
+  label_text: 'Etiket Bilgisi',
+};
+
+function mergeCodeAttributes(attributes: Record<string, string>, codes?: ProductCode[]): Record<string, string> {
+  if (!codes || codes.length === 0) return attributes;
+  const merged = { ...attributes };
+  for (const code of codes) {
+    const label = CODE_ATTRIBUTE_LABELS[code.type];
+    if (!label || !code.value) continue;
+    const existing = Object.entries(merged).find(([k, v]) => k === label || v === code.value);
+    if (!existing) {
+      merged[label] = code.value;
+    }
+  }
+  return merged;
+}
+
+function codeWarnings(codes?: ProductCode[]): string[] {
+  const warnings: string[] = [];
+  if (!codes || codes.length === 0) return warnings;
+  for (const code of codes) {
+    if (typeof code.confidence === 'number' && code.confidence < 0.6) {
+      warnings.push(`Fotoğrafta okunan "${code.value}" (${CODE_ATTRIBUTE_LABELS[code.type] || code.type}) düşük güvenli, doğrulanması önerilir.`);
+    }
+  }
+  return warnings;
+}
+
+function buildSystemPrompt(sector: SectorConfig): string {
+  const claimRules = sector.claimRestrictions?.length
+    ? `Sector claim restrictions:\n${sector.claimRestrictions.map((r) => `- ${r}`).join('\n')}`
+    : '';
+
+  return `You are an expert e-commerce listing agent for the Turkish market specializing in ${sector.label}. You turn a product photo + detected specs into a complete, publish-ready listing draft.
+
+Sector guidance:
+${sector.listingGuidance}
 
 Rules:
 - Return ONLY valid JSON, no markdown, no code blocks
 - Use persuasive, natural Turkish
 - Avoid promotional forbidden words for Trendyol: "en iyi", "kaliteli", "orijinal", "garantili", "bedava", "ücretsiz", "toptan", "profesyonel", "kalite", "birinci sınıf"
-- Title max 60 characters
+- Title max 60 characters, follow the sector title pattern: ${sector.titleTemplate}
 - Amazon bullet points max 200 characters each
 - SEO meta title max 60 chars, meta description max 160 chars
 - NEVER invent facts that are not visible in the image: do not fabricate a brand, price, stock quantity, size, or technical specs
 - If the brand is not recognizable, leave it out entirely
+- Barcodes, part/model/serial codes detected from the photo MUST be reproduced EXACTLY and included both as attributes and naturally in the description
+- Do not fabricate any code: if a code is uncertain it is provided with low confidence; use it only with high confidence, otherwise move it to warnings
 - For health, cosmetic and food products, do NOT make medical or safety claims
 - Only report high-confidence details; if a detail is uncertain, mark it in warnings
 - Provide a "confidence" score (0-1) for each generated field
-- Provide 2-3 "category_candidates" each with a confidence score (0-1)`;
+- Provide 2-3 "category_candidates" each with a confidence score (0-1)
+${claimRules}`;
 }
 
 function buildPrompt(
   specs: ProductSpecs,
-  input: AgenticListingInput
+  input: AgenticListingInput,
+  sector: SectorConfig
 ): string {
   const marketplaces = input.targetMarketplaces?.length
     ? input.targetMarketplaces.join(', ')
     : 'Trendyol, N11, Hepsiburada';
+
+  const schema = Object.entries(sector.attributeSchema)
+    .map(([name]) => `"${name}": "<value>"`)
+    .join(',\n    ');
+
+  const codes = formatCodes(specs.codes);
+  const observations = specs.observations?.length
+    ? specs.observations.map((o) => `- ${o}`).join('\n')
+    : '';
 
   return `Product Specifications (detected from image):
 - Material: ${specs.material}
@@ -65,7 +119,17 @@ function buildPrompt(
 - Pattern: ${specs.pattern || 'N/A'}
 - Brand: ${specs.brand || 'N/A'}
 - Dimensions: ${specs.dimensions || 'N/A'}
+- Weight: ${specs.weight || 'N/A'}
 - Detected Category: ${specs.category}
+
+Readable Text on Product:
+${specs.visibleText ? `- ${specs.visibleText}` : '- None transcribed'}
+
+Detected Codes (must be reproduced exactly, do not invent others):
+${codes || '- None'}
+
+Additional Observations:
+${observations || '- None'}
 
 Seller Notes:
 ${input.shortDescription ? `- Short Description: ${input.shortDescription}` : ''}
@@ -77,7 +141,7 @@ Suggest Price Range: ${input.suggestPrice !== false ? 'YES - estimate a reasonab
 
 Return the following JSON exactly:
 {
-  "title": "short catchy product title (max 60 chars, no forbidden words)",
+  "title": "short catchy product title (max 60 chars, no forbidden words, follow pattern ${sector.titleTemplate})",
   "short_description": "1-2 sentence short description",
   "description": "HTML long description, 200-300 words, persuasive",
   "meta_title": "SEO title max 60 chars",
@@ -85,7 +149,14 @@ Return the following JSON exactly:
   "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
   "slug": "url-friendly-slug-in-turkish",
   "category": "one of: ${CATEGORY_LIST.join(', ')}",
-  "attributes": { "Renk": "${specs.color}", "Materyal": "${specs.material}", "Stil": "${specs.style}", "Tür": "${specs.type}", ...other relevant attributes },
+  "attributes": {
+    "Renk": "${specs.color}",
+    "Materyal": "${specs.material}",
+    "Stil": "${specs.style}",
+    "Tür": "${specs.type}",
+    ${schema},
+    ...other relevant attributes and any detected codes (e.g. "Model No", "Parça Kodu", "Barkod", "Seri No")
+  },
   "bullet_points": ["5 persuasive bullets for Amazon"],
   "price_suggestion": ${input.suggestPrice !== false
     ? '{ "min": <number>, "max": <number>, "currency": "TRY", "rationale": "short reasoning" }'
@@ -132,9 +203,11 @@ async function generateListingDraft(
         model: process.env.OLLAMA_LLM_MODEL || 'llama3',
       };
 
+  const sector = getSectorConfig(input.category || 'diger');
+
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildSystemPrompt() },
-    { role: 'user', content: buildPrompt(specs, input) },
+    { role: 'system', content: buildSystemPrompt(sector) },
+    { role: 'user', content: buildPrompt(specs, input, sector) },
   ];
 
   const raw = await callLlm(config, messages, {
@@ -174,6 +247,7 @@ async function generateListingDraft(
     : [];
   if (!specs.brand) warnings.push('Marka fotoğraftan tanımlanamadı, boş bırakıldı.');
   if (!specs.dimensions) warnings.push('Boyut/ölçü bilgisi fotoğraftan belirlenemedi.');
+  warnings.push(...codeWarnings(specs.codes));
 
   const confidence: Record<string, number> =
     data.confidence && typeof data.confidence === 'object' ? data.confidence : {};
@@ -190,7 +264,10 @@ async function generateListingDraft(
     keywords: Array.isArray(data.keywords) ? data.keywords : [],
     slug: data.slug || '',
     category,
-    attributes: data.attributes && typeof data.attributes === 'object' ? data.attributes : {},
+    attributes: mergeCodeAttributes(
+      data.attributes && typeof data.attributes === 'object' ? data.attributes : {},
+      specs.codes
+    ),
     bullet_points: Array.isArray(data.bullet_points) ? data.bullet_points : [],
     price_suggestion: priceSuggestion,
     category_candidates: categoryCandidates,

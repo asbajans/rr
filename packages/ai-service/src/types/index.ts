@@ -53,6 +53,14 @@ export interface ComfyWorkflow {
   [key: string]: unknown;
 }
 
+export type ProductCodeType = 'barcode' | 'part_code' | 'model' | 'serial' | 'label_text';
+
+export interface ProductCode {
+  type: ProductCodeType;
+  value: string;
+  confidence?: number;
+}
+
 export interface ProductSpecs {
   material: string;
   color: string;
@@ -63,6 +71,12 @@ export interface ProductSpecs {
   dimensions?: string;
   weight?: string;
   category: ProductCategory;
+  /** All readable text transcribed from the image (labels, tags, engravings). */
+  visibleText?: string;
+  /** Structured codes/barcodes/part numbers visible on the product. */
+  codes?: ProductCode[];
+  /** Free-form observations that don't fit the fixed fields. */
+  observations?: string[];
 }
 
 export interface SellerNotes {

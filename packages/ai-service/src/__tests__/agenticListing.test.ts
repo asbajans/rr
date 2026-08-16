@@ -75,4 +75,21 @@ describe('generateAgenticListing structured output', () => {
     const result = await generateAgenticListing('/tmp/img.png', {});
     expect(result.category).toBe('ayakkabi');
   });
+
+  it('merges detected codes into attributes and warns on low confidence', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      visibleText: 'Model No: RH-1234 | Made in TR',
+      codes: [
+        { type: 'model', value: 'RH-1234', confidence: 0.95 },
+        { type: 'barcode', value: '8690000000000', confidence: 0.4 },
+      ],
+      observations: ['İç tabanda numara yazısı var'],
+    });
+    const result = await generateAgenticListing('/tmp/img.png', { suggestPrice: false });
+
+    expect(result.attributes['Model No']).toBe('RH-1234');
+    expect(result.attributes['Barkod']).toBe('8690000000000');
+    expect(result.warnings.some((w) => w.includes('8690000000000'))).toBe(true);
+  });
 });
