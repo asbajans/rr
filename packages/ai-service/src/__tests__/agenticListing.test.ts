@@ -9,9 +9,14 @@ vi.mock('../services/visionAnalyzer.js', () => ({
   analyzeProductImage: vi.fn(),
 }));
 
-import { generateAgenticListing } from '../services/agenticListing.js';
+vi.mock('../services/webSearch.js', () => ({
+  searchWeb: vi.fn(),
+}));
+
+import { generateAgenticListing, conditionLabel } from '../services/agenticListing.js';
 import { callLlm } from '../services/llmProvider.js';
 import { analyzeProductImage } from '../services/visionAnalyzer.js';
+import { searchWeb } from '../services/webSearch.js';
 
 const specs: ProductSpecs = {
   material: 'Deri',
@@ -45,6 +50,7 @@ describe('generateAgenticListing structured output', () => {
   beforeEach(() => {
     vi.mocked(callLlm).mockResolvedValue(llmJson);
     vi.mocked(analyzeProductImage).mockResolvedValue(specs);
+    vi.mocked(searchWeb).mockResolvedValue([]);
   });
 
   it('emits category_candidates, warnings and confidence', async () => {
@@ -91,5 +97,39 @@ describe('generateAgenticListing structured output', () => {
     expect(result.attributes['Model No']).toBe('RH-1234');
     expect(result.attributes['Barkod']).toBe('8690000000000');
     expect(result.warnings.some((w) => w.includes('8690000000000'))).toBe(true);
+  });
+
+  it('looks up detected codes on the web before generating the listing', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Bosch',
+      codes: [{ type: 'part_code', value: '0986AB1234', confidence: 0.9 }],
+    });
+    vi.mocked(searchWeb).mockResolvedValue([
+      { title: 'Bosch Fren Balatası 0986AB1234', url: 'https://example.com/1', snippet: 'Ön fren balatası seti' },
+    ]);
+    await generateAgenticListing('/tmp/img.png', { suggestPrice: false });
+
+    expect(searchWeb).toHaveBeenCalled();
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.some((q) => q.includes('0986AB1234'))).toBe(true);
+  });
+
+  it('maps product conditions to Turkish labels used in title/description', () => {
+    expect(conditionLabel('new')).toBe('Yeni');
+    expect(conditionLabel('refurbished')).toBe('Yenilenmiş');
+    expect(conditionLabel('used')).toBe('İkinci El');
+    expect(conditionLabel('salvage')).toBe('Çıkma');
+    expect(conditionLabel(undefined)).toBe('');
+  });
+
+  it('returns empty references (no crash) when web search fails', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      codes: [{ type: 'model', value: 'XYZ-1', confidence: 0.7 }],
+    });
+    vi.mocked(searchWeb).mockRejectedValue(new Error('network'));
+    const result = await generateAgenticListing('/tmp/img.png', { condition: 'used', suggestPrice: false });
+    expect(result.title).toBe('Kadın Siyah Deri Günlük Ayakkabı');
   });
 });

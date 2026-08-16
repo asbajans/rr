@@ -338,6 +338,7 @@ router.post(
         {
           category: (req.body.category || 'diger') as any,
           categoryAttributes: req.body.category_attributes,
+          condition: req.body.condition,
           shortDescription: req.body.short_description,
           keywords: req.body.keywords,
           notes: req.body.notes,

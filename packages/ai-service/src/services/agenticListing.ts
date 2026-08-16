@@ -2,11 +2,27 @@ import { ProductSpecs, ProductCode, AiAttribute } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
+import { searchWeb, WebSearchResult } from './webSearch.js';
+
+export type ProductCondition = 'new' | 'refurbished' | 'used' | 'salvage';
+
+export const CONDITION_LABELS: Record<ProductCondition, string> = {
+  new: 'Yeni',
+  refurbished: 'Yenilenmiş',
+  used: 'İkinci El',
+  salvage: 'Çıkma',
+};
+
+export function conditionLabel(condition?: ProductCondition | string): string {
+  return CONDITION_LABELS[condition as ProductCondition] || '';
+}
 
 export interface AgenticListingInput {
   category?: string;
   /** User-defined attributes for a custom category; directs vision + listing prompts. */
   categoryAttributes?: AiAttribute[];
+  /** Condition of the product: new / refurbished / used / salvage. */
+  condition?: ProductCondition | string;
   shortDescription?: string;
   keywords?: string;
   notes?: string;
@@ -72,7 +88,7 @@ function buildSystemPrompt(sector: SectorConfig): string {
     ? `Sector claim restrictions:\n${sector.claimRestrictions.map((r) => `- ${r}`).join('\n')}`
     : '';
 
-  return `You are an expert e-commerce listing agent for the Turkish market specializing in ${sector.label}. You turn a product photo + detected specs into a complete, publish-ready listing draft.
+  return `You are an expert e-commerce listing agent for the Turkish market specializing in ${sector.label}. You turn product photo(s) + detected specs into a complete, publish-ready listing draft.
 
 Sector guidance:
 ${sector.listingGuidance}
@@ -80,12 +96,15 @@ ${sector.listingGuidance}
 Rules:
 - Return ONLY valid JSON, no markdown, no code blocks
 - Use persuasive, natural Turkish
-- Avoid promotional forbidden words for Trendyol: "en iyi", "kaliteli", "orijinal", "garantili", "bedava", "ücretsiz", "toptan", "profesyonel", "kalite", "birinci sınıf"
+- Avoid promotional forbidden words for Trendyol: "en iyi", "kaliteli", "orijinal", "garantili", "bedava", "ücretsiz", "toptan", "profesyonel", "kalite", "birinci sınıf", "endüstriyel" (özellikle yedek parça / oto parça ürünlerinde "endüstriyel" kelimesini asla kullanma)
+- BRAND RULE: if a brand was detected in the photo (in the specs), the title MUST start with the brand name. NEVER invent a brand that is not in the specs
+- CONDITION RULE: the product's condition is given in the prompt. Reflect it in the title (suffix in parentheses like "(Yeni)", "(Yenilenmiş)", "(İkinci El)", "(Çıkma)") and describe it honestly in the description + attributes ("Durum"). For "Yeni" keep the title clean and state "Yeni" naturally in description + attributes
+- PART CODE RULE: if a part/model code is present it MUST be reproduced EXACTLY. For spare parts / automotive / industrial parts, include the code in the title (it is how buyers search). For other products include it in attributes + description only
+- If "Reference Search Results" are provided, use them to determine the exact product name and description; do NOT contradict them and do NOT invent facts that are neither in the specs nor in the references
 - Title max 60 characters, follow the sector title pattern: ${sector.titleTemplate}
 - Amazon bullet points max 200 characters each
 - SEO meta title max 60 chars, meta description max 160 chars
 - NEVER invent facts that are not visible in the image: do not fabricate a brand, price, stock quantity, size, or technical specs
-- If the brand is not recognizable, leave it out entirely
 - Barcodes, part/model/serial codes detected from the photo MUST be reproduced EXACTLY and included both as attributes and naturally in the description
 - Do not fabricate any code: if a code is uncertain it is provided with low confidence; use it only with high confidence, otherwise move it to warnings
 - For health, cosmetic and food products, do NOT make medical or safety claims
@@ -98,7 +117,8 @@ ${claimRules}`;
 function buildPrompt(
   specs: ProductSpecs,
   input: AgenticListingInput,
-  sector: SectorConfig
+  sector: SectorConfig,
+  referenceResults: WebSearchResult[] = []
 ): string {
   const marketplaces = input.targetMarketplaces?.length
     ? input.targetMarketplaces.join(', ')
@@ -112,6 +132,10 @@ function buildPrompt(
   const observations = specs.observations?.length
     ? specs.observations.map((o) => `- ${o}`).join('\n')
     : '';
+  const condition = conditionLabel(input.condition);
+  const reference = referenceResults
+    .map((r, i) => `${i + 1}. ${r.title}${r.snippet ? ` — ${r.snippet}` : ''}${r.url ? ` (${r.url})` : ''}`)
+    .join('\n');
 
   return `Product Specifications (detected from image):
 - Material: ${specs.material}
@@ -123,6 +147,8 @@ function buildPrompt(
 - Dimensions: ${specs.dimensions || 'N/A'}
 - Weight: ${specs.weight || 'N/A'}
 - Detected Category: ${specs.category}
+
+Product Condition: ${condition || 'belirtilmemiş'}
 
 Readable Text on Product:
 ${specs.visibleText ? `- ${specs.visibleText}` : '- None transcribed'}
@@ -138,12 +164,15 @@ ${input.shortDescription ? `- Short Description: ${input.shortDescription}` : ''
 ${input.keywords ? `- Keywords: ${input.keywords}` : ''}
 ${input.notes ? `- Additional Notes: ${input.notes}` : ''}
 
+Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
+${reference || '- None available'}
+
 Target Marketplaces: ${marketplaces}
 Suggest Price Range: ${input.suggestPrice !== false ? 'YES - estimate a reasonable market price range for this product type' : 'NO - omit price suggestion'}
 
 Return the following JSON exactly:
 {
-  "title": "short catchy product title (max 60 chars, no forbidden words, follow pattern ${sector.titleTemplate})",
+  "title": "BRAND (if known) + product type + condition marker. Max 60 chars. Follow pattern ${sector.titleTemplate}. Examples: 'Bosch Fren Balatası Seti (Yeni)', 'Siemens Röle (Çıkma)'",
   "short_description": "1-2 sentence short description",
   "description": "HTML long description, 200-300 words, persuasive",
   "meta_title": "SEO title max 60 chars",
@@ -156,6 +185,7 @@ Return the following JSON exactly:
     "Materyal": "${specs.material}",
     "Stil": "${specs.style}",
     "Tür": "${specs.type}",
+    "Durum": "${condition}",
     ${schema},
     ...other relevant attributes and any detected codes (e.g. "Model No", "Parça Kodu", "Barkod", "Seri No")
   },
@@ -189,7 +219,8 @@ function parseJsonResponse(raw: string): any {
 async function generateListingDraft(
   specs: ProductSpecs,
   input: AgenticListingInput,
-  providerConfig?: ProviderConfig
+  providerConfig?: ProviderConfig,
+  referenceResults?: WebSearchResult[]
 ): Promise<Omit<AgenticListingResult, 'specs'>> {
   const config: ProviderConfig = providerConfig?.baseUrl
     ? {
@@ -209,7 +240,7 @@ async function generateListingDraft(
 
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt(sector) },
-    { role: 'user', content: buildPrompt(specs, input, sector) },
+    { role: 'user', content: buildPrompt(specs, input, sector, referenceResults) },
   ];
 
   const raw = await callLlm(config, messages, {
@@ -278,6 +309,36 @@ async function generateListingDraft(
   };
 }
 
+/**
+ * Looks up detected part/model/barcode codes on the web so the listing agent
+ * can write an accurate title + description (best-effort; never throws).
+ */
+async function searchForCodes(codes?: ProductCode[]): Promise<WebSearchResult[]> {
+  if (!codes || codes.length === 0) return [];
+  const code =
+    codes.find((c) => ['part_code', 'model', 'serial', 'barcode'].includes(c.type)) || codes[0];
+  if (!code || !code.value.trim()) return [];
+
+  const results: WebSearchResult[] = [];
+  const seen = new Set<string>();
+  for (const q of [`"${code.value}"`, `${code.value} ${code.type === 'part_code' ? 'parça' : ''}`.trim()]) {
+    let batch: WebSearchResult[] = [];
+    try {
+      batch = await searchWeb(q, 5);
+    } catch {
+      batch = [];
+    }
+    if (!Array.isArray(batch)) batch = [];
+    for (const r of batch) {
+      if (r.title && !seen.has(r.title)) {
+        seen.add(r.title);
+        results.push(r);
+      }
+    }
+  }
+  return results.slice(0, 6);
+}
+
 export async function generateAgenticListing(
   imagePath: string | string[],
   input: AgenticListingInput,
@@ -285,6 +346,7 @@ export async function generateAgenticListing(
 ): Promise<AgenticListingResult> {
   const category = input.category || 'diger';
   const specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
-  const draft = await generateListingDraft(specs, input, providerConfig);
+  const referenceResults = await searchForCodes(specs.codes);
+  const draft = await generateListingDraft(specs, input, providerConfig, referenceResults);
   return { specs, ...draft };
 }

@@ -1120,6 +1120,7 @@ class ApiClient {
     sourceImageUrls?: string[]
     category?: string
     category_id?: number
+    condition?: 'new' | 'refurbished' | 'used' | 'salvage'
     short_description?: string
     keywords?: string[]
     notes?: string

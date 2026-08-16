@@ -68,6 +68,7 @@ export default function AiStudioPage() {
   const [rawFiles, setRawFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
   const [category, setCategory] = useState('diger')
+  const [condition, setCondition] = useState<'new' | 'refurbished' | 'used' | 'salvage'>('new')
   const [aiCategories, setAiCategories] = useState<any[]>([])
   const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(null)
   const [notes, setNotes] = useState({ short_description: '', keywords: '' })
@@ -345,6 +346,7 @@ function toggleChannel(c: string) {
         sourceImageUrls: urls,
         category: selectedCat ? (selectedCat.slug || selectedCat.name) : category !== 'diger' ? category : undefined,
         category_id: selectedCat ? selectedCat.id : undefined,
+        condition,
         short_description: notes.short_description || undefined,
         keywords: notes.keywords ? notes.keywords.split(',').map(s => s.trim()).filter(Boolean) : undefined,
         suggest_price: suggestPrice,
@@ -653,6 +655,17 @@ function toggleChannel(c: string) {
                   <option value="ev_dekorasyon">Ev Dekorasyon</option>
                   <option value="spor">Spor</option>
                   <option value="diger">Diğer</option>
+                </select>
+              </div>
+
+              <div className="mt-4">
+                <label className="text-xs font-medium text-zinc-400">Ürün Durumu</label>
+                <select value={condition} onChange={e => setCondition(e.target.value as any)}
+                  className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                  <option value="new">Yeni</option>
+                  <option value="refurbished">Yenilenmiş</option>
+                  <option value="used">İkinci El</option>
+                  <option value="salvage">Çıkma</option>
                 </select>
               </div>
 

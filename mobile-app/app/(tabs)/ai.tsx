@@ -21,6 +21,13 @@ const CHANNELS: { key: AiChannel; icon: any }[] = [
   { key: 'etsy', icon: 'pricetag-outline' },
 ]
 
+const CONDITIONS: { key: 'new' | 'refurbished' | 'used' | 'salvage'; label: string }[] = [
+  { key: 'new', label: 'Yeni' },
+  { key: 'refurbished', label: 'Yenilenmiş' },
+  { key: 'used', label: 'İkinci El' },
+  { key: 'salvage', label: 'Çıkma' },
+]
+
 interface DraftForm {
   title: string
   description: string
@@ -61,6 +68,7 @@ export default function AiScreen() {
   const [imageUris, setImageUris] = useState<string[]>([])
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [aiCategories, setAiCategories] = useState<AiCategory[]>([])
+  const [condition, setCondition] = useState<'new' | 'refurbished' | 'used' | 'salvage'>('new')
   const [analyzing, setAnalyzing] = useState(false)
   const [session, setSession] = useState<AiProductSession | null>(null)
   const [draft, setDraft] = useState<AiProductDraft | null>(null)
@@ -209,6 +217,7 @@ export default function AiScreen() {
       const res = await api.createAiProductSessionFromImage(imageUris, {
         category: selectedCategory ? (selectedCategory.slug || selectedCategory.name) : undefined,
         categoryId: categoryId ?? undefined,
+        condition,
       })
       setSession(res.session)
 
@@ -523,6 +532,18 @@ export default function AiScreen() {
             </ScrollView>
           </>
         )}
+
+        <Text style={styles.sectionLabel}>Ürün Durumu</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
+          {CONDITIONS.map((c) => {
+            const active = condition === c.key
+            return (
+              <TouchableOpacity key={c.key} style={[styles.catChip, active && styles.catChipActive]} onPress={() => setCondition(c.key)}>
+                <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{c.label}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
 
         <View style={styles.imageArea}>
           {imageUris.length > 0 ? (

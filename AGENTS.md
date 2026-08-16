@@ -16,6 +16,16 @@ Portainer API Key: `<stored-in-secret-manager; rotate existing key>`
 
 ## Tamamlananlar
 
+### AI Studio Geliştirmeleri — Çoklu Fotoğraf + Marka/Koşul/Parça Kodu ✅
+- [x] **Çoklu görsel analiz (max 2)**: ai-service `visionAnalyzer.analyzeProductImage(imagePath | string[])` — tüm görselleri `image_url` content part'ları olarak gönderir (aynı ürün farklı açılar); `routes/ai.ts` `/agentic-listing` → `upload.array('images', 2)` + `resolveMultiFiles` (files | `imageUrl` | `image_urls[]`). Core `AiProductSession.additionalImageUrls` JSONB + server.ts safe migration; `draftRoutes` `sourceImageUrls[]` validator, session'a `additionalImageUrls`, aiBody `image_urls`, draft `images` = tüm görseller.
+- [x] **Web Studio**: 2 fotoğraf yükleme (multiple input, previews + remove), draft görsellerine "Fotoğraf Yükle" butonu (`handleAddDraftPhoto`), taslak silme (chip'lerde 🗑 + draft panelinde "Sil", `deleteAiProductDraft` + confirm).
+- [x] **Mobil**: kategori chip'leri `listAiCategories()`'e bağlandı (varsayılan mağaza kategorisi ön seçili, `category_id`/`category` analize gider), 2 fotoğraf yükleme (gallery+kamera, thumbnails + remove), review adımında draft görsellerine kamera/galeri ile fotoğraf ekleme (`addPhotoToDraft` → `updateAiProductDraft images`).
+- [x] **Marka başlık kuralı**: listing prompt'unda "BRAND RULE" — fotoğraftan marka tespit edildiyse başlık marka ile BAŞLAMALI; uydurma yasak.
+- [x] **"endüstriyel" yasağı**: forbidden words listesine eklendi ("özellikle yedek parça/oto parça ürünlerinde asla kullanma").
+- [x] **Parça kodu araması**: `services/webSearch.ts` (YENİ) — `searchWeb()`: Google Programmable Search (`SEARCH_API_KEY`+`SEARCH_ENGINE_ID` env) veya anahtarsız DuckDuckGo HTML scrape, best-effort (asla throw etmez). `agenticListing.searchForCodes(specs.codes)` tespit edilen part_code/model/barcode kodunu arar, sonuçlar "Reference Search Results" olarak listing prompt'una enjekte edilir (başlık/açıklama gerçek sonuçlara göre yazılır).
+- [x] **Ürün durumu (koşul) seçimi**: `condition: new|refurbished|used|salvage` → Türkçe etiketler (Yeni/Yenilenmiş/İkinci El/Çıkma); core validator + aiBody; web studio "Ürün Durumu" select'i + mobil chip'leri. Prompt'ta CONDITION RULE: başlıkta "(Yeni)"/"(Yenilenmiş)"/"(İkinci El)"/"(Çıkma)" soneki + açıklama/attributes'ta "Durum". Title örnekleri: 'Bosch Fren Balatası Seti (Yeni)', 'Siemens Röle (Çıkma)'.
+- [x] **Doğrulamalar** — ai-service typecheck ✅ + test **8/8** ✅ (webSearch mocked; kod arama çağrısı, condition etiketleri, search hatasında çökmez), core typecheck ✅ + test 54/54 ✅, frontend build ✅ (48 route), mobil `npx tsc --noEmit` ✅.
+
 ### Harici Görsel Üretim (ComfyUI yerine LLM sağlayıcıları) ✅
 - [x] **`packages/ai-service/src/services/imageProvider.ts`** (YENİ) — dış görsel üretimi:
   - `isImageGenerationModel()` (model adına göre görsel üreteci tespiti: gpt-image, dall-e, flux, stable-diffusion, sdxl, imagen, gemini-2.5-flash-image, nano-banana vb.)
