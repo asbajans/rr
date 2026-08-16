@@ -13,6 +13,12 @@ export type ProductCategory =
   | 'spor'
   | 'diger';
 
+/** A user-defined attribute that should be extracted/used for a custom AI category. */
+export interface AiAttribute {
+  name: string;
+  description?: string;
+}
+
 export const productCategories: ProductCategory[] = [
   'giyim',
   'taki',
@@ -70,7 +76,7 @@ export interface ProductSpecs {
   brand?: string;
   dimensions?: string;
   weight?: string;
-  category: ProductCategory;
+  category: string;
   /** All readable text transcribed from the image (labels, tags, engravings). */
   visibleText?: string;
   /** Structured codes/barcodes/part numbers visible on the product. */

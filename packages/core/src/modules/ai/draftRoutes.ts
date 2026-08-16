@@ -159,9 +159,25 @@ export async function analyzeAndCreateSession(
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3001';
     const axios = (await import('axios')).default;
 
+    // Resolve the category's custom attribute schema so the LLM is directed by it.
+    let categoryName = input.category;
+    let categoryAttributes: any[] = [];
+    if (input.category_id) {
+      const { Op } = await import('sequelize');
+      const Category = (await import('../../models/Category.model.js')).Category;
+      const cat = await Category.findOne({
+        where: { id: input.category_id, [Op.or]: [{ storeId: null }, { storeId: store.id }] },
+      });
+      if (cat) {
+        categoryName = categoryName || cat.slug || '';
+        categoryAttributes = Array.isArray(cat.aiAttributes) ? cat.aiAttributes : [];
+      }
+    }
+
     const aiBody = {
       imageUrl: input.sourceImageUrl,
-      category: input.category,
+      category: categoryName,
+      category_attributes: categoryAttributes,
       short_description: input.short_description,
       keywords: input.keywords,
       notes: input.notes,
@@ -208,6 +224,7 @@ export async function analyzeAndCreateSession(
 draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
   body('sourceImageUrl').isURL(),
   body('category').optional().isString(),
+  body('category_id').optional().isInt(),
   body('short_description').optional().isString(),
   body('keywords').optional().isArray(),
   body('notes').optional().isString(),

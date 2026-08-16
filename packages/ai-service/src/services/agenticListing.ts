@@ -1,10 +1,12 @@
-import { ProductCategory, ProductSpecs, ProductCode } from '../types';
+import { ProductSpecs, ProductCode, AiAttribute } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
-import { getSectorConfig, SectorConfig, formatCodes } from './sectorConfig.js';
+import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
 
 export interface AgenticListingInput {
-  category?: ProductCategory;
+  category?: string;
+  /** User-defined attributes for a custom category; directs vision + listing prompts. */
+  categoryAttributes?: AiAttribute[];
   shortDescription?: string;
   keywords?: string;
   notes?: string;
@@ -203,7 +205,7 @@ async function generateListingDraft(
         model: process.env.OLLAMA_LLM_MODEL || 'llama3',
       };
 
-  const sector = getSectorConfig(input.category || 'diger');
+  const sector = buildSectorFor(input.category || 'diger', input.categoryAttributes);
 
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt(sector) },
@@ -282,7 +284,7 @@ export async function generateAgenticListing(
   providerConfig?: ProviderConfig
 ): Promise<AgenticListingResult> {
   const category = input.category || 'diger';
-  const specs = await analyzeProductImage(imagePath, category, providerConfig);
+  const specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
   const draft = await generateListingDraft(specs, input, providerConfig);
   return { specs, ...draft };
 }

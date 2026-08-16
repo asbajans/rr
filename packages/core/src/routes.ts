@@ -26,6 +26,7 @@ import { locationRoutes } from './modules/location/routes.js';
 import { paymentMethodRoutes } from './modules/paymentMethod/routes.js';
 import { feedRoutes } from './modules/feed/routes.js';
 import { creditsRoutes } from './modules/ai/creditsRoutes.js';
+import { aiCategoryRoutes } from './modules/ai/categoryRoutes.js';
 import { dashboardRoutes } from './modules/dashboard/routes.js';
 import { uploadRoutes } from './modules/upload/routes.js';
 import { menuRoutes } from './modules/menu/routes.js';
@@ -57,6 +58,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/payment-methods', paymentMethodRoutes);
   app.use('/api/admin/feeds', feedRoutes);
   app.use('/api/admin/ai/credits', creditsRoutes);
+  app.use('/api/admin/ai/categories', aiCategoryRoutes);
   app.use('/api/admin/dashboard', dashboardRoutes);
   app.use('/api/admin/upload', uploadRoutes);
   app.use('/api/admin/menus', menuRoutes);

@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { ProductCode, ProductSpecs, ProductCategory } from '../types';
+import { ProductCode, ProductSpecs, AiAttribute } from '../types';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
-import { getSectorConfig } from './sectorConfig.js';
+import { SectorConfig, buildSectorFor } from './sectorConfig.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const VISION_MODEL = process.env.VISION_MODEL || 'llama3.2-vision';
@@ -47,9 +47,8 @@ function mimeFromPath(p: string): string {
   }
 }
 
-function buildVisionPrompt(category: ProductCategory): string {
-  const sector = getSectorConfig(category);
-  const focus = sector.focus.map((f) => `- ${f}`).join('\n');
+function buildVisionPrompt(category: string, sector: SectorConfig): string {
+  const focus = sector.focus.length ? sector.focus.map((f) => `- ${f}`).join('\n') : '- material, style and purpose of the product';
   const schema = Object.entries(sector.attributeSchema)
     .map(([name, what]) => `"${name}": "${what}"`)
     .join(',\n  ');
@@ -150,11 +149,13 @@ function parseJsonResponse(text: string): any {
 
 export async function analyzeProductImage(
   imagePath: string,
-  category: ProductCategory,
-  providerConfig?: VisionProviderConfig
+  category: string,
+  providerConfig?: VisionProviderConfig,
+  attributes?: AiAttribute[]
 ): Promise<ProductSpecs> {
   const imageBase64 = fs.readFileSync(imagePath).toString('base64');
   const mime = mimeFromPath(imagePath);
+  const sector = buildSectorFor(category, attributes);
 
   const config: ProviderConfig = providerConfig?.baseUrl
     ? {
@@ -168,7 +169,7 @@ export async function analyzeProductImage(
     : { baseUrl: OLLAMA_URL, model: VISION_MODEL };
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildVisionPrompt(category) },
+    { role: 'system', content: buildVisionPrompt(category, sector) },
     {
       role: 'user',
       content: [

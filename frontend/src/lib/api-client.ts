@@ -1088,6 +1088,7 @@ class ApiClient {
   async agenticListing(data: {
     imageUrl: string
     category?: string
+    category_attributes?: { name: string; description?: string }[]
     short_description?: string
     keywords?: string
     notes?: string
@@ -1117,6 +1118,7 @@ class ApiClient {
   async createAiProductSession(data: {
     sourceImageUrl: string
     category?: string
+    category_id?: number
     short_description?: string
     keywords?: string[]
     notes?: string
@@ -1125,6 +1127,40 @@ class ApiClient {
   }) {
     const r = await this.post<{ session: any; draft: any | null }>(`/api/ai/product-sessions`, data)
     return { session: r.session, draft: r.draft }
+  }
+
+  // AI Categories (user-defined categories + auto-generated attribute schemas)
+  async listAiCategories() {
+    const r = await this.get<{ categories: any[]; defaultCategoryId: number | null }>(`/api/admin/ai/categories`)
+    return { categories: r.categories || [], defaultCategoryId: r.defaultCategoryId }
+  }
+
+  async createAiCategory(data: { name: string; slug?: string; attributes?: any[]; autoGenerate?: boolean }) {
+    const r = await this.post<{ category: any }>(`/api/admin/ai/categories`, data)
+    return r.category
+  }
+
+  async generateAiCategoryAttributes(data: { name: string; keywords?: string; notes?: string }) {
+    const r = await this.post<{ attributes: any[] }>(`/api/admin/ai/categories/generate`, data)
+    return r.attributes || []
+  }
+
+  async regenerateAiCategoryAttributes(id: number) {
+    const r = await this.post<{ category: any }>(`/api/admin/ai/categories/${id}/generate-attributes`)
+    return r.category
+  }
+
+  async updateAiCategory(id: number, data: { name?: string; attributes?: any[] }) {
+    const r = await this.put<{ category: any }>(`/api/admin/ai/categories/${id}`, data)
+    return r.category
+  }
+
+  async deleteAiCategory(id: number) {
+    return this.delete<{ ok: boolean }>(`/api/admin/ai/categories/${id}`)
+  }
+
+  async setDefaultAiCategory(categoryId: number | null) {
+    return this.post<{ ok: boolean; defaultCategoryId: number | null }>(`/api/admin/ai/categories/default`, { categoryId })
   }
 
   async getAiProductSession(id: string) {

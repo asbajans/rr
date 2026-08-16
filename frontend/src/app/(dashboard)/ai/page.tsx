@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { api, API_BASE } from '@/lib/api-client'
@@ -56,6 +56,16 @@ export default function AiPage() {
     price_suggestion: { min: number; max: number; currency: string; rationale: string } | null
   } | null>(null)
   const [agenticForm, setAgenticForm] = useState({ title: '', category: 'diger', short_description: '', description: '', keywords: '', price: '', stock: '10' })
+  const [aiCategories, setAiCategories] = useState<any[]>([])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await api.listAiCategories()
+        setAiCategories(r.categories)
+      } catch { /* ignore */ }
+    })()
+  }, [])
 
   if (!user) return null
 
@@ -172,9 +182,11 @@ export default function AiPage() {
     setSuccess('')
     try {
       const uploaded = await api.uploadImage(agenticRawFile)
+      const selectedCat = aiCategories.find((c) => String(c.id) === String(agenticForm.category) || c.slug === agenticForm.category || c.name === agenticForm.category)
       const res = await api.agenticListing({
         imageUrl: uploaded.url,
-        category: agenticForm.category,
+        category: selectedCat ? (selectedCat.slug || selectedCat.name) : agenticForm.category,
+        category_attributes: selectedCat ? (Array.isArray(selectedCat.aiAttributes) ? selectedCat.aiAttributes : []) : undefined,
         short_description: agenticNotes.short_description || undefined,
         keywords: agenticNotes.keywords || undefined,
         suggest_price: agenticSuggestPrice,
@@ -416,6 +428,16 @@ export default function AiPage() {
               <label className="text-xs font-medium text-zinc-400">Kategori</label>
               <select value={agenticForm.category} onChange={e => setAgenticForm({ ...agenticForm, category: e.target.value })}
                 className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                {aiCategories.length > 0 && (
+                  <>
+                    {aiCategories.map((c) => (
+                      <option key={`${c.id}-${c.slug}`} value={c.id}>
+                        {c.name}{c.isDefault ? ' ★' : ''}
+                      </option>
+                    ))}
+                    <option value="diger" disabled>────────</option>
+                  </>
+                )}
                 <option value="giyim">Giyim</option>
                 <option value="taki">Takı</option>
                 <option value="kozmetik">Kozmetik</option>

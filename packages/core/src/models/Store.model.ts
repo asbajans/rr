@@ -108,6 +108,10 @@ export class Store extends Model {
   @Column(DataType.BOOLEAN)
   declare published: boolean;
 
+  @AllowNull(true)
+  @Column(DataType.BIGINT)
+  declare defaultAiCategoryId: number | null;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

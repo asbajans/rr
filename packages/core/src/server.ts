@@ -59,6 +59,7 @@ export const createApp = async (): Promise<Express> => {
   try {
     await sequelize.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS source VARCHAR(50)`);
     await sequelize.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS "marketplaceCategoryId" VARCHAR(200)`);
+    await sequelize.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS "aiAttributes" JSONB`);
   } catch (e) {
     // Ignore if columns already exist
   }
@@ -86,6 +87,7 @@ export const createApp = async (): Promise<Express> => {
   try {
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS pixels JSONB`);
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "siteUrl" VARCHAR(255)`);
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "defaultAiCategoryId" BIGINT`);
   } catch (e) {
     // Ignore
   }

@@ -1,4 +1,4 @@
-import { ProductCategory } from '../types';
+import { AiAttribute, ProductCategory } from '../types';
 
 export interface SectorConfig {
   category: ProductCategory;
@@ -232,6 +232,38 @@ export const SECTOR_CONFIGS: Record<ProductCategory, SectorConfig> = {
 
 export function getSectorConfig(category: ProductCategory | string): SectorConfig {
   return SECTOR_CONFIGS[category as ProductCategory] ?? SECTOR_CONFIGS.diger;
+}
+
+/**
+ * Builds a sector config for a user-defined category from its attributes.
+ * Falls back to the static built-in config when no custom attributes exist.
+ */
+export function buildSectorFor(category: string, attributes?: AiAttribute[]): SectorConfig {
+  const clean = attributes?.filter((a) => a && typeof a.name === 'string' && a.name.trim().length > 0);
+  if (!clean || clean.length === 0) {
+    return getSectorConfig(category || 'diger');
+  }
+
+  const attributeSchema: Record<string, string> = {
+    Renk: 'dominant color(s) visible in the photo',
+  };
+  const focus: string[] = [];
+  for (const a of clean) {
+    const name = a.name.trim();
+    const desc = a.description?.trim();
+    attributeSchema[name] = desc || name;
+    focus.push(desc ? `${name}: ${desc}` : name);
+  }
+
+  return {
+    category: (category as ProductCategory) || 'diger',
+    label: category || 'Diğer Ürünler',
+    focus,
+    attributeSchema,
+    titleTemplate: '[Tür] [Stil] [Renk] [Özellik]',
+    listingGuidance:
+      'Bu kategorinin özellik şemasını kullan. Fotoğrafta görünen şema özelliklerini tespit et ve attributes + açıklamada doğal biçimde işle. Görünmeyen bir özelliği asla uydurma.',
+  };
 }
 
 export function formatCodes(codes: ProductCodeLike[] | undefined): string {

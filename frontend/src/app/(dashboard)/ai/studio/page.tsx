@@ -68,6 +68,8 @@ export default function AiStudioPage() {
   const [rawFile, setRawFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [category, setCategory] = useState('diger')
+  const [aiCategories, setAiCategories] = useState<any[]>([])
+  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(null)
   const [notes, setNotes] = useState({ short_description: '', keywords: '' })
   const [suggestPrice, setSuggestPrice] = useState(true)
   const [targetMps, setTargetMps] = useState<string[]>(['storefront'])
@@ -138,6 +140,21 @@ export default function AiStudioPage() {
         setBrands(res ?? [])
       } catch { /* ignore */ }
     })().finally(() => setLoadingSelectionData(false))
+  }, [])
+
+  // Load AI categories (built-in + user-defined) and preselect the store default
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await api.listAiCategories()
+        setAiCategories(r.categories)
+        setDefaultCategoryId(r.defaultCategoryId)
+        if (r.defaultCategoryId != null) {
+          const def = r.categories.find((c: any) => c.id === r.defaultCategoryId)
+          if (def) setCategory(String(def.id))
+        }
+      } catch { /* ignore */ }
+    })()
   }, [])
 
   // category options per marketplace (marketplace trees; storefront = universal categories)
@@ -281,9 +298,11 @@ function toggleChannel(c: string) {
     setSuccess('')
     try {
       const uploaded = await api.uploadImage(rawFile)
+      const selectedCat = aiCategories.find((c) => String(c.id) === String(category) || c.slug === category || c.name === category)
       const { session, draft: d } = await api.createAiProductSession({
         sourceImageUrl: uploaded.url,
-        category: category !== 'diger' ? category : undefined,
+        category: selectedCat ? (selectedCat.slug || selectedCat.name) : category !== 'diger' ? category : undefined,
+        category_id: selectedCat ? selectedCat.id : undefined,
         short_description: notes.short_description || undefined,
         keywords: notes.keywords ? notes.keywords.split(',').map(s => s.trim()).filter(Boolean) : undefined,
         suggest_price: suggestPrice,
@@ -567,6 +586,16 @@ function toggleChannel(c: string) {
                 <label className="text-xs font-medium text-zinc-400">{t('aiCategory')}</label>
                 <select value={category} onChange={e => setCategory(e.target.value)}
                   className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                  {aiCategories.length > 0 && (
+                    <>
+                      {aiCategories.map((c) => (
+                        <option key={`${c.id}-${c.slug}`} value={c.id}>
+                          {c.name}{c.isDefault ? ' ★' : ''}
+                        </option>
+                      ))}
+                      <option value="diger" disabled>────────</option>
+                    </>
+                  )}
                   <option value="giyim">Giyim</option>
                   <option value="taki">Takı</option>
                   <option value="kozmetik">Kozmetik</option>

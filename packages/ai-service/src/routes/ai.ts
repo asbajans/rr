@@ -308,6 +308,7 @@ router.post(
         filePath,
         {
           category: (req.body.category || 'diger') as any,
+          categoryAttributes: req.body.category_attributes,
           shortDescription: req.body.short_description,
           keywords: req.body.keywords,
           notes: req.body.notes,
@@ -327,6 +328,24 @@ router.post(
     }
   }
 );
+
+// Generate a category's attribute schema (used to direct vision + listing prompts)
+router.post('/generate-category-attributes', async (req: Request, res: Response) => {
+  const { name, keywords, notes } = req.body;
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  try {
+    const providerConfig = extractProviderConfig(req.body);
+    const { generateCategoryAttributes } = await import('../services/categoryAttributes.js');
+    const result = await generateCategoryAttributes({ name, keywords, notes }, providerConfig);
+    res.json(result);
+  } catch (err: any) {
+    handleLlmError(res, err);
+  }
+});
 
 // Blog post generation: topic OR product info → SEO-friendly HTML article
 router.post('/blog', async (req: Request, res: Response) => {

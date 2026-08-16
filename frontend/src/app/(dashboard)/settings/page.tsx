@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell } from 'lucide-react'
+import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell, Sparkles, Star, Tag, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -25,6 +25,23 @@ export default function SettingsPage() {
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
 
+  const [aiCategories, setAiCategories] = useState<any[]>([])
+  const [defaultAiCategoryId, setDefaultAiCategoryId] = useState<number | null>(null)
+  const [aiCatLoading, setAiCatLoading] = useState(true)
+  const [newCatName, setNewCatName] = useState('')
+  const [autoGenerate, setAutoGenerate] = useState(true)
+  const [catCreating, setCatCreating] = useState(false)
+  const [catGenerating, setCatGenerating] = useState<number | null>(null)
+  const [catDeleting, setCatDeleting] = useState<number | null>(null)
+
+  const loadAiCategories = async () => {
+    try {
+      const r = await api.listAiCategories()
+      setAiCategories(r.categories)
+      setDefaultAiCategoryId(r.defaultCategoryId)
+    } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     api.getSettings()
       .then((s) => {
@@ -41,6 +58,12 @@ export default function SettingsPage() {
       .then(setApiKeys)
       .catch(() => {})
       .finally(() => setKeysLoading(false))
+  }, [])
+
+  useEffect(() => {
+    setAiCatLoading(true)
+    loadAiCategories().finally(() => setAiCatLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -117,6 +140,53 @@ export default function SettingsPage() {
       setMessage(err instanceof Error ? err.message : 'Silinemedi')
     } finally {
       setDeleting(null)
+    }
+  }
+
+  async function handleCreateCategory() {
+    if (!newCatName.trim()) return
+    setCatCreating(true)
+    try {
+      await api.createAiCategory({ name: newCatName.trim(), autoGenerate })
+      setNewCatName('')
+      await loadAiCategories()
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Kategori oluşturulamadı')
+    } finally {
+      setCatCreating(false)
+    }
+  }
+
+  async function handleRegenerateAttributes(id: number) {
+    setCatGenerating(id)
+    try {
+      await api.regenerateAiCategoryAttributes(id)
+      await loadAiCategories()
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Özellikler üretilemedi')
+    } finally {
+      setCatGenerating(null)
+    }
+  }
+
+  async function handleSetDefault(id: number | null) {
+    try {
+      await api.setDefaultAiCategory(id)
+      setDefaultAiCategoryId(id)
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Varsayılan ayarlanamadı')
+    }
+  }
+
+  async function handleDeleteCategory(id: number) {
+    setCatDeleting(id)
+    try {
+      await api.deleteAiCategory(id)
+      await loadAiCategories()
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Silinemedi')
+    } finally {
+      setCatDeleting(null)
     }
   }
 
@@ -245,6 +315,94 @@ export default function SettingsPage() {
           {keysLoading && <p className="mt-3 text-sm text-zinc-400">Yükleniyor...</p>}
           {!keysLoading && apiKeys.length === 0 && (
             <p className="mt-3 text-sm text-zinc-400">Henüz API anahtarı oluşturulmamış.</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <div className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-zinc-500" />
+            <h2 className="text-lg font-semibold text-zinc-900">AI Kategorileri</h2>
+          </div>
+          <p className="mt-1 text-sm text-zinc-600">
+            Ürün oluştururken AI'ın yönlendirileceği kategoriler. Her kategoriye özel özellik şeması otomatik üretilir; AI görseli analiz ederken ve başlık/açıklama yazarken bu şemayı kullanır. Varsayılan kategori, ürün oluşturma ekranında önceden seçili gelir.
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[220px]">
+              <label className="block text-sm font-medium text-zinc-900">Yeni Kategori</label>
+              <input type="text" value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="örn. Oto Yedek Parça, Bebek Giyim..."
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            </div>
+            <label className="flex items-center gap-2 pb-2 text-sm text-zinc-600">
+              <input type="checkbox" checked={autoGenerate} onChange={(e) => setAutoGenerate(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300" />
+              Özellikleri AI ile otomatik üret (2 kredi)
+            </label>
+            <Button size="sm" onClick={handleCreateCategory} disabled={catCreating || !newCatName.trim()}>
+              <Plus className="mr-1 h-3 w-3" />{catCreating ? 'Oluşturuluyor...' : 'Oluştur'}
+            </Button>
+          </div>
+
+          {aiCatLoading && <p className="mt-4 text-sm text-zinc-400">Yükleniyor...</p>}
+          {!aiCatLoading && aiCategories.length === 0 && (
+            <p className="mt-4 text-sm text-zinc-400">Henüz kategori yok. Yukarıdan bir kategori oluştur.</p>
+          )}
+          {!aiCatLoading && aiCategories.length > 0 && (
+            <div className="mt-4 space-y-3">
+              {aiCategories.map((cat) => {
+                const attrs = Array.isArray(cat.aiAttributes) ? cat.aiAttributes : []
+                return (
+                  <div key={cat.id} className={`rounded-lg border px-4 py-3 ${cat.isDefault ? 'border-indigo-300 bg-indigo-50/50' : 'border-zinc-200'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-medium text-zinc-900">{cat.name}</span>
+                        {cat.builtin && <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">Hazır</span>}
+                        {cat.isDefault && (
+                          <span className="flex items-center gap-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                            <Star className="h-3 w-3" />Varsayılan
+                          </span>
+                        )}
+                        <span className="text-xs text-zinc-400">{attrs.length} özellik</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!cat.isDefault && (
+                          <button onClick={() => handleSetDefault(cat.id)}
+                            className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50">
+                            Varsayılan Yap
+                          </button>
+                        )}
+                        {cat.builtin && <button onClick={() => handleSetDefault(null)}
+                          className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50">
+                          Varsayılan Kaldır
+                        </button>}
+                        <button onClick={() => handleRegenerateAttributes(cat.id)} disabled={catGenerating === cat.id}
+                          className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50">
+                          {catGenerating === cat.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-violet-500" />}
+                          Özellik Üret
+                        </button>
+                        {!cat.builtin && (
+                          <button onClick={() => handleDeleteCategory(cat.id)} disabled={catDeleting === cat.id}
+                            className="rounded p-1 text-red-500 hover:bg-red-50 disabled:opacity-50">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {attrs.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {attrs.map((a: any, i: number) => (
+                          <span key={i} title={a.description || a.name}
+                            className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-600">
+                            {a.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
 

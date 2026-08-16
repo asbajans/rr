@@ -76,6 +76,10 @@ export class Category extends Model {
   @Column(DataType.STRING(200))
   declare marketplaceCategoryId: string;
 
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare aiAttributes: object | null;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;
