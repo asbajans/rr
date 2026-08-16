@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { useI18n } from '@/lib/i18n'
 import { MarketplaceCategory, Brand, Category } from '@/lib/types'
-import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send } from 'lucide-react'
+import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send, Trash2 } from 'lucide-react'
 
 type ChannelSelection = { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }
 
@@ -65,8 +65,8 @@ export default function AiStudioPage() {
   const [gate, setGate] = useState<'product' | 'credits' | null>(null)
 
   // Create session
-  const [rawFile, setRawFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [rawFiles, setRawFiles] = useState<File[]>([])
+  const [previews, setPreviews] = useState<string[]>([])
   const [category, setCategory] = useState('diger')
   const [aiCategories, setAiCategories] = useState<any[]>([])
   const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(null)
@@ -226,17 +226,23 @@ export default function AiStudioPage() {
 
   if (!user) return null
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setRawFile(f)
-    setPreview(URL.createObjectURL(f))
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []).slice(0, 2 - rawFiles.length)
+    if (files.length === 0) return
+    setRawFiles(prev => [...prev, ...files].slice(0, 2))
+    setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))].slice(0, 2))
     setDraft(null)
     setValidation([])
     setPublishResults([])
     setListings([])
     setError('')
     setSuccess('')
+    e.target.value = ''
+  }
+
+  function removeFile(idx: number) {
+    setRawFiles(prev => prev.filter((_, i) => i !== idx))
+    setPreviews(prev => prev.filter((_, i) => i !== idx))
   }
 
 function toggleChannel(c: string) {
@@ -291,16 +297,52 @@ function toggleChannel(c: string) {
     }
   }
 
+  async function handleDeleteDraft(d: any) {
+    const name = d.title?.slice(0, 50) || t('aiDraft')
+    if (!window.confirm(`"${name}" silinsin mi?`)) return
+    try {
+      await api.deleteAiProductDraft(d.id)
+      if (draft?.id === d.id) {
+        setDraft(null)
+        setDraftImages([])
+        setForm({ title: '', category: '', short_description: '', description: '', keywords: '', tags: '', attributes: '', price: '', stock: '10', sku: '' })
+        setValidation([])
+        setPublishResults([])
+        setListings([])
+      }
+      loadDrafts()
+      setSuccess('Taslak silindi.')
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : 'Taslak silinemedi')
+    }
+  }
+
+  async function handleAddDraftPhoto(file: File) {
+    try {
+      const up = await api.uploadImage(file)
+      setDraftImages(prev => [...prev, up.url])
+      setAiImgMsg('Fotoğraf eklendi — kaydetmek için "Taslağı Kaydet" butonuna basın.')
+      refreshMe()
+    } catch (e: any) {
+      setAiImgMsg(e?.message || 'Fotoğraf yüklenemedi')
+    }
+  }
+
   async function handleRun() {
-    if (!rawFile) return
+    if (rawFiles.length === 0) return
     setCreating(true)
     setError('')
     setSuccess('')
     try {
-      const uploaded = await api.uploadImage(rawFile)
+      const urls: string[] = []
+      for (const f of rawFiles) {
+        const uploaded = await api.uploadImage(f)
+        urls.push(uploaded.url)
+      }
       const selectedCat = aiCategories.find((c) => String(c.id) === String(category) || c.slug === category || c.name === category)
       const { session, draft: d } = await api.createAiProductSession({
-        sourceImageUrl: uploaded.url,
+        sourceImageUrl: urls[0],
+        sourceImageUrls: urls,
         category: selectedCat ? (selectedCat.slug || selectedCat.name) : category !== 'diger' ? category : undefined,
         category_id: selectedCat ? selectedCat.id : undefined,
         short_description: notes.short_description || undefined,
@@ -562,12 +604,18 @@ function toggleChannel(c: string) {
           {drafts.length > 0 && (
             <div className="mt-6">
               <p className="text-sm font-medium text-zinc-400">{t('aiDrafts')}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 {drafts.map(d => (
-                  <button key={d.id} onClick={() => openDraft(d.id)}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${draft?.id === d.id ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}`}>
-                    #{d.id} — {d.title?.slice(0, 40) || t('aiDraft')}
-                  </button>
+                  <div key={d.id} className="flex items-center gap-1">
+                    <button onClick={() => openDraft(d.id)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${draft?.id === d.id ? 'border-violet-500 bg-violet-600 text-white' : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}`}>
+                      #{d.id} — {d.title?.slice(0, 40) || t('aiDraft')}
+                    </button>
+                    <button onClick={() => handleDeleteDraft(d)} title="Taslağı sil"
+                      className="rounded-lg border border-red-900/50 bg-red-950/40 p-1.5 text-red-400 hover:bg-red-900/50">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -609,10 +657,21 @@ function toggleChannel(c: string) {
               </div>
 
               <div className="mt-4">
-                <input type="file" accept="image/*" onChange={handleFile}
+                <input type="file" accept="image/*" multiple onChange={handleFiles}
                   className="block w-full text-sm text-zinc-400 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-violet-500" />
+                <p className="mt-1 text-[11px] text-zinc-500">En fazla 2 fotoğraf yükleyebilirsiniz.</p>
               </div>
-              {preview && <img src={preview} alt="Preview" className="mt-4 max-h-48 rounded-lg border border-zinc-700 object-cover" />}
+              {previews.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {previews.map((p, i) => (
+                    <div key={i} className="relative">
+                      <img src={p} alt="Preview" className="max-h-40 w-full rounded-lg border border-zinc-700 object-cover" />
+                      <button type="button" onClick={() => removeFile(i)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] text-white">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-4 grid grid-cols-1 gap-3">
                 <div>
@@ -647,7 +706,7 @@ function toggleChannel(c: string) {
                 {t('aiSuggestPrice')}
               </label>
 
-              <button onClick={handleRun} disabled={!rawFile || creating}
+              <button onClick={handleRun} disabled={rawFiles.length === 0 || creating}
                 className="mt-4 flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50">
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                 {creating ? t('aiPreparing') : t('aiPrepare')}
@@ -765,6 +824,11 @@ function toggleChannel(c: string) {
                   {/* Images: AI edit + generate new (per-image credit) */}
                   <div className="border-t border-zinc-700 pt-3">
                     <p className="text-xs font-medium text-zinc-400">Görseller ({draftImages.length}) <span className="text-zinc-500">— her AI işlemi {t('aiImageCreditNote')}</span></p>
+                    <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700 bg-zinc-800/40 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800">
+                      <ImageUp className="h-3.5 w-3.5" /> Fotoğraf Yükle
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleAddDraftPhoto(f); e.target.value = '' }} />
+                    </label>
                     {draftImages.length > 0 && (
                       <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
                         {draftImages.map((img, idx) => (
@@ -836,11 +900,17 @@ function toggleChannel(c: string) {
                     </details>
                   )}
 
+                  <div className="flex gap-2">
                   <button onClick={handleSaveDraft} disabled={saving}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-600 disabled:opacity-50">
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-600 disabled:opacity-50">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     {t('aiSaveDraft')}
                   </button>
+                  <button onClick={() => handleDeleteDraft(draft)} disabled={saving}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-red-950/60 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-900/50 disabled:opacity-50">
+                    <Trash2 className="h-4 w-4" /> Sil
+                  </button>
+                </div>
 
                   {/* Channels */}
                   <div className="mt-2 border-t border-zinc-700 pt-4">

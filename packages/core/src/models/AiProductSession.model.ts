@@ -49,6 +49,10 @@ export class AiProductSession extends Model {
   declare sourceImageUrl: string;
 
   @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare additionalImageUrls: string[] | null;
+
+  @AllowNull(true)
   @Column(DataType.TEXT)
   declare processedImageUrl: string | null;
 

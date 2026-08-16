@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
 import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
-import type { AiChannel, AiChannelValidationResult, AiProductDraft, AiProductSession } from '../../src/shared/types'
+import type { AiCategory, AiChannel, AiChannelValidationResult, AiProductDraft, AiProductSession } from '../../src/shared/types'
 import { Ionicons } from '@expo/vector-icons'
 
 const CHANNELS: { key: AiChannel; icon: any }[] = [
@@ -58,12 +58,15 @@ export default function AiScreen() {
   const aiEnabled = can('ai_product_create')
 
   const [step, setStep] = useState<Step>('photo')
-  const [imageUri, setImageUri] = useState<string | null>(null)
+  const [imageUris, setImageUris] = useState<string[]>([])
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [aiCategories, setAiCategories] = useState<AiCategory[]>([])
   const [analyzing, setAnalyzing] = useState(false)
   const [session, setSession] = useState<AiProductSession | null>(null)
   const [draft, setDraft] = useState<AiProductDraft | null>(null)
   const [drafts, setDrafts] = useState<AiProductDraft[]>([])
   const [draftsLoading, setDraftsLoading] = useState(false)
+  const [addingPhoto, setAddingPhoto] = useState(false)
 
   const [draftForm, setDraftForm] = useState<DraftForm>({
     title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '', tags: '', attributes: '',
@@ -94,6 +97,17 @@ export default function AiScreen() {
     if (aiEnabled) loadDrafts()
   }, [aiEnabled])
 
+  // Load AI categories (built-in + user-defined) and preselect the store default
+  useEffect(() => {
+    if (!aiEnabled) return
+    api.listAiCategories()
+      .then((r) => {
+        setAiCategories(r.categories || [])
+        if (r.defaultCategoryId != null) setCategoryId(r.defaultCategoryId)
+      })
+      .catch(() => {})
+  }, [aiEnabled])
+
   function setFormFromDraft(d: AiProductDraft) {
     setDraftForm({
       title: d.title || '',
@@ -111,7 +125,7 @@ export default function AiScreen() {
 
   function resetFlow() {
     setStep('photo')
-    setImageUri(null)
+    setImageUris([])
     setSession(null)
     setDraft(null)
     setDraftForm({ title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '', tags: '', attributes: '' })
@@ -121,6 +135,15 @@ export default function AiScreen() {
     setError('')
     setSuccess('')
     loadDrafts()
+  }
+
+  function appendImage(uri: string) {
+    setImageUris((prev) => (prev.length >= 2 ? prev : [...prev, uri]))
+    setError('')
+  }
+
+  function removeImage(index: number) {
+    setImageUris((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function pickImage() {
@@ -138,8 +161,7 @@ export default function AiScreen() {
     })
 
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri)
-      setError('')
+      appendImage(result.assets[0].uri)
     }
   }
 
@@ -157,8 +179,7 @@ export default function AiScreen() {
     })
 
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri)
-      setError('')
+      appendImage(result.assets[0].uri)
     }
   }
 
@@ -179,12 +200,16 @@ export default function AiScreen() {
   }
 
   async function handleAnalyze() {
-    if (!imageUri) return
+    if (imageUris.length === 0) return
     setAnalyzing(true)
     setError('')
     setSuccess('')
     try {
-      const res = await api.createAiProductSessionFromImage(imageUri)
+      const selectedCategory = aiCategories.find((c) => c.id === categoryId)
+      const res = await api.createAiProductSessionFromImage(imageUris, {
+        category: selectedCategory ? (selectedCategory.slug || selectedCategory.name) : undefined,
+        categoryId: categoryId ?? undefined,
+      })
       setSession(res.session)
 
       let d = res.draft
@@ -274,6 +299,58 @@ export default function AiScreen() {
       setError(err.message || t('aiLoadFailed'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  // After analysis the user can add more photos to the draft (uploaded → saved with draft)
+  async function addPhotoToDraft(uri: string) {
+    if (!draft) return
+    setAddingPhoto(true)
+    setError('')
+    setSuccess('')
+    try {
+      const uploaded = await api.uploadImage(uri, `photo-${Date.now()}.jpg`, 'image/jpeg')
+      const images = [...(draft.images || []), uploaded.url]
+      const updated = await api.updateAiProductDraft(draft.id, { images })
+      setDraft(updated)
+      setSuccess(t('aiDraftSaved'))
+    } catch (err: any) {
+      setError(err.message || t('aiLoadFailed'))
+    } finally {
+      setAddingPhoto(false)
+    }
+  }
+
+  async function pickPhotoToAdd() {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permissionResult.granted) {
+      Alert.alert(t('error'), t('galleryPermission'))
+      return
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    })
+    if (!result.canceled && result.assets[0]) {
+      addPhotoToDraft(result.assets[0].uri)
+    }
+  }
+
+  async function takePhotoToAdd() {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync()
+    if (!permissionResult.granted) {
+      Alert.alert(t('error'), t('cameraPermission'))
+      return
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    })
+    if (!result.canceled && result.assets[0]) {
+      addPhotoToDraft(result.assets[0].uri)
     }
   }
 
@@ -431,25 +508,44 @@ export default function AiScreen() {
           <Text style={styles.emptyDrafts}>{t('aiNoDrafts')}</Text>
         )}
 
+        {aiCategories.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>{t('category')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
+              {aiCategories.map((c) => {
+                const active = categoryId === c.id
+                return (
+                  <TouchableOpacity key={c.id} style={[styles.catChip, active && styles.catChipActive]} onPress={() => setCategoryId(c.id)}>
+                    <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{c.name}{c.isDefault ? ' ★' : ''}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+          </>
+        )}
+
         <View style={styles.imageArea}>
-          {imageUri ? (
-            <>
-              <Image source={{ uri: imageUri }} style={styles.previewImage} />
-              <View style={styles.imageActions}>
-                <TouchableOpacity style={[styles.actionBtn, styles.secondary]} onPress={() => setImageUri(null)}>
-                  <Text style={styles.actionBtnText}>{t('changeImage')}</Text>
-                </TouchableOpacity>
-              </View>
-            </>
+          {imageUris.length > 0 ? (
+            <View style={styles.imageGrid}>
+              {imageUris.map((uri, i) => (
+                <View key={i} style={styles.imageCell}>
+                  <Image source={{ uri }} style={styles.thumbImage} />
+                  <TouchableOpacity style={styles.thumbRemove} onPress={() => removeImage(i)}>
+                    <Ionicons name="close" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
           ) : (
             <View style={styles.uploadPlaceholder}>
               <Ionicons name="image-outline" size={48} color="#666" />
               <Text style={styles.placeholderText}>{t('selectImage')}</Text>
+              <Text style={styles.placeholderHint}>En fazla 2 fotoğraf</Text>
             </View>
           )}
         </View>
 
-        {!imageUri && (
+        {imageUris.length < 2 && (
           <View style={styles.sourceButtons}>
             <TouchableOpacity style={styles.sourceBtn} onPress={takePhoto}>
               <Ionicons name="camera-outline" size={24} color="#fff" />
@@ -462,7 +558,7 @@ export default function AiScreen() {
           </View>
         )}
 
-        {imageUri && !analyzing && (
+        {imageUris.length > 0 && !analyzing && (
           <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze} disabled={analyzing}>
             <Ionicons name="sparkles" size={22} color="#fff" />
             <Text style={styles.analyzeBtnText}>{t('analyzeProduct')}</Text>
@@ -490,7 +586,26 @@ export default function AiScreen() {
         <StepPills />
         <StatusBoxes />
 
-        {imageUri && <Image source={{ uri: imageUri }} style={styles.smallPreview} />}
+        {draft && draft.images && draft.images.length > 0 && (
+          <View style={styles.metaCard}>
+            <Text style={styles.metaTitle}>{t('images')} ({draft.images.length})</Text>
+            <View style={styles.imageGrid}>
+              {draft.images.map((img, i) => (
+                <Image key={i} source={{ uri: img }} style={styles.thumbImage} />
+              ))}
+            </View>
+            <View style={styles.addPhotoRow}>
+              <TouchableOpacity style={[styles.addPhotoBtn, { backgroundColor: '#000' }]} onPress={takePhotoToAdd} disabled={addingPhoto}>
+                <Ionicons name="camera-outline" size={18} color="#fff" />
+                <Text style={styles.addPhotoBtnText}>{t('takePhoto')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.addPhotoBtn, { backgroundColor: '#3b82f6' }]} onPress={pickPhotoToAdd} disabled={addingPhoto}>
+                {addingPhoto ? <ActivityIndicator size={18} color="#fff" /> : <Ionicons name="image-outline" size={18} color="#fff" />}
+                <Text style={styles.addPhotoBtnText}>{t('chooseFromGallery')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {draft && (
           <>
@@ -785,6 +900,19 @@ const styles = StyleSheet.create({
   draftCardMeta: { fontSize: 10, color: '#999', marginTop: 2 },
   draftDelete: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10, padding: 3 },
   emptyDrafts: { fontSize: 13, color: '#999', marginBottom: 16 },
+  catRow: { flexDirection: 'row', marginBottom: 16 },
+  catChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: '#e5e5e5', marginRight: 8 },
+  catChipActive: { backgroundColor: '#10b981' },
+  catChipText: { fontSize: 12, fontWeight: '600', color: '#555' },
+  catChipTextActive: { color: '#fff' },
+  imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  imageCell: { position: 'relative', width: 140 },
+  thumbImage: { width: 140, height: 100, borderRadius: 10 },
+  thumbRemove: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, padding: 3 },
+  placeholderHint: { marginTop: 4, fontSize: 11, color: '#bbb' },
+  addPhotoRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  addPhotoBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  addPhotoBtnText: { color: '#fff', fontWeight: '600', fontSize: 12 },
   imageArea: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', marginBottom: 16 },
   previewImage: { width: '100%', height: 220 },
   uploadPlaceholder: { padding: 40, alignItems: 'center', backgroundColor: '#fff' },

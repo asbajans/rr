@@ -1117,6 +1117,7 @@ class ApiClient {
   // AI Product Studio (session → draft → publish flow)
   async createAiProductSession(data: {
     sourceImageUrl: string
+    sourceImageUrls?: string[]
     category?: string
     category_id?: number
     short_description?: string

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import type { AuthResponse, MeResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest, AiProductSession, AiProductDraft, AiChannelValidationResult, AiSessionStatusResponse } from './types'
+import type { AuthResponse, MeResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest, AiProductSession, AiProductDraft, AiChannelValidationResult, AiSessionStatusResponse, AiCategory } from './types'
 
 const API_BASE = 'https://api.rahatio.com.tr'
 const TOKEN_KEY = 'auth_token'
@@ -590,7 +590,9 @@ class ApiClient {
   // AI Product Studio (agentic listing flow)
   async createAiProductSession(input: {
     sourceImageUrl: string
+    sourceImageUrls?: string[]
     category?: string
+    category_id?: number
     notes?: string
     short_description?: string
     keywords?: string[]
@@ -665,12 +667,24 @@ class ApiClient {
     return this.delete<{ ok: boolean }>(`/api/ai/product-drafts/${id}`)
   }
 
-  // Upload image then start an agentic session in one call.
-  async createAiProductSessionFromImage(imageUri: string, opts?: { category?: string; suggestPrice?: boolean; targetMarketplaces?: string[] }) {
-    const uploaded = await this.uploadImage(imageUri, `photo-${Date.now()}.jpg`, 'image/jpeg')
+  // AI Categories (user-defined categories + auto-generated attribute schemas)
+  async listAiCategories() {
+    const r = await this.get<{ categories: AiCategory[]; defaultCategoryId: number | null }>('/api/admin/ai/categories')
+    return { categories: r.categories || [], defaultCategoryId: r.defaultCategoryId }
+  }
+
+  // Upload image(s) then start an agentic session in one call (max 2 photos).
+  async createAiProductSessionFromImage(imageUris: string[], opts?: { category?: string; categoryId?: number; suggestPrice?: boolean; targetMarketplaces?: string[] }) {
+    const urls: string[] = []
+    for (const uri of imageUris) {
+      const uploaded = await this.uploadImage(uri, `photo-${Date.now()}-${urls.length}.jpg`, 'image/jpeg')
+      urls.push(uploaded.url)
+    }
     return this.createAiProductSession({
-      sourceImageUrl: uploaded.url,
+      sourceImageUrl: urls[0],
+      sourceImageUrls: urls,
       category: opts?.category,
+      category_id: opts?.categoryId,
       suggest_price: opts?.suggestPrice,
       target_marketplaces: opts?.targetMarketplaces,
     })

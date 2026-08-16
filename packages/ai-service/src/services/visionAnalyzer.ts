@@ -53,7 +53,7 @@ function buildVisionPrompt(category: string, sector: SectorConfig): string {
     .map(([name, what]) => `"${name}": "${what}"`)
     .join(',\n  ');
 
-  return `You are a professional product analyst specializing in ${sector.label} products. Analyze this product image carefully and thoroughly.
+  return `You are a professional product analyst specializing in ${sector.label} products. Analyze the provided product photo(s) carefully and thoroughly (more than one photo means the same product is shown from different angles/close-ups — combine the evidence).
 
 This category's key details to look for:
 ${focus}
@@ -148,13 +148,12 @@ function parseJsonResponse(text: string): any {
 }
 
 export async function analyzeProductImage(
-  imagePath: string,
+  imagePath: string | string[],
   category: string,
   providerConfig?: VisionProviderConfig,
   attributes?: AiAttribute[]
 ): Promise<ProductSpecs> {
-  const imageBase64 = fs.readFileSync(imagePath).toString('base64');
-  const mime = mimeFromPath(imagePath);
+  const paths = Array.isArray(imagePath) ? imagePath : [imagePath];
   const sector = buildSectorFor(category, attributes);
 
   const config: ProviderConfig = providerConfig?.baseUrl
@@ -168,13 +167,19 @@ export async function analyzeProductImage(
       }
     : { baseUrl: OLLAMA_URL, model: VISION_MODEL };
 
+  const imageParts = paths.map((p) => {
+    const imageBase64 = fs.readFileSync(p).toString('base64');
+    const mime = mimeFromPath(p);
+    return { type: 'image_url' as const, image_url: { url: `data:${mime};base64,${imageBase64}` } };
+  });
+
   const messages: ChatMessage[] = [
     { role: 'system', content: buildVisionPrompt(category, sector) },
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'Analyze this product image and return the JSON.' },
-        { type: 'image_url', image_url: { url: `data:${mime};base64,${imageBase64}` } },
+        { type: 'text', text: `Analyze these ${imageParts.length} product photo(s) of the same product and return the JSON.` },
+        ...imageParts,
       ],
     },
   ];

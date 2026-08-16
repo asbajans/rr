@@ -279,7 +279,7 @@ async function generateListingDraft(
 }
 
 export async function generateAgenticListing(
-  imagePath: string,
+  imagePath: string | string[],
   input: AgenticListingInput,
   providerConfig?: ProviderConfig
 ): Promise<AgenticListingResult> {

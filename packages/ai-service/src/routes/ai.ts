@@ -91,6 +91,35 @@ function resolveSingleFile(req: Request, uploadsDir: string): Promise<string> {
   return Promise.reject(new Error('Görsel gerekli'));
 }
 
+function uniqueStrings(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim() && !seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolves up to `max` product photos for the agentic-listing pipeline.
+ * Accepts: multipart files (images[]), JSON `imageUrl`, or JSON `image_urls` array.
+ */
+async function resolveMultiFiles(req: Request, uploadsDir: string, max = 2): Promise<string[]> {
+  const files = req.files as Express.Multer.File[];
+  let paths: string[] = [];
+  if (files && files.length > 0) {
+    paths = files.map((f) => f.path);
+  } else {
+    const urls = uniqueStrings([...(req.body.imageUrl ? [req.body.imageUrl] : []), ...(Array.isArray(req.body.image_urls) ? req.body.image_urls : [])]);
+    paths = await Promise.all(urls.map((url) => downloadImage(url, uploadsDir)));
+  }
+  if (paths.length === 0) throw new Error('En az bir görsel gerekli');
+  return paths.slice(0, max);
+}
+
 // process-image: accepts multipart images[] OR JSON { imageUrl, category }
 router.post(
   '/process-image',
@@ -287,14 +316,14 @@ router.post(
   }
 );
 
-// Agentic listing: image → vision specs → full publish-ready draft (title/desc/attrs/price)
+// Agentic listing: image(s) → vision specs → full publish-ready draft (title/desc/attrs/price)
 router.post(
   '/agentic-listing',
-  upload.single('image'),
+  upload.array('images', 2),
   async (req: Request, res: Response) => {
-    let filePath: string;
+    let filePaths: string[];
     try {
-      filePath = await resolveSingleFile(req, path.resolve('uploads'));
+      filePaths = await resolveMultiFiles(req, path.resolve('uploads'), 2);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
       return;
@@ -305,7 +334,7 @@ router.post(
       const { generateAgenticListing } = await import('../services/agenticListing.js');
 
       const result = await generateAgenticListing(
-        filePath,
+        filePaths,
         {
           category: (req.body.category || 'diger') as any,
           categoryAttributes: req.body.category_attributes,

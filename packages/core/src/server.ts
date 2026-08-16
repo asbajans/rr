@@ -270,6 +270,7 @@ export const createApp = async (): Promise<Express> => {
   // AI Product Studio tables are created by sync; add future-safe columns here
   try {
     await sequelize.query(`ALTER TABLE ai_product_sessions ADD COLUMN IF NOT EXISTS "idempotencyKey" VARCHAR(128)`);
+    await sequelize.query(`ALTER TABLE ai_product_sessions ADD COLUMN IF NOT EXISTS "additionalImageUrls" JSONB`);
     await sequelize.query(`ALTER TABLE ai_product_drafts ADD COLUMN IF NOT EXISTS "productId" BIGINT REFERENCES products(id) ON DELETE SET NULL`);
     await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_product_sessions_store_idempotency_unique ON ai_product_sessions ("storeId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL`);
   } catch (e) {

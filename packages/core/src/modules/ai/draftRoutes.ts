@@ -40,6 +40,18 @@ function normalizeCategoryLabel(value: string): string {
   return value.toLocaleLowerCase('tr-TR').trim().replace(/[^a-z0-9ğüşıöç]+/gi, ' ');
 }
 
+function uniqueStrings(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim() && !seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
 async function resolveCategoryId(storeId: number, analysis: AiAnalysisResult): Promise<number | null> {
   const candidates = [
     ...(analysis.categoryCandidates || []).sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0)).map((c) => c.name),
@@ -72,7 +84,7 @@ async function resolveCategoryId(storeId: number, analysis: AiAnalysisResult): P
   return best?.id || null;
 }
 
-function mapToDraft(analysis: AiAnalysisResult, sourceImageUrl: string, categoryId: number | null): Partial<AiProductDraftDTO> {
+function mapToDraft(analysis: AiAnalysisResult, sourceImages: string[], categoryId: number | null): Partial<AiProductDraftDTO> {
   const suggestedPrice = analysis.priceSuggestion
     ? Number(analysis.priceSuggestion.max || analysis.priceSuggestion.min) || undefined
     : undefined;
@@ -88,7 +100,7 @@ function mapToDraft(analysis: AiAnalysisResult, sourceImageUrl: string, category
     keywords: analysis.keywords,
     suggestedPrice,
     priceCurrency: analysis.priceSuggestion?.currency || 'TRY',
-    images: [sourceImageUrl],
+    images: sourceImages,
     confidence: analysis.confidence,
     rawAiResponse: analysis as unknown as Record<string, unknown>,
     status: 'review',
@@ -142,17 +154,29 @@ export async function analyzeAndCreateSession(
 
   let session: AiProductSession | null = existingSession || null;
   try {
+    const sourceImages = uniqueStrings([
+      ...(existingSession?.additionalImageUrls || []),
+      input.sourceImageUrl,
+      ...(Array.isArray(input.sourceImageUrls) ? input.sourceImageUrls : []),
+    ]);
+
     if (!session) {
       session = await AiProductSession.create({
         storeId: store.id,
         userId: user.id,
         status: 'analyzing',
-        sourceImageUrl: input.sourceImageUrl,
+        sourceImageUrl: sourceImages[0],
+        additionalImageUrls: sourceImages.length > 1 ? sourceImages.slice(1) : null,
         creditsUsed: credits,
         idempotencyKey: idempotencyKey || null,
       });
     } else if (session.status !== 'analyzing' || session.creditsUsed !== credits) {
-      await session.update({ status: 'analyzing', errorMessage: null, creditsUsed: credits });
+      await session.update({
+        status: 'analyzing',
+        errorMessage: null,
+        creditsUsed: credits,
+        additionalImageUrls: sourceImages.length > 1 ? sourceImages.slice(1) : null,
+      });
     }
 
     const providerPayload = buildProviderPayload(provider, model, scenario, keys);
@@ -175,7 +199,8 @@ export async function analyzeAndCreateSession(
     }
 
     const aiBody = {
-      imageUrl: input.sourceImageUrl,
+      imageUrl: sourceImages[0],
+      image_urls: sourceImages,
       category: categoryName,
       category_attributes: categoryAttributes,
       short_description: input.short_description,
@@ -195,7 +220,7 @@ export async function analyzeAndCreateSession(
     const draft = await AiProductDraft.create({
       sessionId: session.id,
       storeId: store.id,
-      ...mapToDraft(analysis, input.sourceImageUrl, categoryId),
+      ...mapToDraft(analysis, sourceImages, categoryId),
     });
 
     await session.update({ draftId: draft.id, status: 'review' });
@@ -223,6 +248,7 @@ export async function analyzeAndCreateSession(
 // POST /api/ai/product-sessions
 draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
   body('sourceImageUrl').isURL(),
+  body('sourceImageUrls').optional().isArray(),
   body('category').optional().isString(),
   body('category_id').optional().isInt(),
   body('short_description').optional().isString(),
@@ -247,11 +273,13 @@ draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
 
   let session: AiProductSession;
   try {
+    const sourceImages = uniqueStrings([req.body.sourceImageUrl, ...(Array.isArray(req.body.sourceImageUrls) ? req.body.sourceImageUrls : [])]);
     session = await AiProductSession.create({
       storeId: store.id,
       userId: user.id,
       status: 'uploaded',
-      sourceImageUrl: req.body.sourceImageUrl,
+      sourceImageUrl: sourceImages[0],
+      additionalImageUrls: sourceImages.length > 1 ? sourceImages.slice(1) : null,
       creditsUsed: 0,
       idempotencyKey: idempotencyKey || null,
     });

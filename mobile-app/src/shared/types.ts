@@ -368,12 +368,22 @@ export type AiSessionStatus =
 
 export type AiDraftStatus = 'review' | 'approved' | 'rejected' | 'converted'
 
+export interface AiCategory {
+  id: number
+  name: string
+  slug?: string
+  isDefault?: boolean
+  aiAttributes?: Array<{ name: string; type: string; description?: string }>
+  storeId?: number | null
+}
+
 export interface AiProductSession {
   id: string
   storeId: number
   userId: number
   status: AiSessionStatus
   sourceImageUrl: string
+  additionalImageUrls?: string[]
   processedImageUrl?: string
   draftId?: number
   errorMessage?: string
