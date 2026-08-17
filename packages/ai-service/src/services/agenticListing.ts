@@ -2,7 +2,7 @@ import { ProductSpecs, ProductCode, AiAttribute } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
-import { searchWeb, WebSearchResult } from './webSearch.js';
+import { searchWeb, searchWithGoogleVision, WebSearchResult } from './webSearch.js';
 
 export type ProductCondition = 'new' | 'refurbished' | 'used' | 'salvage';
 
@@ -376,13 +376,17 @@ async function searchForCodes(codes?: ProductCode[]): Promise<WebSearchResult[]>
  */
 async function searchForSalvageReferences(
   specs: ProductSpecs,
-  input: AgenticListingInput
+  input: AgenticListingInput,
+  imagePath?: string
 ): Promise<WebSearchResult[]> {
   const brand = specs.brand?.trim();
   const codes = specs.codes || [];
   const category = specs.category || input.category || '';
   const type = specs.type || '';
   const visibleText = specs.visibleText || '';
+
+  // Step 1: Google Cloud Vision reverse image search (if API key configured)
+  const gcvResults = imagePath ? await searchWithGoogleVision(imagePath) : [];
 
   const queries: string[] = [];
   const seenQueries = new Set<string>();
@@ -460,7 +464,17 @@ async function searchForSalvageReferences(
       }
     }
   }
-  return results.slice(0, 15);
+  // Step 3: Merge — GCV results first (visual search), then text results
+  const merged: WebSearchResult[] = [];
+  const mergedSeen = new Set<string>();
+  for (const r of [...gcvResults, ...results]) {
+    const key = r.title || r.url;
+    if (key && !mergedSeen.has(key)) {
+      mergedSeen.add(key);
+      merged.push(r);
+    }
+  }
+  return merged.slice(0, 20);
 }
 
 /**
@@ -504,7 +518,7 @@ export async function generateAgenticListing(
 
   const isSalvage = input.condition === 'salvage';
   const referenceResults = isSalvage
-    ? await searchForSalvageReferences(specs, input)
+    ? await searchForSalvageReferences(specs, input, Array.isArray(imagePath) ? imagePath[0] : imagePath)
     : await searchForCodes(specs.codes);
 
   const draft = await generateListingDraft(specs, input, providerConfig, referenceResults);

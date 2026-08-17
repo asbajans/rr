@@ -1,5 +1,6 @@
 import http from 'http';
 import https from 'https';
+import fs from 'fs';
 
 export interface WebSearchResult {
   title: string;
@@ -94,6 +95,113 @@ export async function searchWeb(query: string, maxResults = 6): Promise<WebSearc
   }
   try {
     return await searchDuckDuckGo(query, maxResults);
+  } catch {
+    return [];
+  }
+}
+
+function httpPost(url: string, body: string, timeoutMs = 30000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    const urlObj = new URL(url);
+    const req = client.request(
+      {
+        hostname: urlObj.hostname,
+        port: urlObj.port,
+        path: urlObj.pathname + urlObj.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        if (res.statusCode && res.statusCode >= 400) {
+          const chunks: Buffer[] = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => reject(new Error(`GCV HTTP ${res.statusCode}: ${Buffer.concat(chunks).toString('utf8').slice(0, 300)}`)));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('GCV request timeout')));
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
+ * Google Cloud Vision API — WEB_DETECTION reverse image search.
+ * Finds similar images on the web, best-guess labels, and pages with matching
+ * images. Used for salvage parts to identify vehicle compatibility.
+ * Returns [] when GOOGLE_CLOUD_VISION_API_KEY is not set or on any error.
+ */
+export async function searchWithGoogleVision(imagePath: string): Promise<WebSearchResult[]> {
+  const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Image = imageBuffer.toString('base64');
+
+    const requestBody = JSON.stringify({
+      requests: [
+        {
+          image: { content: base64Image },
+          features: [{ type: 'WEB_DETECTION', maxResults: 10 }],
+        },
+      ],
+    });
+
+    const url = `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`;
+    const json = await httpPost(url, requestBody, 30000);
+    const data = JSON.parse(json);
+
+    const annotation = data.responses?.[0]?.webDetection;
+    if (!annotation) return [];
+
+    const results: WebSearchResult[] = [];
+    const seen = new Set<string>();
+
+    if (annotation.bestGuessLabels?.length) {
+      const label = annotation.bestGuessLabels[0].label;
+      if (label) {
+        results.push({ title: `[GCV Best Guess] ${label}`, url: '', snippet: label });
+      }
+    }
+
+    if (annotation.webEntities?.length) {
+      for (const entity of annotation.webEntities) {
+        if (entity.description && !seen.has(entity.description)) {
+          seen.add(entity.description);
+          results.push({
+            title: `[GCV Entity] ${entity.description}`,
+            url: '',
+            snippet: `Güven: ${Math.round((entity.score || 0) * 100)}%`,
+          });
+        }
+      }
+    }
+
+    if (annotation.pagesWithMatchingImages?.length) {
+      for (const page of annotation.pagesWithMatchingImages.slice(0, 8)) {
+        const pageTitle = page.title || page.url || '';
+        if (pageTitle && !seen.has(page.url)) {
+          seen.add(page.url);
+          results.push({
+            title: pageTitle,
+            url: page.url || '',
+            snippet: '',
+          });
+        }
+      }
+    }
+
+    return results.slice(0, 12);
   } catch {
     return [];
   }

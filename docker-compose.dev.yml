@@ -124,6 +124,7 @@ services:
       REDIS_URL: redis://redis:6379
       CORE_API_KEY: ${CORE_API_KEY:-core-internal-key}
       CORE_API_URL: http://core-api:3000
+      GOOGLE_CLOUD_VISION_API_KEY: ${GOOGLE_CLOUD_VISION_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy

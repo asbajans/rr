@@ -11,12 +11,13 @@ vi.mock('../services/visionAnalyzer.js', () => ({
 
 vi.mock('../services/webSearch.js', () => ({
   searchWeb: vi.fn(),
+  searchWithGoogleVision: vi.fn(),
 }));
 
 import { generateAgenticListing, conditionLabel } from '../services/agenticListing.js';
 import { callLlm } from '../services/llmProvider.js';
 import { analyzeProductImage } from '../services/visionAnalyzer.js';
-import { searchWeb } from '../services/webSearch.js';
+import { searchWeb, searchWithGoogleVision } from '../services/webSearch.js';
 
 const specs: ProductSpecs = {
   material: 'Deri',
@@ -51,9 +52,11 @@ describe('generateAgenticListing structured output', () => {
     vi.mocked(callLlm).mockReset();
     vi.mocked(analyzeProductImage).mockReset();
     vi.mocked(searchWeb).mockReset();
+    vi.mocked(searchWithGoogleVision).mockReset();
     vi.mocked(callLlm).mockResolvedValue(llmJson);
     vi.mocked(analyzeProductImage).mockResolvedValue(specs);
     vi.mocked(searchWeb).mockResolvedValue([]);
+    vi.mocked(searchWithGoogleVision).mockResolvedValue([]);
   });
 
   it('emits category_candidates, warnings and confidence', async () => {
@@ -203,5 +206,36 @@ describe('generateAgenticListing structured output', () => {
     const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
     expect(queries.some((q) => q.includes('söküm'))).toBe(true);
     expect(queries.some((q) => q.includes('uyumlu'))).toBe(true);
+  });
+
+  it('calls Google Vision image search for salvage products when imagePath provided', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Renault',
+      codes: [{ type: 'part_code', value: '864570513', confidence: 0.9 }],
+      visibleText: 'Renault / Magnum / Premium | Makas Kulağı',
+    });
+    vi.mocked(searchWithGoogleVision).mockResolvedValue([
+      { title: 'Renault Magnum Makas Kulağı', url: 'https://parts.example.com/renault-magnum', snippet: 'Renault Magnum ve Premium makas kulağı' },
+    ]);
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false }, undefined);
+
+    expect(searchWithGoogleVision).toHaveBeenCalledWith('/tmp/img.png');
+    expect(searchWeb).toHaveBeenCalled();
+  });
+
+  it('does not call Google Vision for non-salvage products', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Bosch',
+      codes: [{ type: 'part_code', value: '0986AB1234', confidence: 0.9 }],
+    });
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'new', suggestPrice: false });
+
+    expect(searchWithGoogleVision).not.toHaveBeenCalled();
   });
 });
