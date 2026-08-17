@@ -54,9 +54,21 @@ async function postWithRetry(url: string, body: any, headers: Record<string, str
 function providerError(err: any): Error {
   const status = err?.response?.status;
   const data = err?.response?.data;
-  const msg = (data && (data.error?.message || data.error?.code || data.message)) || err?.message || 'LLM provider error';
+  let msg: string;
+  if (data) {
+    if (typeof data === 'string') {
+      msg = data;
+    } else if (data.error) {
+      msg = typeof data.error === 'string' ? data.error : (data.error.message || data.error.code || JSON.stringify(data.error));
+    } else {
+      msg = data.message || JSON.stringify(data).slice(0, 300);
+    }
+  } else {
+    msg = err?.message || 'LLM provider error';
+  }
   const e = new Error(status ? `[${status}] ${msg}` : msg);
   (e as any).status = status;
+  (e as any).upstreamData = data;
   return e;
 }
 
@@ -157,7 +169,13 @@ async function callOpenAiCompatible(
     body.max_tokens = resolveMaxTokens(options?.maxTokens, config.maxTokens);
   }
   if (options?.topP !== undefined) body.top_p = options?.topP;
-  if (options?.responseFormatJson) body.response_format = { type: 'json_object' };
+  if (options?.responseFormatJson) {
+    const isOpenRouter = baseUrl.includes('openrouter');
+    const isGeminiModel = config.model?.includes('gemini');
+    if (!isOpenRouter || !isGeminiModel) {
+      body.response_format = { type: 'json_object' };
+    }
+  }
 
   const headers = buildHeaders(config);
 
