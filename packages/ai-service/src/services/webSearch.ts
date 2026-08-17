@@ -148,6 +148,11 @@ export async function searchWithGoogleVision(imagePath: string): Promise<WebSear
     const imageBuffer = fs.readFileSync(imagePath);
     const fileSizeMB = imageBuffer.length / (1024 * 1024);
 
+    if (imageBuffer.length < 100) {
+      console.warn(`[GCV] Image file too small (${imageBuffer.length}B), likely download failed — skipping: ${imagePath}`);
+      return [];
+    }
+
     if (fileSizeMB > 10) {
       console.warn(`[GCV] Image too large (${fileSizeMB.toFixed(1)}MB), skipping`);
       return [];

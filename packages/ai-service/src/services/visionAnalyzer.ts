@@ -180,6 +180,10 @@ async function resolveImageAsDataUri(p: string): Promise<{ mime: string; data: s
   if (isHttpUrl(p)) {
     return downloadImageAsDataUri(p);
   }
+  const stat = fs.statSync(p);
+  if (stat.size < 100) {
+    throw new Error(`Image file too small (${stat.size}B), likely download failed: ${p}`);
+  }
   const mime = mimeFromPath(p);
   const data = fs.readFileSync(p).toString('base64');
   return { mime, data };

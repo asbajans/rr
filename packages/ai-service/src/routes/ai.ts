@@ -61,8 +61,14 @@ async function downloadImage(url: string, destDir: string): Promise<string> {
     const file = fs.createWriteStream(dest);
     const client = url.startsWith('https') ? https : http;
     client.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        fs.unlink(dest, () => {});
+        reject(new Error(`Image download failed: HTTP ${response.statusCode} from ${url.slice(0, 100)}`));
+        return;
+      }
       response.pipe(file);
       file.on('finish', () => { file.close(); resolve(dest); });
+      file.on('error', (err) => { fs.unlink(dest, () => {}); reject(err); });
     }).on('error', (err) => { fs.unlink(dest, () => {}); reject(err); });
   });
 }
