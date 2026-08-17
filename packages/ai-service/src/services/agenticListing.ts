@@ -116,12 +116,15 @@ Rules:
 ${isSalvage ? `
 SALVAGE (ÇIKMA) LISTING RULES — apply ONLY when the product condition is "Çıkma":
 - Do NOT write generic marketing copy. Focus on FACTS: what vehicles/models the part fits, where it is used, and how to remove/install it
+- Examine "Readable Text on Product" and "Additional Observations" carefully — they often contain vehicle brand names, model codes, part numbers, or OEM references that identify the vehicle
 - Title MUST include: brand + part name + compatible vehicle model(s) + condition marker "(Çıkma)". Example: "Bosch Fren Balatası Seti Toyota Corolla E90 (Çıkma)"
 - Description MUST include these sections (Turkish): "Uyumlu Araçlar" (compatible vehicles with years/models), "Kullanım Yeri" (where on the vehicle), "Söküm / Çıkarma Bilgisi" (removal guidance), "Montaj Notları" (installation notes)
 - SEO meta_title and meta_description MUST contain the vehicle model + part name + "çıkma" so users searching "<araç modeli> <parça adı> çıkma" find this listing
-- Keywords MUST include: "<marka> <parça> çıkma", "<araç modeli> <parça> uyumlu", "<parça kodu>", "<marka> <parça> söküm"
-- Do NOT fabricate vehicle compatibility — only include vehicles that appear in the Salvage Reference Search Results
+- Keywords MUST include: "<marka> <parça> çıkma", "<araç modeli> <parça> uyumlu", "<parça kodu>", "<marka> <parça> söküm", "<araç modeli> <parça> çıkma"
+- From "Salvage Reference Search Results": extract EVERY vehicle model/brand/year range mentioned. Include all of them in "Uyumlu Araçlar". If the results mention specific series (e.g., "Renault Magnum", "Mercedes Actros"), list them
+- Do NOT fabricate vehicle compatibility — only include vehicles that appear in the Salvage Reference Search Results OR in the Visible Text / Observations
 - Bullet points for Amazon should focus on: compatible vehicles, OEM/part code, condition details, removal notes
+- Attributes MUST include: "Uyumlu Araçlar" (all compatible vehicles), "Kullanım Yeri", "Söküm Bilgisi", "Araç Tipi" (kamyon/kamyonet/binek/etc.)
 ` : ''}
 ${claimRules}`;
 }
@@ -182,10 +185,11 @@ ${isSalvage ? `Salvage Reference Search Results (web lookup for vehicle compatib
 ${reference || '- None available — rely on detected specs only'}
 
 IMPORTANT for ÇIKMA (salvage) products:
-- Extract COMPATIBLE VEHICLES from the reference results above (make/model/year). Only include vehicles found in the results; do NOT invent
+- Extract ALL COMPATIBLE VEHICLES from the reference results (make/model/series/year range). If results mention specific series like "Renault Magnum", "Mercedes Actros", list them all
+- Also check "Readable Text on Product" and "Additional Observations" — they may contain OEM part numbers, vehicle brand names, or model references (e.g., döküm yazıları, etiket numaraları)
 - Extract USAGE LOCATION (where on the vehicle this part is used)
 - Extract REMOVAL/INSTALLATION notes from the results
-- If no reference results are available, use ONLY the detected specs and codes; do NOT fabricate vehicle compatibility` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
+- If no reference results are available, use ONLY the detected specs, visible text and codes; do NOT fabricate vehicle compatibility` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
 ${reference || '- None available'}`}
 
 Target Marketplaces: ${marketplaces}
@@ -209,9 +213,10 @@ Return the following JSON exactly:
     "Durum": "${condition}",
     ${schema},
     ...other relevant attributes and any detected codes (e.g. "Model No", "Parça Kodu", "Barkod", "Seri No")${isSalvage ? `,
-    "Uyumlu Araçlar": "<vehicle models found in reference results, comma-separated>",
+    "Uyumlu Araçlar": "<all compatible vehicles from reference results: brand + model + series + year range, comma-separated>",
     "Kullanım Yeri": "<where on the vehicle this part is used>",
-    "Söküm Bilgisi": "<brief removal guidance>"` : ''}
+    "Söküm Bilgisi": "<brief removal guidance>",
+    "Araç Tipi": "<kamyon/kamyonet/binek/ticari/ağır vasıta/otobüs>"` : ''}
   },
   "bullet_points": ["5 ${isSalvage ? 'bullet points focusing on compatible vehicles, OEM code, condition, removal notes' : 'persuasive bullets for Amazon'}"],
   "price_suggestion": ${input.suggestPrice !== false
@@ -365,47 +370,82 @@ async function searchForCodes(codes?: ProductCode[]): Promise<WebSearchResult[]>
 
 /**
  * Salvage-only: builds multi-query web search targeting vehicle compatibility,
- * usage context, and removal/installation guidance. Each query targets a
- * different informational angle so the LLM can write an accurate, SEO-friendly
- * listing without inventing facts. Best-effort; never throws.
+ * usage context, and removal/installation guidance. Uses ALL detected codes,
+ * visible text markings, and part type synonyms to maximize search coverage.
+ * Best-effort; never throws.
  */
 async function searchForSalvageReferences(
   specs: ProductSpecs,
   input: AgenticListingInput
 ): Promise<WebSearchResult[]> {
   const brand = specs.brand?.trim();
-  const codes = specs.codes;
-  const primaryCode =
-    codes?.find((c) => ['part_code', 'model', 'serial', 'barcode'].includes(c.type)) || codes?.[0];
-  const codeValue = primaryCode?.value?.trim();
+  const codes = specs.codes || [];
   const category = specs.category || input.category || '';
   const type = specs.type || '';
+  const visibleText = specs.visibleText || '';
 
   const queries: string[] = [];
+  const seenQueries = new Set<string>();
+  const addQ = (q: string) => {
+    const clean = q.trim().replace(/\s+/g, ' ');
+    if (clean.length >= 3 && !seenQueries.has(clean.toLowerCase())) {
+      seenQueries.add(clean.toLowerCase());
+      queries.push(clean);
+    }
+  };
 
-  if (codeValue) {
-    queries.push(`"${codeValue}"`);
-    queries.push(`${codeValue} çıkma parça`);
-    queries.push(`${codeValue} hangi araca uyumlu`);
-    if (brand) {
-      queries.push(`${brand} ${codeValue} araç uyumu`);
-      queries.push(`${brand} ${codeValue} söküm`);
+  const allCodeValues = codes
+    .filter((c) => c.value?.trim())
+    .map((c) => c.value.trim());
+
+  for (const cv of allCodeValues.slice(0, 2)) {
+    addQ(`"${cv}"`);
+    addQ(`${cv} çıkma parça`);
+    if (brand) addQ(`${brand} ${cv} araç uyumu`);
+    if (brand) addQ(`${brand} ${cv} söküm`);
+  }
+
+  if (visibleText) {
+    const lines = visibleText.split(/[\n|/]+/).map((l) => l.trim()).filter(Boolean);
+    for (const line of lines.slice(0, 4)) {
+      if (line.length >= 3 && !allCodeValues.some((cv) => line === cv)) {
+        addQ(`"${line}"`);
+        addQ(`${line} çıkma parça`);
+      }
+    }
+    const words = visibleText.replace(/[^\w\sğüşıöçĞÜŞİÖÇ]/g, ' ').split(/\s+/).filter((w) => w.length >= 3);
+    const meaningful = words.filter((w) => !/^\d+$/.test(w) && w.length >= 3);
+    if (meaningful.length >= 2) {
+      addQ(`${meaningful.slice(0, 4).join(' ')} araç uyumu`);
     }
   }
 
   if (brand && type) {
-    queries.push(`${brand} ${type} çıkma`);
+    addQ(`${brand} ${type} çıkma`);
+    addQ(`${brand} ${type} uyumlu araç`);
   }
 
   if (brand && category) {
-    queries.push(`${brand} ${category} parça uyumlu araç`);
+    addQ(`${brand} ${category} parça uyumlu araç`);
+  }
+
+  if (type) {
+    addQ(`${type} çıkma parça`);
+    addQ(`${type} hangi araca uyumlu`);
+  }
+
+  const vehicleHints = extractVehicleHints(specs);
+  for (const hint of vehicleHints.slice(0, 3)) {
+    if (brand) addQ(`${brand} ${hint}`);
+    if (type) addQ(`${type} ${hint}`);
   }
 
   if (queries.length === 0) return [];
 
   const results: WebSearchResult[] = [];
   const seen = new Set<string>();
-  for (const q of queries.slice(0, 6)) {
+  const maxQueries = Math.min(queries.length, 15);
+  for (const q of queries.slice(0, maxQueries)) {
     let batch: WebSearchResult[] = [];
     try {
       batch = await searchWeb(q, 5);
@@ -420,7 +460,38 @@ async function searchForSalvageReferences(
       }
     }
   }
-  return results.slice(0, 12);
+  return results.slice(0, 15);
+}
+
+/**
+ * Tries to extract vehicle hints (kamyon, kamyonet, binek, ticari, ağır vasıta,
+ * trailer, dorse etc.) from specs and visible text.
+ */
+function extractVehicleHints(specs: ProductSpecs): string[] {
+  const hints: string[] = [];
+  const all = `${specs.type} ${specs.style} ${specs.visibleText || ''}`.toLowerCase();
+
+  const vehicleTerms: [RegExp, string][] = [
+    [/\bkamyon\b/, 'kamyon'],
+    [/\bkamyonet\b/, 'kamyonet'],
+    [/\bbinek\b/, 'binek'],
+    [/\bticari\b/, 'ticari araç'],
+    [/\bağır\s*vasıta\b/, 'ağır vasıta'],
+    [/\b(otobüs|minibüs)\b/, 'otobüs/minibüs'],
+    [/\bdorse\b/, 'dorse'],
+    [/\brömork\b/, 'römork'],
+    [/\bçekici\b/, 'çekici'],
+    [/\btraktör\b/, 'traktör'],
+  ];
+
+  for (const [re, label] of vehicleTerms) {
+    if (re.test(all) && label) hints.push(label);
+  }
+
+  const brandMatch = all.match(/\b(renault|mercedes|volvo|man|scania|daf|iveco|fiat|ford|volkswagen|bmw|toyota|hyundai|seat)\b/);
+  if (brandMatch) hints.push(brandMatch[1]);
+
+  return [...new Set(hints)];
 }
 
 export async function generateAgenticListing(

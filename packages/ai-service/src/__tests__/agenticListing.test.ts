@@ -154,6 +154,27 @@ describe('generateAgenticListing structured output', () => {
     expect(queries.some((q) => q.includes('Bosch') && q.includes('araç uyumu'))).toBe(true);
   });
 
+  it('uses visibleText and vehicle hints in salvage search queries', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Renault',
+      codes: [{ type: 'part_code', value: '864570513', confidence: 0.9 }],
+      visibleText: 'Renault / Magnum / Premium | Makas Kulağı | 864570513',
+      type: 'Makas Kulağı',
+    });
+    vi.mocked(searchWeb).mockResolvedValue([
+      { title: 'Renault Magnum Makas Kulağı 864570513', url: 'https://example.com/1', snippet: 'Renault Magnum ve Premium serisi için makas kulağı' },
+    ]);
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false });
+
+    expect(searchWeb).toHaveBeenCalled();
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.some((q) => q.includes('864570513'))).toBe(true);
+    expect(queries.some((q) => q.includes('Renault'))).toBe(true);
+    expect(queries.some((q) => q.includes('Makas Kulağı') || q.includes('makas kulağı'))).toBe(true);
+    expect(queries.some((q) => q.includes('Magnum'))).toBe(true);
+  });
+
   it('does not trigger salvage search when condition is not salvage', async () => {
     vi.mocked(analyzeProductImage).mockResolvedValue({
       ...specs,
