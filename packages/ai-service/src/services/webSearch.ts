@@ -399,7 +399,7 @@ function parseGcvCodes(text: string): ProductCode[] {
   const lines = text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length >= 3);
   for (const line of lines.slice(0, 8)) {
     const token = line.replace(/[\s|:/]+$/, '');
-    if (/^[A-Z0-9][A-Z0-9\-.\/]{3,}$/i.test(token) && /[A-Z]/.test(token) && /\d/.test(token)) {
+    if (/^[A-Z0-9][A-Z0-9\-./]{3,}$/i.test(token) && /[A-Z]/.test(token) && /\d/.test(token)) {
       codes.push({ type: 'label_text', value: token, confidence: 0.7 });
     }
   }
