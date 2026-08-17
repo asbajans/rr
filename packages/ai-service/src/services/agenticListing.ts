@@ -83,10 +83,12 @@ function codeWarnings(codes?: ProductCode[]): string[] {
   return warnings;
 }
 
-function buildSystemPrompt(sector: SectorConfig): string {
+function buildSystemPrompt(sector: SectorConfig, condition?: ProductCondition | string): string {
   const claimRules = sector.claimRestrictions?.length
     ? `Sector claim restrictions:\n${sector.claimRestrictions.map((r) => `- ${r}`).join('\n')}`
     : '';
+
+  const isSalvage = condition === 'salvage';
 
   return `You are an expert e-commerce listing agent for the Turkish market specializing in ${sector.label}. You turn product photo(s) + detected specs into a complete, publish-ready listing draft.
 
@@ -100,7 +102,7 @@ Rules:
 - BRAND RULE: if a brand was detected in the photo (in the specs), the title MUST start with the brand name. NEVER invent a brand that is not in the specs
 - CONDITION RULE: the product's condition is given in the prompt. Reflect it in the title (suffix in parentheses like "(Yeni)", "(Yenilenmiş)", "(İkinci El)", "(Çıkma)") and describe it honestly in the description + attributes ("Durum"). For "Yeni" keep the title clean and state "Yeni" naturally in description + attributes
 - PART CODE RULE: if a part/model code is present it MUST be reproduced EXACTLY. For spare parts / automotive / industrial parts, include the code in the title (it is how buyers search). For other products include it in attributes + description only
-- If "Reference Search Results" are provided, use them to determine the exact product name and description; do NOT contradict them and do NOT invent facts that are neither in the specs nor in the references
+- If "Reference Search Results" or "Salvage Reference Search Results" are provided, use them to determine the exact product name and description; do NOT contradict them and do NOT invent facts that are neither in the specs nor in the references
 - Title max 60 characters, follow the sector title pattern: ${sector.titleTemplate}
 - Amazon bullet points max 200 characters each
 - SEO meta title max 60 chars, meta description max 160 chars
@@ -111,6 +113,16 @@ Rules:
 - Only report high-confidence details; if a detail is uncertain, mark it in warnings
 - Provide a "confidence" score (0-1) for each generated field
 - Provide 2-3 "category_candidates" each with a confidence score (0-1)
+${isSalvage ? `
+SALVAGE (ÇIKMA) LISTING RULES — apply ONLY when the product condition is "Çıkma":
+- Do NOT write generic marketing copy. Focus on FACTS: what vehicles/models the part fits, where it is used, and how to remove/install it
+- Title MUST include: brand + part name + compatible vehicle model(s) + condition marker "(Çıkma)". Example: "Bosch Fren Balatası Seti Toyota Corolla E90 (Çıkma)"
+- Description MUST include these sections (Turkish): "Uyumlu Araçlar" (compatible vehicles with years/models), "Kullanım Yeri" (where on the vehicle), "Söküm / Çıkarma Bilgisi" (removal guidance), "Montaj Notları" (installation notes)
+- SEO meta_title and meta_description MUST contain the vehicle model + part name + "çıkma" so users searching "<araç modeli> <parça adı> çıkma" find this listing
+- Keywords MUST include: "<marka> <parça> çıkma", "<araç modeli> <parça> uyumlu", "<parça kodu>", "<marka> <parça> söküm"
+- Do NOT fabricate vehicle compatibility — only include vehicles that appear in the Salvage Reference Search Results
+- Bullet points for Amazon should focus on: compatible vehicles, OEM/part code, condition details, removal notes
+` : ''}
 ${claimRules}`;
 }
 
@@ -136,6 +148,8 @@ function buildPrompt(
   const reference = referenceResults
     .map((r, i) => `${i + 1}. ${r.title}${r.snippet ? ` — ${r.snippet}` : ''}${r.url ? ` (${r.url})` : ''}`)
     .join('\n');
+
+  const isSalvage = input.condition === 'salvage';
 
   return `Product Specifications (detected from image):
 - Material: ${specs.material}
@@ -164,20 +178,27 @@ ${input.shortDescription ? `- Short Description: ${input.shortDescription}` : ''
 ${input.keywords ? `- Keywords: ${input.keywords}` : ''}
 ${input.notes ? `- Additional Notes: ${input.notes}` : ''}
 
-Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
-${reference || '- None available'}
+${isSalvage ? `Salvage Reference Search Results (web lookup for vehicle compatibility, usage, and removal info):
+${reference || '- None available — rely on detected specs only'}
+
+IMPORTANT for ÇIKMA (salvage) products:
+- Extract COMPATIBLE VEHICLES from the reference results above (make/model/year). Only include vehicles found in the results; do NOT invent
+- Extract USAGE LOCATION (where on the vehicle this part is used)
+- Extract REMOVAL/INSTALLATION notes from the results
+- If no reference results are available, use ONLY the detected specs and codes; do NOT fabricate vehicle compatibility` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
+${reference || '- None available'}`}
 
 Target Marketplaces: ${marketplaces}
 Suggest Price Range: ${input.suggestPrice !== false ? 'YES - estimate a reasonable market price range for this product type' : 'NO - omit price suggestion'}
 
 Return the following JSON exactly:
 {
-  "title": "BRAND (if known) + product type + condition marker. Max 60 chars. Follow pattern ${sector.titleTemplate}. Examples: 'Bosch Fren Balatası Seti (Yeni)', 'Siemens Röle (Çıkma)'",
-  "short_description": "1-2 sentence short description",
-  "description": "HTML long description, 200-300 words, persuasive",
-  "meta_title": "SEO title max 60 chars",
-  "meta_description": "SEO description max 160 chars",
-  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+  "title": "${isSalvage ? 'BRAND + part name + compatible vehicle model(s) + "(Çıkma)". Must include vehicle model for SEO. Example: "Bosch Fren Balatası Toyota Corolla E90 (Çıkma)"' : 'BRAND (if known) + product type + condition marker. Max 60 chars. Follow pattern ${sector.titleTemplate}. Examples: \'Bosch Fren Balatası Seti (Yeni)\', \'Siemens Röle (Çıkma)\''}",
+  "short_description": "${isSalvage ? '1-2 sentences: what the part is, which vehicles it fits, condition details' : '1-2 sentence short description'}",
+  "description": "HTML long description, ${isSalvage ? '200-300 words, FACT-BASED: sections for Uyumlu Araçlar, Kullanım Yeri, Söküm Bilgisi, Montaj Notları' : '200-300 words, persuasive'}",
+  "meta_title": "SEO title max 60 chars${isSalvage ? ' — MUST include vehicle model + part name + "çıkma"' : ''}",
+  "meta_description": "SEO description max 160 chars${isSalvage ? ' — MUST include vehicle model + part name + "çıkma" for search visibility' : ''}",
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"${isSalvage ? ' — include "<brand> <part> çıkma", "<vehicle> <part> uyumlu", "<part code>", "<brand> <part> söküm"' : ''}],
   "slug": "url-friendly-slug-in-turkish",
   "category": "one of: ${CATEGORY_LIST.join(', ')}",
   "attributes": {
@@ -187,9 +208,12 @@ Return the following JSON exactly:
     "Tür": "${specs.type}",
     "Durum": "${condition}",
     ${schema},
-    ...other relevant attributes and any detected codes (e.g. "Model No", "Parça Kodu", "Barkod", "Seri No")
+    ...other relevant attributes and any detected codes (e.g. "Model No", "Parça Kodu", "Barkod", "Seri No")${isSalvage ? `,
+    "Uyumlu Araçlar": "<vehicle models found in reference results, comma-separated>",
+    "Kullanım Yeri": "<where on the vehicle this part is used>",
+    "Söküm Bilgisi": "<brief removal guidance>"` : ''}
   },
-  "bullet_points": ["5 persuasive bullets for Amazon"],
+  "bullet_points": ["5 ${isSalvage ? 'bullet points focusing on compatible vehicles, OEM code, condition, removal notes' : 'persuasive bullets for Amazon'}"],
   "price_suggestion": ${input.suggestPrice !== false
     ? '{ "min": <number>, "max": <number>, "currency": "TRY", "rationale": "short reasoning" }'
     : 'null'},
@@ -239,7 +263,7 @@ async function generateListingDraft(
   const sector = buildSectorFor(input.category || 'diger', input.categoryAttributes);
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildSystemPrompt(sector) },
+    { role: 'system', content: buildSystemPrompt(sector, input.condition) },
     { role: 'user', content: buildPrompt(specs, input, sector, referenceResults) },
   ];
 
@@ -339,6 +363,66 @@ async function searchForCodes(codes?: ProductCode[]): Promise<WebSearchResult[]>
   return results.slice(0, 6);
 }
 
+/**
+ * Salvage-only: builds multi-query web search targeting vehicle compatibility,
+ * usage context, and removal/installation guidance. Each query targets a
+ * different informational angle so the LLM can write an accurate, SEO-friendly
+ * listing without inventing facts. Best-effort; never throws.
+ */
+async function searchForSalvageReferences(
+  specs: ProductSpecs,
+  input: AgenticListingInput
+): Promise<WebSearchResult[]> {
+  const brand = specs.brand?.trim();
+  const codes = specs.codes;
+  const primaryCode =
+    codes?.find((c) => ['part_code', 'model', 'serial', 'barcode'].includes(c.type)) || codes?.[0];
+  const codeValue = primaryCode?.value?.trim();
+  const category = specs.category || input.category || '';
+  const type = specs.type || '';
+
+  const queries: string[] = [];
+
+  if (codeValue) {
+    queries.push(`"${codeValue}"`);
+    queries.push(`${codeValue} çıkma parça`);
+    queries.push(`${codeValue} hangi araca uyumlu`);
+    if (brand) {
+      queries.push(`${brand} ${codeValue} araç uyumu`);
+      queries.push(`${brand} ${codeValue} söküm`);
+    }
+  }
+
+  if (brand && type) {
+    queries.push(`${brand} ${type} çıkma`);
+  }
+
+  if (brand && category) {
+    queries.push(`${brand} ${category} parça uyumlu araç`);
+  }
+
+  if (queries.length === 0) return [];
+
+  const results: WebSearchResult[] = [];
+  const seen = new Set<string>();
+  for (const q of queries.slice(0, 6)) {
+    let batch: WebSearchResult[] = [];
+    try {
+      batch = await searchWeb(q, 5);
+    } catch {
+      batch = [];
+    }
+    if (!Array.isArray(batch)) batch = [];
+    for (const r of batch) {
+      if (r.title && !seen.has(r.title)) {
+        seen.add(r.title);
+        results.push(r);
+      }
+    }
+  }
+  return results.slice(0, 12);
+}
+
 export async function generateAgenticListing(
   imagePath: string | string[],
   input: AgenticListingInput,
@@ -346,7 +430,12 @@ export async function generateAgenticListing(
 ): Promise<AgenticListingResult> {
   const category = input.category || 'diger';
   const specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
-  const referenceResults = await searchForCodes(specs.codes);
+
+  const isSalvage = input.condition === 'salvage';
+  const referenceResults = isSalvage
+    ? await searchForSalvageReferences(specs, input)
+    : await searchForCodes(specs.codes);
+
   const draft = await generateListingDraft(specs, input, providerConfig, referenceResults);
   return { specs, ...draft };
 }

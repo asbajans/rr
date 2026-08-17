@@ -48,6 +48,9 @@ const llmJson = JSON.stringify({
 
 describe('generateAgenticListing structured output', () => {
   beforeEach(() => {
+    vi.mocked(callLlm).mockReset();
+    vi.mocked(analyzeProductImage).mockReset();
+    vi.mocked(searchWeb).mockReset();
     vi.mocked(callLlm).mockResolvedValue(llmJson);
     vi.mocked(analyzeProductImage).mockResolvedValue(specs);
     vi.mocked(searchWeb).mockResolvedValue([]);
@@ -131,5 +134,53 @@ describe('generateAgenticListing structured output', () => {
     vi.mocked(searchWeb).mockRejectedValue(new Error('network'));
     const result = await generateAgenticListing('/tmp/img.png', { condition: 'used', suggestPrice: false });
     expect(result.title).toBe('Kadın Siyah Deri Günlük Ayakkabı');
+  });
+
+  it('triggers multi-query salvage search when condition is salvage', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Bosch',
+      codes: [{ type: 'part_code', value: '0986AB1234', confidence: 0.95 }],
+    });
+    vi.mocked(searchWeb).mockResolvedValue([
+      { title: 'Bosch Fren Balatası 0986AB1234 Toyota Corolla', url: 'https://example.com/1', snippet: 'Toyota Corolla E90 uyumlu ön fren balatası' },
+      { title: '0986AB1234 Söküm Talimatı', url: 'https://example.com/2', snippet: 'Tekerlek sökülerek erişilir' },
+    ]);
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false });
+
+    expect(searchWeb).toHaveBeenCalled();
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.some((q) => q.includes('0986AB1234') && q.includes('çıkma'))).toBe(true);
+    expect(queries.some((q) => q.includes('Bosch') && q.includes('araç uyumu'))).toBe(true);
+  });
+
+  it('does not trigger salvage search when condition is not salvage', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Bosch',
+      codes: [{ type: 'part_code', value: '0986AB1234', confidence: 0.95 }],
+    });
+    vi.mocked(searchWeb).mockResolvedValue([]);
+    await generateAgenticListing('/tmp/img.png', { condition: 'new', suggestPrice: false });
+
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.every((q) => !q.includes('çıkma'))).toBe(true);
+  });
+
+  it('uses salvage search results for reference instead of basic code search', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Bosch',
+      codes: [{ type: 'part_code', value: '0986AB1234', confidence: 0.95 }],
+    });
+    vi.mocked(searchWeb).mockResolvedValue([
+      { title: 'Bosch Fren Balatası 0986AB1234', url: 'https://example.com/1', snippet: 'Toyota Corolla E90 ön fren balatası seti, 1993-1997' },
+    ]);
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false });
+
+    expect(searchWeb).toHaveBeenCalled();
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.some((q) => q.includes('söküm'))).toBe(true);
+    expect(queries.some((q) => q.includes('uyumlu'))).toBe(true);
   });
 });
