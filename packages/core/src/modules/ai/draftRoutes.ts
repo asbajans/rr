@@ -250,10 +250,10 @@ export async function analyzeAndCreateSession(
 
 // POST /api/ai/product-sessions
 draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
-  body('sourceImageUrl').isURL(),
+  body('sourceImageUrl').isString().notEmpty().withMessage('sourceImageUrl gerekli'),
   body('sourceImageUrls').optional().isArray(),
   body('category').optional().isString(),
-  body('category_id').optional().isInt(),
+  body('category_id').optional().custom((v) => v === null || v === undefined || Number.isInteger(Number(v))),
   body('condition').optional().isIn(['new', 'refurbished', 'used', 'salvage']),
   body('short_description').optional().isString(),
   body('keywords').optional().isArray(),
@@ -264,6 +264,12 @@ draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
   const user = (req as any).user;
   const store = (req as any).store;
   const idempotencyKey = (req.headers['idempotency-key'] as string) || undefined;
+
+  const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+  function toAbsolute(u: string): string {
+    if (!u) return u;
+    return u.startsWith('http') ? u : `${appUrl}${u.startsWith('/') ? '' : '/'}${u}`;
+  }
 
   if (idempotencyKey) {
     const existing = await AiProductSession.findOne({
@@ -277,7 +283,10 @@ draftRoutes.post('/product-sessions', authMiddleware, requireStore, [
 
   let session: AiProductSession;
   try {
-    const sourceImages = uniqueStrings([req.body.sourceImageUrl, ...(Array.isArray(req.body.sourceImageUrls) ? req.body.sourceImageUrls : [])]);
+    const sourceImages = uniqueStrings([
+      toAbsolute(req.body.sourceImageUrl),
+      ...(Array.isArray(req.body.sourceImageUrls) ? req.body.sourceImageUrls.map(toAbsolute) : []),
+    ]);
     session = await AiProductSession.create({
       storeId: store.id,
       userId: user.id,
