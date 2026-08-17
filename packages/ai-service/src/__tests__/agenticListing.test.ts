@@ -17,13 +17,14 @@ vi.mock('../services/webSearch.js', async (importOriginal) => {
     searchWithGoogleVision: vi.fn(),
     analyzeProductImageWithGcv: vi.fn(),
     buildSpecsFromGcv: vi.fn(),
+    extractCompatibleVehiclesFromPages: vi.fn(),
   };
 });
 
 import { generateAgenticListing, conditionLabel } from '../services/agenticListing.js';
 import { callLlm } from '../services/llmProvider.js';
 import { analyzeProductImage } from '../services/visionAnalyzer.js';
-import { searchWeb, searchWithGoogleVision, analyzeProductImageWithGcv, buildSpecsFromGcv } from '../services/webSearch.js';
+import { searchWeb, searchWithGoogleVision, analyzeProductImageWithGcv, buildSpecsFromGcv, extractCompatibleVehiclesFromPages } from '../services/webSearch.js';
 
 const specs: ProductSpecs = {
   material: 'Deri',
@@ -61,11 +62,13 @@ describe('generateAgenticListing structured output', () => {
     vi.mocked(searchWithGoogleVision).mockReset();
     vi.mocked(analyzeProductImageWithGcv).mockReset();
     vi.mocked(buildSpecsFromGcv).mockReset();
+    vi.mocked(extractCompatibleVehiclesFromPages).mockReset();
     vi.mocked(callLlm).mockResolvedValue(llmJson);
     vi.mocked(analyzeProductImage).mockResolvedValue(specs);
     vi.mocked(searchWeb).mockResolvedValue([]);
     vi.mocked(searchWithGoogleVision).mockResolvedValue([]);
     vi.mocked(analyzeProductImageWithGcv).mockResolvedValue(null);
+    vi.mocked(extractCompatibleVehiclesFromPages).mockResolvedValue([]);
     vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
       ...fallback,
       brand: 'BMC',
@@ -292,6 +295,11 @@ describe('generateAgenticListing structured output', () => {
       category,
       observations: [`Google görsel araması: ${analysis.bestGuess}`],
     }));
+    vi.mocked(extractCompatibleVehiclesFromPages).mockResolvedValue([
+      'toyota corolla',
+      'renault magnum',
+      'mercedes actros',
+    ]);
     vi.mocked(searchWeb).mockResolvedValue([
       { title: 'BMC Pro Kabin Yedek Parça', url: 'https://example.com/bmc', snippet: 'BMC pro kabin yedek parçaları' },
     ]);
@@ -299,6 +307,7 @@ describe('generateAgenticListing structured output', () => {
     await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false }, undefined);
 
     expect(analyzeProductImageWithGcv).toHaveBeenCalledWith('/tmp/img.png');
+    expect(extractCompatibleVehiclesFromPages).toHaveBeenCalled();
     const prompt = vi.mocked(callLlm).mock.calls[0][1];
     const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
     expect(promptText).toContain('Brand: BMC');
@@ -306,5 +315,7 @@ describe('generateAgenticListing structured output', () => {
     expect(promptText).toContain('BMC PRO KABİN 12345');
     expect(promptText).toContain('Compatible Vehicles');
     expect(promptText).toContain('BMC pro kabin');
+    expect(promptText).toContain('toyota corolla');
+    expect(promptText).toContain('mercedes actros');
   });
 });

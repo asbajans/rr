@@ -394,6 +394,67 @@ export function buildSpecsFromGcv(
   return specs;
 }
 
+/** Strips scripts/styles/tags from an HTML page, returning plain lowercase text. */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(?:amp|nbsp|quot|#39|lt|gt);/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+/** Extracts "<make> <model>" vehicle combinations from plain text. */
+function extractVehicleMakesFromText(text: string, limit = 30): string[] {
+  const found = new Set<string>();
+  for (const make of VEHICLE_MAKES) {
+    const escaped = make.replace(/[-]/g, '\\-');
+    const re = new RegExp(`(^|[^a-zçğıöşü])(${escaped}\\s[a-zçğıöşü0-9][a-zçğıöşü0-9\\-]{1,30})`, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const v = m[2];
+      if (v && v.length <= 40 && !/^\d+$/.test(v)) found.add(v);
+      if (found.size >= limit) break;
+    }
+    if (found.size >= limit) break;
+  }
+  return [...found];
+}
+
+/**
+ * Fetches the GCV matched-image pages (pagesWithMatchingImages) and extracts
+ * compatible vehicle make/model combinations from their CONTENT — parts
+ * listing pages usually carry "Fits / Uyumlu araçlar" lists that the title
+ * alone does not include. Best-effort; never throws.
+ */
+export async function extractCompatibleVehiclesFromPages(
+  pages: WebSearchResult[],
+  maxPages = 6
+): Promise<string[]> {
+  const uniqueUrls = [...new Set(pages.map((p) => p.url).filter((u) => u && u.startsWith('http')))].slice(0, maxPages);
+  if (uniqueUrls.length === 0) return [];
+
+  const found = new Set<string>();
+  await Promise.all(
+    uniqueUrls.map(async (url) => {
+      try {
+        const html = await httpGet(url, 10000);
+        if (!html) return;
+        for (const v of extractVehicleMakesFromText(htmlToPlainText(html))) {
+          found.add(v);
+          if (found.size >= 30) break;
+        }
+      } catch { /* best-effort: skip unreadable pages */ }
+    })
+  );
+
+  if (found.size) {
+    console.log(`[GCV] Compatible vehicles from ${uniqueUrls.length} matched pages: ${[...found].slice(0, 12).join(', ')}`);
+  }
+  return [...found].slice(0, 25);
+}
+
 function parseGcvCodes(text: string): ProductCode[] {
   const codes: ProductCode[] = [];
   const lines = text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length >= 3);

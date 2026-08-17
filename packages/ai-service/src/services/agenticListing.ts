@@ -2,7 +2,7 @@ import { ProductSpecs, ProductCode, AiAttribute } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
-import { searchWeb, searchWithGoogleVision, WebSearchResult, analyzeProductImageWithGcv, buildSpecsFromGcv, GcvProductAnalysis, VEHICLE_MAKES, extractBrandFromGcvLabel } from './webSearch.js';
+import { searchWeb, searchWithGoogleVision, WebSearchResult, analyzeProductImageWithGcv, buildSpecsFromGcv, GcvProductAnalysis, VEHICLE_MAKES, extractBrandFromGcvLabel, extractCompatibleVehiclesFromPages } from './webSearch.js';
 
 export type ProductCondition = 'new' | 'refurbished' | 'used' | 'salvage';
 
@@ -534,7 +534,8 @@ function extractVehicleHints(specs: ProductSpecs): string[] {
 function extractCompatibleVehicles(
   specs: ProductSpecs,
   gcvAnalysis?: GcvProductAnalysis | null,
-  referenceResults?: WebSearchResult[]
+  referenceResults?: WebSearchResult[],
+  gcvPageVehicles?: string[]
 ): string[] {
   const vehicles = new Set<string>();
   const brand = specs.brand?.trim();
@@ -546,6 +547,12 @@ function extractCompatibleVehicles(
     if (/^\d+$/.test(cleaned)) return;
     vehicles.add(cleaned);
   };
+
+  // 0) Vehicles found on GCV matched-image page CONTENT — the most direct
+  //    compatible-vehicle evidence (e.g. "toyota corolla", "renault magnum").
+  if (gcvPageVehicles?.length) {
+    for (const v of gcvPageVehicles) addVehicle(v);
+  }
 
   // 1) GCV best guess is the most reliable — usually "<make> <model>" (e.g. "BMC pro kabin")
   if (gcvAnalysis?.bestGuess) addVehicle(gcvAnalysis.bestGuess);
@@ -631,12 +638,33 @@ export async function generateAgenticListing(
     }
   }
 
+  // Fetch the actual CONTENT of GCV matched-image pages. Parts listing pages
+  // carry "Fits / Uyumlu araçlar" lists that the page titles alone don't show —
+  // this is where the real compatible-vehicle data comes from.
+  let gcvPageVehicles: string[] = [];
+  if (isSalvage && gcvAnalysis?.pages?.length) {
+    gcvPageVehicles = await extractCompatibleVehiclesFromPages(gcvAnalysis.pages);
+    if (gcvPageVehicles.length) {
+      console.log(`[SALVAGE] GCV page compatibility (${gcvPageVehicles.length}): ${gcvPageVehicles.join(', ')}`);
+    }
+  }
+
   const referenceResults = isSalvage
     ? await searchForSalvageReferences(specs, input, firstImage, gcvAnalysis)
     : await searchForCodes(specs.codes);
 
+  // Enrich reference results with the vehicles discovered on GCV matched pages
+  // so the LLM sees them as explicit Salvage Reference Search Results.
+  if (gcvPageVehicles.length) {
+    referenceResults.unshift({
+      title: `[GCV Page Compatibility] ${gcvPageVehicles.join(', ')}`,
+      url: gcvAnalysis?.pages?.[0]?.url || '',
+      snippet: `Bu parçanın uyumlu olduğu araçlar (sayfa içeriklerinden): ${gcvPageVehicles.join(', ')}`,
+    });
+  }
+
   const compatibleVehicles = isSalvage
-    ? extractCompatibleVehicles(specs, gcvAnalysis, referenceResults)
+    ? extractCompatibleVehicles(specs, gcvAnalysis, referenceResults, gcvPageVehicles)
     : undefined;
   if (isSalvage && compatibleVehicles?.length) {
     console.log(`[SALVAGE] Compatible vehicles extracted (${compatibleVehicles.length}): ${compatibleVehicles.join(', ')}`);
