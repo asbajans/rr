@@ -2,7 +2,7 @@ import { ProductSpecs, ProductCode, AiAttribute } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
-import { searchWeb, searchWithGoogleVision, WebSearchResult } from './webSearch.js';
+import { searchWeb, searchWithGoogleVision, WebSearchResult, analyzeProductImageWithGcv, buildSpecsFromGcv, GcvProductAnalysis } from './webSearch.js';
 
 export type ProductCondition = 'new' | 'refurbished' | 'used' | 'salvage';
 
@@ -99,7 +99,7 @@ Rules:
 - Return ONLY valid JSON, no markdown, no code blocks
 - Use persuasive, natural Turkish
 - Avoid promotional forbidden words for Trendyol: "en iyi", "kaliteli", "orijinal", "garantili", "bedava", "ücretsiz", "toptan", "profesyonel", "kalite", "birinci sınıf", "endüstriyel" (özellikle yedek parça / oto parça ürünlerinde "endüstriyel" kelimesini asla kullanma)
-- BRAND RULE: if a brand was detected in the photo (in the specs), the title MUST start with the brand name. NEVER invent a brand that is not in the specs
+- BRAND RULE: if a brand was detected in the photo (in the specs), the title MUST start with the brand name. NEVER invent a brand that is not in the specs. EXCEPTION (ÇIKMA only): if the "Salvage Reference Search Results" contain a Google Vision best-guess label with a vehicle make that contradicts the detected brand, TRUST the best-guess label — the detected brand may be a misread.
 - CONDITION RULE: the product's condition is given in the prompt. Reflect it in the title (suffix in parentheses like "(Yeni)", "(Yenilenmiş)", "(İkinci El)", "(Çıkma)") and describe it honestly in the description + attributes ("Durum"). For "Yeni" keep the title clean and state "Yeni" naturally in description + attributes
 - PART CODE RULE: if a part/model code is present it MUST be reproduced EXACTLY. For spare parts / automotive / industrial parts, include the code in the title (it is how buyers search). For other products include it in attributes + description only
 - If "Reference Search Results" or "Salvage Reference Search Results" are provided, use them to determine the exact product name and description; do NOT contradict them and do NOT invent facts that are neither in the specs nor in the references
@@ -377,7 +377,8 @@ async function searchForCodes(codes?: ProductCode[]): Promise<WebSearchResult[]>
 async function searchForSalvageReferences(
   specs: ProductSpecs,
   input: AgenticListingInput,
-  imagePath?: string
+  imagePath?: string,
+  gcvAnalysis?: GcvProductAnalysis | null
 ): Promise<WebSearchResult[]> {
   const brand = specs.brand?.trim();
   const codes = specs.codes || [];
@@ -385,8 +386,22 @@ async function searchForSalvageReferences(
   const type = specs.type || '';
   const visibleText = specs.visibleText || '';
 
-  // Step 1: Google Cloud Vision reverse image search (if API key configured)
-  const gcvResults = imagePath ? await searchWithGoogleVision(imagePath) : [];
+  // Step 1: Google Cloud Vision reverse image search (if API key configured).
+  // Reuse the full GCV analysis already performed by generateAgenticListing so
+  // we don't hit the Vision API twice; fall back to a WEB_DETECTION-only call
+  // when no analysis was available.
+  const gcvResults: WebSearchResult[] = [];
+  if (gcvAnalysis) {
+    if (gcvAnalysis.bestGuess) {
+      gcvResults.push({ title: `[GCV Best Guess] ${gcvAnalysis.bestGuess}`, url: '', snippet: gcvAnalysis.bestGuess });
+    }
+    for (const entity of gcvAnalysis.entities.slice(0, 5)) {
+      gcvResults.push({ title: `[GCV Entity] ${entity}`, url: '', snippet: '' });
+    }
+    gcvResults.push(...gcvAnalysis.pages);
+  } else if (imagePath) {
+    gcvResults.push(...(await searchWithGoogleVision(imagePath)));
+  }
 
   const queries: string[] = [];
   const seenQueries = new Set<string>();
@@ -514,11 +529,28 @@ export async function generateAgenticListing(
   providerConfig?: ProviderConfig
 ): Promise<AgenticListingResult> {
   const category = input.category || 'diger';
-  const specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
-
+  const firstImage = Array.isArray(imagePath) ? imagePath[0] : imagePath;
   const isSalvage = input.condition === 'salvage';
+
+  // For ÇIKMA (salvage) products, Google Cloud Vision is the authoritative
+  // visual-analysis source: it gives the correct vehicle make + product name
+  // via reverse image search. The vision model is only used as a fallback for
+  // material/color/style when GCV returns nothing.
+  let specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
+
+  let gcvAnalysis: GcvProductAnalysis | null = null;
+  if (isSalvage) {
+    gcvAnalysis = await analyzeProductImageWithGcv(firstImage);
+    if (gcvAnalysis) {
+      specs = buildSpecsFromGcv(gcvAnalysis, category, specs);
+      console.log(`[SALVAGE] GCV analysis applied. brand="${specs.brand}" visibleText="${(specs.visibleText || '').slice(0, 120)}" observations=${specs.observations?.length || 0}`);
+    } else {
+      console.log('[SALVAGE] GCV analysis unavailable — using vision-model specs');
+    }
+  }
+
   const referenceResults = isSalvage
-    ? await searchForSalvageReferences(specs, input, Array.isArray(imagePath) ? imagePath[0] : imagePath)
+    ? await searchForSalvageReferences(specs, input, firstImage, gcvAnalysis)
     : await searchForCodes(specs.codes);
 
   const draft = await generateListingDraft(specs, input, providerConfig, referenceResults);

@@ -12,12 +12,14 @@ vi.mock('../services/visionAnalyzer.js', () => ({
 vi.mock('../services/webSearch.js', () => ({
   searchWeb: vi.fn(),
   searchWithGoogleVision: vi.fn(),
+  analyzeProductImageWithGcv: vi.fn(),
+  buildSpecsFromGcv: vi.fn(),
 }));
 
 import { generateAgenticListing, conditionLabel } from '../services/agenticListing.js';
 import { callLlm } from '../services/llmProvider.js';
 import { analyzeProductImage } from '../services/visionAnalyzer.js';
-import { searchWeb, searchWithGoogleVision } from '../services/webSearch.js';
+import { searchWeb, searchWithGoogleVision, analyzeProductImageWithGcv, buildSpecsFromGcv } from '../services/webSearch.js';
 
 const specs: ProductSpecs = {
   material: 'Deri',
@@ -53,10 +55,20 @@ describe('generateAgenticListing structured output', () => {
     vi.mocked(analyzeProductImage).mockReset();
     vi.mocked(searchWeb).mockReset();
     vi.mocked(searchWithGoogleVision).mockReset();
+    vi.mocked(analyzeProductImageWithGcv).mockReset();
+    vi.mocked(buildSpecsFromGcv).mockReset();
     vi.mocked(callLlm).mockResolvedValue(llmJson);
     vi.mocked(analyzeProductImage).mockResolvedValue(specs);
     vi.mocked(searchWeb).mockResolvedValue([]);
     vi.mocked(searchWithGoogleVision).mockResolvedValue([]);
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue(null);
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      brand: 'BMC',
+      visibleText: analysis?.text || fallback.visibleText,
+      category,
+      observations: [`Google görsel araması: ${analysis?.bestGuess}`],
+    }));
   });
 
   it('emits category_candidates, warnings and confidence', async () => {
@@ -208,21 +220,34 @@ describe('generateAgenticListing structured output', () => {
     expect(queries.some((q) => q.includes('uyumlu'))).toBe(true);
   });
 
-  it('calls Google Vision image search for salvage products when imagePath provided', async () => {
+  it('calls GCV full analysis for salvage products when imagePath provided', async () => {
     vi.mocked(analyzeProductImage).mockResolvedValue({
       ...specs,
       brand: 'Renault',
       codes: [{ type: 'part_code', value: '864570513', confidence: 0.9 }],
       visibleText: 'Renault / Magnum / Premium | Makas Kulağı',
     });
-    vi.mocked(searchWithGoogleVision).mockResolvedValue([
-      { title: 'Renault Magnum Makas Kulağı', url: 'https://parts.example.com/renault-magnum', snippet: 'Renault Magnum ve Premium makas kulağı' },
-    ]);
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'Renault Magnum makas kulağı',
+      entities: ['Renault', 'Truck'],
+      labels: ['Truck', 'Vehicle'],
+      objects: ['Truck'],
+      text: 'Renault / Magnum / Premium | Makas Kulağı',
+      pages: [{ title: 'Renault Magnum Makas Kulağı', url: 'https://parts.example.com/renault-magnum', snippet: '' }],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      brand: 'Renault',
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
     vi.mocked(searchWeb).mockResolvedValue([]);
 
     await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false }, undefined);
 
-    expect(searchWithGoogleVision).toHaveBeenCalledWith('/tmp/img.png');
+    expect(analyzeProductImageWithGcv).toHaveBeenCalledWith('/tmp/img.png');
+    expect(searchWithGoogleVision).not.toHaveBeenCalled();
     expect(searchWeb).toHaveBeenCalled();
   });
 
@@ -236,6 +261,44 @@ describe('generateAgenticListing structured output', () => {
 
     await generateAgenticListing('/tmp/img.png', { condition: 'new', suggestPrice: false });
 
+    expect(analyzeProductImageWithGcv).not.toHaveBeenCalled();
     expect(searchWithGoogleVision).not.toHaveBeenCalled();
+  });
+
+  it('uses GCV full analysis to override detected brand for salvage products', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Mercedes',
+      codes: [{ type: 'part_code', value: '12345', confidence: 0.9 }],
+      type: 'Kabin',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'BMC pro kabin',
+      entities: ['BMC', 'Truck cab'],
+      labels: ['Truck', 'Vehicle', 'Cab'],
+      objects: ['Cab'],
+      text: 'BMC PRO KABİN 12345',
+      pages: [{ title: 'BMC Pro Kabin Parçaları', url: 'https://example.com/bmc-parts', snippet: '' }],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      brand: 'BMC',
+      type: 'Pro Kabin',
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(searchWeb).mockResolvedValue([
+      { title: 'BMC Pro Kabin Yedek Parça', url: 'https://example.com/bmc', snippet: 'BMC pro kabin yedek parçaları' },
+    ]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false }, undefined);
+
+    expect(analyzeProductImageWithGcv).toHaveBeenCalledWith('/tmp/img.png');
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).toContain('Brand: BMC');
+    expect(promptText).not.toContain('Brand: Mercedes');
+    expect(promptText).toContain('BMC PRO KABİN 12345');
   });
 });
