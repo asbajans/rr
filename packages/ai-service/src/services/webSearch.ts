@@ -146,6 +146,13 @@ export async function searchWithGoogleVision(imagePath: string): Promise<WebSear
 
   try {
     const imageBuffer = fs.readFileSync(imagePath);
+    const fileSizeMB = imageBuffer.length / (1024 * 1024);
+
+    if (fileSizeMB > 10) {
+      console.warn(`[GCV] Image too large (${fileSizeMB.toFixed(1)}MB), skipping`);
+      return [];
+    }
+
     const base64Image = imageBuffer.toString('base64');
 
     const requestBody = JSON.stringify({
@@ -161,8 +168,16 @@ export async function searchWithGoogleVision(imagePath: string): Promise<WebSear
     const json = await httpPost(url, requestBody, 30000);
     const data = JSON.parse(json);
 
+    if (data.error) {
+      console.error(`[GCV] API error:`, JSON.stringify(data.error).slice(0, 500));
+      return [];
+    }
+
     const annotation = data.responses?.[0]?.webDetection;
-    if (!annotation) return [];
+    if (!annotation) {
+      console.warn('[GCV] No webDetection in response');
+      return [];
+    }
 
     const results: WebSearchResult[] = [];
     const seen = new Set<string>();
@@ -201,8 +216,10 @@ export async function searchWithGoogleVision(imagePath: string): Promise<WebSear
       }
     }
 
+    console.log(`[GCV] Found ${results.length} results for ${imagePath}`);
     return results.slice(0, 12);
-  } catch {
+  } catch (err: any) {
+    console.error(`[GCV] searchWithGoogleVision failed:`, err?.message || err);
     return [];
   }
 }
