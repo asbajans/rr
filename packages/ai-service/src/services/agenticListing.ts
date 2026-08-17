@@ -2,7 +2,7 @@ import { ProductSpecs, ProductCode, AiAttribute } from '../types';
 import { analyzeProductImage } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
-import { searchWeb, searchWithGoogleVision, WebSearchResult, analyzeProductImageWithGcv, buildSpecsFromGcv, GcvProductAnalysis } from './webSearch.js';
+import { searchWeb, searchWithGoogleVision, WebSearchResult, analyzeProductImageWithGcv, buildSpecsFromGcv, GcvProductAnalysis, VEHICLE_MAKES, extractBrandFromGcvLabel } from './webSearch.js';
 
 export type ProductCondition = 'new' | 'refurbished' | 'used' | 'salvage';
 
@@ -121,8 +121,9 @@ SALVAGE (ÇIKMA) LISTING RULES — apply ONLY when the product condition is "Ç�
 - Description MUST include these sections (Turkish): "Uyumlu Araçlar" (compatible vehicles with years/models), "Kullanım Yeri" (where on the vehicle), "Söküm / Çıkarma Bilgisi" (removal guidance), "Montaj Notları" (installation notes)
 - SEO meta_title and meta_description MUST contain the vehicle model + part name + "çıkma" so users searching "<araç modeli> <parça adı> çıkma" find this listing
 - Keywords MUST include: "<marka> <parça> çıkma", "<araç modeli> <parça> uyumlu", "<parça kodu>", "<marka> <parça> söküm", "<araç modeli> <parça> çıkma"
-- From "Salvage Reference Search Results": extract EVERY vehicle model/brand/year range mentioned. Include all of them in "Uyumlu Araçlar". If the results mention specific series (e.g., "Renault Magnum", "Mercedes Actros"), list them
-- Do NOT fabricate vehicle compatibility — only include vehicles that appear in the Salvage Reference Search Results OR in the Visible Text / Observations
+- From "Compatible Vehicles" list (shown under the Salvage Reference Search Results) and the Salvage Reference Search Results themselves: extract EVERY vehicle model/brand/year range mentioned. Include all of them in "Uyumlu Araçlar". If the list mentions specific series (e.g., "Renault Magnum", "Mercedes Actros"), list them
+- Do NOT fabricate vehicle compatibility — only include vehicles that appear in the "Compatible Vehicles" list, the Salvage Reference Search Results, or the Visible Text / Observations
+- If a "Compatible Vehicles" list is present, the title MUST include at least one of those make/model names (e.g. "BMC Pro Kabin ..."), and the "Uyumlu Araçlar" attribute MUST list all of them
 - Bullet points for Amazon should focus on: compatible vehicles, OEM/part code, condition details, removal notes
 - Attributes MUST include: "Uyumlu Araçlar" (all compatible vehicles), "Kullanım Yeri", "Söküm Bilgisi", "Araç Tipi" (kamyon/kamyonet/binek/etc.)
 ` : ''}
@@ -133,7 +134,8 @@ function buildPrompt(
   specs: ProductSpecs,
   input: AgenticListingInput,
   sector: SectorConfig,
-  referenceResults: WebSearchResult[] = []
+  referenceResults: WebSearchResult[] = [],
+  compatibleVehicles?: string[]
 ): string {
   const marketplaces = input.targetMarketplaces?.length
     ? input.targetMarketplaces.join(', ')
@@ -184,12 +186,12 @@ ${input.notes ? `- Additional Notes: ${input.notes}` : ''}
 ${isSalvage ? `Salvage Reference Search Results (web lookup for vehicle compatibility, usage, and removal info):
 ${reference || '- None available — rely on detected specs only'}
 
+${formatCompatibleVehicles(compatibleVehicles || [])}
+
 IMPORTANT for ÇIKMA (salvage) products:
-- Extract ALL COMPATIBLE VEHICLES from the reference results (make/model/series/year range). If results mention specific series like "Renault Magnum", "Mercedes Actros", list them all
-- Also check "Readable Text on Product" and "Additional Observations" — they may contain OEM part numbers, vehicle brand names, or model references (e.g., döküm yazıları, etiket numaraları)
-- Extract USAGE LOCATION (where on the vehicle this part is used)
-- Extract REMOVAL/INSTALLATION notes from the results
-- If no reference results are available, use ONLY the detected specs, visible text and codes; do NOT fabricate vehicle compatibility` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
+- Title MUST include the COMPATIBLE VEHICLE (make + model listed above) + part name + "(Çıkma)". Example: "BMC Pro Kabin Makas Kulağı (Çıkma)"
+- Description "Uyumlu Araçlar" section MUST list every compatible vehicle from the "Compatible Vehicles" list above (make + model + series + year if known)
+- If the Compatible Vehicles list is empty, use the detected Brand + part type instead; do NOT fabricate compatibility` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
 ${reference || '- None available'}`}
 
 Target Marketplaces: ${marketplaces}
@@ -213,7 +215,7 @@ Return the following JSON exactly:
     "Durum": "${condition}",
     ${schema},
     ...other relevant attributes and any detected codes (e.g. "Model No", "Parça Kodu", "Barkod", "Seri No")${isSalvage ? `,
-    "Uyumlu Araçlar": "<all compatible vehicles from reference results: brand + model + series + year range, comma-separated>",
+    "Uyumlu Araçlar": "<ALL compatible vehicles from the Compatible Vehicles list: brand + model + series + year range, comma-separated>",
     "Kullanım Yeri": "<where on the vehicle this part is used>",
     "Söküm Bilgisi": "<brief removal guidance>",
     "Araç Tipi": "<kamyon/kamyonet/binek/ticari/ağır vasıta/otobüs>"` : ''}
@@ -249,7 +251,8 @@ async function generateListingDraft(
   specs: ProductSpecs,
   input: AgenticListingInput,
   providerConfig?: ProviderConfig,
-  referenceResults?: WebSearchResult[]
+  referenceResults?: WebSearchResult[],
+  compatibleVehicles?: string[]
 ): Promise<Omit<AgenticListingResult, 'specs'>> {
   const config: ProviderConfig = providerConfig?.baseUrl
     ? {
@@ -269,7 +272,7 @@ async function generateListingDraft(
 
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt(sector, input.condition) },
-    { role: 'user', content: buildPrompt(specs, input, sector, referenceResults) },
+    { role: 'user', content: buildPrompt(specs, input, sector, referenceResults, compatibleVehicles) },
   ];
 
   const raw = await callLlm(config, messages, {
@@ -523,6 +526,85 @@ function extractVehicleHints(specs: ProductSpecs): string[] {
   return [...new Set(hints)];
 }
 
+/**
+ * Extracts "Brand Model" (make + model/series) combinations from the GCV full
+ * analysis and the salvage reference search results, so the LLM has an explicit
+ * list of compatible vehicles to use in the title + "Uyumlu Araçlar".
+ */
+function extractCompatibleVehicles(
+  specs: ProductSpecs,
+  gcvAnalysis?: GcvProductAnalysis | null,
+  referenceResults?: WebSearchResult[]
+): string[] {
+  const vehicles = new Set<string>();
+  const brand = specs.brand?.trim();
+
+  const addVehicle = (raw: string) => {
+    if (!raw) return;
+    const cleaned = raw.replace(/\s+/g, ' ').trim().replace(/[|,;:/\\]+$/g, '');
+    if (cleaned.length < 3 || cleaned.length > 60) return;
+    if (/^\d+$/.test(cleaned)) return;
+    vehicles.add(cleaned);
+  };
+
+  // 1) GCV best guess is the most reliable — usually "<make> <model>" (e.g. "BMC pro kabin")
+  if (gcvAnalysis?.bestGuess) addVehicle(gcvAnalysis.bestGuess);
+
+  // 2) GCV web entities may contain "<make> <model>" combos (e.g. "Mercedes Actros", "Renault Magnum")
+  if (gcvAnalysis?.entities) {
+    for (const entity of gcvAnalysis.entities) {
+      const e = entity.trim();
+      if (extractBrandFromGcvLabel(e)) addVehicle(e);
+      else if (/\s+[A-Za-zÇĞİÖŞÜçğıöşü]/.test(e) && e.length <= 40) addVehicle(e);
+    }
+  }
+
+  // 3) Reference search results: find "<make> <Model>" patterns in titles/snippets
+  const text = (referenceResults || [])
+    .map((r) => `${r.title} ${r.snippet}`)
+    .join(' | ')
+    .toLowerCase();
+  if (text) {
+    for (const make of VEHICLE_MAKES) {
+      const escaped = make.replace(/[-]/g, '\\-');
+      // "<make> <Model>" or "<make>-<Model>" e.g. "renault magnum", "mercedes actros", "bmc pro kabin"
+      const re = new RegExp(`(^|[^a-zçğıöşü])(${escaped}\\s[a-zçğıöşü0-9][a-zçğıöşü0-9\\-]{1,30})`, 'gi');
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        addVehicle(m[2]);
+        if (vehicles.size >= 20) break;
+      }
+      if (vehicles.size >= 20) break;
+    }
+  }
+
+  // 4) Always include the detected brand as a fallback candidate (e.g. "BMC")
+  if (brand) addVehicle(brand);
+
+  // Dedupe: if a full "<make> <model>" vehicle exists, drop the bare "<make>" entry
+  const list = [...vehicles];
+  const bareMakes = new Set(list.filter((v) => !/\s/.test(v)));
+  const withModel = list.filter((v) => /\s/.test(v));
+  for (const bare of bareMakes) {
+    if (withModel.some((v) => v.toLowerCase().startsWith(bare.toLowerCase()))) {
+      const idx = list.indexOf(bare);
+      if (idx >= 0) list.splice(idx, 1);
+    }
+  }
+
+  return list.slice(0, 15);
+}
+
+/**
+ * Formats the compatible-vehicle list for the prompt: if empty, uses the detected
+ * brand as a minimal hint. Returns the Turkish section string.
+ */
+function formatCompatibleVehicles(vehicles: string[]): string {
+  if (!vehicles.length) return '';
+  return `Compatible Vehicles (use EXACTLY these make/model names in the title and in "Uyumlu Araçlar" — do NOT invent others, only what is listed here):
+${vehicles.map((v, i) => `${i + 1}. ${v}`).join('\n')}`;
+}
+
 export async function generateAgenticListing(
   imagePath: string | string[],
   input: AgenticListingInput,
@@ -553,6 +635,13 @@ export async function generateAgenticListing(
     ? await searchForSalvageReferences(specs, input, firstImage, gcvAnalysis)
     : await searchForCodes(specs.codes);
 
-  const draft = await generateListingDraft(specs, input, providerConfig, referenceResults);
+  const compatibleVehicles = isSalvage
+    ? extractCompatibleVehicles(specs, gcvAnalysis, referenceResults)
+    : undefined;
+  if (isSalvage && compatibleVehicles?.length) {
+    console.log(`[SALVAGE] Compatible vehicles extracted (${compatibleVehicles.length}): ${compatibleVehicles.join(', ')}`);
+  }
+
+  const draft = await generateListingDraft(specs, input, providerConfig, referenceResults, compatibleVehicles);
   return { specs, ...draft };
 }

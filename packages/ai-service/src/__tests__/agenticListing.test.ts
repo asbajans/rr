@@ -9,12 +9,16 @@ vi.mock('../services/visionAnalyzer.js', () => ({
   analyzeProductImage: vi.fn(),
 }));
 
-vi.mock('../services/webSearch.js', () => ({
-  searchWeb: vi.fn(),
-  searchWithGoogleVision: vi.fn(),
-  analyzeProductImageWithGcv: vi.fn(),
-  buildSpecsFromGcv: vi.fn(),
-}));
+vi.mock('../services/webSearch.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/webSearch.js')>();
+  return {
+    ...actual,
+    searchWeb: vi.fn(),
+    searchWithGoogleVision: vi.fn(),
+    analyzeProductImageWithGcv: vi.fn(),
+    buildSpecsFromGcv: vi.fn(),
+  };
+});
 
 import { generateAgenticListing, conditionLabel } from '../services/agenticListing.js';
 import { callLlm } from '../services/llmProvider.js';
@@ -300,5 +304,7 @@ describe('generateAgenticListing structured output', () => {
     expect(promptText).toContain('Brand: BMC');
     expect(promptText).not.toContain('Brand: Mercedes');
     expect(promptText).toContain('BMC PRO KABİN 12345');
+    expect(promptText).toContain('Compatible Vehicles');
+    expect(promptText).toContain('BMC pro kabin');
   });
 });

@@ -231,7 +231,7 @@ export async function searchWithGoogleVision(imagePath: string): Promise<WebSear
 }
 
 /** Known vehicle makes, longest-first for correct matching ("mercedes-benz" beats "mercedes"). */
-const VEHICLE_MAKES = [
+export const VEHICLE_MAKES = [
   'mercedes-benz', 'mercedes', 'volkswagen', 'volvo', 'scania', 'renault',
   'peugeot', 'citroen', 'toyota', 'honda', 'nissan', 'fiat', 'ford', 'opel',
   'hyundai', 'kia', 'bmw', 'audi', 'seat', 'skoda', 'daf', 'iveco', 'man',
