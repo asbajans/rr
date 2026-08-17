@@ -236,13 +236,15 @@ export async function analyzeAndCreateSession(
 
     return { session, draft };
   } catch (error: any) {
+    const upstreamData = error?.response?.data;
+    const upstreamMsg = typeof upstreamData === 'string' ? upstreamData : (upstreamData?.error || upstreamData?.message || error?.message || 'AI analysis failed');
+    console.error(`[AI-SESSION] CATCH sessionId=${session?.id} status=${error?.response?.status || 500} upstream=${String(upstreamMsg).slice(0, 500)}`);
     if (session) {
-      await session.update({ status: 'failed', errorMessage: String(error?.response?.data?.error || error?.message || 'AI analysis failed').slice(0, 2000) }).catch(() => undefined);
+      await session.update({ status: 'failed', errorMessage: String(upstreamMsg).slice(0, 2000) }).catch(() => undefined);
     }
     logger.error({ err: error, message: error?.message, status: error?.response?.status }, 'AI session creation failed');
     const status = error?.response?.status || 500;
-    const upstream = error?.response?.data?.error || error.message;
-    return { error: { status, body: { error: upstream } } };
+    return { error: { status, body: { error: upstreamMsg } } };
   }
 }
 
@@ -330,12 +332,16 @@ export async function processAiProductSession(job: {
 
   const result = await analyzeAndCreateSession(user, store, job.data.input, job.data.idempotencyKey, session);
   if (result.error) {
+    const errBody = result.error.body;
+    const errMsg = String(errBody?.message || errBody?.error || 'AI analysis failed').slice(0, 2000);
+    console.error(`[AI-SESSION] FAILED sessionId=${job.data.sessionId} status=${result.error.status} error=${errMsg}`);
     await session.update({
       status: 'failed',
-      errorMessage: String(result.error.body?.message || result.error.body?.error || 'AI analysis failed').slice(0, 2000),
+      errorMessage: errMsg,
     });
-    return { success: false, error: result.error.body };
+    return { success: false, error: errBody };
   }
+  console.log(`[AI-SESSION] SUCCESS sessionId=${job.data.sessionId} draftId=${result.draft?.id}`);
   return { success: true, sessionId: session.id, draftId: result.draft?.id };
 }
 

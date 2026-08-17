@@ -350,6 +350,7 @@ router.post(
 
       res.json(result);
     } catch (err: any) {
+      console.error(`[AI-AGENTIC] Error: ${err?.message || err}`, err?.stack?.slice(0, 300));
       if (err instanceof OllamaUnavailableError || isUnavailableError(err)) {
         res.status(503).json({ error: FRIENDLY_ERROR });
         return;
