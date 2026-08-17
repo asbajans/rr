@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import { ProductCode, ProductSpecs, AiAttribute } from '../types';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor } from './sectorConfig.js';
@@ -147,6 +149,42 @@ function parseJsonResponse(text: string): any {
   throw new Error(`Vision API did not return valid JSON: ${(extracted || text).slice(0, 300)}`);
 }
 
+function isHttpUrl(p: string): boolean {
+  return p.startsWith('http://') || p.startsWith('https://');
+}
+
+async function downloadImageAsDataUri(url: string): Promise<{ mime: string; data: string }> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, { timeout: 30_000 }, (res) => {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return downloadImageAsDataUri(res.headers.location).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`Image download failed: HTTP ${res.statusCode} from ${url}`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        const mime = res.headers['content-type']?.split(';')[0]?.trim() || 'image/jpeg';
+        resolve({ mime, data: buf.toString('base64') });
+      });
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function resolveImageAsDataUri(p: string): Promise<{ mime: string; data: string }> {
+  if (isHttpUrl(p)) {
+    return downloadImageAsDataUri(p);
+  }
+  const mime = mimeFromPath(p);
+  const data = fs.readFileSync(p).toString('base64');
+  return { mime, data };
+}
+
 export async function analyzeProductImage(
   imagePath: string | string[],
   category: string,
@@ -155,6 +193,7 @@ export async function analyzeProductImage(
 ): Promise<ProductSpecs> {
   const paths = Array.isArray(imagePath) ? imagePath : [imagePath];
   const sector = buildSectorFor(category, attributes);
+  console.log(`[VISION] Processing ${paths.length} image(s): ${paths.map(p => isHttpUrl(p) ? 'URL:' + p.slice(0, 80) : 'FILE:' + p).join(', ')}`);
 
   const config: ProviderConfig = providerConfig?.baseUrl
     ? {
@@ -167,11 +206,10 @@ export async function analyzeProductImage(
       }
     : { baseUrl: OLLAMA_URL, model: VISION_MODEL };
 
-  const imageParts = paths.map((p) => {
-    const imageBase64 = fs.readFileSync(p).toString('base64');
-    const mime = mimeFromPath(p);
-    return { type: 'image_url' as const, image_url: { url: `data:${mime};base64,${imageBase64}` } };
-  });
+  const imageParts = await Promise.all(paths.map(async (p) => {
+    const resolved = await resolveImageAsDataUri(p);
+    return { type: 'image_url' as const, image_url: { url: `data:${resolved.mime};base64,${resolved.data}` } };
+  }));
 
   const messages: ChatMessage[] = [
     { role: 'system', content: buildVisionPrompt(category, sector) },
