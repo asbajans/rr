@@ -352,6 +352,7 @@ export async function analyzeProductImageWithGcv(imagePath: string): Promise<Gcv
     console.log(`[GCV-ANALYSIS] labels: ${labels.length ? labels.join(' | ') : '- none -'}`);
     console.log(`[GCV-ANALYSIS] objects: ${objects.length ? objects.join(' | ') : '- none -'}`);
     console.log(`[GCV-ANALYSIS] detectedText: ${text ? text.slice(0, 600) : '- none -'}`);
+    console.log(`[GCV-ANALYSIS] matchedPages (${pages.length}): ${pages.length ? pages.slice(0, 6).map((p) => p.url || p.title).join(' | ') : '- none -'}`);
     console.log(`[GCV-ANALYSIS] ==============================================`);
 
     return analysis;
@@ -459,9 +460,12 @@ function parseGcvCodes(text: string): ProductCode[] {
   const codes: ProductCode[] = [];
   const lines = text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length >= 3);
   for (const line of lines.slice(0, 8)) {
-    const token = line.replace(/[\s|:/]+$/, '');
-    if (/^[A-Z0-9][A-Z0-9\-./]{3,}$/i.test(token) && /[A-Z]/.test(token) && /\d/.test(token)) {
-      codes.push({ type: 'label_text', value: token, confidence: 0.7 });
+    let token = line.replace(/[\s|:/]+$/, '').replace(/^[#*:;.]+/, '').trim();
+    token = token.replace(/^(no|no\.|parça|part|model|ürün|kod)[:\s]*/i, '').trim();
+    const isNumeric = /^\d{6,}$/.test(token);
+    const isAlnum = /^[A-Z0-9][A-Z0-9\-./]{3,}$/i.test(token) && /[A-Z]/i.test(token) && /\d/.test(token);
+    if (isNumeric || isAlnum) {
+      codes.push({ type: 'part_code', value: token, confidence: 0.7 });
     }
   }
   return codes;

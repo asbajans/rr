@@ -318,4 +318,55 @@ describe('generateAgenticListing structured output', () => {
     expect(promptText).toContain('toyota corolla');
     expect(promptText).toContain('mercedes actros');
   });
+
+  it('refines brand from salvage reference results when GCV guess is generic', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Mercedes-Benz',
+      codes: [{ type: 'part_code', value: '1299394247', confidence: 0.7 }],
+      visibleText: '# 1299394247',
+      type: 'Kabin',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'construction equipment',
+      entities: ['Construction', 'Equipment'],
+      labels: ['Truck'],
+      objects: [],
+      text: '# 1299394247',
+      pages: [{ title: 'BMC parts', url: 'https://example.com/bmc', snippet: '' }],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(searchWeb).mockResolvedValue([
+      { title: 'BMC Pro Kabin 1299394247', url: 'https://example.com/1', snippet: 'BMC Pro Kabin çıkma parça 1299394247' },
+      { title: '1299394247 BMC yedek parça', url: 'https://example.com/2', snippet: 'BMC kamyon yedek parçaları' },
+    ]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false }, undefined);
+
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).toContain('Brand: BMC');
+    expect(promptText).not.toContain('Brand: Mercedes-Benz');
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.some((q) => q.includes('1299394247'))).toBe(true);
+  });
+
+  it('extracts numeric part codes from visible text into salvage queries', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'BMC',
+      visibleText: '# 1299394247',
+      type: 'Kabin',
+    });
+    vi.mocked(searchWeb).mockResolvedValue([]);
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false });
+
+    const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
+    expect(queries.some((q) => q.includes('1299394247'))).toBe(true);
+  });
 });

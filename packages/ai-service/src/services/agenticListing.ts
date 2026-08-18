@@ -420,7 +420,16 @@ async function searchForSalvageReferences(
     .filter((c) => c.value?.trim())
     .map((c) => c.value.trim());
 
-  for (const cv of allCodeValues.slice(0, 2)) {
+  // Also pull pure-numeric part codes straight from the visible text (GCV often
+  // returns things like "# 1299394247" which the code parser should catch but
+  // this is a safety net for numeric-only part numbers).
+  const numericHits = (visibleText.match(/\b\d{6,}\b/g) || [])
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const extraCodeValues = numericHits.filter((n) => !allCodeValues.includes(n));
+  const allSearchCodes = [...new Set([...allCodeValues, ...extraCodeValues])].slice(0, 4);
+
+  for (const cv of allSearchCodes) {
     addQ(`"${cv}"`);
     addQ(`${cv} çıkma parça`);
     if (brand) addQ(`${brand} ${cv} araç uyumu`);
@@ -463,6 +472,8 @@ async function searchForSalvageReferences(
   }
 
   if (queries.length === 0) return [];
+
+  console.log(`[SALVAGE] Running ${queries.length} web queries: ${queries.slice(0, 8).join(' | ')}${queries.length > 8 ? ' | …' : ''}`);
 
   const results: WebSearchResult[] = [];
   const seen = new Set<string>();
@@ -524,6 +535,49 @@ function extractVehicleHints(specs: ProductSpecs): string[] {
   if (brandMatch) hints.push(brandMatch[1]);
 
   return [...new Set(hints)];
+}
+
+/**
+ * When GCV returns a generic best-guess (e.g. "construction equipment") the
+ * vision-model brand may be wrong. Refines the brand by scanning the salvage
+ * reference results for known vehicle makes — the make that appears with the
+ * part code / product terms wins. Returns the current brand unchanged when no
+ * strong signal is found.
+ */
+function refineBrandFromReferences(
+  brand: string | undefined,
+  referenceResults?: WebSearchResult[]
+): string {
+  if (!brand) return brand || '';
+  const current = brand.trim();
+  const currentLower = current.toLowerCase();
+
+  const text = (referenceResults || [])
+    .map((r) => `${r.title} ${r.snippet}`)
+    .join(' | ')
+    .toLowerCase();
+
+  const scores = new Map<string, number>();
+  for (const make of VEHICLE_MAKES) {
+    if (make === currentLower) continue;
+    const count = text.split(make).length - 1;
+    if (count > 0) {
+      scores.set(make, (scores.get(make) || 0) + count);
+    }
+  }
+  if (scores.size === 0) return current;
+
+  const [bestMake, bestScore] = [...scores.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!bestMake || bestScore < 2) return current;
+
+  const refined =
+    extractBrandFromGcvLabel(bestMake) ||
+    bestMake
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  console.log(`[SALVAGE] Brand refined by reference results: "${current}" -> "${refined}" (score ${bestScore})`);
+  return refined;
 }
 
 /**
@@ -652,6 +706,17 @@ export async function generateAgenticListing(
   const referenceResults = isSalvage
     ? await searchForSalvageReferences(specs, input, firstImage, gcvAnalysis)
     : await searchForCodes(specs.codes);
+
+  // GCV best-guess was generic (e.g. "construction equipment"): let the search
+  // results correct the vision-model brand before building the listing. Only
+  // when GCV ran AND failed to detect any vehicle make itself.
+  if (isSalvage && referenceResults.length && gcvAnalysis) {
+    const gcvGuessText = `${gcvAnalysis.bestGuess} ${gcvAnalysis.entities.join(' ')}`.toLowerCase();
+    const gcvFoundMake = VEHICLE_MAKES.some((m) => gcvGuessText.includes(m));
+    if (!gcvFoundMake) {
+      specs.brand = refineBrandFromReferences(specs.brand, referenceResults);
+    }
+  }
 
   // Enrich reference results with the vehicles discovered on GCV matched pages
   // so the LLM sees them as explicit Salvage Reference Search Results.
