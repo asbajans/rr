@@ -1,5 +1,5 @@
 import { ProductSpecs, ProductCode, AiAttribute } from '../types';
-import { analyzeProductImage } from './visionAnalyzer.js';
+import { analyzeProductImage, analyzeSalvageVehicle } from './visionAnalyzer.js';
 import { callLlm, ChatMessage, ProviderConfig } from './llmProvider.js';
 import { SectorConfig, buildSectorFor, formatCodes } from './sectorConfig.js';
 import { searchWeb, searchWithGoogleVision, WebSearchResult, analyzeProductImageWithGcv, buildSpecsFromGcv, GcvProductAnalysis, VEHICLE_MAKES, extractBrandFromGcvLabel, extractCompatibleVehiclesFromPages } from './webSearch.js';
@@ -682,6 +682,7 @@ export async function generateAgenticListing(
   let specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
 
   let gcvAnalysis: GcvProductAnalysis | null = null;
+  let salvageVehicleAnalysis: { brand: string; model: string; partName: string; compatibleVehicles: string[] } | null = null;
   if (isSalvage) {
     gcvAnalysis = await analyzeProductImageWithGcv(firstImage);
     if (gcvAnalysis) {
@@ -689,6 +690,33 @@ export async function generateAgenticListing(
       console.log(`[SALVAGE] GCV analysis applied. brand="${specs.brand}" visibleText="${(specs.visibleText || '').slice(0, 120)}" observations=${specs.observations?.length || 0}`);
     } else {
       console.log('[SALVAGE] GCV analysis unavailable — using vision-model specs');
+    }
+
+    // GCV often returns generic labels (e.g. "construction equipment") or no
+    // matched pages for odd parts. Fall back to the multimodal vision provider
+    // (Gemini etc.) to identify the vehicle make/model directly from the photo —
+    // the same reasoning a human does with Google AI / Lens.
+    const gcvGuessText = `${gcvAnalysis?.bestGuess || ''} ${(gcvAnalysis?.entities || []).join(' ')}`.toLowerCase();
+    const gcvHasMake = VEHICLE_MAKES.some((m) => gcvGuessText.includes(m));
+    const gcvHasPages = (gcvAnalysis?.pages?.length || 0) > 0;
+    if (!gcvHasMake || !gcvHasPages) {
+      try {
+        const veh = await analyzeSalvageVehicle(firstImage, providerConfig);
+        if (veh && (veh.brand || veh.compatibleVehicles?.length)) {
+          salvageVehicleAnalysis = {
+            brand: veh.brand,
+            model: veh.model,
+            partName: veh.partName,
+            compatibleVehicles: veh.compatibleVehicles || [],
+          };
+          console.log(`[SALVAGE] Vision vehicle analysis: brand="${veh.brand}" model="${veh.model}" part="${veh.partName}" compatible=${(veh.compatibleVehicles || []).join(', ')} (conf ${veh.confidence}, ${veh.reasoning || 'no reasoning'})`);
+          if (veh.brand) specs.brand = veh.brand;
+          if (veh.model && !specs.type) specs.type = veh.model;
+          if (veh.partName && (!specs.type || specs.type === veh.model)) specs.type = veh.partName;
+        }
+      } catch (err: any) {
+        console.warn(`[SALVAGE] Vision vehicle analysis failed: ${err?.message || err}`);
+      }
     }
   }
 
@@ -728,8 +756,27 @@ export async function generateAgenticListing(
     });
   }
 
+  // Enrich with the multimodal vision provider's vehicle identification (the
+  // "Google AI / Lens says BMC pro" signal) so the LLM trusts it for the brand
+  // and the compatible-vehicle list.
+  if (salvageVehicleAnalysis) {
+    const veh = salvageVehicleAnalysis;
+    const vehicleNames = [veh.model, veh.brand, veh.partName, ...(veh.compatibleVehicles || [])]
+      .filter((v) => v && v.trim().length >= 2);
+    if (vehicleNames.length) {
+      referenceResults.unshift({
+        title: `[Vision Vehicle Analysis] ${veh.brand ? veh.brand + (veh.model ? ' ' + veh.model : '') : (veh.model || veh.partName || 'bilinmeyen')}`,
+        url: '',
+        snippet: `Görsel analizi: ${vehicleNames.join(', ')}. Bu çıkma parçanın marka/model tespiti (Google AI benzeri multimodal analiz).`,
+      });
+    }
+  }
+
   const compatibleVehicles = isSalvage
-    ? extractCompatibleVehicles(specs, gcvAnalysis, referenceResults, gcvPageVehicles)
+    ? extractCompatibleVehicles(specs, gcvAnalysis, referenceResults, [
+        ...gcvPageVehicles,
+        ...(salvageVehicleAnalysis ? [salvageVehicleAnalysis.brand, salvageVehicleAnalysis.model, ...(salvageVehicleAnalysis.compatibleVehicles || [])] : []),
+      ])
     : undefined;
   if (isSalvage && compatibleVehicles?.length) {
     console.log(`[SALVAGE] Compatible vehicles extracted (${compatibleVehicles.length}): ${compatibleVehicles.join(', ')}`);

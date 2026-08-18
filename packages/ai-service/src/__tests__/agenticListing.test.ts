@@ -7,6 +7,7 @@ vi.mock('../services/llmProvider.js', () => ({
 
 vi.mock('../services/visionAnalyzer.js', () => ({
   analyzeProductImage: vi.fn(),
+  analyzeSalvageVehicle: vi.fn(),
 }));
 
 vi.mock('../services/webSearch.js', async (importOriginal) => {
@@ -23,7 +24,7 @@ vi.mock('../services/webSearch.js', async (importOriginal) => {
 
 import { generateAgenticListing, conditionLabel } from '../services/agenticListing.js';
 import { callLlm } from '../services/llmProvider.js';
-import { analyzeProductImage } from '../services/visionAnalyzer.js';
+import { analyzeProductImage, analyzeSalvageVehicle } from '../services/visionAnalyzer.js';
 import { searchWeb, searchWithGoogleVision, analyzeProductImageWithGcv, buildSpecsFromGcv, extractCompatibleVehiclesFromPages } from '../services/webSearch.js';
 
 const specs: ProductSpecs = {
@@ -58,6 +59,7 @@ describe('generateAgenticListing structured output', () => {
   beforeEach(() => {
     vi.mocked(callLlm).mockReset();
     vi.mocked(analyzeProductImage).mockReset();
+    vi.mocked(analyzeSalvageVehicle).mockReset();
     vi.mocked(searchWeb).mockReset();
     vi.mocked(searchWithGoogleVision).mockReset();
     vi.mocked(analyzeProductImageWithGcv).mockReset();
@@ -65,6 +67,7 @@ describe('generateAgenticListing structured output', () => {
     vi.mocked(extractCompatibleVehiclesFromPages).mockReset();
     vi.mocked(callLlm).mockResolvedValue(llmJson);
     vi.mocked(analyzeProductImage).mockResolvedValue(specs);
+    vi.mocked(analyzeSalvageVehicle).mockResolvedValue({ brand: '', model: '', partName: '', compatibleVehicles: [], confidence: 0, reasoning: '' });
     vi.mocked(searchWeb).mockResolvedValue([]);
     vi.mocked(searchWithGoogleVision).mockResolvedValue([]);
     vi.mocked(analyzeProductImageWithGcv).mockResolvedValue(null);
@@ -368,5 +371,48 @@ describe('generateAgenticListing structured output', () => {
 
     const queries = vi.mocked(searchWeb).mock.calls.map((c) => c[0]);
     expect(queries.some((q) => q.includes('1299394247'))).toBe(true);
+  });
+
+  it('falls back to multimodal vision vehicle analysis when GCV is generic', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'Mercedes-Benz',
+      codes: [{ type: 'part_code', value: '1299394247', confidence: 0.7 }],
+      visibleText: '# 1299394247',
+      type: 'Kabin',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'construction equipment',
+      entities: ['Construction', 'Equipment'],
+      labels: ['Truck'],
+      objects: [],
+      text: '# 1299394247',
+      pages: [],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(analyzeSalvageVehicle).mockResolvedValue({
+      brand: 'BMC',
+      model: 'Pro Kabin',
+      partName: 'Kabin',
+      compatibleVehicles: ['BMC Pro Kabin', 'BMC Pro 825'],
+      confidence: 0.85,
+      reasoning: 'Parça üzerindeki 1299394247 kodu ve kabin şekli BMC Proya işaret ediyor',
+    });
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false }, undefined);
+
+    expect(analyzeSalvageVehicle).toHaveBeenCalled();
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).toContain('Brand: BMC');
+    expect(promptText).not.toContain('Brand: Mercedes-Benz');
+    expect(promptText).toContain('Vision Vehicle Analysis');
+    expect(promptText).toContain('BMC Pro Kabin');
   });
 });

@@ -249,3 +249,96 @@ export async function analyzeProductImage(
     observations: parseStrings(parsed.observations),
   };
 }
+
+export interface SalvageVehicleAnalysis {
+  brand: string;
+  model: string;
+  partName: string;
+  compatibleVehicles: string[];
+  confidence: number;
+  reasoning: string;
+}
+
+const SALVAGE_PROMPT = `You are an expert in Turkish automotive salvage parts (ÇIKMA parça). Analyze the provided product photo(s) carefully (more than one photo means the same part shown from different angles/close-ups — combine the evidence).
+
+The photo shows a used/salvage vehicle part removed from a truck/bus/commercial vehicle (e.g. cab, suspension, brake, mirror, grille part). Your task is to identify:
+
+1. "partName": what the part is called in Turkish (e.g. "makas kulağı", "kabin", "balata", "ayna").
+2. "brand": the VEHICLE make the part comes from / fits. Use ONLY known makes (BMC, Mercedes-Benz, Renault, Volvo, MAN, Scania, DAF, Iveco, Fiat, Ford, Temsa, Otokar, Isuzu, Toyota, Honda, etc.). If you cannot determine the make from the photo, leave it EMPTY.
+3. "model": the specific model/series if visible or inferable (e.g. "Pro Kabin", "Magnum", "Actros MP3"). Empty if unknown.
+4. "compatibleVehicles": a list of concrete make + model combinations this part is compatible with (e.g. ["BMC Pro Kabin", "BMC Pro 825"]). Only list ones you are confident about from the visible text/markings or the part's shape. Do NOT guess wildly.
+5. "confidence": 0-1 how confident you are in the make/model identification.
+6. "reasoning": one short sentence explaining why (visible text, part code, shape, mounting).
+
+Rules:
+- Read EVERY visible text/code on the part (part numbers, brand logos, engravings) — they are the strongest signal. Reproduce codes exactly.
+- A numeric code (e.g. "1299394247") is usually a manufacturer/OEM part number; use it as a hint for brand/model but do not claim a specific vehicle unless you are confident.
+- NEVER invent a brand. If nothing indicates the make, return an empty "brand" and low confidence rather than guessing.
+
+Return ONLY a JSON object (no markdown, no comments):
+{
+  "partName": "",
+  "brand": "",
+  "model": "",
+  "compatibleVehicles": [],
+  "confidence": 0,
+  "reasoning": ""
+}`;
+
+/**
+ * Salvage-only visual analysis: asks the vision provider (e.g. Gemini) to
+ * identify the vehicle make/model a used part belongs to, based on the photo.
+ * This is what "Google AI / Lens says BMC pro" corresponds to — the GCV
+ * reverse-image search often returns generic labels for odd parts, while a
+ * multimodal LLM can read the part's markings and shape.
+ */
+export async function analyzeSalvageVehicle(
+  imagePath: string | string[],
+  providerConfig?: VisionProviderConfig
+): Promise<SalvageVehicleAnalysis> {
+  const paths = Array.isArray(imagePath) ? imagePath : [imagePath];
+
+  const config: ProviderConfig = providerConfig?.baseUrl
+    ? {
+        baseUrl: providerConfig.baseUrl,
+        model: providerConfig.model || VISION_MODEL,
+        apiKey: providerConfig.apiKey,
+        authType: (providerConfig.authType as 'bearer' | 'api-key' | 'none') || 'bearer',
+        maxTokens: providerConfig.maxTokens,
+        reasoningEffort: providerConfig.reasoningEffort,
+      }
+    : { baseUrl: OLLAMA_URL, model: VISION_MODEL };
+
+  const imageParts = await Promise.all(paths.map(async (p) => {
+    const resolved = await resolveImageAsDataUri(p);
+    return { type: 'image_url' as const, image_url: { url: `data:${resolved.mime};base64,${resolved.data}` } };
+  }));
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: SALVAGE_PROMPT },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: `Analyze these ${imageParts.length} salvage part photo(s) and return the JSON.` },
+        ...imageParts,
+      ],
+    },
+  ];
+
+  const text = await callLlm(config, messages, {
+    temperature: 0.1,
+    maxTokens: config.maxTokens,
+    reasoningEffort: config.reasoningEffort,
+    responseFormatJson: true,
+  });
+  const parsed = parseJsonResponse(text);
+
+  return {
+    partName: typeof parsed.partName === 'string' ? parsed.partName : '',
+    brand: typeof parsed.brand === 'string' ? parsed.brand.trim() : '',
+    model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
+    compatibleVehicles: parseStrings(parsed.compatibleVehicles),
+    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
+    reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
+  };
+}
