@@ -192,7 +192,7 @@ export default function AiScreen() {
   }
 
   async function pollForDraft(sessionId: string): Promise<AiProductDraft | null> {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 48; i++) {
       await new Promise((r) => setTimeout(r, 2500))
       const st = await api.getAiProductSessionStatus(sessionId)
       if (st.status === 'review' || st.status === 'approved' || st.status === 'completed') {

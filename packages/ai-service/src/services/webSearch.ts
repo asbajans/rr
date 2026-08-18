@@ -49,7 +49,7 @@ async function searchGoogleCse(query: string, maxResults: number): Promise<WebSe
   const cx = process.env.SEARCH_ENGINE_ID;
   if (!key || !cx) return [];
   const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${Math.min(maxResults, 10)}`;
-  const json = await httpGet(url, 12000);
+  const json = await httpGet(url, 6000);
   const data = JSON.parse(json);
   return (data.items || [])
     .slice(0, maxResults)
@@ -58,7 +58,7 @@ async function searchGoogleCse(query: string, maxResults: number): Promise<WebSe
 }
 
 async function searchDuckDuckGo(query: string, maxResults: number): Promise<WebSearchResult[]> {
-  const html = await httpGet(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, 12000);
+  const html = await httpGet(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, 6000);
   // Each result block is a <div class="result ...">. Splitting on `class="result`
   // followed by a word boundary avoids splitting on result__a/result__snippet.
   const parts = html.split(/class="result\b/);

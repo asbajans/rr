@@ -478,18 +478,25 @@ async function searchForSalvageReferences(
   const results: WebSearchResult[] = [];
   const seen = new Set<string>();
   const maxQueries = Math.min(queries.length, 15);
-  for (const q of queries.slice(0, maxQueries)) {
-    let batch: WebSearchResult[] = [];
-    try {
-      batch = await searchWeb(q, 5);
-    } catch {
-      batch = [];
-    }
-    if (!Array.isArray(batch)) batch = [];
-    for (const r of batch) {
-      if (r.title && !seen.has(r.title)) {
-        seen.add(r.title);
-        results.push(r);
+  const concurrency = 5;
+  for (let start = 0; start < queries.slice(0, maxQueries).length; start += concurrency) {
+    const batchQueries = queries.slice(start, start + concurrency);
+    const batches = await Promise.all(
+      batchQueries.map(async (q) => {
+        try {
+          const batch = await searchWeb(q, 5);
+          return Array.isArray(batch) ? batch : [];
+        } catch {
+          return [];
+        }
+      })
+    );
+    for (const batch of batches) {
+      for (const r of batch) {
+        if (r.title && !seen.has(r.title)) {
+          seen.add(r.title);
+          results.push(r);
+        }
       }
     }
   }
