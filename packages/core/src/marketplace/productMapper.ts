@@ -25,11 +25,35 @@ export function getMarketplaceEntry(product: any, mp: string): MarketplaceEntry 
   return product?.marketplaceConfig?.[mp] || {};
 }
 
+/**
+ * When the product is marked as not-for-sale in Rahatio (isActive=false) or for a
+ * specific marketplace (entry.on_sale=false / entry.status=0) we must reflect that
+ * on the marketplace. Most marketplaces have no "deactivate listing" endpoint, so
+ * the reliable cross-platform signal is stock = 0 (out of stock → not purchasable).
+ * N11 additionally gets `status: 'Suspended'`; Etsy gets `is_active:false`.
+ */
+export function isProductOnSale(product: any): boolean {
+  return product?.isActive !== false;
+}
+
+export function isMarketplaceOnSale(product: any, entry: MarketplaceEntry): boolean {
+  if (!isProductOnSale(product)) return false;
+  if (entry?.on_sale === false || entry?.on_sale === 0) return false;
+  if (entry?.status === 0 || entry?.status === false || entry?.status === '0' || entry?.status === 'passive') return false;
+  return true;
+}
+
+export function marketplaceQuantity(product: any, entry?: MarketplaceEntry): number {
+  const onSale = entry ? isMarketplaceOnSale(product, entry) : isProductOnSale(product);
+  return onSale ? Number(product.quantity ?? 0) : 0;
+}
+
 export function mapProductForTrendyol(product: any, integration: any): Record<string, any> {
   const entry = getMarketplaceEntry(product, 'trendyol');
   const intConfig = integration?.config || {};
   const price = product.priceTRY ?? product.priceUSD ?? 0;
   const images = Array.isArray(product.images) ? product.images.map((u: any) => typeof u === 'string' ? { url: u } : u) : [];
+  const onSale = isMarketplaceOnSale(product, entry);
 
   const attrs = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => {
     const customVal = a.customValue || a.customAttributeValue;
@@ -62,7 +86,7 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
     productMainId: product.sku,
     brandId,
     categoryId,
-    quantity: Number(product.quantity ?? 0),
+    quantity: onSale ? Number(product.quantity ?? 0) : 0,
     stockCode: product.sku,
     dimensionalWeight: Number(entry.dimensionalWeight || intConfig.dimensionalWeight || 1),
     description: product.description || '',
@@ -88,6 +112,7 @@ export function mapProductForN11(product: any, integration: any): Record<string,
     if (!url) return null;
     return { url: url.replace(/^http:\/\//i, 'https://'), order: 0 };
   }).filter((i: any) => i?.url) : [];
+  const onSale = isMarketplaceOnSale(product, entry);
 
   const attrs: any[] = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => ({
     id: Number(a.id || a.attributeId),
@@ -123,14 +148,14 @@ export function mapProductForN11(product: any, integration: any): Record<string,
     preparingDay: Number(entry.preparingDay ?? 3),
     shipmentTemplate,
     stockCode: product.sku,
-    quantity: Number(product.quantity ?? 0),
+    quantity: onSale ? Number(product.quantity ?? 0) : 0,
     images,
     attributes: attrs,
     salePrice: Number(price),
     listPrice: Number(price),
     vatRate,
     maxPurchaseQuantity: entry.maxPurchaseQuantity ?? 5,
-    status: product.isActive === false ? 'Suspended' : 'Active',
+    status: onSale ? 'Active' : 'Suspended',
   };
 }
 
@@ -143,6 +168,7 @@ export function mapProductForHepsiburada(product: any, integration: any): Record
     attributeId: a.attributeId,
     valueId: a.valueId || a.attributeValueId,
   })) : [];
+  const onSale = isMarketplaceOnSale(product, entry);
 
   return {
     merchantSku: product.sku,
@@ -154,7 +180,7 @@ export function mapProductForHepsiburada(product: any, integration: any): Record
     images,
     listPrice: Number(price),
     salePrice: Number(price),
-    quantity: Number(product.quantity ?? 0),
+    quantity: onSale ? Number(product.quantity ?? 0) : 0,
     cargoCompanyId: Number(entry.cargoCompanyId || 0),
     dispatchDuration: Number(entry.dispatchDuration ?? 3),
     vatRate: Number(entry.vatRate ?? 10),
@@ -180,6 +206,7 @@ export function mapProductForPazarama(product: any, integration: any): Record<st
 
   const brandId = entry.brandId || entry.brand_id || '';
   const categoryId = entry.categoryId || entry.category_id || '';
+  const onSale = isMarketplaceOnSale(product, entry);
 
   if (!categoryId) {
     return { _skip: true, reason: 'Pazarama kategorisi atanmamış' };
@@ -195,15 +222,15 @@ export function mapProductForPazarama(product: any, integration: any): Record<st
     BrandId: brandId,
     Desi: Number(entry.desi || entry.dimensionalWeight || 1),
     Code: product.sku,
-    GroupCode: entry.groupCode || product.mainSku || product.sku,
-    StockCount: Number(product.quantity ?? 0),
+GroupCode: entry.groupCode || product.mainSku || product.sku,
+    StockCount: onSale ? Number(product.StockCount || product.stockCount || product.quantity || 0) : 0,
     VatRate: vatRate,
     ListPrice: Number(price),
     SalePrice: Number(price),
     CategoryId: categoryId,
     images,
     attributes: attrs,
-  };
+    };
 }
 
 export function mapProductForAmazon(product: any, integration: any): Record<string, any> {
@@ -211,18 +238,20 @@ export function mapProductForAmazon(product: any, integration: any): Record<stri
   const price = product.priceUSD ?? product.priceTRY ?? 0;
   const images = Array.isArray(product.images) ? product.images.map((u: any) => typeof u === 'string' ? u : (u.url || u)).filter(Boolean) : [];
 
+  const onSale = isMarketplaceOnSale(product, entry);
+
   return {
     sellerSKU: product.sku,
     title: product.title,
     description: product.description || '',
     categoryId: Number(entry.categoryId || entry.category_id || 0),
-    brand: entry.brand || '',
+brand: entry.brand || '',
     images,
     listPrice: Number(price),
     salePrice: Number(price),
-    quantity: Number(product.quantity ?? 0),
+    quantity: onSale ? Number(product.quantity ?? 0) : 0,
     attributes: entry.attributes || [],
-  };
+    };
 }
 
 export function mapProductForEtsy(product: any, integration: any): Record<string, any> {
@@ -234,15 +263,16 @@ export function mapProductForEtsy(product: any, integration: any): Record<string
     title: product.title,
     description: product.description || '',
     price: Number(price),
-    quantity: Number(product.quantity ?? 0),
+    quantity: marketplaceQuantity(product),
     tags: product.tags || entry.tags || [],
     images,
     categoryId: Number(entry.categoryId || entry.category_id || 0),
-    brand: entry.brand || '',
+brand: entry.brand || '',
     whoMade: 'someone_else',
     whenMade: '2020_2024',
     taxonomyId: entry.taxonomyId,
-  };
+    is_active: isMarketplaceOnSale(product, entry),
+    };
 }
 
 export function mapProductForMarketplace(mp: string, product: any, integration: any): Record<string, any> {

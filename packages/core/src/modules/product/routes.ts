@@ -229,7 +229,7 @@ productRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
 
     // Auto-queue sync for configured marketplaces on price/stock/fields change
     const mps = req.body.marketplaces || product.marketplaces;
-    const syncTriggers = ['priceTRY', 'quantity', 'title', 'description', 'images', 'discountRate', 'isActive', 'marketplaces', 'marketplaceConfig'];
+    const syncTriggers = ['priceTRY', 'priceUSD', 'quantity', 'title', 'description', 'images', 'discountRate', 'isActive', 'marketplaces', 'marketplaceConfig'];
     if (Array.isArray(mps) && mps.length > 0 && changedFields.some(f => syncTriggers.includes(f))) {
       try {
         const syncQueue = (await import('../../queues/index.js')).syncQueue;
@@ -313,6 +313,23 @@ productRoutes.post('/bulk-price-update', authMiddleware, requireRole('owner', 'a
       if (Object.keys(patch).length > 0) {
         await product.update(patch);
         updated++;
+      }
+    }
+
+    // Auto-queue marketplace sync for every product whose sale price or stock
+    // changed via bulk update (was missing — bulk price edits never synced).
+    if (updated > 0) {
+      try {
+        const syncQueue = (await import('../../queues/index.js')).syncQueue;
+        const changedProducts = await Product.findAll({ where: { id: ids, storeId: store.id } });
+        for (const p of changedProducts) {
+          const mps = p.marketplaces;
+          if (Array.isArray(mps) && mps.length > 0) {
+            await syncQueue.add('product-sync', { productId: p.id, storeId: store.id, marketplaces: mps, trigger: 'update' });
+          }
+        }
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to auto-queue sync for bulk price update');
       }
     }
 

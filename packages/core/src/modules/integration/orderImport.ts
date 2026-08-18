@@ -68,16 +68,20 @@ export function normalizeMarketplaceStatus(marketplace: string, raw: any): strin
   const map: Record<string, string> = {
     'created': 'pending', 'new': 'pending', 'waiting': 'pending',
     'siparis alindi': 'pending', 'siparis_alindi': 'pending', 'alindi': 'pending',
+    'waitingforapproval': 'pending', 'waiting_for_approval': 'pending',
     'processing': 'processing', 'preparing': 'processing', 'picking': 'processing',
+    'approved': 'processing', 'onaylandı': 'processing', 'onaylandi': 'processing',
     'invoiced': 'processing', 'unpacked': 'processing', 'packed': 'processing',
     'hazirlaniyor': 'processing', 'hazirlanıyor': 'processing', 'packaging': 'processing',
     'untrackable': 'processing', 'status.processing': 'processing', 'status.prepared': 'processing',
     'shipped': 'shipped', 'shipping': 'shipped', 'in transit': 'shipped',
     'kargoya verildi': 'shipped', 'kargoya_verildi': 'shipped', 'kargoda': 'shipped',
+    'kargolandı': 'shipped', 'kargolandi': 'shipped', 'kargolandı ': 'shipped',
     'kargodan aktarma': 'shipped', 'kuryede': 'shipped', 'yolda': 'shipped',
     'status.shipped': 'shipped',
     'delivered': 'delivered', 'teslim edildi': 'delivered', 'teslim_edildi': 'delivered',
     'teslim': 'delivered', 'status.delivered': 'delivered', 'dagıtima cıktı': 'delivered', 'dağıtıma çıktı': 'delivered',
+    'completed': 'delivered', 'complete': 'delivered',
     'cancelled': 'cancelled', 'canceled': 'cancelled', 'cancel': 'cancelled',
     'unsupplied': 'cancelled', 'undelivered': 'cancelled', 'iptal edildi': 'cancelled',
     'iptal_edildi': 'cancelled', 'iptal': 'cancelled', 'status.cancelled': 'cancelled',
@@ -87,6 +91,9 @@ export function normalizeMarketplaceStatus(marketplace: string, raw: any): strin
   };
 
   if (map[lower]) return map[lower];
+  // Turkish locale lowercase: 'İ' → 'i' (JS toLowerCase gives 'i' + combining dot).
+  const trLower = s.toLocaleLowerCase('tr-TR');
+  if (trLower !== lower && map[trLower]) return map[trLower];
   const compact = lower.replace(/\s+/g, '_').replace(/status\./g, '');
   if (map[compact]) return map[compact];
   return 'pending';

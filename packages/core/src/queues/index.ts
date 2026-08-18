@@ -7,7 +7,7 @@ import { IntegrationLog } from '../models/LogModels.js';
 import { Store } from '../models/Store.model.js';
 import { ExternalFeed, FeedSyncLog } from '../models/ContentModels.js';
 import { createMarketplaceClient, getMarketplaceConfig, MarketplaceType } from '../marketplace/clients/index.js';
-import { mapProductForMarketplace } from '../marketplace/productMapper.js';
+import { mapProductForMarketplace, isProductOnSale } from '../marketplace/productMapper.js';
 import { normalizeMarketplaceProduct } from '../marketplace/importNormalizer.js';
 import { getPlanForStore, isModuleEnabled, getProductQuotaStatus } from '../modules/plan/access.js';
 import { logger } from '../utils/logger.js';
@@ -679,6 +679,14 @@ export async function createSyncWorker() {
           }
 
           const { _skip, reason, ...mpProduct } = rawMapped;
+
+          // Do not push an off-sale product to a marketplace it is not yet listed on.
+          // (Existing listings are handled below by pushing stock=0 / status suspended.)
+          if (!isProductOnSale(product) && !existingListing?.externalId) {
+            results[mp] = { success: false, reason: 'Product inactive — not created on marketplace' };
+            logger.warn({ mp, productId }, 'Skipping create for inactive product');
+            continue;
+          }
 
           // N11 uses fully async task endpoints; handle create/update/pending lifecycle separately.
           if (mp === 'n11') {
