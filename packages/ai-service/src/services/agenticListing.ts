@@ -100,6 +100,7 @@ Rules:
 - Use persuasive, natural Turkish
 - Avoid promotional forbidden words for Trendyol: "en iyi", "kaliteli", "orijinal", "garantili", "bedava", "ücretsiz", "toptan", "profesyonel", "kalite", "birinci sınıf", "endüstriyel" (özellikle yedek parça / oto parça ürünlerinde "endüstriyel" kelimesini asla kullanma)
 - BRAND RULE: if a brand was detected in the photo (in the specs), the title MUST start with the brand name. NEVER invent a brand that is not in the specs. EXCEPTION (ÇIKMA only): if the "Salvage Reference Search Results" contain a Google Vision best-guess label with a vehicle make that contradicts the detected brand, TRUST the best-guess label — the detected brand may be a misread.
+- SELLER NOTE RULE: the "Seller Notes / Short Description" in the prompt is AUTHORITATIVE. If the seller states what the product is (e.g. "boş kupa", "kabin", a part name, a part code), the listing MUST be for exactly that product. Do not write about a whole vehicle when the seller named a specific part, and do not ignore the seller's description. The title + description must reflect the seller's stated product.
 - CONDITION RULE: the product's condition is given in the prompt. Reflect it in the title (suffix in parentheses like "(Yeni)", "(Yenilenmiş)", "(İkinci El)", "(Çıkma)") and describe it honestly in the description + attributes ("Durum"). For "Yeni" keep the title clean and state "Yeni" naturally in description + attributes
 - PART CODE RULE: if a part/model code is present it MUST be reproduced EXACTLY. For spare parts / automotive / industrial parts, include the code in the title (it is how buyers search). For other products include it in attributes + description only
 - If "Reference Search Results" or "Salvage Reference Search Results" are provided, use them to determine the exact product name and description; do NOT contradict them and do NOT invent facts that are neither in the specs nor in the references
@@ -126,6 +127,12 @@ SALVAGE (ÇIKMA) LISTING RULES — apply ONLY when the product condition is "Ç�
 - If a "Compatible Vehicles" list is present, the title MUST include at least one of those make/model names (e.g. "BMC Pro Kabin ..."), and the "Uyumlu Araçlar" attribute MUST list all of them
 - Bullet points for Amazon should focus on: compatible vehicles, OEM/part code, condition details, removal notes
 - Attributes MUST include: "Uyumlu Araçlar" (all compatible vehicles), "Kullanım Yeri", "Söküm Bilgisi", "Araç Tipi" (kamyon/kamyonet/binek/etc.)
+- WHOLE VEHICLE RULE (ÇIKMA): if the seller is selling a whole vehicle / all its parts (the photo shows a complete vehicle and no specific part is stated, or the seller note says something like "tüm parçalar" / "söküm" / "parça için"), the listing MUST describe the VEHICLE ITSELF being parted out — NOT a single part. In that case:
+  - Title format: "BRAND + Model + Araç Tipi + (Çıkma)" (e.g. "BMC Pro Kamyonet (Çıkma)") — a part is NOT singled out
+  - The description MUST enumerate the vehicle's removable parts one by one (kabin, kapı, tampon, kaput, stop lambası, ayna, yürür aksam, şanzıman vb.) in a "Araçtan Sökülen Parçalar" list — list as many parts as visible/known, each as its own bullet/list item
+  - "Kullanım Yeri" becomes "Parça Durumu" describing the vehicle's overall condition and that any part can be requested
+  - Do NOT invent specific parts that are not visible; list the parts that are visible or standard for the vehicle
+- MATERIAL RULE (ÇIKMA): NEVER mention the material (metal, plastik, çelik, alüminyum, kumaş, döşeme, deri vb.) of the part or vehicle in the title, description, keywords, or attributes. Materials are irrelevant for çıkma parts and must not appear anywhere in the listing.
 ` : ''}
 ${claimRules}`;
 }
@@ -155,6 +162,13 @@ function buildPrompt(
     .join('\n');
 
   const isSalvage = input.condition === 'salvage';
+  const sellerNoteText = `${input.shortDescription || ''} ${input.notes || ''}`.toLowerCase();
+  const wholeVehicleSignals = [
+    'tüm parça', 'tüm parçalar', 'söküm', 'parça için', 'komple araç', 'komple kamyonet', 'komple kamyon',
+    'tam komple', 'sökülüyor', 'parçalanıyor', 'parçalanmış', 'parça amaçlı', 'hurda araç',
+    'komple', 'parçalar halinde',
+  ];
+  const isWholeVehicle = isSalvage && wholeVehicleSignals.some((s) => sellerNoteText.includes(s));
 
   return `Product Specifications (detected from image):
 - Material: ${specs.material}
@@ -178,10 +192,15 @@ ${codes || '- None'}
 Additional Observations:
 ${observations || '- None'}
 
-Seller Notes:
+Seller Notes (AUTHORITATIVE — the product is what the seller says it is; do NOT override with the photo if they conflict):
 ${input.shortDescription ? `- Short Description: ${input.shortDescription}` : ''}
 ${input.keywords ? `- Keywords: ${input.keywords}` : ''}
 ${input.notes ? `- Additional Notes: ${input.notes}` : ''}
+${isSalvage ? `
+IMPORTANT for ÇIKMA (salvage) products:
+- If the seller note names a specific part (e.g. "boş kupa", "kabin", a part code), the listing is for THAT part only, even if the photo shows a whole vehicle
+- If the seller note / photo indicates a WHOLE VEHICLE being parted out (no specific part named), do NOT single out one part — title "BRAND + Model + Araç Tipi (Çıkma)" and list the vehicle's parts one by one in "Araçtan Sökülen Parçalar"
+- NEVER mention material (metal, plastik, çelik, alüminyum, kumaş, deri vb.) anywhere in the listing` : ''}
 
 ${isSalvage ? `Salvage Reference Search Results (web lookup for vehicle compatibility, usage, and removal info):
 ${reference || '- None available — rely on detected specs only'}
@@ -191,7 +210,13 @@ ${formatCompatibleVehicles(compatibleVehicles || [])}
 IMPORTANT for ÇIKMA (salvage) products:
 - Title MUST include the COMPATIBLE VEHICLE (make + model listed above) + part name + "(Çıkma)". Example: "BMC Pro Kabin Makas Kulağı (Çıkma)"
 - Description "Uyumlu Araçlar" section MUST list every compatible vehicle from the "Compatible Vehicles" list above (make + model + series + year if known)
-- If the Compatible Vehicles list is empty, use the detected Brand + part type instead; do NOT fabricate compatibility` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
+- If the Compatible Vehicles list is empty, use the detected Brand + part type instead; do NOT fabricate compatibility
+${isWholeVehicle ? `
+WHOLE VEHICLE (bütün araç çıkma parçaları) — THIS listing is for the whole vehicle's parts:
+- Title: "BRAND + Model + Araç Tipi (Çıkma)" e.g. "BMC Pro Kamyonet (Çıkma)" — do NOT single out a part
+- Description MUST include an "Araçtan Sökülen Parçalar" section that lists the vehicle's removable parts ONE BY ONE (kabin, kapılar, kaput, tampon, stop lambaları, aynalar, şanzıman, yürür aksam, döşeme vb.)
+- "Uyumlu Araçlar" is optional; use "Parça Durumu" for the vehicle's overall condition instead of "Kullanım Yeri"
+- NEVER mention material (metal, plastik, çelik, alüminyum, kumaş, deri vb.)` : ''}` : `Reference Search Results (web lookup of the detected codes — use these to determine the exact product name and description; do not contradict them):
 ${reference || '- None available'}`}
 
 Target Marketplaces: ${marketplaces}
@@ -199,9 +224,9 @@ Suggest Price Range: ${input.suggestPrice !== false ? 'YES - estimate a reasonab
 
 Return the following JSON exactly:
 {
-  "title": "${isSalvage ? 'BRAND + part name + compatible vehicle model(s) + "(Çıkma)". Must include vehicle model for SEO. Example: "Bosch Fren Balatası Toyota Corolla E90 (Çıkma)"' : 'BRAND (if known) + product type + condition marker. Max 60 chars. Follow pattern ${sector.titleTemplate}. Examples: \'Bosch Fren Balatası Seti (Yeni)\', \'Siemens Röle (Çıkma)\''}",
-  "short_description": "${isSalvage ? '1-2 sentences: what the part is, which vehicles it fits, condition details' : '1-2 sentence short description'}",
-  "description": "HTML long description, ${isSalvage ? '200-300 words, FACT-BASED: sections for Uyumlu Araçlar, Kullanım Yeri, Söküm Bilgisi, Montaj Notları' : '200-300 words, persuasive'}",
+  "title": "${isSalvage ? (isWholeVehicle ? 'BRAND + Model + Araç Tipi + "(Çıkma)" — the vehicle itself is being parted out. Example: "BMC Pro Kamyonet (Çıkma)". Do NOT single out a part' : 'BRAND + part name + compatible vehicle model(s) + "(Çıkma)". Must include vehicle model for SEO. Example: "Bosch Fren Balatası Toyota Corolla E90 (Çıkma)"') : 'BRAND (if known) + product type + condition marker. Max 60 chars. Follow pattern ${sector.titleTemplate}. Examples: \'Bosch Fren Balatası Seti (Yeni)\', \'Siemens Röle (Çıkma)\''}",
+  "short_description": "${isSalvage ? (isWholeVehicle ? '1-2 sentences: the whole vehicle being parted out, which vehicles it belongs to, and that all parts can be requested' : '1-2 sentences: what the part is, which vehicles it fits, condition details') : '1-2 sentence short description'}",
+  "description": "HTML long description, ${isSalvage ? (isWholeVehicle ? '200-300 words, FACT-BASED: sections for Araçtan Sökülen Parçalar (list every visible part one by one), Parça Durumu, Uyumlu Araçlar, Söküm Bilgisi' : '200-300 words, FACT-BASED: sections for Uyumlu Araçlar, Kullanım Yeri, Söküm Bilgisi, Montaj Notları') : '200-300 words, persuasive'}",
   "meta_title": "SEO title max 60 chars${isSalvage ? ' — MUST include vehicle model + part name + "çıkma"' : ''}",
   "meta_description": "SEO description max 160 chars${isSalvage ? ' — MUST include vehicle model + part name + "çıkma" for search visibility' : ''}",
   "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"${isSalvage ? ' — include "<brand> <part> çıkma", "<vehicle> <part> uyumlu", "<part code>", "<brand> <part> söküm"' : ''}],
@@ -209,7 +234,7 @@ Return the following JSON exactly:
   "category": "one of: ${CATEGORY_LIST.join(', ')}",
   "attributes": {
     "Renk": "${specs.color}",
-    "Materyal": "${specs.material}",
+    "Materyal": "${isSalvage ? '' : specs.material}",
     "Stil": "${specs.style}",
     "Tür": "${specs.type}",
     "Durum": "${condition}",
@@ -686,7 +711,7 @@ export async function generateAgenticListing(
   // visual-analysis source: it gives the correct vehicle make + product name
   // via reverse image search. The vision model is only used as a fallback for
   // material/color/style when GCV returns nothing.
-  let specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes);
+  let specs = await analyzeProductImage(imagePath, category, providerConfig, input.categoryAttributes, input.shortDescription);
 
   let gcvAnalysis: GcvProductAnalysis | null = null;
   let salvageVehicleAnalysis: { brand: string; model: string; partName: string; compatibleVehicles: string[] } | null = null;
@@ -708,7 +733,7 @@ export async function generateAgenticListing(
     const gcvHasPages = (gcvAnalysis?.pages?.length || 0) > 0;
     if (!gcvHasMake || !gcvHasPages) {
       try {
-        const veh = await analyzeSalvageVehicle(firstImage, providerConfig);
+        const veh = await analyzeSalvageVehicle(firstImage, providerConfig, input.shortDescription);
         if (veh && (veh.brand || veh.compatibleVehicles?.length)) {
           salvageVehicleAnalysis = {
             brand: veh.brand,

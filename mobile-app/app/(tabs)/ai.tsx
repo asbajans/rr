@@ -69,6 +69,7 @@ export default function AiScreen() {
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [aiCategories, setAiCategories] = useState<AiCategory[]>([])
   const [condition, setCondition] = useState<'new' | 'refurbished' | 'used' | 'salvage'>('new')
+  const [sellerNote, setSellerNote] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [session, setSession] = useState<AiProductSession | null>(null)
   const [draft, setDraft] = useState<AiProductDraft | null>(null)
@@ -218,6 +219,7 @@ export default function AiScreen() {
         category: selectedCategory ? (selectedCategory.slug || selectedCategory.name) : undefined,
         categoryId: categoryId ?? undefined,
         condition,
+        shortDescription: sellerNote.trim() || undefined,
       })
       setSession(res.session)
 
@@ -544,6 +546,17 @@ export default function AiScreen() {
             )
           })}
         </ScrollView>
+
+        <Text style={styles.sectionLabel}>Kısa Açıklama (opsiyonel)</Text>
+        <TextInput
+          style={styles.noteInput}
+          value={sellerNote}
+          onChangeText={setSellerNote}
+          placeholder="Ürünü tek satırda anlat (örn. boş kupa, BMC pro kabin)"
+          placeholderTextColor="#777"
+          multiline
+          maxLength={300}
+        />
 
         <View style={styles.imageArea}>
           {imageUris.length > 0 ? (
@@ -923,6 +936,7 @@ const styles = StyleSheet.create({
   emptyDrafts: { fontSize: 13, color: '#999', marginBottom: 16 },
   catRow: { flexDirection: 'row', marginBottom: 16 },
   catChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: '#e5e5e5', marginRight: 8 },
+  noteInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 12, fontSize: 15, color: '#000', marginBottom: 16, minHeight: 70, textAlignVertical: 'top' },
   catChipActive: { backgroundColor: '#10b981' },
   catChipText: { fontSize: 12, fontWeight: '600', color: '#555' },
   catChipTextActive: { color: '#fff' },

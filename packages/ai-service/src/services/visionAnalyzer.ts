@@ -49,13 +49,16 @@ function mimeFromPath(p: string): string {
   }
 }
 
-function buildVisionPrompt(category: string, sector: SectorConfig): string {
+function buildVisionPrompt(category: string, sector: SectorConfig, sellerNote?: string): string {
   const focus = sector.focus.length ? sector.focus.map((f) => `- ${f}`).join('\n') : '- material, style and purpose of the product';
   const schema = Object.entries(sector.attributeSchema)
     .map(([name, what]) => `"${name}": "${what}"`)
     .join(',\n  ');
+  const sellerNoteBlock = sellerNote?.trim()
+    ? `\nThe seller states the product is: "${sellerNote.trim()}". This is AUTHORITATIVE — identify the product that matches this description, even if the photo shows a whole vehicle or a broader scene.`
+    : '';
 
-  return `You are a professional product analyst specializing in ${sector.label} products. Analyze the provided product photo(s) carefully and thoroughly (more than one photo means the same product is shown from different angles/close-ups — combine the evidence).
+  return `You are a professional product analyst specializing in ${sector.label} products. Analyze the provided product photo(s) carefully and thoroughly (more than one photo means the same product is shown from different angles/close-ups — combine the evidence).${sellerNoteBlock}
 
 This category's key details to look for:
 ${focus}
@@ -193,11 +196,12 @@ export async function analyzeProductImage(
   imagePath: string | string[],
   category: string,
   providerConfig?: VisionProviderConfig,
-  attributes?: AiAttribute[]
+  attributes?: AiAttribute[],
+  sellerNote?: string
 ): Promise<ProductSpecs> {
   const paths = Array.isArray(imagePath) ? imagePath : [imagePath];
   const sector = buildSectorFor(category, attributes);
-  console.log(`[VISION] Processing ${paths.length} image(s): ${paths.map(p => isHttpUrl(p) ? 'URL:' + p.slice(0, 80) : 'FILE:' + p).join(', ')}`);
+  console.log(`[VISION] Processing ${paths.length} image(s): ${paths.map(p => isHttpUrl(p) ? 'URL:' + p.slice(0, 80) : 'FILE:' + p).join(', ')}${sellerNote ? ` | seller note: "${sellerNote.slice(0, 120)}"` : ''}`);
 
   const config: ProviderConfig = providerConfig?.baseUrl
     ? {
@@ -216,7 +220,7 @@ export async function analyzeProductImage(
   }));
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildVisionPrompt(category, sector) },
+    { role: 'system', content: buildVisionPrompt(category, sector, sellerNote) },
     {
       role: 'user',
       content: [
@@ -261,7 +265,7 @@ export interface SalvageVehicleAnalysis {
 
 const SALVAGE_PROMPT = `You are an expert in Turkish automotive salvage parts (ÇIKMA parça). Analyze the provided product photo(s) carefully (more than one photo means the same part shown from different angles/close-ups — combine the evidence).
 
-The photo shows a used/salvage vehicle part removed from a truck/bus/commercial vehicle (e.g. cab, suspension, brake, mirror, grille part). Your task is to identify:
+The photo shows a used/salvage vehicle part removed from a truck/bus/commercial vehicle (e.g. cab, suspension, brake, mirror, grille part) — OR it may show a WHOLE vehicle that is being parted out. Your task is to identify:
 
 1. "partName": what the part is called in Turkish (e.g. "makas kulağı", "kabin", "balata", "ayna").
 2. "brand": the VEHICLE make the part comes from / fits. Use ONLY known makes (BMC, Mercedes-Benz, Renault, Volvo, MAN, Scania, DAF, Iveco, Fiat, Ford, Temsa, Otokar, Isuzu, Toyota, Honda, etc.). If you cannot determine the make from the photo, leave it EMPTY.
@@ -274,6 +278,9 @@ Rules:
 - Read EVERY visible text/code on the part (part numbers, brand logos, engravings) — they are the strongest signal. Reproduce codes exactly.
 - IMPORTANT: A long bare number (e.g. "# 1299394247", 8+ digits) printed/watermarked on the photo is usually an AD / listing item number or catalog reference from the site where the photo was taken (sahibinden.com etc.) — NOT proof of the vehicle make. Do NOT let such an ad number drive your brand/model decision. Only treat a code as an OEM part number when it looks like it is physically stamped/engraved on the part itself or clearly associated with it.
 - Use styling cues (cab shape, grille, headlights, door line, fender) plus any real brand badge/logos you can see. Turkish market: BMC Pro/Fatih cabs are boxy with a tall flat front and rectangular headlights; Mercedes-Benz Atego has a rounded, sloped nose with curved headlights; Iveco Eurocargo has a distinctive tall angular cab. If the photo shows several vehicles/cabs, identify which one is the PART actually being sold (usually the main subject), not a background vehicle.
+- WHOLE VEHICLE RULE: if the photo shows a WHOLE vehicle (complete truck/van/minibus with body, wheels and chassis all present) rather than a single removed part, do NOT treat the whole vehicle as one part. Treat it as a vehicle being parted out: set "partName" to "tüm parçalar" / the vehicle type (e.g. "Kamyonet (tüm parçalar)"), set "model" to the vehicle model, and include every identifiable part category in the reasoning/observations so the listing can enumerate parts. NEVER invent a part the photo does not show.
+- SELLER NOTE RULE: if the seller note states what the part is (e.g. "boş kupa", "kabin", "makas"), that note is authoritative — match the part in the photo to the seller's description. Do not let a whole-vehicle photo override an explicit seller note about a specific part; if the seller says "boş kupa", the product is the cab even if the photo also shows the whole vehicle.
+- MATERIAL RULE: do NOT report material (metal, plastic, iron, aluminum, etc.) for salvage parts. Leave "material" OUT of any observations; materials are irrelevant for çıkma parts and must not appear in the final listing.
 - NEVER invent a brand. If nothing indicates the make, return an empty "brand" and low confidence rather than guessing.
 
 Return ONLY a JSON object (no markdown, no comments):
@@ -295,9 +302,11 @@ Return ONLY a JSON object (no markdown, no comments):
  */
 export async function analyzeSalvageVehicle(
   imagePath: string | string[],
-  providerConfig?: VisionProviderConfig
+  providerConfig?: VisionProviderConfig,
+  sellerNote?: string
 ): Promise<SalvageVehicleAnalysis> {
   const paths = Array.isArray(imagePath) ? imagePath : [imagePath];
+  console.log(`[VISION-SALVAGE] Analyzing ${paths.length} image(s)${sellerNote ? ` | seller note: "${sellerNote.slice(0, 120)}"` : ''}`);
 
   const config: ProviderConfig = providerConfig?.baseUrl
     ? {
@@ -320,7 +329,7 @@ export async function analyzeSalvageVehicle(
     {
       role: 'user',
       content: [
-        { type: 'text', text: `Analyze these ${imageParts.length} salvage part photo(s) and return the JSON.` },
+        { type: 'text', text: `Analyze these ${imageParts.length} salvage part photo(s) and return the JSON.${sellerNote?.trim() ? `\nSeller note (authoritative — what is actually being sold): "${sellerNote.trim()}"` : ''}` },
         ...imageParts,
       ],
     },

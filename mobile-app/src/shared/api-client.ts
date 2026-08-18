@@ -675,7 +675,7 @@ class ApiClient {
   }
 
   // Upload image(s) then start an agentic session in one call (max 2 photos).
-  async createAiProductSessionFromImage(imageUris: string[], opts?: { category?: string; categoryId?: number; condition?: 'new' | 'refurbished' | 'used' | 'salvage'; suggestPrice?: boolean; targetMarketplaces?: string[] }) {
+  async createAiProductSessionFromImage(imageUris: string[], opts?: { category?: string; categoryId?: number; condition?: 'new' | 'refurbished' | 'used' | 'salvage'; shortDescription?: string; suggestPrice?: boolean; targetMarketplaces?: string[] }) {
     const urls: string[] = []
     for (const uri of imageUris) {
       const uploaded = await this.uploadImage(uri, `photo-${Date.now()}-${urls.length}.jpg`, 'image/jpeg')
@@ -687,6 +687,7 @@ class ApiClient {
       category: opts?.category,
       category_id: opts?.categoryId,
       condition: opts?.condition,
+      short_description: opts?.shortDescription,
       suggest_price: opts?.suggestPrice,
       target_marketplaces: opts?.targetMarketplaces,
     })

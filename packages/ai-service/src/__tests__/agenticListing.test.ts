@@ -415,4 +415,145 @@ describe('generateAgenticListing structured output', () => {
     expect(promptText).toContain('Vision Vehicle Analysis');
     expect(promptText).toContain('BMC Pro Kabin');
   });
+
+  it('passes seller note to salvage vehicle analysis and marks it authoritative', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'BMC',
+      codes: [{ type: 'part_code', value: '1299394247', confidence: 0.7 }],
+      visibleText: '# 1299394247',
+      type: 'Kabin',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'construction equipment',
+      entities: ['Construction'],
+      labels: ['Truck'],
+      objects: [],
+      text: '# 1299394247',
+      pages: [],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(analyzeSalvageVehicle).mockResolvedValue({
+      brand: 'BMC',
+      model: 'Pro Kabin',
+      partName: 'Boş Kupa',
+      compatibleVehicles: ['BMC Pro Kabin'],
+      confidence: 0.9,
+      reasoning: 'Satıcı notu boş kupa diyor',
+    });
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', shortDescription: 'boş kupa', suggestPrice: false });
+
+    expect(analyzeSalvageVehicle).toHaveBeenCalledWith('/tmp/img.png', undefined, 'boş kupa');
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).toContain('boş kupa');
+    expect(promptText).toContain('AUTHORITATIVE');
+  });
+
+  it('detects whole-vehicle parting in seller note and instructs part enumeration', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'BMC',
+      type: 'Kamyonet',
+      visibleText: 'BMC Pro',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'BMC Pro kamyonet',
+      entities: ['BMC', 'Van'],
+      labels: ['Vehicle', 'Van'],
+      objects: ['Van'],
+      text: 'BMC Pro',
+      pages: [],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      brand: 'BMC',
+      type: 'Kamyonet',
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', shortDescription: 'tüm parçalar için sökülüyor', suggestPrice: false });
+
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).toContain('WHOLE VEHICLE');
+    expect(promptText).toContain('Araçtan Sökülen Parçalar');
+    expect(promptText).toContain('NEVER mention material');
+  });
+
+  it('does not force whole-vehicle mode when seller names a specific part', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'BMC',
+      type: 'Boş Kupa',
+      visibleText: 'BMC Pro',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'BMC pro kabin',
+      entities: ['BMC'],
+      labels: ['Truck'],
+      objects: [],
+      text: 'BMC Pro',
+      pages: [],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      brand: 'BMC',
+      type: 'Boş Kupa',
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', shortDescription: 'BMC pro boş kupa', suggestPrice: false });
+
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).not.toContain('WHOLE VEHICLE (bütün araç');
+    expect(promptText).toContain('boş kupa');
+  });
+
+  it('leaves Materyal attribute empty for salvage products', async () => {
+    vi.mocked(analyzeProductImage).mockResolvedValue({
+      ...specs,
+      brand: 'BMC',
+      type: 'Kabin',
+      material: 'Çelik',
+    });
+    vi.mocked(analyzeProductImageWithGcv).mockResolvedValue({
+      bestGuess: 'BMC pro kabin',
+      entities: ['BMC'],
+      labels: ['Truck'],
+      objects: [],
+      text: 'BMC',
+      pages: [],
+    });
+    vi.mocked(buildSpecsFromGcv).mockImplementation((analysis: any, category: string, fallback: any) => ({
+      ...fallback,
+      brand: 'BMC',
+      type: 'Kabin',
+      visibleText: analysis.text,
+      category,
+      observations: [`Google görsel araması: ${analysis.bestGuess}`],
+    }));
+    vi.mocked(searchWeb).mockResolvedValue([]);
+
+    await generateAgenticListing('/tmp/img.png', { condition: 'salvage', suggestPrice: false });
+
+    const prompt = vi.mocked(callLlm).mock.calls[0][1];
+    const promptText = prompt.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    expect(promptText).toContain('"Materyal": ""');
+    expect(promptText).toContain('MATERIAL RULE');
+  });
 });
