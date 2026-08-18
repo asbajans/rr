@@ -272,7 +272,8 @@ The photo shows a used/salvage vehicle part removed from a truck/bus/commercial 
 
 Rules:
 - Read EVERY visible text/code on the part (part numbers, brand logos, engravings) — they are the strongest signal. Reproduce codes exactly.
-- A numeric code (e.g. "1299394247") is usually a manufacturer/OEM part number; use it as a hint for brand/model but do not claim a specific vehicle unless you are confident.
+- IMPORTANT: A long bare number (e.g. "# 1299394247", 8+ digits) printed/watermarked on the photo is usually an AD / listing item number or catalog reference from the site where the photo was taken (sahibinden.com etc.) — NOT proof of the vehicle make. Do NOT let such an ad number drive your brand/model decision. Only treat a code as an OEM part number when it looks like it is physically stamped/engraved on the part itself or clearly associated with it.
+- Use styling cues (cab shape, grille, headlights, door line, fender) plus any real brand badge/logos you can see. Turkish market: BMC Pro/Fatih cabs are boxy with a tall flat front and rectangular headlights; Mercedes-Benz Atego has a rounded, sloped nose with curved headlights; Iveco Eurocargo has a distinctive tall angular cab. If the photo shows several vehicles/cabs, identify which one is the PART actually being sold (usually the main subject), not a background vehicle.
 - NEVER invent a brand. If nothing indicates the make, return an empty "brand" and low confidence rather than guessing.
 
 Return ONLY a JSON object (no markdown, no comments):

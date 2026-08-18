@@ -48,9 +48,13 @@ async function searchGoogleCse(query: string, maxResults: number): Promise<WebSe
   const key = process.env.SEARCH_API_KEY;
   const cx = process.env.SEARCH_ENGINE_ID;
   if (!key || !cx) return [];
-  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${Math.min(maxResults, 10)}`;
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${Math.min(maxResults, 10)}&hl=tr&gl=tr`;
   const json = await httpGet(url, 12000);
   const data = JSON.parse(json);
+  if (data.error) {
+    console.warn(`[CSE] Google CSE error: ${JSON.stringify(data.error).slice(0, 300)}`);
+    return [];
+  }
   return (data.items || [])
     .slice(0, maxResults)
     .map((it: any) => ({ title: it.title || '', url: it.link || '', snippet: it.snippet || '' }))
@@ -81,11 +85,30 @@ async function searchDuckDuckGo(query: string, maxResults: number): Promise<WebS
   return results.slice(0, maxResults);
 }
 
+async function searchBing(query: string, maxResults: number): Promise<WebSearchResult[]> {
+  const html = await httpGet(`https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=tr&cc=tr`, 12000);
+  // Bing result blocks start with <li class="b_algo">; link + title inside h2>a, snippet in .b_caption p.
+  const parts = html.split(/<li class="b_algo"/);
+  const results: WebSearchResult[] = [];
+  for (let i = 1; i < parts.length && results.length < maxResults; i++) {
+    const block = parts[i];
+    const aMatch = block.match(/<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a><\/h2>/);
+    if (!aMatch) continue;
+    const snippetMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+    results.push({
+      title: decodeEntities(stripTags(aMatch[2])).slice(0, 200),
+      url: aMatch[1].replace(/&amp;/g, '&'),
+      snippet: snippetMatch ? decodeEntities(stripTags(snippetMatch[1])).slice(0, 220) : '',
+    });
+  }
+  return results.slice(0, maxResults);
+}
+
 /**
  * Best-effort web search used to look up detected part/model/barcode codes so
  * the listing agent can write an accurate title + description. Uses Google
  * Programmable Search when SEARCH_API_KEY/SEARCH_ENGINE_ID are configured,
- * otherwise falls back to a keyless DuckDuckGo HTML scrape. Never throws.
+ * otherwise falls back to keyless DuckDuckGo and Bing HTML scrapes. Never throws.
  */
 export async function searchWeb(query: string, maxResults = 6): Promise<WebSearchResult[]> {
   if (process.env.SEARCH_API_KEY && process.env.SEARCH_ENGINE_ID) {
@@ -95,7 +118,11 @@ export async function searchWeb(query: string, maxResults = 6): Promise<WebSearc
     } catch { /* fall through to DDG */ }
   }
   try {
-    return await searchDuckDuckGo(query, maxResults);
+    const r = await searchDuckDuckGo(query, maxResults);
+    if (r.length > 0) return r;
+  } catch { /* fall through to Bing */ }
+  try {
+    return await searchBing(query, maxResults);
   } catch {
     return [];
   }
@@ -462,9 +489,14 @@ function parseGcvCodes(text: string): ProductCode[] {
   for (const line of lines.slice(0, 8)) {
     let token = line.replace(/[\s|:/]+$/, '').replace(/^[#*:;.]+/, '').trim();
     token = token.replace(/^(no|no\.|parça|part|model|ürün|kod)[:\s]*/i, '').trim();
-    const isNumeric = /^\d{6,}$/.test(token);
+    // Long bare numbers (8+ digits) are usually AD / listing item numbers or
+    // phone/watermark digits from the photo source site — NOT part codes. They
+    // must not reach the prompt as a "part_code" or the LLM will treat them as
+    // OEM part numbers. Shorter numerics (6-7) are kept as plausible part codes.
+    const isNumeric = /^\d{6,7}$/.test(token);
+    const isAdNumber = /^\d{8,}$/.test(token);
     const isAlnum = /^[A-Z0-9][A-Z0-9\-./]{3,}$/i.test(token) && /[A-Z]/i.test(token) && /\d/.test(token);
-    if (isNumeric || isAlnum) {
+    if ((isNumeric || isAlnum) && !isAdNumber) {
       codes.push({ type: 'part_code', value: token, confidence: 0.7 });
     }
   }
