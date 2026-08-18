@@ -66,7 +66,7 @@ export function normalizeMarketplaceStatus(marketplace: string, raw: any): strin
   }
 
   const map: Record<string, string> = {
-    'created': 'pending', 'new': 'pending', 'waiting': 'pending',
+'created': 'pending', 'new': 'pending', 'waiting': 'pending',
     'siparis alindi': 'pending', 'siparis_alindi': 'pending', 'alindi': 'pending',
     'waitingforapproval': 'pending', 'waiting_for_approval': 'pending',
     'processing': 'processing', 'preparing': 'processing', 'picking': 'processing',
@@ -76,7 +76,7 @@ export function normalizeMarketplaceStatus(marketplace: string, raw: any): strin
     'untrackable': 'processing', 'status.processing': 'processing', 'status.prepared': 'processing',
     'shipped': 'shipped', 'shipping': 'shipped', 'in transit': 'shipped',
     'kargoya verildi': 'shipped', 'kargoya_verildi': 'shipped', 'kargoda': 'shipped',
-    'kargolandı': 'shipped', 'kargolandi': 'shipped', 'kargolandı ': 'shipped',
+    'kargolandi': 'shipped', 'kargolandi ': 'shipped', 'kargolandı': 'shipped',
     'kargodan aktarma': 'shipped', 'kuryede': 'shipped', 'yolda': 'shipped',
     'status.shipped': 'shipped',
     'delivered': 'delivered', 'teslim edildi': 'delivered', 'teslim_edildi': 'delivered',
@@ -85,9 +85,11 @@ export function normalizeMarketplaceStatus(marketplace: string, raw: any): strin
     'cancelled': 'cancelled', 'canceled': 'cancelled', 'cancel': 'cancelled',
     'unsupplied': 'cancelled', 'undelivered': 'cancelled', 'iptal edildi': 'cancelled',
     'iptal_edildi': 'cancelled', 'iptal': 'cancelled', 'status.cancelled': 'cancelled',
-    'returned': 'returned', 'return': 'returned', 'iade edildi': 'returned',
-    'iade_edildi': 'returned', 'iade': 'returned', 'automated_return': 'returned',
-    'status.returning': 'returned', 'status.returned': 'returned',
+    'returned': 'returned', 'return': 'returned', 'iade_edildi': 'returned', 'iade': 'returned',
+    'automated_return': 'returned', 'status.returning': 'returned', 'status.returned': 'returned',
+    // Additional N11 statuses
+    'partiallyshipped': 'processing', 'partially_shipped': 'processing',
+    'partially delivered': 'processing',
   };
 
   if (map[lower]) return map[lower];
