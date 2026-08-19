@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Trash2, Minus, Plus, ArrowLeft } from 'lucide-react'
 import { useCart } from '@/lib/cart'
+import { storeBase } from '@/lib/store-path'
 
 export default function CartPage() {
   const { siteCode } = useParams<{ siteCode: string }>()
@@ -15,7 +16,7 @@ export default function CartPage() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-bold text-zinc-900">Sepet</h1>
         <p className="mt-4 text-sm text-zinc-500">Sepetinde ürün bulunmuyor.</p>
-        <Link href={`/stores/${siteCode}`} className="mt-4 inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900">
+        <Link href={storeBase(siteCode)} className="mt-4 inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900">
           <ArrowLeft className="h-4 w-4" /> Alışverişe Başla
         </Link>
       </div>
@@ -68,7 +69,7 @@ export default function CartPage() {
           </p>
         </div>
         <button
-          onClick={() => router.push(`/stores/${siteCode}/checkout`)}
+          onClick={() => router.push(`${storeBase(siteCode)}/checkout`)}
           className="mt-6 w-full sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           Ödemeye Geç

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Search, X } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import type { StoreProduct, StoreHomepage } from '@/lib/types'
 import StoreHero from '@/components/store/StoreHero'
 
@@ -169,7 +170,7 @@ export default function StoreFrontPage() {
           {products.map((product) => (
             <Link
               key={product['product.id']}
-              href={`/stores/${siteCode}/products/${product['product.id']}`}
+              href={`${storeBase(siteCode)}/products/${product['product.id']}`}
               className="group rounded-xl border border-zinc-200 p-4 transition hover:border-zinc-300 hover:shadow-sm"
             >
               <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">

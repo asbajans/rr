@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
+import crypto from 'crypto';
+import { promises as dns } from 'node:dns';
+import { Op } from 'sequelize';
 import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { SiteDeployment } from '../../models/SiteDeployment.model.js';
@@ -8,6 +11,7 @@ import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js
 import { computeNextVersion, resolveRollbackTarget, serializeDeployment } from './publish.js';
 import { getHostingProvider } from './providers.js';
 import { buildVercelArtifactFiles } from '../slave/routes.js';
+import { config } from '../../config/index.js';
 
 export const siteRoutes: Router = Router();
 
@@ -31,6 +35,85 @@ async function latestVercelDeployment(storeId: number) {
 async function storeHosting(store: Store): Promise<'rahatio' | 'vercel' | 'custom'> {
   const plan = (store as any).plan || (store.planId ? await Plan.findByPk(store.planId) : null);
   return plan?.hosting || 'rahatio';
+}
+
+/** The edge host custom domains must point to (CNAME/A). */
+const EDGE_HOST = 'rahatio.com.tr';
+
+function normalizeDomain(value: string): string {
+  return value.trim().toLowerCase().replace(/\.$/, '').replace(/^www\./, '');
+}
+
+/** Deterministic verification token for a store+domain (stable across requests). */
+function domainVerificationToken(storeId: number, domain: string): string {
+  return crypto
+    .createHmac('sha256', config.internal.key)
+    .update(`domain-verify:${storeId}:${domain}`)
+    .digest('hex')
+    .slice(0, 24);
+}
+
+async function resolveTxtRecords(name: string): Promise<string[]> {
+  try {
+    const records = await dns.resolveTxt(name);
+    return records.map((r) => r.join('')).map((r) => r.trim());
+  } catch {
+    return [];
+  }
+}
+
+async function resolveCnameTargets(name: string): Promise<string[]> {
+  try {
+    return await dns.resolveCname(name);
+  } catch {
+    return [];
+  }
+}
+
+async function resolveA4(name: string): Promise<string[]> {
+  try {
+    return await dns.resolve4(name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Live DNS verification for a custom domain:
+ *  - TXT  _rahatio-verify.<domain>  must contain the deterministic token
+ *  - CNAME <domain> → rahatio.com.tr   OR
+ *  - A     <domain> → one of rahatio.com.tr's IPs
+ */
+async function checkDomainDns(domain: string, storeId: number) {
+  const token = domainVerificationToken(storeId, domain);
+  const txtRecords = await resolveTxtRecords(`_rahatio-verify.${domain}`);
+  const txt = txtRecords.includes(token) || txtRecords.some((r) => r.includes(token));
+
+  const cnameTargets = await resolveCnameTargets(domain);
+  const cname = cnameTargets.some((t) => normalizeDomain(t) === EDGE_HOST || normalizeDomain(t) === `www.${EDGE_HOST}`);
+
+  const edgeIps = await resolveA4(EDGE_HOST);
+  const domainIps = await resolveA4(domain);
+  const a = domainIps.length > 0 && edgeIps.length > 0 && domainIps.some((ip) => edgeIps.includes(ip));
+
+  return { token, txt, cname, a, verified: txt && (cname || a) };
+}
+
+function dnsInstructions(domain: string, token: string) {
+  return [
+    {
+      type: 'TXT',
+      name: `_rahatio-verify.${domain}`,
+      value: token,
+      purpose: 'Sahiplik doğrulaması',
+    },
+    {
+      type: 'CNAME',
+      name: domain,
+      value: EDGE_HOST,
+      purpose: 'Site yönlendirmesi',
+    },
+  ];
 }
 
 /** Next version number for a store (last publish version + 1). */
@@ -287,6 +370,87 @@ siteRoutes.post('/deployments/:id/rollback', authMiddleware, requireRole('owner'
     });
   } catch (error) {
     logger.error({ err: error }, 'Rollback site error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Custom Domain (direct DNS pointing to the Rahatio edge) ──
+
+// GET /api/admin/site/custom-domain — current custom domain state + DNS instructions
+siteRoutes.get('/custom-domain', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const domain = store.domain ? normalizeDomain(store.domain) : '';
+    if (!domain) {
+      return res.json({ domain: null, verified: false, token: null, dnsRecords: [], siteUrl: null });
+    }
+    const token = domainVerificationToken(store.id, domain);
+    res.json({
+      domain,
+      verified: store.siteUrl === `https://${domain}`,
+      token,
+      dnsRecords: dnsInstructions(domain, token),
+      siteUrl: store.siteUrl || null,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get custom domain error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/site/custom-domain — set the custom domain (unverified)
+siteRoutes.post('/custom-domain', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('domain').isString().notEmpty(),
+], async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const domain = normalizeDomain(String(req.body?.domain || ''));
+    if (!isValidHostname(domain)) return res.status(400).json({ error: 'Geçerli bir domain girin' });
+
+    const taken = await Store.findOne({ where: { domain, id: { [Op.ne]: store.id } } });
+    if (taken) return res.status(409).json({ error: 'Bu domain başka bir mağaza tarafından kullanılıyor' });
+
+    await store.update({ domain });
+    const token = domainVerificationToken(store.id, domain);
+    res.json({
+      domain,
+      verified: false,
+      token,
+      dnsRecords: dnsInstructions(domain, token),
+      siteUrl: null,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Set custom domain error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/site/custom-domain/verify — run live DNS checks and activate
+siteRoutes.post('/custom-domain/verify', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const domain = store.domain ? normalizeDomain(store.domain) : '';
+    if (!domain) return res.status(400).json({ error: 'Önce bir domain ekleyin' });
+
+    const result = await checkDomainDns(domain, store.id);
+    if (result.verified) {
+      await store.update({ siteUrl: `https://${domain}` });
+    }
+    res.json({ domain, verified: result.verified, checks: { txt: result.txt, cname: result.cname, a: result.a }, dnsRecords: dnsInstructions(domain, result.token) });
+  } catch (error: any) {
+    logger.error({ err: error }, 'Verify custom domain error');
+    res.status(502).json({ error: error.message || 'Domain doğrulanamadı' });
+  }
+});
+
+// DELETE /api/admin/site/custom-domain — remove the custom domain
+siteRoutes.delete('/custom-domain', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    await store.update({ domain: null, siteUrl: null });
+    res.json({ domain: null, verified: false });
+  } catch (error) {
+    logger.error({ err: error }, 'Remove custom domain error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

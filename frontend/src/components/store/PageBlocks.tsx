@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 
 type Block = { id: string; type: string; content: Record<string, any> }
 
@@ -38,7 +39,7 @@ function ProductGrid({ siteCode, categoryIds, limit }: { siteCode: string; categ
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {products.map(p => (
-        <Link key={p.id} href={`/stores/${siteCode}/products/${p.id}`} className="group overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <Link key={p.id} href={`${storeBase(siteCode)}/products/${p.id}`} className="group overflow-hidden rounded-xl border border-zinc-200 bg-white">
           {p.images?.[0] && (
             <div className="aspect-square overflow-hidden">
               <img src={p.images[0]} alt={p.label} className="h-full w-full object-cover transition-transform group-hover:scale-105" />

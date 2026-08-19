@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import type { BlogPost } from '@/lib/types'
 
 export default function StoreBlogPage() {
@@ -50,7 +51,7 @@ export default function StoreBlogPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 text-center">
         <p className="text-sm text-red-600">{error}</p>
-        <Link href={`/stores/${siteCode}`} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">Mağazaya Dön</Link>
+        <Link href={storeBase(siteCode)} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">Mağazaya Dön</Link>
       </div>
     )
   }
@@ -69,7 +70,7 @@ export default function StoreBlogPage() {
           {posts.map(post => (
             <Link
               key={post.id}
-              href={`/stores/${siteCode}/blog/${post.slug}`}
+              href={`${storeBase(siteCode)}/blog/${post.slug}`}
               className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 transition hover:border-zinc-300 hover:shadow-sm"
             >
               <div className="aspect-[16/9] overflow-hidden bg-zinc-100">

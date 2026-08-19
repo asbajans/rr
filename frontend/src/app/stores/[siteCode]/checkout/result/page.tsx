@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import { ArrowLeft, Check, X, RefreshCw } from 'lucide-react'
 
 function ResultInner() {
@@ -112,14 +113,14 @@ function ResultInner() {
 
       <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <button
-          onClick={() => router.push(`/stores/${siteCode}`)}
+          onClick={() => router.push(storeBase(siteCode))}
           className="inline-flex items-center gap-1 sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           <ArrowLeft className="h-4 w-4" /> Alışverişe Devam Et
         </button>
         {!succeeded && payment !== 'success' && (
           <button
-            onClick={() => router.push(`/stores/${siteCode}/checkout`)}
+            onClick={() => router.push(`${storeBase(siteCode)}/checkout`)}
             className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             <RefreshCw className="h-4 w-4" /> Yeniden Dene

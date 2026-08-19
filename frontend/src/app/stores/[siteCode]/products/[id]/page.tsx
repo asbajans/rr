@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
+import { storeBase } from '@/lib/store-path'
 import type { StoreProduct } from '@/lib/types'
 
 function sanitizeHtml(html: string): string {
@@ -104,7 +105,7 @@ export default function StoreProductDetailPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <p className="text-sm text-red-600">{error}</p>
-        <Link href={`/stores/${siteCode}`} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
+        <Link href={storeBase(siteCode)} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
           Mağazaya Dön
         </Link>
       </div>
@@ -115,7 +116,7 @@ export default function StoreProductDetailPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <Link href={`/stores/${siteCode}`} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href={storeBase(siteCode)} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
         <ArrowLeft className="h-4 w-4" /> Mağazaya Dön
       </Link>
 
@@ -222,7 +223,7 @@ export default function StoreProductDetailPage() {
                 image: allImages[0] ?? undefined,
                 quantity,
               })
-              router.push(`/stores/${siteCode}/cart`)
+              router.push(`${storeBase(siteCode)}/cart`)
             }}
             className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
@@ -240,7 +241,7 @@ export default function StoreProductDetailPage() {
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {recommendations.map((p: any) => (
-              <Link key={p['product.id']} href={`/stores/${siteCode}/products/${p['product.id']}`}
+              <Link key={p['product.id']} href={`${storeBase(siteCode)}/products/${p['product.id']}`}
                 className="group rounded-xl border border-zinc-200 p-3 transition-colors hover:border-zinc-300">
                 <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
                   {p.image ? (

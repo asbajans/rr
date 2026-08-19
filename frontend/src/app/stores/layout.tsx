@@ -11,11 +11,12 @@ import PixelInjector from '@/components/store/PixelInjector'
 import StoreThemeInjector from '@/components/store/StoreTheme'
 import { StoreMenuBar, StoreFooterMenus } from '@/components/store/StoreMenuBar'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import type { StoreMenu, StoreMenuItem } from '@/lib/types'
 
 function itemUrl(item: StoreMenuItem, siteCode: string, pageSlugs: Map<number, string>): string {
   if (item.page_id && pageSlugs.has(item.page_id)) {
-    return `/stores/${siteCode}/pages/${pageSlugs.get(item.page_id)}`
+    return `${storeBase(siteCode)}/pages/${pageSlugs.get(item.page_id)}`
   }
   if (item.url) return item.url
   return '#'
@@ -72,16 +73,16 @@ function MobileMenu({ siteCode, open, onClose }: { siteCode: string; open: boole
           </div>
         ))}
         <div className="mt-2 border-t border-zinc-100 pt-3">
-          <Link href={`/stores/${siteCode}/blog`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          <Link href={`${storeBase(siteCode)}/blog`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
             <Newspaper className="h-4 w-4 text-zinc-400" /> Blog
           </Link>
-          <Link href={`/stores/${siteCode}/locations`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          <Link href={`${storeBase(siteCode)}/locations`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
             <MapPin className="h-4 w-4 text-zinc-400" /> Mağazalar
           </Link>
-          <Link href={`/stores/${siteCode}/account`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          <Link href={`${storeBase(siteCode)}/account`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
             <UserRound className="h-4 w-4 text-zinc-400" /> Hesabım
           </Link>
-          <Link href={`/stores/${siteCode}/cart`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          <Link href={`${storeBase(siteCode)}/cart`} onClick={onClose} className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
             <ShoppingCart className="h-4 w-4 text-zinc-400" /> Sepet
           </Link>
         </div>
@@ -118,7 +119,7 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
           >
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <Link href={`/stores/${siteCode}`} className="flex shrink-0 items-center gap-2">
+          <Link href={storeBase(siteCode)} className="flex shrink-0 items-center gap-2">
             {theme.logo_url ? (
               <img src={theme.logo_url} alt={storeName || 'Mağaza'} className="h-9 w-auto object-contain" />
             ) : (
@@ -130,18 +131,18 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
           <StoreMenuBar siteCode={siteCode} location="header" />
         </div>
         <nav className="flex shrink-0 items-center gap-3 lg:gap-4">
-          <Link href={`/stores/${siteCode}/blog`} className="hidden items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900 sm:flex">
+          <Link href={`${storeBase(siteCode)}/blog`} className="hidden items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900 sm:flex">
             <Newspaper className="h-4 w-4" /> Blog
           </Link>
-          <Link href={`/stores/${siteCode}/locations`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
+          <Link href={`${storeBase(siteCode)}/locations`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
             <MapPin className="h-4 w-4" />
             <span className="hidden lg:inline">Mağazalar</span>
           </Link>
-          <Link href={`/stores/${siteCode}/account`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
+          <Link href={`${storeBase(siteCode)}/account`} className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
             <UserRound className="h-4 w-4" />
             <span className="hidden lg:inline">Hesabım</span>
           </Link>
-          <Link href={`/stores/${siteCode}/cart`} className="relative flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
+          <Link href={`${storeBase(siteCode)}/cart`} className="relative flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900">
             <ShoppingCart className="h-5 w-5" />
             <span className="hidden lg:inline">Sepet</span>
             {totalItems > 0 && <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-zinc-900 px-1 text-[10px] font-semibold text-white">{totalItems}</span>}

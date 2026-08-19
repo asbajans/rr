@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import { PageBlocks } from '@/components/store/PageBlocks'
 
 function pageTitle(p: any): string {
@@ -37,7 +38,7 @@ export default function StorePageView() {
       <div className="mx-auto max-w-7xl px-4 py-24 text-center">
         <h1 className="text-2xl font-bold text-zinc-900">Sayfa bulunamadı</h1>
         <p className="mt-2 text-zinc-500">{error}</p>
-        <Link href={`/stores/${siteCode}`} className="mt-6 inline-block rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+        <Link href={storeBase(siteCode)} className="mt-6 inline-block rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
           Mağazaya Dön
         </Link>
       </div>
@@ -47,7 +48,7 @@ export default function StorePageView() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <nav className="mb-4 text-sm text-zinc-500">
-        <Link href={`/stores/${siteCode}`} className="hover:text-zinc-900">Ana Sayfa</Link>
+        <Link href={storeBase(siteCode)} className="hover:text-zinc-900">Ana Sayfa</Link>
         <span className="mx-2">/</span>
         <span className="text-zinc-900">{pageTitle(page)}</span>
       </nav>

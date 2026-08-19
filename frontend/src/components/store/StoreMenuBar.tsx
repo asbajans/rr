@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import type { StoreMenu, StoreMenuItem } from '@/lib/types'
 
 function itemUrl(item: StoreMenuItem, siteCode: string, pageSlugs: Map<number, string>): string {
   if (item.page_id && pageSlugs.has(item.page_id)) {
-    return `/stores/${siteCode}/pages/${pageSlugs.get(item.page_id)}`
+    return `${storeBase(siteCode)}/pages/${pageSlugs.get(item.page_id)}`
   }
   if (item.url) return item.url
   return '#'

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { storeBase } from '@/lib/store-path'
 import type { BlogPost } from '@/lib/types'
 
 export default function StoreBlogPostPage() {
@@ -73,14 +74,14 @@ export default function StoreBlogPostPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
         <p className="text-sm text-red-600">{error || 'Blog yazısı bulunamadı.'}</p>
-        <Link href={`/stores/${siteCode}/blog`} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">Bloga Dön</Link>
+        <Link href={`${storeBase(siteCode)}/blog`} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">Bloga Dön</Link>
       </div>
     )
   }
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <Link href={`/stores/${siteCode}/blog`} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href={`${storeBase(siteCode)}/blog`} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
         <ArrowLeft className="h-4 w-4" /> Blog
       </Link>
 

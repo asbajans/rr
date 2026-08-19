@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
+import { storeBase } from '@/lib/store-path'
 import type { CustomerAddress } from '@/lib/types'
 import { ArrowLeft, Check, Plus } from 'lucide-react'
 
@@ -187,7 +188,7 @@ export default function CheckoutPage() {
     setInitiatingPayment(true)
     setPaymentError('')
     try {
-      const returnUrl = `${window.location.origin}/stores/${siteCode}/checkout/result`
+      const returnUrl = `${window.location.origin}${storeBase(siteCode)}/checkout/result`
       const res = await api.initiatePayment(siteCode, orderIdNum, token, returnUrl)
       if (res.alreadyPaid) return
       if (res.paymentUrl) {
@@ -272,7 +273,7 @@ export default function CheckoutPage() {
           <p className="mt-1 text-sm text-zinc-500">Siparişiniz en kısa sürede hazırlanacaktır.</p>
         )}
         <button
-          onClick={() => router.push(`/stores/${siteCode}`)}
+          onClick={() => router.push(storeBase(siteCode))}
           className="mt-8 inline-flex items-center gap-1 sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           <ArrowLeft className="h-4 w-4" /> Alışverişe Devam Et

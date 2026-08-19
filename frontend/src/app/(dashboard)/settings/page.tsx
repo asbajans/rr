@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell, Sparkles, Star, Tag, Loader2 } from 'lucide-react'
+import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell, Sparkles, Star, Tag, Loader2, ShieldCheck, Link2, CheckCircle2, XCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -34,6 +34,76 @@ export default function SettingsPage() {
   const [catGenerating, setCatGenerating] = useState<number | null>(null)
   const [catDeleting, setCatDeleting] = useState<number | null>(null)
 
+  // Custom domain
+  const [customDomain, setCustomDomain] = useState<{ domain: string | null; verified: boolean; token: string | null; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }>; siteUrl: string | null } | null>(null)
+  const [domainInput, setDomainInput] = useState('')
+  const [domainBusy, setDomainBusy] = useState(false)
+  const [domainMsg, setDomainMsg] = useState('')
+  const [domainChecking, setDomainChecking] = useState(false)
+  const [copied, setCopied] = useState('')
+
+  const loadCustomDomain = async () => {
+    try {
+      const d = await api.getCustomDomain()
+      setCustomDomain(d)
+      if (d.domain) setDomainInput(d.domain)
+    } catch { /* ignore */ }
+  }
+
+  const copyValue = (key: string, value: string) => {
+    navigator.clipboard.writeText(value)
+    setCopied(key)
+    setTimeout(() => setCopied(''), 1500)
+  }
+
+  const handleAddDomain = async () => {
+    const domain = domainInput.trim().toLowerCase()
+    if (!domain) return
+    setDomainBusy(true)
+    setDomainMsg('')
+    try {
+      const d = await api.setCustomDomain(domain)
+      setCustomDomain(d)
+      setDomainMsg('Domain eklendi. DNS kayıtlarını ekleyip "Doğrula" butonuna basın.')
+    } catch (err) {
+      const anyErr = err as any
+      setDomainMsg(anyErr?.message || 'Domain eklenemedi')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleVerifyDomain = async () => {
+    setDomainChecking(true)
+    setDomainMsg('')
+    try {
+      const d = await api.verifyCustomDomain()
+      setCustomDomain(prev => prev ? { ...prev, verified: d.verified, siteUrl: d.verified ? `https://${d.domain}` : prev.siteUrl } : prev)
+      setDomainMsg(d.verified
+        ? 'Doğrulama başarılı! Mağazan artık kendi domaininde yayında.'
+        : `Doğrulama henüz tamamlanmadı. TXT: ${d.checks.txt ? 'OK' : 'Yok'} · CNAME: ${d.checks.cname ? 'OK' : 'Yok'} · A: ${d.checks.a ? 'OK' : 'Yok'}. DNS değişiklikleri birkaç dakika sürebilir.`)
+    } catch (err) {
+      const anyErr = err as any
+      setDomainMsg(anyErr?.message || 'Doğrulama yapılamadı')
+    } finally {
+      setDomainChecking(false)
+    }
+  }
+
+  const handleRemoveDomain = async () => {
+    setDomainBusy(true)
+    setDomainMsg('')
+    try {
+      await api.removeCustomDomain()
+      setCustomDomain({ domain: null, verified: false, token: null, dnsRecords: [], siteUrl: null })
+      setDomainInput('')
+    } catch (err) {
+      setDomainMsg(err instanceof Error ? err.message : 'Kaldırılamadı')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
   const loadAiCategories = async () => {
     try {
       const r = await api.listAiCategories()
@@ -58,6 +128,10 @@ export default function SettingsPage() {
       .then(setApiKeys)
       .catch(() => {})
       .finally(() => setKeysLoading(false))
+  }, [])
+
+  useEffect(() => {
+    loadCustomDomain()
   }, [])
 
   useEffect(() => {
@@ -282,6 +356,104 @@ export default function SettingsPage() {
             </form>
           </div>
         )}
+
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-zinc-500" />
+            <h2 className="text-lg font-semibold text-zinc-900">Kendi Domainin</h2>
+          </div>
+          <p className="mt-1 text-sm text-zinc-600">
+            Mağazanı kendi domaininde yayınla. DNS sağlayıcında aşağıdaki kayıtları ekle, sonra doğrulayı yap.
+          </p>
+
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[260px] flex-1">
+                <label className="block text-sm font-medium text-zinc-900">Domain</label>
+                <input
+                  type="text"
+                  value={domainInput}
+                  onChange={(e) => setDomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ''))}
+                  placeholder="magaza.com.tr"
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              {!customDomain?.domain ? (
+                <Button onClick={handleAddDomain} disabled={domainBusy || !domainInput.trim()}>
+                  <Plus className="mr-1 h-3 w-3" />{domainBusy ? 'Ekleniyor...' : 'Ekle'}
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={handleRemoveDomain} disabled={domainBusy}>
+                  <Trash2 className="mr-1 h-3 w-3" />Kaldır
+                </Button>
+              )}
+            </div>
+
+            {domainMsg && <p className={`text-sm ${domainMsg.includes('başarılı') ? 'text-green-600' : domainMsg.includes('Yok') ? 'text-amber-600' : 'text-red-600'}`}>{domainMsg}</p>}
+
+            {customDomain?.domain && (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${customDomain.verified ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {customDomain.verified ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                    {customDomain.verified ? 'Doğrulandı' : 'Doğrulanmadı'}
+                  </span>
+                  {customDomain.verified && customDomain.siteUrl && (
+                    <a href={customDomain.siteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
+                      <Globe className="h-3.5 w-3.5" /> {customDomain.siteUrl}
+                    </a>
+                  )}
+                </div>
+
+                {!customDomain.verified && customDomain.dnsRecords.length > 0 && (
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                    <p className="text-sm font-medium text-zinc-900">DNS Kayıtları — DNS sağlayıcına ekle:</p>
+                    {customDomain.dnsRecords.map((rec) => (
+                      <div key={`${rec.type}-${rec.name}`} className="rounded-lg border border-zinc-200 bg-white p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-zinc-900">{rec.type} kaydı</p>
+                          <button onClick={() => copyValue(`${rec.type}-${rec.name}`, rec.value)}
+                            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100">
+                            {copied === `${rec.type}-${rec.name}` ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                            {copied === `${rec.type}-${rec.name}` ? 'Kopyalandı' : 'Kopyala'}
+                          </button>
+                        </div>
+                        {rec.purpose && <p className="mt-1 text-xs text-zinc-400">{rec.purpose}</p>}
+                        <div className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-3">
+                          <div className="rounded bg-zinc-100 px-2 py-1">
+                            <span className="text-zinc-400">İsim </span>
+                            <span className="font-mono text-zinc-800 break-all">{rec.name}</span>
+                          </div>
+                          <div className="rounded bg-zinc-100 px-2 py-1 sm:col-span-2">
+                            <span className="text-zinc-400">Değer </span>
+                            <span className="font-mono text-zinc-800 break-all">{rec.value}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-xs text-zinc-500">
+                      Apex (kök) domain için CNAME'i destekleyen sağlayıcıda <span className="font-mono">@</span> yerine TXT + CNAME birlikte ekle; desteklemeyen sağlayıcıda CNAME yerine <span className="font-mono">rahatio.com.tr</span>'ün A kayıtlarını kullan.
+                    </p>
+                  </div>
+                )}
+
+                {!customDomain.verified && (
+                  <Button onClick={handleVerifyDomain} disabled={domainChecking}>
+                    {domainChecking ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ShieldCheck className="mr-1 h-3 w-3" />}
+                    {domainChecking ? 'Doğrulanıyor...' : 'Doğrulayı Yap'}
+                  </Button>
+                )}
+              </>
+            )}
+
+            {!customDomain?.domain && (
+              <p className="text-xs text-zinc-500">
+                Adım 1: Domainini yaz ve "Ekle" de. Adım 2: Gösterilen DNS kayıtlarını sağlayıcına ekle.
+                Adım 3: "Doğrulayı Yap" ile bağlantıyı aktifleştir.
+              </p>
+            )}
+          </div>
+        </div>
 
         <div className="rounded-xl border border-zinc-200 p-6">
           <div className="flex items-center gap-2">

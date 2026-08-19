@@ -32,6 +32,34 @@ function toAbsoluteImage(img: unknown): string | null {
   return url;
 }
 
+/**
+ * GET /api/store/resolve?domain= — resolve a custom domain to its storefront.
+ * Used by the frontend edge proxy (proxy.ts) for host-based routing.
+ * MUST be registered before the /:siteCode catch-all route.
+ */
+publicStoreRoutes.get('/resolve', async (req: Request, res: Response) => {
+  try {
+    let domain = String(req.query.domain ?? '').trim().toLowerCase().replace(/\.$/, '');
+    if (domain.startsWith('www.')) domain = domain.slice(4);
+    if (!domain) return res.status(400).json({ error: 'domain is required' });
+    const store = await Store.findOne({ where: { domain, isActive: true } });
+    if (!store) return res.status(404).json({ error: 'Not found', message: 'No store for this domain' });
+    res.json({
+      store: {
+        id: store.id,
+        name: store.name,
+        siteCode: store.siteCode,
+        domain: store.domain,
+        siteUrl: store.siteUrl,
+        published: store.published,
+      },
+    });
+  } catch (error) {
+    console.error('Resolve store error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;

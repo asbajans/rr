@@ -1293,6 +1293,27 @@ class ApiClient {
     return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain/verify')
   }
 
+  // Custom domain (direct DNS pointing to the Rahatio edge)
+  getCustomDomain() {
+    return this.get<{ domain: string | null; verified: boolean; token: string | null; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }>; siteUrl: string | null }>('/api/admin/site/custom-domain')
+  }
+
+  setCustomDomain(domain: string) {
+    return this.post<{ domain: string; verified: boolean; token: string; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }>; siteUrl: null }>('/api/admin/site/custom-domain', { domain })
+  }
+
+  verifyCustomDomain() {
+    return this.post<{ domain: string; verified: boolean; checks: { txt: boolean; cname: boolean; a: boolean }; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }> }>('/api/admin/site/custom-domain/verify')
+  }
+
+  removeCustomDomain() {
+    return this.delete<{ domain: null; verified: boolean }>('/api/admin/site/custom-domain')
+  }
+
+  async resolveStoreByDomain(domain: string) {
+    return this.get<{ store: { id: number; name: string; siteCode: string; domain: string; siteUrl: string | null; published: boolean } }>('/api/store/resolve', { params: { domain } })
+  }
+
   async publishSite(note?: string) {
     return this.post<any>(`/api/admin/site/publish`, { note })
   }
@@ -1928,11 +1949,11 @@ class ApiClient {
 
   // Slave Download
   downloadSlavePhp() {
-    return this.download('/api/admin/slave/download-php')
+    return this.download('/api/slave/download-php')
   }
 
   downloadSlaveVercel() {
-    return this.download('/api/admin/slave/download-vercel')
+    return this.download('/api/slave/download-vercel')
   }
 
   // Super Admin - AI Providers

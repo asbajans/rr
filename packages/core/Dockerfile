@@ -29,6 +29,7 @@ COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/core/src/config ./packages/core/src/config
 COPY packages/core/src/scripts ./packages/core/src/scripts
+COPY slave ./slave
 COPY packages/core/docker-entrypoint.sh ./packages/core/
 RUN chmod +x ./packages/core/docker-entrypoint.sh
 

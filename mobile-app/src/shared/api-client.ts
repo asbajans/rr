@@ -1063,11 +1063,11 @@ class ApiClient {
 
   // Slave Download
   downloadSlavePhp() {
-    return this.downloadFile('/api/admin/slave/download-php', 'rahatio-slave.php')
+    return this.downloadFile('/api/slave/download-php', 'rahatio-slave.php')
   }
 
   downloadSlaveVercel() {
-    return this.downloadFile('/api/admin/slave/download-vercel', 'rahatio-slave-vercel.zip')
+    return this.downloadFile('/api/slave/download-vercel', 'rahatio-slave-vercel.zip')
   }
 
   // Supplier (dropshipping / B2B)
