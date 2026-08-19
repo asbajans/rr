@@ -190,7 +190,7 @@ export async function analyzeAndCreateSession(
       const { Op } = await import('sequelize');
       const Category = (await import('../../models/Category.model.js')).Category;
       const cat = await Category.findOne({
-        where: { id: input.category_id, [Op.or]: [{ storeId: null }, { storeId: store.id }] },
+        where: { id: input.category_id, [Op.or]: [{ storeId: null }, { storeId: store.id, source: 'ai' }] },
       });
       if (cat) {
         categoryName = categoryName || cat.slug || '';

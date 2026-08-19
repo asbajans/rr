@@ -7,8 +7,14 @@ import { api } from '@/lib/api-client'
 import { useI18n } from '@/lib/i18n'
 import { MarketplaceCategory, Brand, Category } from '@/lib/types'
 import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send, Trash2 } from 'lucide-react'
+import SearchableCategorySelect from '@/components/ai/SearchableCategorySelect'
 
-type ChannelSelection = { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }
+type ChannelSelection = {
+  categoryId?: string | number | null
+  brandId?: string | null
+  brand?: string | null
+  attributes?: any[]
+}
 
 const ALL_CHANNELS = [
   { key: 'storefront', n: 'Kendi Sitem' },
@@ -264,6 +270,19 @@ function toggleChannel(c: string) {
   function setChannelSelection(channel: string, patch: Partial<ChannelSelection>) {
     setSelections(prev => ({ ...prev, [channel]: { ...(prev[channel] || {}), ...patch } }))
     setValidation([])
+  }
+
+  function setChannelAttrValue(channel: string, attributeId: number, value: number | string) {
+    const s = selections[channel] || {}
+    const current = Array.isArray(s.attributes) ? s.attributes : []
+    const idx = current.findIndex((a: any) => a.attributeId === attributeId)
+    const entry: any = { attributeId }
+    if (typeof value === 'string') entry.customValue = value
+    else entry.attributeValueId = value
+    let next: any[]
+    if (idx >= 0) { next = [...current]; next[idx] = entry }
+    else { next = [...current, entry] }
+    setChannelSelection(channel, { attributes: next })
   }
 
   function setFormFromDraft(d: any) {
@@ -754,9 +773,12 @@ function toggleChannel(c: string) {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-medium text-zinc-400">{t('aiCategoryPath')}</label>
-                      <input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                        placeholder="Kategori > Alt Kategori"
-                        className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                      <SearchableCategorySelect
+                        categories={aiCategories}
+                        value={form.category}
+                        onChange={(v) => setForm({ ...form, category: v })}
+                        placeholder="Kategori ara..."
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-medium text-zinc-400">{t('aiSku')}</label>
@@ -804,34 +826,6 @@ function toggleChannel(c: string) {
                       placeholder={'renk: Siyah\nmalzeme: Deri\nmarka: Marka adı'}
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-mono text-white" />
                     <p className="mt-1 text-[11px] text-zinc-500">{t('aiAttributesHint')}</p>
-                  </div>
-
-                  {/* Marketplace category attributes */}
-                  <div className="mt-3 border-t border-zinc-700 pt-3">
-                    <p className="text-xs font-medium text-zinc-400">Pazaryerinde kategori öznitelikleri</p>
-                    {selectedChannels.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {selectedChannels.map((c) => {
-                          const attrs = categoryAttrs[c] ?? []
-                          if (attrs.length === 0) return null
-                          return (
-                            <div key={c} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3">
-                              <p className="mb-2 text-xs font-semibold text-zinc-300">{c}</p>
-                              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400">
-                                {attrs.map((attr, i) => (
-                                  <div key={i} className="flex items-center gap-2">
-                                    <span>{attr}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                    {selectedChannels.length === 0 && (
-                      <p className="mt-2 text-[11px] text-zinc-500">Pazaryeri seçince öznitelikler görünür</p>
-                    )}
                   </div>
 
                   {/* Images: AI edit + generate new (per-image credit) */}
@@ -955,7 +949,13 @@ function toggleChannel(c: string) {
                                     value={sel.categoryId != null ? String(sel.categoryId) : ''}
                                     onChange={(e) => {
                                       const opt = catOpts.find((o) => o.id === e.target.value)
-                                      if (opt) setChannelSelection(c, { categoryId: opt.id })
+                                      if (opt) {
+                                        setChannelSelection(c, { categoryId: opt.id, attributes: [] })
+                                        fetchCategoryAttrs(c, opt.id)
+                                      } else {
+                                        setChannelSelection(c, { categoryId: null, attributes: [] })
+                                        fetchCategoryAttrs(c, undefined)
+                                      }
                                     }}
                                     disabled={catOpts.length === 0}
                                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
@@ -982,6 +982,53 @@ function toggleChannel(c: string) {
                                   </select>
                                 </div>
                               </div>
+
+                              {sel.categoryId != null && (() => {
+                                const rawAttrs = Array.isArray(categoryAttrs[c]) ? categoryAttrs[c] : []
+                                const attrs = rawAttrs.filter((a: any) => (a.attribute?.id ?? a.attributeId) != null)
+                                if (loadingCategoryAttrs[c]) return <p className="mt-2 text-[11px] text-zinc-500">Özellikler yükleniyor...</p>
+                                if (attrs.length === 0) return null
+                                return (
+                                  <div className="mt-3 border-t border-zinc-700 pt-3">
+                                    <p className="mb-2 text-[11px] font-medium text-zinc-400">Kategori Özellikleri</p>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                      {attrs.map((attr: any) => {
+                                        const aid = attr.attribute?.id ?? attr.attributeId
+                                        const aname = attr.attribute?.name ?? attr.name ?? `Attribute #${aid}`
+                                        const current = (sel.attributes ?? []).find((a: any) => a.attributeId === aid)
+                                        const hasValues = Array.isArray(attr.attributeValues) && attr.attributeValues.length > 0
+                                        return (
+                                          <div key={aid}>
+                                            <label className="text-[11px] text-zinc-500">
+                                              {aname}
+                                              {attr.required && <span className="ml-0.5 text-red-400">*</span>}
+                                            </label>
+                                            {hasValues ? (
+                                              <select
+                                                value={current?.attributeValueId ?? ''}
+                                                onChange={(e) => setChannelAttrValue(c, aid, Number(e.target.value))}
+                                                className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                                                <option value="">— Seçin —</option>
+                                                {attr.attributeValues.map((v: any) => (
+                                                  <option key={v.id} value={v.id}>{v.name}</option>
+                                                ))}
+                                              </select>
+                                            ) : attr.allowCustom ? (
+                                              <input
+                                                type="text"
+                                                value={current?.customValue ?? (current?.attributeValueId ? String(current.attributeValueId) : '')}
+                                                onChange={(e) => setChannelAttrValue(c, aid, e.target.value)}
+                                                placeholder={`${aname} değeri girin`}
+                                                className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white"
+                                              />
+                                            ) : null}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })()}
                             </div>
                           )
                         })}

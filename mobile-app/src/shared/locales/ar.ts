@@ -106,6 +106,7 @@ export const ar: Record<string, string> = {
   marketplaceCategory: 'الفئة',
   marketplaceBrand: 'العلامة التجارية',
   selectCategory: 'اختر الفئة',
+  searchCategory: 'ابحث عن فئة...',
   selectBrand: 'اختر العلامة التجارية',
   saleOnThisMarketplace: 'معروض في هذا السوق',
   verify: 'تحقق',

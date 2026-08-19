@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
-  ActivityIndicator, Image, ScrollView, TextInput,
+  ActivityIndicator, Image, ScrollView, TextInput, Modal, FlatList,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
@@ -90,6 +90,9 @@ export default function AiScreen() {
   const [publishResults, setPublishResults] = useState<any[]>([])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const [catPickerOpen, setCatPickerOpen] = useState(false)
+  const [catQuery, setCatQuery] = useState('')
 
   const loadDrafts = async () => {
     setDraftsLoading(true)
@@ -612,7 +615,8 @@ export default function AiScreen() {
   // ---------------- STEP 2: REVIEW / EDIT DRAFT ----------------
   if (step === 'review') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={{ flex: 1 }}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Ionicons name="create-outline" size={26} color="#3b82f6" />
           <Text style={styles.headerTitle}>{t('aiEditDraft')}</Text>
@@ -707,11 +711,12 @@ export default function AiScreen() {
                 </View>
                 <View style={styles.field}>
                   <Text style={styles.fieldLabel}>{t('category')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={draftForm.category}
-                    onChangeText={(v) => setDraftForm({ ...draftForm, category: v })}
-                  />
+                  <TouchableOpacity style={styles.input} onPress={() => { setCatQuery(''); setCatPickerOpen(true) }}>
+                    <Text numberOfLines={1} style={draftForm.category ? styles.pickerValue : styles.pickerPlaceholder}>
+                      {draftForm.category || t('selectCategory')}
+                    </Text>
+                    <Ionicons name="search" size={18} color="#999" />
+                  </TouchableOpacity>
                 </View>
               </View>
               <View style={styles.fieldRow}>
@@ -794,7 +799,57 @@ export default function AiScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+        </ScrollView>
+
+        {/* Searchable category picker */}
+        <Modal visible={catPickerOpen} transparent animationType="slide" onRequestClose={() => setCatPickerOpen(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>{t('category')}</Text>
+              <View style={styles.catSearchWrap}>
+                <Ionicons name="search" size={18} color="#999" style={{ marginRight: 8 }} />
+                <TextInput
+                  style={styles.catSearchInput}
+                  value={catQuery}
+                  onChangeText={setCatQuery}
+                  placeholder={t('searchCategory')}
+                  placeholderTextColor="#999"
+                  autoFocus
+                />
+              </View>
+              <FlatList
+                data={aiCategories.filter((c) => {
+                  const q = catQuery.trim().toLowerCase()
+                  if (!q) return true
+                  return (c.name || '').toLowerCase().includes(q) || (c.slug || '').toLowerCase().includes(q)
+                })}
+                keyExtractor={(c) => String(c.id)}
+                style={styles.catList}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={<Text style={styles.catEmpty}>{t('aiNoCategories')}</Text>}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.catOption, draftForm.category === item.name && styles.catOptionActive]}
+                    onPress={() => {
+                      setDraftForm({ ...draftForm, category: item.name })
+                      setCatPickerOpen(false)
+                      setCatQuery('')
+                    }}
+                  >
+                    <Text style={[styles.catOptionText, draftForm.category === item.name && styles.catOptionTextActive]}>
+                      {item.name}{item.isDefault ? ' ★' : ''}
+                    </Text>
+                    {draftForm.category === item.name && <Ionicons name="checkmark" size={18} color="#fff" />}
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity style={styles.catCancelBtn} onPress={() => setCatPickerOpen(false)}>
+                <Text style={styles.catCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
     )
   }
 
@@ -999,4 +1054,19 @@ const styles = StyleSheet.create({
   publishBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   saveBtn: { backgroundColor: '#000', borderRadius: 12, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  pickerValue: { flex: 1, fontSize: 14, color: '#000' },
+  pickerPlaceholder: { flex: 1, fontSize: 14, color: '#999' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 16, padding: 16, maxHeight: '80%' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 12 },
+  catSearchWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, paddingHorizontal: 12, marginBottom: 12 },
+  catSearchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: '#000' },
+  catList: { flexGrow: 0 },
+  catEmpty: { textAlign: 'center', color: '#999', paddingVertical: 24, fontSize: 13 },
+  catOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  catOptionActive: { backgroundColor: '#10b981' },
+  catOptionText: { fontSize: 15, color: '#333', flex: 1 },
+  catOptionTextActive: { color: '#fff', fontWeight: '600' },
+  catCancelBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: '#f0f0f0' },
+  catCancelText: { color: '#333', fontWeight: '600', fontSize: 15 },
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '@/lib/api-client'
 import { FolderTree, Plus, ChevronRight, ChevronDown, Pencil, Trash2, Search, Store } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
@@ -137,9 +137,20 @@ export default function CategoriesPage() {
   }
 
   const flatList = flattenTree(categories)
+  const visibleList = useMemo(() => {
+    const result: (CategoryItem & { depth: number })[] = []
+    const walk = (nodes: CategoryItem[], depth: number) => {
+      for (const n of nodes) {
+        result.push({ ...n, depth })
+        if (n.children?.length && expanded.has(n.id)) walk(n.children, depth + 1)
+      }
+    }
+    walk(categories, 0)
+    return result
+  }, [categories, expanded])
   const filtered = search
     ? flatList.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.slug.includes(search))
-    : flatList
+    : visibleList
 
   return (
     <div>

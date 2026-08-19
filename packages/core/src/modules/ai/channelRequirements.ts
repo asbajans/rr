@@ -45,6 +45,7 @@ export interface ChannelSelections {
     categoryId?: string | number | null;
     brandId?: string | null;
     brand?: string | null;
+    attributes?: Array<{ attributeId: string | number; attributeValueId?: string | number; customValue?: string }>;
   };
 }
 

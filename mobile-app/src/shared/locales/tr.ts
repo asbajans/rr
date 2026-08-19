@@ -106,6 +106,7 @@
   marketplaceCategory: 'Kategori',
   marketplaceBrand: 'Marka',
   selectCategory: 'Kategori seç',
+  searchCategory: 'Kategori ara...',
   selectBrand: 'Marka seç',
   saleOnThisMarketplace: 'Bu pazaryerinde satışta',
   verify: 'Doğrula',

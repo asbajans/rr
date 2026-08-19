@@ -106,6 +106,7 @@ export const es: Record<string, string> = {
   marketplaceCategory: 'Categoría',
   marketplaceBrand: 'Marca',
   selectCategory: 'Seleccionar categoría',
+  searchCategory: 'Buscar categoría...',
   selectBrand: 'Seleccionar marca',
   saleOnThisMarketplace: 'En venta en este marketplace',
   verify: 'Verificar',

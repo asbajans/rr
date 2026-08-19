@@ -79,7 +79,7 @@ aiCategoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res
     const store = (req as any).store;
     const rows = await Category.findAll({
       where: {
-        [Op.or]: [{ storeId: null }, { storeId: store.id }],
+        [Op.or]: [{ storeId: null }, { storeId: store.id, source: 'ai' }],
         isActive: true,
       },
       order: [
@@ -245,7 +245,7 @@ aiCategoryRoutes.post('/default', authMiddleware, requireRole('owner', 'admin'),
 
     if (categoryId != null) {
       const category = await Category.findOne({
-        where: { id: categoryId, [Op.or]: [{ storeId: null }, { storeId: store.id }] },
+        where: { id: categoryId, [Op.or]: [{ storeId: null }, { storeId: store.id, source: 'ai' }] },
       });
       if (!category) return res.status(404).json({ error: 'Category not found' });
     }

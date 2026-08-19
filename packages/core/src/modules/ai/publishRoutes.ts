@@ -50,7 +50,7 @@ async function resolveProduct(
   storeId: number,
   draft: AiProductDraft,
   transaction: any,
-  selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }>
+  selections?: ChannelSelections
 ): Promise<{ product: Product; created: boolean }> {
   if (draft.productId) {
     const existing = await Product.findOne({ where: { id: draft.productId, storeId }, transaction });
@@ -90,11 +90,18 @@ async function resolveProduct(
         })
       : null;
     const selection = (selections || {})[channel] || {};
+    const channelAttrs = Array.isArray(selection.attributes) && selection.attributes.length > 0
+      ? selection.attributes.map((a: any) => ({
+          attributeId: a.attributeId,
+          ...(a.customValue != null && a.customValue !== '' ? { customValue: String(a.customValue) } : {}),
+          ...(a.attributeValueId != null && a.attributeValueId !== '' ? { attributeValueId: a.attributeValueId } : {}),
+        }))
+      : genericAttributes;
     marketplaceConfig[channel] = {
       categoryId: selection.categoryId ?? mapping?.marketplaceCategoryId ?? null,
       brandId: selection.brandId ?? null,
       brand: selection.brand || attributes.brand || attributes.brandName || attributes.marka || null,
-      attributes: genericAttributes,
+      attributes: channelAttrs,
       aiAttributes: attributes,
       keywords: draft.keywords || [],
     };

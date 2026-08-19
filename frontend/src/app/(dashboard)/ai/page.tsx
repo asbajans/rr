@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { api, API_BASE } from '@/lib/api-client'
 import { Sparkles, ImageUp, Loader2, Check, Coins, ArrowUpRight, Wand2 } from 'lucide-react'
+import SearchableCategorySelect from '@/components/ai/SearchableCategorySelect'
 
 interface AiAnalysis {
   title: string
@@ -527,10 +528,12 @@ export default function AiPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-zinc-400">Kategori</label>
-                    <select value={agenticForm.category} onChange={e => setAgenticForm({ ...agenticForm, category: e.target.value })}
-                      className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
-                      {['giyim', 'taki', 'kozmetik', 'ayakkabi', 'canta', 'elektronik', 'ev_dekorasyon', 'spor', 'diger'].map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <SearchableCategorySelect
+                      categories={aiCategories}
+                      value={agenticForm.category}
+                      onChange={(v) => setAgenticForm({ ...agenticForm, category: v })}
+                      placeholder="Kategori ara..."
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-zinc-400">Stok</label>

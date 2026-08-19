@@ -106,6 +106,7 @@ export const ru: Record<string, string> = {
   marketplaceCategory: 'Категория',
   marketplaceBrand: 'Бренд',
   selectCategory: 'Выберите категорию',
+  searchCategory: 'Поиск категории...',
   selectBrand: 'Выберите бренд',
   saleOnThisMarketplace: 'Продаётся на этой площадке',
   verify: 'Проверить',
