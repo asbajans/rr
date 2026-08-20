@@ -639,6 +639,10 @@ class ApiClient {
     return this.get<{ jobId: string; state: string; progress: number; data: any; result: any; failedReason: string }>(`/api/admin/integrations/${marketplace}/import/${jobId}`)
   }
 
+  syncAllIntegrationProducts(marketplace: string) {
+    return this.post<{ success: boolean; enqueued: number; message: string }>(`/api/admin/integrations/${marketplace}/sync-all`)
+  }
+
   syncProduct(productId: number | string, marketplaces?: string[]) {
     return this.post<{ jobId: string; message: string }>(`/api/admin/products/${productId}/sync`, { marketplaces })
   }

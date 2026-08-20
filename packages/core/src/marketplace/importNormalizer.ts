@@ -89,8 +89,8 @@ function resolveCategory(raw: MarketplaceRawProduct) {
 function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD?: number } {
   const { root, variant } = getVariantPayload(raw);
   const directCurrency = resolveValue(root, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? resolveValue(variant, ['currency', 'currencyType', 'price.currency', 'price.currencyType']) ?? null;
-  const salePrice = resolveValue(root, ['salePrice', 'listPrice', 'price.salePrice', 'price.listPrice', 'price.amount', 'price.value', 'price.price', 'price', 'sellingPrice'])
-    ?? resolveValue(variant, ['salePrice', 'listPrice', 'price.salePrice', 'price.listPrice', 'price.amount', 'price.value', 'price.price', 'price', 'sellingPrice'])
+  const salePrice = resolveValue(root, ['salePrice', 'listPrice', 'price.salePrice', 'price.listPrice', 'price.amount', 'price.value', 'price.price', 'price', 'sellingPrice', 'SalePrice', 'ListPrice', 'DiscountedPrice', 'Price'])
+    ?? resolveValue(variant, ['salePrice', 'listPrice', 'price.salePrice', 'price.listPrice', 'price.amount', 'price.value', 'price.price', 'price', 'sellingPrice', 'SalePrice', 'ListPrice', 'DiscountedPrice', 'Price'])
     ?? null;
   const resolvedPrice = Number(salePrice ?? 0);
 
@@ -143,13 +143,17 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
       : undefined
   );
   const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']);
-  const normalizedStatus = typeof statusValue === 'boolean'
-    ? statusValue
-    : typeof statusValue === 'number'
-      ? statusValue > 0
-      : typeof statusValue === 'string'
-        ? !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval'].includes(statusValue.toLowerCase())
-        : false;
+  // Products fetched from an approved/active marketplace feed are on sale by
+  // default. A missing status field must NOT mark the product inactive.
+  const normalizedStatus = statusValue == null
+    ? true
+    : typeof statusValue === 'boolean'
+      ? statusValue
+      : typeof statusValue === 'number'
+        ? statusValue > 0
+        : typeof statusValue === 'string'
+          ? !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold'].includes(statusValue.toLowerCase())
+          : true;
 
   const { categoryName, categoryId } = resolveCategory(raw);
   const attributes = Array.isArray(raw.attributes) ? raw.attributes : undefined;

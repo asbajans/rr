@@ -26,6 +26,7 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [importing, setImporting] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -82,6 +83,23 @@ export default function IntegrationsPage() {
       setMessage(err.message || 'İşlem başarısız')
     } finally {
       setImporting(null)
+    }
+  }
+
+  async function syncAllProducts(marketplace: string) {
+    const name = MARKETPLACE_LOGOS[marketplace] || marketplace
+    if (!confirm(`${name}: sisteminizdeki tüm ürünler ${name} hesabına gönderilecek. Devam edilsin mi?`)) return
+    if (!confirm(`Son onay: Bu işlem ${name} üzerindeki ürün bilgilerini (başlık, fiyat, stok) sisteminizdeki verilerle SENKRONIZE EDECEK. Emin misiniz?`)) return
+
+    setSyncing(marketplace)
+    setMessage('')
+    try {
+      const res = await api.syncAllIntegrationProducts(marketplace)
+      setMessage(`${name}: ${res.message}`)
+    } catch (err: any) {
+      setMessage(err.message || 'Senkronizasyon başlatılamadı')
+    } finally {
+      setSyncing(null)
     }
   }
 
@@ -250,6 +268,14 @@ export default function IntegrationsPage() {
                         >
                           <Download className="h-4 w-4" />
                           {importing === integration.marketplace ? 'İçe aktarılıyor...' : 'Ürünleri İçe Aktar'}
+                        </button>
+                        <button
+                          onClick={() => syncAllProducts(integration.marketplace)}
+                          disabled={syncing === integration.marketplace || importing === integration.marketplace}
+                          className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 px-4 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        >
+                          <Download className="h-4 w-4" />
+                          {syncing === integration.marketplace ? 'Senkronize ediliyor...' : 'Ürünleri Senkronize Et'}
                         </button>
                         <button
                           onClick={() => importCategories(integration.marketplace)}

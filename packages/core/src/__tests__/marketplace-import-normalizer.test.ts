@@ -69,4 +69,52 @@ describe('normalizeMarketplaceProduct', () => {
       },
     });
   });
+
+  it('treats products without an explicit status as on sale (default active)', () => {
+    const result = normalizeMarketplaceProduct('trendyol', {
+      title: 'Durumsuz Ürün',
+      barcode: 'T-NOSTATUS',
+      quantity: 3,
+    }, 7);
+
+    expect(result.isActive).toBe(true);
+    expect(result.quantity).toBe(3);
+  });
+
+  it('marks passive/onhold/notapproved products as inactive', () => {
+    for (const status of ['passive', 'onhold', 'notapproved', 'rejected', 'disabled', 'pasif']) {
+      const result = normalizeMarketplaceProduct('trendyol', {
+        title: `Durum ${status}`,
+        barcode: `T-${status}`,
+        quantity: 5,
+        status,
+      }, 7);
+      expect(result.isActive, `status=${status}`).toBe(false);
+    }
+  });
+
+  it('recognizes active/approved/onsale statuses as on sale', () => {
+    for (const status of ['active', 'approved', 'onsale', 'on sale', 'available', 'Active']) {
+      const result = normalizeMarketplaceProduct('trendyol', {
+        title: `Durum ${status}`,
+        barcode: `T-${status}`,
+        quantity: 5,
+        status,
+      }, 7);
+      expect(result.isActive, `status=${status}`).toBe(true);
+    }
+  });
+
+  it('uses marketplace stock count from PascalCase StockCount field', () => {
+    const result = normalizeMarketplaceProduct('pazarama', {
+      title: 'Stoklu Ürün',
+      code: 'P-STOCK',
+      StockCount: 27,
+      SalePrice: 599,
+    }, 3);
+
+    expect(result.quantity).toBe(27);
+    expect(result.priceTRY).toBe(599);
+    expect(result.isActive).toBe(true);
+  });
 });

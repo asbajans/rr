@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { body, param, validationResult } from 'express-validator';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
+import { Product } from '../../models/Product.model.js';
 import { Setting } from '../../models/Setting.model.js';
 import { User } from '../../models/User.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
@@ -309,6 +310,50 @@ marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owne
     res.status(202).json({ jobId: job.id, message: 'Import started' });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Import error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+marketplaceRoutes.post('/:marketplace/sync-all', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
+  param('marketplace').isIn(MARKETPLACES),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { marketplace } = req.params;
+
+    const integration = await MarketplaceIntegration.findOne({
+      where: { storeId: store.id, marketplace, isActive: true },
+    });
+    if (!integration) {
+      return res.status(400).json({ error: 'Marketplace not configured or inactive' });
+    }
+
+    const products = await Product.findAll({
+      where: {
+        storeId: store.id,
+        marketplaces: { [Op.contains]: [marketplace] },
+      },
+    });
+    if (products.length === 0) {
+      return res.status(404).json({ error: `No products assigned to ${marketplace}`, count: 0 });
+    }
+
+    const syncQueue = (await import('../../queues/index.js')).syncQueue;
+    let enqueued = 0;
+    for (const p of products) {
+      await syncQueue.add('product-sync', {
+        productId: p.id,
+        storeId: store.id,
+        marketplaces: [marketplace],
+        trigger: 'manual',
+      });
+      enqueued++;
+    }
+
+    logger.info(`Bulk sync queued ${enqueued} products to ${marketplace} for store ${store.id}`);
+    res.json({ success: true, enqueued, message: `${enqueued} ürün senkronizasyon kuyruğuna eklendi` });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Bulk sync error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
