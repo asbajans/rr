@@ -135,6 +135,23 @@ export default function MarketplaceDetailPage() {
     }
   }
 
+  async function handleSyncAll() {
+    const label = MARKETPLACE_LABELS[mp] || mp
+    if (!confirm(`${label}: sisteminizdeki tüm ürünler ${label} hesabına gönderilecek. Devam edilsin mi?`)) return
+    if (!confirm(`Son onay: Bu işlem ${label} üzerindeki ürün bilgilerini (başlık, fiyat, stok) sisteminizdeki verilerle SENKRONIZE EDECEK. Emin misiniz?`)) return
+
+    setImporting(true)
+    setMessage('')
+    try {
+      const res = await api.syncAllIntegrationProducts(mp)
+      setMessage(`${label}: ${res.message}`)
+    } catch (err: any) {
+      setMessage(err.message || 'Senkronizasyon başlatılamadı')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   async function handleImportCategories() {
     setSyncing('categories')
     setMessage('')
@@ -207,6 +224,11 @@ export default function MarketplaceDetailPage() {
             className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
             <Download className="h-3.5 w-3.5" />
             Ürünleri İçe Aktar
+          </button>
+          <button onClick={handleSyncAll} disabled={importing}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-300 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+            <Download className="h-3.5 w-3.5" />
+            Ürünleri Senkronize Et
           </button>
         </div>
       </div>
@@ -310,6 +332,16 @@ export default function MarketplaceDetailPage() {
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
               <Download className="h-4 w-4" />
               {importing ? 'İçe Aktarılıyor...' : 'Ürünleri İçe Aktar'}
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-zinc-900">Ürünleri Senkronize Et</h3>
+            <p className="mt-1 text-xs text-zinc-500">Sisteminizdeki ürün bilgilerini (başlık, fiyat, stok) {MARKETPLACE_LABELS[mp]} hesabına gönder.</p>
+            <button onClick={handleSyncAll} disabled={importing}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-300 px-4 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+              <Download className="h-4 w-4" />
+              {importing ? 'İşlem sürüyor...' : 'Ürünleri Senkronize Et'}
             </button>
           </div>
 

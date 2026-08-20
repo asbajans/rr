@@ -64,7 +64,16 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
     const offset = limit ? (page - 1) * limit : null;
 
     const where: any = { storeId: store.id };
-    if (req.query.status) where.isActive = req.query.status === 'active';
+    if (req.query.status) {
+      // "Satışta" = product has at least one ACTIVE marketplace listing (the
+      // green dot the products list shows). "Satışta değil" = no active listing.
+      const activeListingExists = `EXISTS (SELECT 1 FROM "product_marketplace_listings" WHERE "productId" = "Product"."id" AND "storeId" = ${store.id} AND "status" = 'active')`;
+      if (req.query.status === 'active') {
+        where[Op.and] = [...(where[Op.and] || []), literal(activeListingExists)];
+      } else {
+        where[Op.and] = [...(where[Op.and] || []), literal(`NOT ${activeListingExists}`)];
+      }
+    }
     if (req.query.categoryId) where.categoryId = req.query.categoryId;
     if (req.query.search) {
       const searchTerm = `%${req.query.search}%`;

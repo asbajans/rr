@@ -302,23 +302,42 @@ export async function createImportWorker() {
       let hasMore = true;
       let page = 0;
 
+      // Pre-fetch ALL stock/price pages up front (Trendyol approved products do
+      // NOT include stock; it lives in the separate inventory-and-price endpoint).
+      // Fetching every page once avoids per-page barcode mismatches that left
+      // imported products with 0 stock.
+      const stockMap = new Map<string, { quantity: number; salePrice: number; listPrice?: number; onSale?: boolean }>();
+      if (marketplace === 'trendyol' && typeof (client as any).getApprovedProductsStockAndPrice === 'function') {
+        try {
+          let stockHasMore = true;
+          let stockPage = 0;
+          while (stockHasMore && stockPage < 500) {
+            const stockResult = await (client as any).getApprovedProductsStockAndPrice({ page: stockPage, size: 50 });
+            const items = stockResult.items || [];
+            for (const item of items) {
+              const key = item.barcode || item.stockCode || item.code || '';
+              if (!key) continue;
+              stockMap.set(key, {
+                quantity: item.quantity ?? item.stockCount ?? 0,
+                salePrice: item.salePrice ?? 0,
+                listPrice: item.listPrice ?? undefined,
+                onSale: item.onSale ?? item.saleStatus != null ? item.saleStatus !== 'Passive' && item.saleStatus !== 'passive' && item.saleStatus !== 'OnHold' : undefined,
+              });
+            }
+            stockHasMore = stockResult.hasMore !== false && items.length > 0;
+            stockPage++;
+          }
+          logger.info({ storeId, count: stockMap.size }, 'Pre-fetched Trendyol stock/price map');
+        } catch (e) {
+          logger.warn({ err: e }, 'Failed to pre-fetch Trendyol stock/price map');
+        }
+      }
+
       while (hasMore && page < maxPages) {
         try {
           const result = await client.getProducts({ page, size: 50 });
           const products = result.products || [];
           hasMore = result.hasMore;
-
-          const stockMap = new Map<string, { quantity: number; salePrice: number }>();
-          if (marketplace === 'trendyol' && typeof (client as any).getApprovedProductsStockAndPrice === 'function') {
-            try {
-              const stockResult = await (client as any).getApprovedProductsStockAndPrice({ page, size: 50 });
-              for (const item of (stockResult.items || [])) {
-                if (item.barcode) {
-                  stockMap.set(item.barcode, { quantity: item.quantity ?? 0, salePrice: item.salePrice ?? 0 });
-                }
-              }
-            } catch {}
-          }
 
           if (marketplace === 'pazarama' && products.length > 0) {
             const hasImages = products.some((p: any) => p.images != null);
@@ -336,11 +355,14 @@ export async function createImportWorker() {
               if (raw.Images && Array.isArray(raw.Images) && !raw.images) raw.images = raw.Images;
               if (raw.ListPrice != null && raw.listPrice == null) raw.listPrice = raw.ListPrice;
             }
-            if (stockMap.size && raw.barcode) {
-              const stockInfo = stockMap.get(raw.barcode);
+            if (stockMap.size) {
+              const stockKey = raw.barcode || raw.stockCode || raw.code || raw.sku || '';
+              const stockInfo = stockMap.get(stockKey);
               if (stockInfo) {
                 raw.quantity = stockInfo.quantity;
                 if (stockInfo.salePrice > 0) raw.salePrice = stockInfo.salePrice;
+                if (stockInfo.listPrice && stockInfo.listPrice > 0) raw.listPrice = stockInfo.listPrice;
+                if (stockInfo.onSale != null) raw.onSale = stockInfo.onSale;
               }
             }
             let mapped: any;

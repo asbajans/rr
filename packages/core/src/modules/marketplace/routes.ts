@@ -276,12 +276,12 @@ marketplaceRoutes.delete('/:marketplace', authMiddleware, requireRole('owner'), 
 
 marketplaceRoutes.post('/:marketplace/import', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
   param('marketplace').isIn(MARKETPLACES),
-  body('maxPages').optional().isInt({ min: 1, max: 100 }),
+  body('maxPages').optional().isInt({ min: 1, max: 2000 }),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const { marketplace } = req.params;
-    const { maxPages = 10 } = req.body;
+    const { maxPages = 100 } = req.body;
 
     const quota = await assertProductQuota(store);
     if (!quota.ok) {

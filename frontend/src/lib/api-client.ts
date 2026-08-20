@@ -631,7 +631,7 @@ class ApiClient {
     return this.put<any>(`/api/admin/integrations/${marketplace}`, data).then(r => mapIntegration(r.integration ?? r))
   }
 
-  importIntegrationProducts(marketplace: string, maxPages = 10) {
+  importIntegrationProducts(marketplace: string, maxPages = 100) {
     return this.post<{ jobId: string; message: string }>(`/api/admin/integrations/${marketplace}/import`, { maxPages })
   }
 

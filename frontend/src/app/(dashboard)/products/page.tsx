@@ -237,7 +237,7 @@ export default function ProductsPage() {
   }, [filters, page, perPage, reloadKey, b2bTab])
 
   const activeCount = useMemo(
-    () => products.filter((p) => p.status === 1).length,
+    () => products.filter((p) => Object.values(p.marketplace_sync ?? {}).some((s: any) => s.status === 'synced')).length,
     [products]
   )
 
@@ -1008,14 +1008,13 @@ on_sale: !!md.on_sale,
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Stok</th>
                 <th className="px-3 py-2 font-medium text-gray-600 truncate">Marka</th>
                 <th className="px-3 py-2 font-medium text-gray-600 truncate">Pazaryerleri</th>
-                <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Durum</th>
                 <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">İşlem</th>
               </tr>
             </thead>
             <tbody>
               {products.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-3 py-6">
+                    <td colSpan={9} className="px-3 py-6">
                     <EmptyState
                       icon={<Package className="h-10 w-10" />}
                       title="Ürün bulunamadı"
@@ -1108,11 +1107,6 @@ on_sale: !!md.on_sale,
                         })}
                         {(!p.marketplaces || p.marketplaces.length === 0) && <span className="text-gray-400">-</span>}
                       </div>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-xs ${p.status === 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {p.status === 1 ? 'Satışta' : 'Satışta Değil'}
-                      </span>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-2">
