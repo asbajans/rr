@@ -65,3 +65,51 @@ describe('productMapper - on-sale quantity handling', () => {
     expect(isProductOnSale(unknown)).toBe(true);
   });
 });
+
+describe('productMapper - Trendyol V2 attribute format', () => {
+  const attrProduct: any = {
+    ...baseProduct,
+    marketplaceConfig: {
+      trendyol: {
+        categoryId: 900,
+        brandId: 1976661,
+        attributes: [
+          { attributeId: 338, attributeValueId: 76662 },
+          { attributeId: 339, attributeValueIds: [1, 2] },
+          { attributeId: 346, customValue: 'Siyah' },
+          { attributeId: 347, customAttributeValue: 'Beyaz' },
+          { attributeId: 999 }, // no value → dropped
+        ],
+      },
+    },
+  };
+
+  it('maps legacy singular attributeValueId to V2 attributeValueIds array', () => {
+    const mapped = mapProductForTrendyol(attrProduct, {});
+    const attr338 = mapped.attributes.find((a: any) => a.attributeId === 338);
+    expect(attr338).toEqual({ attributeId: 338, attributeValueIds: [76662] });
+    expect(attr338.attributeValueId).toBeUndefined();
+  });
+
+  it('preserves existing attributeValueIds arrays', () => {
+    const mapped = mapProductForTrendyol(attrProduct, {});
+    const attr339 = mapped.attributes.find((a: any) => a.attributeId === 339);
+    expect(attr339).toEqual({ attributeId: 339, attributeValueIds: [1, 2] });
+  });
+
+  it('maps custom values to customAttributeValue (V2)', () => {
+    const mapped = mapProductForTrendyol(attrProduct, {});
+    const attr346 = mapped.attributes.find((a: any) => a.attributeId === 346);
+    const attr347 = mapped.attributes.find((a: any) => a.attributeId === 347);
+    expect(attr346).toEqual({ attributeId: 346, customAttributeValue: 'Siyah' });
+    expect(attr347).toEqual({ attributeId: 347, customAttributeValue: 'Beyaz' });
+    expect(mapped.attributes.some((a: any) => a.attributeId === 999)).toBe(false);
+  });
+
+  it('falls back to valid vatRate (10) when an invalid value is set', () => {
+    const bad = { ...attrProduct, marketplaceConfig: { trendyol: { categoryId: 900, brandId: 1976661, vatRate: 18 } } };
+    expect(mapProductForTrendyol(bad, {}).vatRate).toBe(18);
+    const invalid = { ...attrProduct, marketplaceConfig: { trendyol: { categoryId: 900, brandId: 1976661, vatRate: 7 } } };
+    expect(mapProductForTrendyol(invalid, {}).vatRate).toBe(10);
+  });
+});

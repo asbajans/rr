@@ -732,7 +732,12 @@ export async function createSyncWorker() {
                 results[mp] = { success: true, action: 'updated' };
               }
             } else {
-              await client.updateProduct(existingListing.externalId, mpProduct);
+              // Trendyol V1 update endpoint does not accept attributes; only
+              // create (v2/products) takes attributeValueIds. Strip them here.
+              const updatePayload = mp === 'trendyol'
+                ? (() => { const { attributes, barcode, ...rest } = mpProduct; return rest; })()
+                : mpProduct;
+              await client.updateProduct(existingListing.externalId, updatePayload);
               if (mpProduct.salePrice > 0) {
                 await client.updatePrice(existingListing.externalId, mpProduct.salePrice);
               }

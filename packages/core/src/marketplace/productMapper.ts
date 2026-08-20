@@ -56,12 +56,22 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
   const onSale = isMarketplaceOnSale(product, entry);
 
   const attrs = Array.isArray(entry.attributes) ? entry.attributes.map((a: any) => {
+    // V2 format: multi-value arrays (attributeValueIds) + custom text (customAttributeValue).
+    // Accept legacy singular input (attributeValueId) from older UIs / imports.
     const customVal = a.customValue || a.customAttributeValue;
     if (customVal) {
       return { attributeId: a.attributeId, customAttributeValue: customVal };
     }
-    if (a.attributeId && a.attributeValueId) {
-      return { attributeId: a.attributeId, attributeValueId: a.attributeValueId };
+    const vids = Array.isArray(a.attributeValueIds)
+      ? a.attributeValueIds
+      : a.attributeValueId != null
+        ? [a.attributeValueId]
+        : a.attributeValue != null
+          ? [a.attributeValue]
+          : [];
+    const numeric = vids.map((v: any) => Number(v)).filter((n: number) => !isNaN(n));
+    if (a.attributeId && numeric.length > 0) {
+      return { attributeId: a.attributeId, attributeValueIds: numeric };
     }
     return null;
   }).filter(Boolean) : [];
@@ -80,6 +90,13 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
   const shipmentAddressId = Number(entry.shipmentAddressId || intConfig.shipmentAddressId || 0);
   const returningAddressId = Number(entry.returnAddressId || entry.returningAddressId || intConfig.returnAddressId || intConfig.returningAddressId || 0);
 
+  // Trendyol V2 accepts only these VAT rates; an invalid value returns
+  // ClientApiBusinessException bad.request on create/update.
+  const validVats = [0, 1, 8, 10, 18, 20];
+  const vatRate = validVats.includes(Number(entry.vatRate ?? intConfig.vatRate ?? 10))
+    ? Number(entry.vatRate ?? intConfig.vatRate ?? 10)
+    : 10;
+
   const result: Record<string, any> = {
     barcode: product.sku || '',
     title: product.title,
@@ -93,7 +110,7 @@ export function mapProductForTrendyol(product: any, integration: any): Record<st
     currencyType: 'TRY',
     listPrice: Number(price),
     salePrice: Number(price),
-    vatRate: Number(entry.vatRate ?? intConfig.vatRate ?? 10),
+    vatRate,
     images,
     attributes: attrs,
   };
