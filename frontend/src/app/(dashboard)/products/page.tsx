@@ -339,8 +339,8 @@ export default function ProductsPage() {
         category_id: md.category_id ?? '',
         brand: md.brand ?? '',
         brand_id,
-        on_sale: m === 'Kendi Sitem' ? product.status === 1 : !!md.on_sale,
-        status: m === 'Kendi Sitem' ? product.status : (md.on_sale ? 1 : 0),
+on_sale: !!md.on_sale,
+                status: md.on_sale ? 1 : 0,
         attributes: md.attributes ?? [],
         shipmentTemplate: m === 'n11' ? (md.shipmentTemplate ?? '') : undefined,
       }

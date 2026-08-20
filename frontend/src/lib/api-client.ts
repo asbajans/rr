@@ -2037,6 +2037,19 @@ class ApiClient {
     return this.get<{ logs: any[]; total: number }>('/api/admin/ai/usage-logs', { params })
   }
 
+  // Stock review/warning system
+  getStockWarnings() {
+    return this.get<{ threshold: number; count: number; products: { id: number; title: string; sku: string; quantity: number; image: string | null }[] }>('/api/admin/stocks/warnings')
+  }
+
+  setStockThreshold(threshold: number) {
+    return this.put<{ success: boolean; threshold: number }>('/api/admin/stocks/threshold', { threshold })
+  }
+
+  runStockCheck() {
+    return this.post<{ success: boolean; created: number }>('/api/admin/stocks/check')
+  }
+
   private download(path: string) {
     const url = new URL(`${API_BASE}${path}`)
     if (this.token) {

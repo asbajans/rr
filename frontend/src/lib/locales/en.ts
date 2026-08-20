@@ -7,6 +7,7 @@
   categories: 'Categories',
   brands: 'Brands',
   variations: 'Variations',
+  stocks: 'Stock Review',
   feeds: 'XML Feed',
   orders: 'Orders',
   customers: 'Customers',

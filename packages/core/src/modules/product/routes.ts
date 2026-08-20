@@ -22,6 +22,35 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
+/**
+ * Serialize a Product (with its `marketplaceListings` include) into the shape
+ * the frontend expects. Adds `marketplace_sync` keyed by platform so the
+ * products list can show per-marketplace sync state (green/red/amber dots).
+ */
+function serializeProductWithSync(p: any): any {
+  const json = p?.toJSON ? p.toJSON() : p;
+  if (!json) return json;
+
+  const listings: any[] = Array.isArray(json.marketplaceListings) ? json.marketplaceListings : [];
+  const marketplace_sync: Record<string, any> = {};
+  for (const listing of listings) {
+    const platform = listing?.platform || listing?.channel;
+    if (!platform) continue;
+    let status: 'none' | 'pending' | 'synced' | 'error' = 'none';
+    if (listing.status === 'active' || listing.status === 'inactive') status = 'synced';
+    else if (listing.status === 'pending' || listing.status === 'publishing') status = 'pending';
+    else if (listing.status === 'failed') status = 'error';
+    marketplace_sync[platform] = {
+      status,
+      marketplace_product_id: listing.externalId || listing.externalCode || null,
+      error_message: listing.lastError || null,
+      checked_at: listing.lastSyncedAt ? new Date(listing.lastSyncedAt).toISOString() : null,
+    };
+  }
+
+  return { ...json, marketplace_sync };
+}
+
 productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
@@ -69,7 +98,10 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
     const options: any = {
       where,
       order: [['createdAt', 'DESC']],
-      include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
+      include: [
+        { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
+        { model: (await import('../../models/ProductMarketplaceListing.model.js')).ProductMarketplaceListing, as: 'marketplaceListings' },
+      ],
     };
     if (limit && offset !== null) {
       options.limit = limit;
@@ -79,7 +111,7 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
     const { count, rows } = await Product.findAndCountAll(options);
 
     res.json({
-      products: rows,
+      products: rows.map(serializeProductWithSync),
       pagination: { page, limit: limit || count, total: count, totalPages: limit ? Math.ceil(count / limit) : 1 },
     });
   } catch (error: unknown) {
@@ -168,6 +200,7 @@ productRoutes.get('/:id', authMiddleware, requireStore, [
       include: [
         { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
         { model: ProductVariant, as: 'variants' },
+        { model: (await import('../../models/ProductMarketplaceListing.model.js')).ProductMarketplaceListing, as: 'marketplaceListings' },
       ],
     });
 
@@ -175,7 +208,7 @@ productRoutes.get('/:id', authMiddleware, requireStore, [
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    res.json({ product });
+    res.json({ product: serializeProductWithSync(product) });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get product error');
     res.status(500).json({ error: 'Internal server error' });

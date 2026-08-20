@@ -33,6 +33,23 @@ function toAbsoluteImage(img: unknown): string | null {
 }
 
 /**
+ * Products shown on the storefront must be explicitly enabled for the store's
+ * own site: "Kendi Sitem" must be present in the `marketplaces` array, or the
+ * product has no marketplace assigned at all (legacy site-only products).
+ */
+function siteProductWhere(storeId: number): any {
+  return {
+    storeId,
+    isActive: true,
+    [Op.or]: [
+      { marketplaces: { [Op.contains]: ['Kendi Sitem'] } },
+      { marketplaces: null },
+      { marketplaces: [] },
+    ],
+  };
+}
+
+/**
  * GET /api/store/resolve?domain= — resolve a custom domain to its storefront.
  * Used by the frontend edge proxy (proxy.ts) for host-based routing.
  * MUST be registered before the /:siteCode catch-all route.
@@ -68,7 +85,7 @@ publicStoreRoutes.get('/:siteCode', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Not found', message: 'Store not found' });
     }
     const products = await Product.findAll({
-      where: { storeId: store.id, isActive: true },
+      where: siteProductWhere(store.id),
       attributes: ['id', 'title', 'sku', 'priceTRY', 'priceUSD', 'images', 'description', 'isActive'],
       order: [['createdAt', 'DESC']],
       limit: 200,

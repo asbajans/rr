@@ -352,6 +352,13 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Low-stock warning threshold per store (stock review/warning system)
+  try {
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "lowStockThreshold" INTEGER DEFAULT 5`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Product attributes (key-value pairs shown on storefront)
   try {
     await sequelize.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS attributes JSONB`);
@@ -501,6 +508,19 @@ export const startServer = async (): Promise<void> => {
     }
   }, 10 * 60 * 1000);
   orderAutoImportTimer.unref?.();
+
+  // Low-stock warning scan — notify store owners about products below their
+  // configured threshold. Runs every 30 minutes, fire-and-forget.
+  const lowStockTimer = setInterval(async () => {
+    try {
+      const { checkAllStoresLowStock } = await import('./modules/stocks/warning.js');
+      const created = await checkAllStoresLowStock();
+      if (created > 0) logger.info({ created }, 'Low-stock notifications created');
+    } catch (err) {
+      logger.error({ err }, 'Low-stock check failed');
+    }
+  }, 30 * 60 * 1000);
+  lowStockTimer.unref?.();
 
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');

@@ -7,6 +7,7 @@
   categories: 'CategorÃ­as',
   brands: 'Marcas',
   variations: 'Variaciones',
+  stocks: 'Revisión de stock',
   feeds: 'XML Feed',
   orders: 'Pedidos',
   customers: 'Clientes',

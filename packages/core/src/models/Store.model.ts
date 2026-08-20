@@ -112,6 +112,10 @@ export class Store extends Model {
   @Column(DataType.BIGINT)
   declare defaultAiCategoryId: number | null;
 
+  @Default(5)
+  @Column(DataType.INTEGER)
+  declare lowStockThreshold: number | null;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

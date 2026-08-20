@@ -24,6 +24,23 @@ function normalizeProductImages(p: any): any {
   return p;
 }
 
+/**
+ * Products shown on the storefront must be explicitly enabled for the store's
+ * own site: "Kendi Sitem" must be present in the `marketplaces` array, or the
+ * product has no marketplace assigned at all (legacy site-only products).
+ */
+function siteProductWhere(storeId: number): any {
+  return {
+    storeId,
+    isActive: true,
+    [Op.or]: [
+      { marketplaces: { [Op.contains]: ['Kendi Sitem'] } },
+      { marketplaces: null },
+      { marketplaces: [] },
+    ],
+  };
+}
+
 publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
@@ -34,7 +51,7 @@ publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Respons
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = (page - 1) * limit;
 
-    const where: any = { storeId: store.id, isActive: true };
+    const where: any = siteProductWhere(store.id);
     if (req.query.categoryId) where.categoryId = req.query.categoryId;
     if (req.query.search) where[Op.or] = [
       { title: { [Op.iLike]: `%${req.query.search}%` } },
@@ -68,7 +85,7 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const product = await Product.findOne({
-      where: { id, storeId: store.id, isActive: true },
+      where: { id, ...siteProductWhere(store.id) },
       include: [
         { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
       ],

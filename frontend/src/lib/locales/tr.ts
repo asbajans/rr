@@ -7,6 +7,7 @@
   categories: 'Kategoriler',
   brands: 'Markalar',
   variations: 'Varyasyonlar',
+  stocks: 'Stok İnceleme',
   feeds: 'XML Feed',
   orders: 'Siparişler',
   customers: 'Müşteriler',

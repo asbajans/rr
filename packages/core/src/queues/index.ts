@@ -391,7 +391,7 @@ export async function createImportWorker() {
                 ...mapped,
                 storeId,
                 sku: mapped.sku,
-                ...preserveExistingOnEmpty(storeId, mapped),
+                ...(await preserveExistingOnEmpty(storeId, mapped)),
               } as any);
 
               const externalId = getExternalId(marketplace, raw);
