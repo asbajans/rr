@@ -1732,6 +1732,10 @@ class ApiClient {
     return this.post<{ success: boolean; deleted: number }>('/api/admin/products/bulk-delete', { ids: ids.map(Number) })
   }
 
+  bulkAddToSite(ids: number[]) {
+    return this.post<{ success: boolean; updated: number }>('/api/admin/products/bulk-add-to-site', { ids })
+  }
+
   bulkPriceUpdate(ids: number[], data: { mode: 'percentage' | 'fixed'; amount: number; currency?: string; applyTo?: string }) {
     return this.post<{ success: boolean; updated: number }>('/api/admin/products/bulk-price-update', { ids, ...data })
   }

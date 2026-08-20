@@ -46,21 +46,44 @@ async function makeUniqueSku(storeId: number, sku: string | null | undefined): P
  * Finds or creates the product backing a draft inside the publish transaction.
  * Idempotent: re-publish reuses draft.productId / the sku match.
  */
+const CHANNEL_TO_MARKETPLACE: Record<string, string> = {
+  storefront: 'Kendi Sitem',
+  trendyol: 'trendyol',
+  hepsiburada: 'hepsiburada',
+  pazarama: 'pazarama',
+  n11: 'n11',
+  amazon: 'amazon',
+  etsy: 'etsy',
+};
+
 async function resolveProduct(
   storeId: number,
   draft: AiProductDraft,
   transaction: any,
-  selections?: ChannelSelections
+  selections?: ChannelSelections,
+  channels: AiChannel[] = []
 ): Promise<{ product: Product; created: boolean }> {
+  const marketplaces = [...new Set(
+    (channels as string[]).map((c) => CHANNEL_TO_MARKETPLACE[c] ?? c).filter(Boolean)
+  )];
+
+  const mergeMarketplaces = async (existing: Product) => {
+    const merged = [...new Set([...(existing.marketplaces || []), ...marketplaces])];
+    if (merged.length !== (existing.marketplaces || []).length) {
+      await existing.update({ marketplaces: merged }, { transaction });
+    }
+    return existing;
+  };
+
   if (draft.productId) {
     const existing = await Product.findOne({ where: { id: draft.productId, storeId }, transaction });
-    if (existing) return { product: existing, created: false };
+    if (existing) return { product: await mergeMarketplaces(existing), created: false };
   }
   if (draft.sku) {
     const existing = await Product.findOne({ where: { storeId, sku: draft.sku }, transaction });
     if (existing) {
       await draft.update({ productId: existing.id }, { transaction });
-      return { product: existing, created: false };
+      return { product: await mergeMarketplaces(existing), created: false };
     }
   }
 
@@ -82,7 +105,26 @@ async function resolveProduct(
     customValue: String(value ?? ''),
   }));
   const marketplaceConfig: Record<string, any> = {};
+  const channelsSet = new Set(channels as string[]);
+
+  // Storefront channel maps to the "Kendi Sitem" entry that the frontend
+  // product modal/list reads (marketplace_data). Both snake_case (frontend)
+  // and camelCase (mappers) aliases are populated.
+  if (channelsSet.has('storefront')) {
+    marketplaceConfig['Kendi Sitem'] = {
+      category_id: draft.categoryId ?? null,
+      categoryId: draft.categoryId ?? null,
+      brand_id: null,
+      brandId: null,
+      brand: attributes.brand || attributes.brandName || attributes.marka || null,
+      attributes: genericAttributes,
+      on_sale: true,
+      status: 1,
+    };
+  }
+
   for (const channel of ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy']) {
+    if (!channelsSet.has(channel)) continue;
     const mapping = draft.categoryId
       ? await MarketplaceCategoryMapping.findOne({
           where: { categoryId: draft.categoryId, marketplace: channel },
@@ -98,12 +140,14 @@ async function resolveProduct(
         }))
       : genericAttributes;
     marketplaceConfig[channel] = {
+      category_id: selection.categoryId ?? mapping?.marketplaceCategoryId ?? null,
       categoryId: selection.categoryId ?? mapping?.marketplaceCategoryId ?? null,
+      brand_id: selection.brandId ?? null,
       brandId: selection.brandId ?? null,
       brand: selection.brand || attributes.brand || attributes.brandName || attributes.marka || null,
       attributes: channelAttrs,
-      aiAttributes: attributes,
-      keywords: draft.keywords || [],
+      on_sale: true,
+      status: 1,
     };
   }
 
@@ -117,7 +161,7 @@ async function resolveProduct(
     quantity: draft.quantity ?? 0,
     priceTRY: draft.suggestedPrice != null ? Number(draft.suggestedPrice) : null,
     images: draft.images || [],
-    marketplaces: [],
+    marketplaces,
     marketplaceConfig,
     attributes: (draft.attributes || {}) as Record<string, string>,
     tags: [...(draft.tags || []), ...(draft.keywords || [])],
@@ -178,7 +222,7 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
 
   try {
     await sequelize.transaction(async (transaction: any) => {
-      const { product, created } = await resolveProduct(store.id, draft, transaction, selections);
+      const { product, created } = await resolveProduct(store.id, draft, transaction, selections, channels);
       publishedProductId = product.id;
 
       for (const channel of channels) {

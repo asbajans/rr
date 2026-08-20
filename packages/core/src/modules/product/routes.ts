@@ -34,8 +34,11 @@ function serializeProductWithSync(p: any): any {
   const listings: any[] = Array.isArray(json.marketplaceListings) ? json.marketplaceListings : [];
   const marketplace_sync: Record<string, any> = {};
   for (const listing of listings) {
-    const platform = listing?.platform || listing?.channel;
-    if (!platform) continue;
+    const platformRaw = listing?.platform || listing?.channel;
+    if (!platformRaw) continue;
+    // Frontend reads sync state under the marketplace label it uses ("Kendi Sitem"),
+    // not the internal "storefront" platform name.
+    const platform = platformRaw === 'storefront' ? 'Kendi Sitem' : platformRaw;
     let status: 'none' | 'pending' | 'synced' | 'error' = 'none';
     if (listing.status === 'active' || listing.status === 'inactive') status = 'synced';
     else if (listing.status === 'pending' || listing.status === 'publishing') status = 'pending';
@@ -370,6 +373,36 @@ productRoutes.post('/bulk-price-update', authMiddleware, requireRole('owner', 'a
     res.json({ success: true, updated });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Bulk price update error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+productRoutes.post('/bulk-add-to-site', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('ids').isArray({ min: 1 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { ids } = req.body;
+
+    const products = await Product.findAll({ where: { id: ids, storeId: store.id } });
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'No matching products found' });
+    }
+
+    let updated = 0;
+    for (const product of products) {
+      const mps = Array.isArray(product.marketplaces) ? [...product.marketplaces] : [];
+      if (!mps.includes('Kendi Sitem')) {
+        mps.push('Kendi Sitem');
+        await product.update({ marketplaces: mps });
+        updated++;
+      }
+    }
+
+    logger.info(`Bulk add-to-site for ${updated} products by store ${store.id}`);
+    res.json({ success: true, updated });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Bulk add-to-site error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

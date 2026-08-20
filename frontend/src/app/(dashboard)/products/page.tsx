@@ -50,6 +50,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [lastPage, setLastPage] = useState(1)
@@ -139,6 +140,7 @@ export default function ProductsPage() {
   const [bulkPriceCurrency, setBulkPriceCurrency] = useState<'TRY' | 'USD'>('TRY')
   const [bulkPriceApplyTo, setBulkPriceApplyTo] = useState<'sale' | 'list' | 'both'>('sale')
   const [bulkPriceRunning, setBulkPriceRunning] = useState(false)
+  const [bulkSiteRunning, setBulkSiteRunning] = useState(false)
 
   // per-marketplace verify
   const [verifyingMp, setVerifyingMp] = useState<string | null>(null)
@@ -682,6 +684,21 @@ on_sale: !!md.on_sale,
     }
   }
 
+  async function handleBulkAddToSite() {
+    if (selected.length === 0) return
+    setBulkSiteRunning(true)
+    try {
+      const res = await api.bulkAddToSite(selected.map(Number))
+      setSelected([])
+      setReloadKey((k) => k + 1)
+      setNotice(`${res.updated} ürün kendi sitenize eklendi.`)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setBulkSiteRunning(false)
+    }
+  }
+
   async function handleBulkB2b() {
     if (selected.length === 0) return
     setBulkB2bRunning(true)
@@ -930,6 +947,13 @@ on_sale: !!md.on_sale,
               Toplu Sil
             </button>
             <button
+              onClick={handleBulkAddToSite}
+              disabled={bulkSiteRunning}
+              className="px-3 py-1.5 border border-sky-300 text-sky-700 rounded text-sm hover:bg-sky-50 disabled:opacity-40"
+            >
+              {bulkSiteRunning ? 'Ekleniyor…' : 'Kendi Siteme Ekle'}
+            </button>
+            <button
               onClick={() => setBulkAiOpen(true)}
               className="px-3 py-1.5 border border-indigo-300 text-indigo-600 rounded text-sm hover:bg-indigo-50"
             >
@@ -954,6 +978,7 @@ on_sale: !!md.on_sale,
       </div>
 
       {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
+      {notice && <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded text-sm">{notice}</div>}
       {loading && <TableSkeleton rows={6} cols={5} />}
 
       {!loading && (
@@ -1596,19 +1621,7 @@ on_sale: !!md.on_sale,
                 </div>
               )}
 
-              <div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={product.status === 1}
-                    onChange={(e) => setProduct({ ...product, status: e.target.checked ? 1 : 0 })}
-                  />
-                  Satışta (Kendi Sitem)
-                </label>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mt-6">
+              <div className="flex justify-between items-center mt-6">
               {!creating && (
                 <button onClick={handleDelete} className="px-3 py-1.5 text-red-600 hover:underline text-sm">
                   Sil
@@ -1625,6 +1638,7 @@ on_sale: !!md.on_sale,
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {bulkAiOpen && (
