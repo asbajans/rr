@@ -50,6 +50,60 @@ function siteProductWhere(storeId: number): any {
 }
 
 /**
+ * GET /api/store/sitemap — public, no auth; consumed by the frontend sitemap generator.
+ * Lists published stores + their indexed products (storefront-visible only).
+ * MUST be registered before the /:siteCode catch-all route.
+ */
+publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
+  try {
+    const stores = await Store.findAll({
+      where: { isActive: true, published: true },
+      attributes: ['id', 'siteCode', 'domain', 'siteUrl', 'updatedAt'],
+      order: [['updatedAt', 'DESC']],
+      limit: 500,
+    });
+
+    const storeIds = stores.map((s) => (s as any).id as number);
+    const productsByStore = new Map<number, Array<{ id: number; slug: string | null; updatedAt: Date }>>();
+    if (storeIds.length) {
+      const products = await Product.findAll({
+        where: {
+          storeId: { [Op.in]: storeIds },
+          isActive: true,
+          [Op.or]: [
+            { marketplaces: { [Op.contains]: ['Kendi Sitem'] } },
+            { marketplaces: null as any },
+            { marketplaces: [] as any },
+          ],
+        },
+        attributes: ['id', 'storeId', 'slug', 'updatedAt'],
+        order: [['updatedAt', 'DESC']],
+        limit: 5000,
+      });
+      for (const p of products) {
+        const sid = (p as any).storeId as number;
+        const arr = productsByStore.get(sid) ?? [];
+        if (arr.length < 200) arr.push({ id: (p as any).id, slug: (p as any).slug ?? null, updatedAt: (p as any).updatedAt });
+        productsByStore.set(sid, arr);
+      }
+    }
+
+    res.json({
+      stores: stores.map((s) => ({
+        siteCode: (s as any).siteCode,
+        domain: (s as any).domain ?? null,
+        siteUrl: (s as any).siteUrl ?? null,
+        updatedAt: (s as any).updatedAt,
+        products: productsByStore.get((s as any).id) ?? [],
+      })),
+    });
+  } catch (error) {
+    console.error('Public sitemap error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/store/resolve?domain= — resolve a custom domain to its storefront.
  * Used by the frontend edge proxy (proxy.ts) for host-based routing.
  * MUST be registered before the /:siteCode catch-all route.
@@ -264,4 +318,6 @@ publicStoreRoutes.get('/:siteCode/blogs/:slug', async (req: Request, res: Respon
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+
 

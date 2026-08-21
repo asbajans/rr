@@ -1,278 +1,200 @@
-'use client'
+import type { Metadata } from 'next'
+import ProductDetailClient from './ProductDetailClient'
+import { canonicalForProduct, seoTitleFor, seoDescriptionFor, stripHtml } from '@/lib/store-seo'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag } from 'lucide-react'
-import { api } from '@/lib/api-client'
-import { useCart } from '@/lib/cart'
-import { storeBase } from '@/lib/store-path'
-import type { StoreProduct } from '@/lib/types'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
 
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/on\w+='[^']*'/gi, '')
+type ProductRow = {
+  id: number
+  title?: string
+  slug?: string | null
+  description?: string | null
+  seoTitle?: string | null
+  seo_title?: string | null
+  seoDescription?: string | null
+  seo_description?: string | null
+  images?: unknown
+  image?: string | null
+  priceTRY?: number | null
+  priceUSD?: number | null
+  price?: number | null
+  quantity?: number | null
+  stock?: number | null
+  tags?: string[] | null
+  brand?: string | null
+  category?: { name?: string } | null
+  sku?: string
+  'product.label'?: string
 }
 
-export default function StoreProductDetailPage() {
-  const { siteCode, id } = useParams<{ siteCode: string; id: string }>()
-  const router = useRouter()
-  const { addItem } = useCart()
-  const [product, setProduct] = useState<StoreProduct | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [quantity, setQuantity] = useState(1)
-  const [added, setAdded] = useState(false)
-  const [recommendations, setRecommendations] = useState<StoreProduct[]>([])
-  const [loadingRecs, setLoadingRecs] = useState(false)
-  const [selectedImage, setSelectedImage] = useState(0)
-  const [zoomImage, setZoomImage] = useState<string | null>(null)
+type StoreRow = {
+  name?: string
+  domain?: string | null
+  siteUrl?: string | null
+  site_code?: string
+  siteCode?: string
+}
 
-  useEffect(() => {
-    if (!siteCode || !id) return
-    api.getStoreProduct(siteCode, id)
-      .then((p) => setProduct(p as any))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [siteCode, id])
+async function fetchStoreProduct(siteCode: string, id: string): Promise<{ product: ProductRow | null; store: StoreRow | null }> {
+  try {
+    const controller = new AbortController()
+    const t = setTimeout(() => controller.abort(), 5000)
+    const [prodRes, storeRes] = await Promise.allSettled([
+      fetch(`${API_BASE}/api/store/${encodeURIComponent(siteCode)}/products/${encodeURIComponent(id)}`, {
+        signal: controller.signal,
+        next: { revalidate: 60 },
+      }),
+      fetch(`${API_BASE}/api/store/${encodeURIComponent(siteCode)}`, {
+        signal: controller.signal,
+        next: { revalidate: 60 },
+      }),
+    ])
+    clearTimeout(t)
 
-  useEffect(() => {
-    if (!product || !siteCode) return
-    setLoadingRecs(true)
-    api.getStoreFront(siteCode)
-      .then(r => {
-        const allProducts = r.products || []
-        if (allProducts.length > 1) {
-          setRecommendations(findSimilarProducts(product, allProducts))
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingRecs(false))
-  }, [product, siteCode])
+    let product: ProductRow | null = null
+    let store: StoreRow | null = null
 
-  function findSimilarProducts(target: StoreProduct, products: StoreProduct[], limit = 4): StoreProduct[] {
-    const words = String(target['product.label'] || '')
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 2)
-    if (words.length === 0) return []
-    return products
-      .filter(p => p['product.id'] !== target['product.id'])
-      .map(p => {
-        const label = String(p['product.label'] || '').toLowerCase()
-        const score = words.reduce((acc, w) => acc + (label.includes(w) ? 1 : 0), 0)
-        return { p, score }
-      })
-      .filter(x => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(x => x.p)
+    if (prodRes.status === 'fulfilled' && prodRes.value.ok) {
+      const j: any = await prodRes.value.json().catch(() => null)
+      product = j?.product ?? j ?? null
+    }
+    if (storeRes.status === 'fulfilled' && storeRes.value.ok) {
+      const j: any = await storeRes.value.json().catch(() => null)
+      const s = j?.store ?? j ?? null
+      if (s) store = s as StoreRow
+    }
+    return { product, store }
+  } catch {
+    return { product: null, store: null }
   }
+}
 
-  const allImages: string[] = product?.images?.length
-    ? product.images
-    : product?.image
-    ? [product.image]
-    : []
-
-  function handleAddToCart() {
-    if (!product) return
-    addItem({
-      product_id: product['product.id'],
-      sku: product['product.code'],
-      name: product['product.label'],
-      price: product.price ?? 0,
-      image: allImages[0] ?? undefined,
-      quantity,
-    })
-    setAdded(true)
-    setTimeout(() => setAdded(false), 2000)
+function mapStoreProduct(p: ProductRow): any {
+  if (!p) return null
+  const imagesRaw: unknown[] = Array.isArray((p as any).images) ? (p as any).images : []
+  const images: string[] = imagesRaw
+    .map((img: unknown) => (typeof img === 'string' ? img : (img as any)?.url ?? (img as any)?.src ?? null))
+    .filter(Boolean) as string[]
+  const firstImage = images[0] ?? (p as any).image ?? null
+  const label = (p as any).title ?? (p as any)['product.label'] ?? ''
+  const price = (p as any).priceTRY ?? (p as any).priceUSD ?? (p as any).price ?? null
+  const currency = (p as any).priceTRY != null ? 'TRY' : (p as any).priceUSD != null ? 'USD' : 'TRY'
+  return {
+    'product.id': String((p as any).id ?? (p as any)['product.id'] ?? ''),
+    'product.code': (p as any).sku ?? (p as any).code ?? '',
+    'product.label': label,
+    'product.status': (p as any).isActive !== undefined ? ((p as any).isActive ? 1 : 0) : 1,
+    price,
+    currency,
+    image: firstImage,
+    images,
+    description: (p as any).description ?? null,
+    tags: (p as any).tags ?? null,
+    attributes: (p as any).attributes ?? null,
+    seo_title: (p as any).seoTitle ?? (p as any).seo_title ?? null,
+    seo_description: (p as any).seoDescription ?? (p as any).seo_description ?? null,
+    slug: (p as any).slug ?? null,
+    brand: (p as any).brand ?? null,
+    category: (p as any).category ?? null,
   }
+}
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <p className="text-sm text-zinc-500">Yükleniyor...</p>
-      </div>
-    )
+export async function generateMetadata(
+  { params }: { params: Promise<{ siteCode: string; id: string }> }
+): Promise<Metadata> {
+  const { siteCode, id } = await params
+  const { product: raw, store } = await fetchStoreProduct(siteCode, id)
+  if (!raw) return {}
+
+  const pTitle = String((raw as any).title ?? (raw as any)['product.label'] ?? '')
+  const fallbackTitle = pTitle || 'Ürün'
+  const title = seoTitleFor(raw as any) || fallbackTitle
+  const desc = seoDescriptionFor(raw as any) || stripHtml((raw as any).description ?? '').slice(0, 160)
+  const canonical = canonicalForProduct(store as any, siteCode, raw as any)
+  const rawImages: unknown[] = Array.isArray((raw as any).images) ? (raw as any).images : []
+  const ogImage = rawImages.length
+    ? (typeof rawImages[0] === 'string' ? String(rawImages[0]) : ((rawImages[0] as any)?.url ?? null))
+    : ((raw as any).image ?? null)
+  const storeName = (store as any)?.name ?? siteCode
+
+  return {
+    title: `${title} | ${storeName}`,
+    description: desc || undefined,
+    alternates: { canonical },
+    openGraph: {
+      title: `${title} | ${storeName}`,
+      description: desc || undefined,
+      url: canonical,
+      siteName: storeName,
+      type: 'website',
+      images: ogImage ? [{ url: ogImage, alt: title }] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${title} | ${storeName}`,
+      description: desc || undefined,
+      images: ogImage ? [ogImage] : undefined,
+    },
+    robots: { index: true, follow: true },
   }
+}
 
-  if (error) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <p className="text-sm text-red-600">{error}</p>
-        <Link href={storeBase(siteCode)} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
-          Mağazaya Dön
-        </Link>
-      </div>
-    )
-  }
+export default async function StoreProductDetailPage(
+  { params }: { params: Promise<{ siteCode: string; id: string }> }
+) {
+  const { siteCode, id } = await params
+  const { product: raw, store } = await fetchStoreProduct(siteCode, id)
 
-  if (!product) return null
+  const initialProduct = raw ? mapStoreProduct(raw) : null
+  const canonical = raw ? canonicalForProduct(store as any, siteCode, raw as any) : null
+  const pAny: any = raw as any
+  const title = raw ? (seoTitleFor(raw as any) || pAny?.title || pAny?.['product.label'] || '') : ''
+  const desc = raw ? (seoDescriptionFor(raw as any) || stripHtml(pAny?.description ?? '').slice(0, 160)) : ''
+  const ogImg: string | null = (() => {
+    if (!raw) return null
+    const arr: unknown[] = Array.isArray((pAny as any).images) ? (pAny as any).images : []
+    if (arr.length) return typeof arr[0] === 'string' ? String(arr[0]) : ((arr[0] as any)?.url ?? null)
+    return (pAny as any).image ?? null
+  })()
+  const price = raw ? ((pAny.priceTRY ?? pAny.priceUSD ?? pAny.price) ?? null) : null
+  const currency = raw ? ((pAny.priceTRY != null ? 'TRY' : pAny.priceUSD != null ? 'USD' : 'TRY') as string) : 'TRY'
+  const stockVal = raw ? (pAny.quantity ?? pAny.stock ?? null) : null
+  const inStock = stockVal == null || Number(stockVal) > 0
+  const storeName = (store as any)?.name ?? siteCode
+
+  const jsonLdProduct = raw ? {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: title,
+    description: desc || undefined,
+    image: ogImg || undefined,
+    sku: pAny?.sku ?? pAny?.['product.code'] ?? undefined,
+    brand: pAny?.brand ? { '@type': 'Brand', name: String(pAny.brand) } : undefined,
+    offers: price != null ? {
+      '@type': 'Offer',
+      price: String(price),
+      priceCurrency: currency,
+      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: canonical ?? undefined,
+      seller: storeName ? { '@type': 'Organization', name: storeName } : undefined,
+    } : undefined,
+  } : null
+
+  const jsonLdBreadcrumb = raw ? {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: storeName, item: store ? canonical?.replace(/\/products\/[^/]+$/, '') ?? canonical ?? undefined : undefined },
+      { '@type': 'ListItem', position: 2, name: title, item: canonical ?? undefined },
+    ],
+  } : null
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <Link href={storeBase(siteCode)} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
-        <ArrowLeft className="h-4 w-4" /> Mağazaya Dön
-      </Link>
-
-      <div className="mt-8 grid grid-cols-1 gap-12 lg:grid-cols-2">
-        <div>
-          <div
-            className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-100 cursor-zoom-in"
-            onClick={() => allImages[selectedImage] && setZoomImage(allImages[selectedImage])}
-          >
-            {allImages[selectedImage] ? (
-              <img src={allImages[selectedImage]} alt={product['product.label']}
-                className="h-full w-full object-contain" />
-            ) : (
-              <div className="flex h-full items-center justify-center text-zinc-300">
-                <svg className="h-24 w-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-            )}
-            <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/50 px-2 py-1 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity">
-              <ZoomIn className="h-3 w-3" /> Tam Boyut
-            </div>
-          </div>
-
-          {allImages.length > 1 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {allImages.map((img, idx) => (
-                <button key={idx} onClick={() => setSelectedImage(idx)}
-                  className={`flex-shrink-0 h-16 w-16 overflow-hidden rounded-lg border-2 transition-colors ${
-                    idx === selectedImage ? 'border-zinc-900' : 'border-zinc-200 hover:border-zinc-400'
-                  }`}>
-                  <img src={img} alt={`Görsel ${idx + 1}`} className="h-full w-full object-contain bg-zinc-50" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h1 className="text-3xl font-bold text-zinc-900">{product['product.label']}</h1>
-          {product.price !== null && (
-            <p className="mt-4 text-2xl font-semibold text-zinc-900">
-              {product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {product.currency ?? 'TRY'}
-            </p>
-          )}
-          {product.description && (
-            <div className="mt-6 text-sm leading-relaxed text-zinc-600 prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }} />
-          )}
-          {(product as any).tags && (product as any).tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {(product as any).tags.map((tag: string, i: number) => (
-                <span key={i} className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600">
-                  <Tag className="h-3 w-3" /> {tag}
-                </span>
-              ))}
-            </div>
-          )}
-          {(product as any).attributes && Object.keys((product as any).attributes).length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-zinc-900 mb-2">Ürün Özellikleri</h3>
-              <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100">
-                {Object.entries((product as any).attributes).map(([key, value]) => (
-                  <div key={key} className="flex justify-between px-3 py-2 text-xs">
-                    <span className="text-zinc-500">{key}</span>
-                    <span className="text-zinc-900 font-medium">{String(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-4 text-xs text-zinc-400">SKU: {product['product.code']}</div>
-
-          <div className="mt-8 flex items-center gap-4">
-            <div className="flex items-center rounded-lg border border-zinc-300">
-              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 text-zinc-500 hover:text-zinc-900">
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="w-12 text-center text-sm font-medium">{quantity}</span>
-              <button onClick={() => setQuantity(quantity + 1)} className="p-2 text-zinc-500 hover:text-zinc-900">
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-
-            <button
-              onClick={handleAddToCart}
-              className={`flex-1 rounded-lg px-6 py-3 text-sm font-medium transition-colors ${
-                added
-                  ? 'bg-green-500 text-white'
-                  : 'sf-btn-primary text-white hover:bg-zinc-800'
-              }`}
-            >
-              {added ? 'Sepete Eklendi ✓' : 'Sepete Ekle'}
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              addItem({
-                product_id: product['product.id'],
-                sku: product['product.code'],
-                name: product['product.label'],
-                price: product.price ?? 0,
-                image: allImages[0] ?? undefined,
-                quantity,
-              })
-              router.push(`${storeBase(siteCode)}/cart`)
-            }}
-            className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          >
-            Hemen Al
-          </button>
-        </div>
-      </div>
-
-      {recommendations.length > 0 && (
-        <div className="mt-16">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-zinc-400" />
-            <h2 className="text-lg font-semibold text-zinc-900">Benzer Ürünler</h2>
-            {loadingRecs && <span className="text-xs text-zinc-400">Yükleniyor...</span>}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {recommendations.map((p: any) => (
-              <Link key={p['product.id']} href={`${storeBase(siteCode)}/products/${p['product.id']}`}
-                className="group rounded-xl border border-zinc-200 p-3 transition-colors hover:border-zinc-300">
-                <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
-                  {p.image ? (
-                    <img src={p.image} alt={p['product.label']} className="h-full w-full object-contain transition-transform group-hover:scale-105" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-zinc-200">
-                      <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <h3 className="mt-2 text-sm font-medium text-zinc-900 truncate">{p['product.label']}</h3>
-                {p.price !== null && (
-                  <p className="text-sm font-semibold text-zinc-900">{p.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency ?? 'TRY'}</p>
-                )}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {zoomImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 cursor-zoom-out"
-          onClick={() => setZoomImage(null)}>
-          <img src={zoomImage} alt="Tam boyut"
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg" />
-          <button onClick={() => setZoomImage(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white text-3xl font-bold">&times;</button>
-        </div>
-      )}
-    </div>
+    <>
+      {canonical && <link rel="canonical" href={canonical} />}
+      {jsonLdProduct && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }} />}
+      {jsonLdBreadcrumb && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />}
+      <ProductDetailClient siteCode={siteCode} productId={id} initialProduct={initialProduct as any} />
+    </>
   )
 }

@@ -160,6 +160,14 @@ export class Product extends Model {
   @Column(DataType.JSONB)
   declare attributes: Record<string, string>;
 
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare seoTitle: string;
+
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare seoDescription: string;
+
   @Default(true)
   @Column(DataType.BOOLEAN)
   declare isActive: boolean;

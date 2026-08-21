@@ -84,12 +84,25 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
     const store = await Store.findOne({ where: { siteCode, isActive: true, published: true } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const product = await Product.findOne({
-      where: { id, ...siteProductWhere(store.id) },
+    const baseWhere = siteProductWhere(store.id);
+    const idNum = Number(id);
+    const idOrSlugWhere: any = Number.isFinite(idNum) && /^\d+$/.test(String(id))
+      ? { [Op.or]: [{ id: idNum }, { slug: id }] }
+      : { slug: id };
+
+    let product = await Product.findOne({
+      where: { ...idOrSlugWhere, ...baseWhere },
       include: [
         { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
       ],
     });
+    // Slug match may have raced id filter shape — fall back to slug-only lookup
+    if (!product && idOrSlugWhere[Op.or]) {
+      product = await Product.findOne({
+        where: { slug: id, ...baseWhere },
+        include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
+      });
+    }
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
     res.json({ product: normalizeProductImages(product) });

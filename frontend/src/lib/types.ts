@@ -183,6 +183,8 @@ export type Product = {
   media_url?: string
   video_url?: string | null
   description?: string | null
+  seo_title?: string | null
+  seo_description?: string | null
   category?: string | null
   category_id?: number | null
   brand?: string | null
@@ -263,6 +265,8 @@ export type StoreProduct = {
   description: string | null
   tags?: string[] | null
   attributes?: Record<string, string> | null
+  seo_title?: string | null
+  seo_description?: string | null
 }
 
 export type CreditLog = {

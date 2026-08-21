@@ -47,6 +47,8 @@ function mapProduct(p: any): any {
     slug: p.slug ?? null,
     category: typeof p.category?.name === 'object' ? (p.category.name.tr || p.category.name.en || '') : (p.category?.name ?? null),
     category_id: p.categoryId ?? p.category_id ?? null,
+    seo_title: p.seoTitle ?? p.seo_title ?? p.metaTitle ?? p.meta_title ?? null,
+    seo_description: p.seoDescription ?? p.seo_description ?? p.metaDescription ?? p.meta_description ?? null,
     created_at: p.createdAt ?? p.created_at,
     updated_at: p.updatedAt ?? p.updated_at,
   }
@@ -70,6 +72,8 @@ function toStoreProduct(p: any): any {
     description: m.description ?? null,
     tags: m.tags ?? null,
     attributes: m.attributes ?? null,
+    seo_title: m.seo_title ?? null,
+    seo_description: m.seo_description ?? null,
   }
 }
 
@@ -1561,8 +1565,8 @@ class ApiClient {
     return { data: r.products.map(mapProduct), current_page: r.pagination.page, per_page: r.pagination.limit, total: r.pagination.total, last_page: r.pagination.totalPages } as import('./types').PaginatedResponse<import('./types').Product>
   }
 
-  async getStoreProduct(siteCode: string, id: number | string) {
-    const r = await this.get<{ product: import('./types').Product }>(`/api/store/${siteCode}/products/${id}`)
+   async getStoreProduct(siteCode: string, id: number | string) {
+    const r = await this.get<{ product: import('./types').Product }>(`/api/store/${encodeURIComponent(String(siteCode))}/products/${encodeURIComponent(String(id))}`)
     return toStoreProduct(r.product)
   }
 

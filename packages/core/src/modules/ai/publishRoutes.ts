@@ -151,11 +151,17 @@ async function resolveProduct(
     };
   }
 
+  const raw = (draft as any).rawAiResponse as Record<string, any> | undefined;
+  const seoTitle: string | null = (raw?.metaTitle as string) || (raw?.meta_title as string) || null;
+  const seoDescription: string | null = (raw?.metaDescription as string) || (raw?.meta_description as string) || null;
+
   const product = await Product.create({
     storeId,
     title: draft.title,
-    slug: makeSlug(draft.title),
+    slug: (draft.slug && String(draft.slug).trim()) || makeSlug(draft.title),
     description: draft.description,
+    seoTitle: seoTitle || null,
+    seoDescription: seoDescription || null,
     sku,
     categoryId: draft.categoryId || null,
     quantity: draft.quantity ?? 0,
