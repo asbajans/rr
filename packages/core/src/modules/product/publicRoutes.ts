@@ -51,14 +51,15 @@ publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Respons
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = (page - 1) * limit;
 
-    const where: any = siteProductWhere(store.id);
-    if (req.query.categoryId) where.categoryId = req.query.categoryId;
-    if (req.query.search) where[Op.or] = [
+    const andFilters: any[] = [siteProductWhere(store.id)];
+    if (req.query.categoryId) andFilters.push({ categoryId: req.query.categoryId });
+    if (req.query.search) andFilters.push({ [Op.or]: [
       { title: { [Op.iLike]: `%${req.query.search}%` } },
       { sku: { [Op.iLike]: `%${req.query.search}%` } },
-    ];
-    if (req.query.priceMin) where.priceTRY = { ...where.priceTRY, [Op.gte]: req.query.priceMin };
-    if (req.query.priceMax) where.priceTRY = { ...where.priceTRY, [Op.lte]: req.query.priceMax };
+    ] });
+    if (req.query.priceMin) andFilters.push({ priceTRY: { [Op.gte]: req.query.priceMin } });
+    if (req.query.priceMax) andFilters.push({ priceTRY: { [Op.lte]: req.query.priceMax } });
+    const where: any = { [Op.and]: andFilters };
 
     const { count, rows } = await Product.findAndCountAll({
       where,
@@ -86,20 +87,20 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
 
     const baseWhere = siteProductWhere(store.id);
     const idNum = Number(id);
-    const idOrSlugWhere: any = Number.isFinite(idNum) && /^\d+$/.test(String(id))
+    const isNumericId = Number.isFinite(idNum) && /^\d+$/.test(String(id));
+    const idOrSlugWhere: any = isNumericId
       ? { [Op.or]: [{ id: idNum }, { slug: id }] }
       : { slug: id };
 
     let product = await Product.findOne({
-      where: { ...idOrSlugWhere, ...baseWhere },
+      where: { [Op.and]: [idOrSlugWhere, baseWhere] },
       include: [
         { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
       ],
     });
-    // Slug match may have raced id filter shape — fall back to slug-only lookup
-    if (!product && idOrSlugWhere[Op.or]) {
+    if (!product && isNumericId) {
       product = await Product.findOne({
-        where: { slug: id, ...baseWhere },
+        where: { [Op.and]: [{ slug: id }, baseWhere] },
         include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
       });
     }

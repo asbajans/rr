@@ -8,6 +8,7 @@ import { useI18n } from '@/lib/i18n'
 import { MarketplaceCategory, Brand, Category } from '@/lib/types'
 import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send, Trash2 } from 'lucide-react'
 import SearchableCategorySelect from '@/components/ai/SearchableCategorySelect'
+import SearchableMarketplaceSelect from '@/components/ai/SearchableMarketplaceSelect'
 
 type ChannelSelection = {
   categoryId?: string | number | null
@@ -945,11 +946,11 @@ function toggleChannel(c: string) {
                               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <div>
                                   <label className="text-[11px] text-zinc-500">{t('aiCategoryPath')}</label>
-                                  <select
-                                    value={sel.categoryId != null ? String(sel.categoryId) : ''}
-                                    onChange={(e) => {
-                                      const opt = catOpts.find((o) => o.id === e.target.value)
-                                      if (opt) {
+                                  <SearchableMarketplaceSelect
+                                    options={catOpts}
+                                    value={sel.categoryId ?? null}
+                                    onChange={(id, opt) => {
+                                      if (opt && id) {
                                         setChannelSelection(c, { categoryId: opt.id, attributes: [] })
                                         fetchCategoryAttrs(c, opt.id)
                                       } else {
@@ -957,29 +958,22 @@ function toggleChannel(c: string) {
                                         fetchCategoryAttrs(c, undefined)
                                       }
                                     }}
+                                    placeholder={catOpts.length === 0 ? t('aiNoCategories') : 'Kategori ara...'}
                                     disabled={catOpts.length === 0}
-                                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
-                                    <option value="">{catOpts.length === 0 ? t('aiNoCategories') : '— Kategori seç —'}</option>
-                                    {catOpts.map((o) => (
-                                      <option key={o.id} value={o.id}>{o.name}</option>
-                                    ))}
-                                  </select>
+                                  />
                                 </div>
                                 <div>
                                   <label className="text-[11px] text-zinc-500">{t('aiBrand')}</label>
-                                  <select
-                                    value={sel.brandId ? String(sel.brandId) : ''}
-                                    onChange={(e) => {
-                                      const opt = brOpts.find((o) => o.id === e.target.value)
-                                      setChannelSelection(c, { brandId: opt ? opt.id : null, brand: opt ? opt.name : null })
+                                  <SearchableMarketplaceSelect
+                                    options={brOpts}
+                                    value={sel.brandId ?? null}
+                                    onChange={(id, opt) => {
+                                      setChannelSelection(c, { brandId: opt ? String(opt.id) : null, brand: opt ? opt.name : null })
                                     }}
+                                    placeholder={brOpts.length === 0 ? '— Marka yok —' : 'Marka ara...'}
                                     disabled={brOpts.length === 0}
-                                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
-                                    <option value="">{brOpts.length === 0 ? '— Marka yok —' : '— Marka seç —'}</option>
-                                    {brOpts.map((o) => (
-                                      <option key={o.id} value={o.id}>{o.name}</option>
-                                    ))}
-                                  </select>
+                                    emptyText="Marka bulunamadı"
+                                  />
                                 </div>
                               </div>
 

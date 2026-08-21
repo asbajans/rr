@@ -1199,11 +1199,11 @@ class ApiClient {
     return this.post<any>(`/api/ai/product-drafts/${id}/approve`).then(r => r.draft ?? r)
   }
 
-  validateAiProductChannels(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }>) {
+  validateAiProductChannels(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null; attributes?: any[] }>) {
     return this.post<{ results: Array<{ channel: string; status: string; missingFields: string[]; message?: string; suggestion?: string }> }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels, ...(selections ? { selections } : {}) }).then(r => r.results || [])
   }
 
-  publishAiProductDraft(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null }>) {
+  publishAiProductDraft(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null; attributes?: any[] }>) {
     return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels, ...(selections ? { selections } : {}) })
   }
 
