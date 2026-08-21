@@ -108,9 +108,17 @@ function resolvePrice(raw: MarketplaceRawProduct): { priceTRY?: number; priceUSD
 
 function resolveQuantity(raw: MarketplaceRawProduct): number {
   const { root, variant } = getVariantPayload(raw);
+  // NOTE: specific nested paths (stock.quantity, inventory.available) MUST come
+  // before their generic parents (stock, inventory) — otherwise `resolveValue`
+  // returns the whole object `{ quantity: 42 }` and `Number(object)` is NaN,
+  // so the quantity incorrectly falls through to 0. This was the Trendyol V2 bug
+  // where every imported product had stock 0 even though `variants[].stock.quantity`
+  // was present (src/queues → inventory-and-price flatten was correct, but
+  // normalizer still returned 0).
+  const quantityKeys = ['quantity', 'stock.quantity', 'stockAmount', 'stockQuantity', 'stockCount', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock', 'inventory', 'stockCount', 'StockCount'];
   const candidates = [
-    resolveValue(root, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'stockCount', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity', 'inventory', 'stockCount', 'StockCount']),
-    resolveValue(variant, ['quantity', 'stock', 'stockAmount', 'stockQuantity', 'stockCount', 'availableStock', 'fulfillmentAvailability.availability.availableQuantity', 'inventory.available', 'productStock', 'stock.quantity', 'inventory', 'stockCount', 'StockCount']),
+    resolveValue(root, quantityKeys),
+    resolveValue(variant, quantityKeys),
   ];
 
   for (const candidate of candidates) {
@@ -142,18 +150,82 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
       : typeof variantImgs === 'string' ? variantImgs
       : undefined
   );
-  const statusValue = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']) ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName']);
-  // Products fetched from an approved/active marketplace feed are on sale by
-  // default. A missing status field must NOT mark the product inactive.
-  const normalizedStatus = statusValue == null
-    ? true
-    : typeof statusValue === 'boolean'
-      ? statusValue
-      : typeof statusValue === 'number'
-        ? statusValue > 0
-        : typeof statusValue === 'string'
-          ? !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold'].includes(statusValue.toLowerCase())
-          : true;
+  // ── Status resolution — per-marketplace aware ──────────────────────────
+  // Each marketplace uses different fields for “on sale / active” signal:
+  //  Trendyol: onSale (bool), saleStatus/approvalStatus, status string
+  //  Hepsiburada: isSalable (bool), isSuspended/isLocked/isFrozen (bool true=>off), availableStock-related
+  //  Pazarama: Approved (bool), isActive/status
+  //  N11: saleStatus (On_Sale/Out_Of_Stock/Sale_Closed/Before_Sale), productStatus (Active/...), status (Active)
+  //  Etsy: state (active/draft/expired/sold_out/inactive), isActive
+  //  Amazon: state/status or quantity-based
+  let statusValue: any = resolveValue(root, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName', 'state', 'Approved', 'approved', 'isSalable', 'isSuspended', 'isLocked', 'isFrozen', 'availability', 'sale_status', 'product_status'])
+    ?? resolveValue(variant, ['status', 'isActive', 'onSale', 'saleStatus', 'isAvailable', 'approvalStatus', 'productStatus', 'productStatusName', 'state', 'Approved', 'approved', 'isSalable', 'isSuspended', 'isLocked', 'isFrozen', 'availability', 'sale_status', 'product_status']);
+
+  // Per-marketplace overrides for combined boolean flags (Hepsiburada) and
+  // marketplace-specific string enums (N11, Etsy, Pazarama).
+  let normalizedStatus: boolean;
+  if (mp === 'hepsiburada') {
+    const isSalable = resolveValue(root, ['isSalable']) ?? resolveValue(variant, ['isSalable']);
+    const isSuspended = resolveValue(root, ['isSuspended']) ?? resolveValue(variant, ['isSuspended']);
+    const isLocked = resolveValue(root, ['isLocked']) ?? resolveValue(variant, ['isLocked']);
+    const isFrozen = resolveValue(root, ['isFrozen']) ?? resolveValue(variant, ['isFrozen']);
+    if (isSalable === false) normalizedStatus = false;
+    else if (isSuspended === true || isLocked === true || isFrozen === true) normalizedStatus = false;
+    else if (typeof isSalable === 'boolean') normalizedStatus = isSalable;
+    else if (statusValue == null) normalizedStatus = true;
+    else if (typeof statusValue === 'boolean') normalizedStatus = statusValue;
+    else if (typeof statusValue === 'number') normalizedStatus = statusValue > 0;
+    else if (typeof statusValue === 'string') {
+      const s = statusValue.toLowerCase();
+      normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'suspended', 'locked', 'frozen', 'expired', 'draft', 'sold_out', 'soldout', 'out_of_stock', 'outofstock', 'sale_closed', 'saleclosed', 'before_sale', 'beforesale', 'prohibited', 'unlisted', 'inapproval', 'incatalogapproval', 'catalogrejected', 'archived', 'blacklisted'].includes(s);
+    } else normalizedStatus = true;
+  } else if (mp === 'n11') {
+    const saleStatusRaw = resolveValue(root, ['saleStatus', 'sale_status']) ?? resolveValue(variant, ['saleStatus', 'sale_status']);
+    const productStatusRaw = resolveValue(root, ['productStatus', 'product_status', 'status']) ?? resolveValue(variant, ['productStatus', 'product_status', 'status']);
+    const saleStatus = saleStatusRaw != null ? String(saleStatusRaw).toLowerCase() : null;
+    const productStatus = productStatusRaw != null ? String(productStatusRaw).toLowerCase() : null;
+    // For N11 both signals must be “on sale”: productStatus Active AND saleStatus On_Sale.
+    // If either indicates not saleable, the product is not active.
+    if (saleStatus && productStatus) {
+      const saleOk = saleStatus === 'on_sale' || saleStatus === 'onsale';
+      const productOk = ['active', 'onsale', 'approved', 'on_sale'].includes(productStatus);
+      normalizedStatus = saleOk && productOk;
+    } else if (saleStatus) {
+      if (saleStatus === 'on_sale' || saleStatus === 'onsale') normalizedStatus = true;
+      else if (['out_of_stock', 'outofstock', 'sale_closed', 'saleclosed', 'before_sale', 'beforesale'].includes(saleStatus)) normalizedStatus = false;
+      else normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'suspended', 'prohibited', 'unlisted', 'inapproval', 'incatalogapproval', 'catalogrejected', 'archived', 'blacklisted', 'draft', 'expired', 'sold_out'].includes(saleStatus);
+    } else if (productStatus) {
+      normalizedStatus = ['active', 'onsale', 'approved', 'on_sale'].includes(productStatus);
+    } else if (statusValue == null) normalizedStatus = true;
+    else if (typeof statusValue === 'boolean') normalizedStatus = statusValue;
+    else if (typeof statusValue === 'number') normalizedStatus = statusValue > 0;
+    else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'suspended', 'locked', 'frozen', 'expired', 'draft', 'sold_out', 'out_of_stock', 'sale_closed', 'before_sale', 'prohibited', 'unlisted', 'inapproval', 'incatalogapproval', 'catalogrejected', 'archived', 'blacklisted'].includes(statusValue.toLowerCase());
+    else normalizedStatus = true;
+  } else if (mp === 'etsy') {
+    const stateRaw = resolveValue(root, ['state']) ?? resolveValue(variant, ['state']);
+    const state = stateRaw != null ? String(stateRaw).toLowerCase() : null;
+    if (state) {
+      normalizedStatus = state === 'active';
+    } else if (statusValue == null) normalizedStatus = true;
+    else if (typeof statusValue === 'boolean') normalizedStatus = statusValue;
+    else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'draft', 'expired', 'sold_out', 'soldout', 'archived', 'blacklisted', 'removed'].includes(statusValue.toLowerCase());
+    else normalizedStatus = true;
+  } else if (mp === 'pazarama') {
+    const approvedRaw = resolveValue(root, ['Approved', 'approved', 'isActive', 'isApproved']) ?? resolveValue(variant, ['Approved', 'approved', 'isActive', 'isApproved']);
+    if (typeof approvedRaw === 'boolean') normalizedStatus = approvedRaw;
+    else if (statusValue == null) normalizedStatus = true;
+    else if (typeof statusValue === 'boolean') normalizedStatus = statusValue;
+    else if (typeof statusValue === 'number') normalizedStatus = statusValue > 0;
+    else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'archived', 'blacklisted', 'suspended', 'prohibited'].includes(statusValue.toLowerCase());
+    else normalizedStatus = true;
+  } else {
+    // Generic (trendyol, amazon, hepsiburada fallback handled above)
+    if (statusValue == null) normalizedStatus = true;
+    else if (typeof statusValue === 'boolean') normalizedStatus = statusValue;
+    else if (typeof statusValue === 'number') normalizedStatus = statusValue > 0;
+    else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'suspended', 'locked', 'frozen', 'expired', 'draft', 'sold_out', 'soldout', 'out_of_stock', 'outofstock', 'sale_closed', 'saleclosed', 'before_sale', 'beforesale', 'prohibited', 'unlisted', 'inapproval', 'incatalogapproval', 'catalogrejected', 'archived', 'blacklisted', 'removed'].includes(statusValue.toLowerCase());
+    else normalizedStatus = true;
+  }
 
   const { categoryName, categoryId } = resolveCategory(raw);
   const attributes = Array.isArray(raw.attributes) ? raw.attributes : undefined;

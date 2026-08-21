@@ -112,8 +112,15 @@ export class EtsyClient extends BaseMarketplaceClient implements MarketplaceClie
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
     const shopId = await this.getShopId();
-    const data = await this.authenticatedRequest<any>('GET', `/shops/${shopId}/listings/active`, undefined, { limit: params.limit || 50, offset: params.offset || 0 });
-    return { products: data.results || [], hasMore: !!data.pagination?.next_offset };
+    // Queues drives pagination with 0-indexed page/size; Etsy native is limit/offset.
+    const size = params.size ?? params.limit ?? 50;
+    const page = params.page ?? 0;
+    const offset = params.offset ?? page * size;
+    const limit = params.limit ?? size;
+    const data = await this.authenticatedRequest<any>('GET', `/shops/${shopId}/listings/active`, undefined, { limit, offset });
+    const products = data.results || data.data || [];
+    const hasMore = !!(data as any).pagination?.next_offset || (Array.isArray(products) && products.length === limit);
+    return { products: Array.isArray(products) ? products : [], hasMore };
   }
 
   async createProduct(product: EtsyListing): Promise<any> {

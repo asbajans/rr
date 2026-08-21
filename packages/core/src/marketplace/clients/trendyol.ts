@@ -117,14 +117,40 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     return data;
   }
 
-  async getApprovedProductsStockAndPrice(params: { page?: number; size?: number } = {}): Promise<{ items: any[]; hasMore: boolean }> {
-    const { page = 0, size = 50 } = params;
+  async getApprovedProductsStockAndPrice(params: { page?: number; size?: number; nextPageToken?: string } = {}): Promise<{ items: any[]; hasMore: boolean; nextPageToken?: string }> {
+    const { page = 0, size = 50, nextPageToken } = params as any;
+    const query: any = { size };
+    if (nextPageToken) query.nextPageToken = nextPageToken;
+    else query.page = page;
     const data = await this.request<any>({
       method: 'GET',
       url: `/sellers/${this.config.supplierId}/products/approved/inventory-and-price`,
-      params: { page, size },
+      params: query,
     });
-    return { items: data.content || [], hasMore: data.last ? false : true };
+    // Trendyol V2 returns `content: [{ contentId, productMainId, variants: [{ barcode, quantity, salePrice, listPrice, stockCode, ... }] }]`.
+    // Flatten variants so callers can key by barcode directly. Also handle the (unlikely) flat variant shape.
+    const flattened: any[] = [];
+    for (const content of (data.content || [])) {
+      if (Array.isArray((content as any).variants) && (content as any).variants.length > 0) {
+        for (const variant of (content as any).variants) {
+          flattened.push({
+            barcode: variant.barcode,
+            stockCode: variant.stockCode,
+            quantity: variant.quantity ?? (variant as any).stock?.quantity ?? 0,
+            salePrice: variant.salePrice ?? (variant as any).price?.salePrice ?? 0,
+            listPrice: variant.listPrice ?? (variant as any).price?.listPrice ?? 0,
+            onSale: (variant as any).onSale,
+            productMainId: (content as any).productMainId,
+            contentId: (content as any).contentId,
+            variantId: variant.variantId,
+            stockLastModifiedDate: (variant as any).stockLastModifiedDate ?? (variant as any).stock?.lastModifiedDate ?? null,
+          });
+        }
+      } else if ((content as any).barcode) {
+        flattened.push(content);
+      }
+    }
+    return { items: flattened, hasMore: data.last ? false : true, nextPageToken: data.nextPageToken };
   }
 
   async getCategoryAttributes(categoryId: number): Promise<any[]> {

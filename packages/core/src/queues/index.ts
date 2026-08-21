@@ -311,23 +311,53 @@ export async function createImportWorker() {
         try {
           let stockHasMore = true;
           let stockPage = 0;
+          let nextPageToken: string | undefined = undefined;
           while (stockHasMore && stockPage < 500) {
-            const stockResult = await (client as any).getApprovedProductsStockAndPrice({ page: stockPage, size: 50 });
-            const items = stockResult.items || [];
+            const stockResult: any = await (client as any).getApprovedProductsStockAndPrice(
+              nextPageToken ? { size: 100, nextPageToken } : { page: stockPage, size: 100 },
+            );
+            const items: any[] = stockResult.items || [];
             for (const item of items) {
-              const key = item.barcode || item.stockCode || item.code || '';
-              if (!key) continue;
-              stockMap.set(key, {
-                quantity: item.quantity ?? item.stockCount ?? 0,
-                salePrice: item.salePrice ?? 0,
-                listPrice: item.listPrice ?? undefined,
-                onSale: item.onSale ?? item.saleStatus != null ? item.saleStatus !== 'Passive' && item.saleStatus !== 'passive' && item.saleStatus !== 'OnHold' : undefined,
-              });
+              const info = {
+                quantity: (item as any).quantity ?? (item as any).stockCount ?? (item as any).stock?.quantity ?? 0,
+                salePrice: (item as any).salePrice ?? (item as any).price?.salePrice ?? 0,
+                listPrice: (item as any).listPrice ?? (item as any).price?.listPrice ?? undefined,
+                onSale: (item as any).onSale ?? ((item as any).saleStatus != null ? (item as any).saleStatus !== 'Passive' && (item as any).saleStatus !== 'passive' && (item as any).saleStatus !== 'OnHold' : undefined),
+              };
+              const barcodeKey = (item as any).barcode || (item as any).stockCode || (item as any).code || '';
+              if (barcodeKey) stockMap.set(barcodeKey, info);
+              // Also index by the other identifier so lookup by barcode OR stockCode works.
+              const altKey = (item as any).stockCode || (item as any).barcode || '';
+              if (altKey && altKey !== barcodeKey) stockMap.set(altKey, info);
+              // Lightweight endpoint now returns flattened variants, but also handle any remaining group shape defensively.
+              if (Array.isArray((item as any).variants)) {
+                for (const v of (item as any).variants) {
+                  const vBarcode = (v as any).barcode || (v as any).stockCode || '';
+                  if (!vBarcode) continue;
+                  const vInfo = {
+                    quantity: (v as any).quantity ?? (v as any).stock?.quantity ?? 0,
+                    salePrice: (v as any).salePrice ?? (v as any).price?.salePrice ?? 0,
+                    listPrice: (v as any).listPrice ?? (v as any).price?.listPrice ?? undefined,
+                    onSale: (v as any).onSale,
+                  };
+                  stockMap.set(vBarcode, vInfo);
+                  if ((v as any).stockCode && (v as any).stockCode !== vBarcode) stockMap.set((v as any).stockCode, vInfo);
+                }
+              }
             }
-            stockHasMore = stockResult.hasMore !== false && items.length > 0;
-            stockPage++;
+            if (stockResult.nextPageToken) {
+              nextPageToken = stockResult.nextPageToken;
+              stockHasMore = true;
+              stockPage++;
+            } else {
+              stockHasMore = stockResult.hasMore !== false && items.length > 0;
+              stockPage++;
+              nextPageToken = undefined;
+            }
+            // Defensive: if server returned empty page but claims hasMore, break to avoid tight loop.
+            if (items.length === 0) stockHasMore = false;
           }
-          logger.info({ storeId, count: stockMap.size }, 'Pre-fetched Trendyol stock/price map');
+          logger.info({ storeId, count: stockMap.size }, 'Pre-fetched Trendyol stock/price map (flattened variants)');
         } catch (e) {
           logger.warn({ err: e }, 'Failed to pre-fetch Trendyol stock/price map');
         }
@@ -344,7 +374,46 @@ export async function createImportWorker() {
             logger.info({ total: products.length, hasImages, sampleKeys: Object.keys(products[0]) }, '[pazarama] product batch');
           }
 
-          for (const raw of products) {
+          // Trendyol V2: each `content` may contain multiple `variants` (each with distinct barcode/stock/price).
+          // Expand into per-variant raws so each barcode gets its own Product and correct stockPrice.
+          const rawsToProcess: any[] = [];
+          if (marketplace === 'trendyol') {
+            for (const content of products) {
+              const variants: any[] = Array.isArray((content as any).variants) ? (content as any).variants : [];
+              if (variants.length > 0) {
+                for (const variant of variants) {
+                  const merged: any = {
+                    ...content,
+                    barcode: (variant as any).barcode || (content as any).barcode,
+                    stockCode: (variant as any).stockCode || (content as any).stockCode,
+                    // Preserve nested stock/price objects for normalizer's `stock.quantity` / `price.salePrice` lookup.
+                    stock: (variant as any).stock ?? (content as any).stock,
+                    price: (variant as any).price ?? (content as any).price,
+                    // Also expose flattened scalar fields for the inventory-endpoint merge below.
+                    quantity: (variant as any).stock?.quantity ?? (variant as any).quantity ?? (content as any).quantity,
+                    salePrice: (variant as any).price?.salePrice ?? (variant as any).salePrice ?? (content as any).salePrice,
+                    listPrice: (variant as any).price?.listPrice ?? (variant as any).listPrice ?? (content as any).listPrice,
+                    onSale: (variant as any).onSale ?? (content as any).onSale,
+                    vatRate: (variant as any).vatRate ?? (content as any).vatRate,
+                    // Keep single-variant array so `getVariantPayload` in normalizer still works.
+                    variants: [variant],
+                    // Preserve variant-specific attributes; content attributes stay in `attributes`.
+                    _variantAttributes: Array.isArray((variant as any).attributes) ? (variant as any).attributes : undefined,
+                  };
+                  // If variant has its own brand/category overrides, keep them.
+                  if ((variant as any).brandId != null) merged.brandId = (variant as any).brandId;
+                  if ((variant as any).categoryId != null) merged.categoryId = (variant as any).categoryId;
+                  rawsToProcess.push(merged);
+                }
+              } else {
+                rawsToProcess.push(content);
+              }
+            }
+          } else {
+            rawsToProcess.push(...products);
+          }
+
+          for (const raw of rawsToProcess) {
             if (marketplace === 'pazarama') {
               if (raw.code && !raw.barcode) raw.barcode = raw.code;
               if (raw.Code && !raw.barcode) raw.barcode = raw.Code;
@@ -356,13 +425,35 @@ export async function createImportWorker() {
               if (raw.ListPrice != null && raw.listPrice == null) raw.listPrice = raw.ListPrice;
             }
             if (stockMap.size) {
-              const stockKey = raw.barcode || raw.stockCode || raw.code || raw.sku || '';
+              // Trendyol V2 content groups store barcode in variants[0]; after expansion raw.barcode is correct,
+              // but keep variant fallbacks for any unexpanded shape.
+              const stockKey =
+                (raw as any).barcode ||
+                (raw as any).stockCode ||
+                (raw as any).code ||
+                (raw as any).sku ||
+                (Array.isArray((raw as any).variants) ? (raw as any).variants[0]?.barcode : '') ||
+                (Array.isArray((raw as any).variants) ? (raw as any).variants[0]?.stockCode : '') ||
+                '';
               const stockInfo = stockMap.get(stockKey);
               if (stockInfo) {
                 raw.quantity = stockInfo.quantity;
-                if (stockInfo.salePrice > 0) raw.salePrice = stockInfo.salePrice;
-                if (stockInfo.listPrice && stockInfo.listPrice > 0) raw.listPrice = stockInfo.listPrice;
+                // Also sync nested stock object so normalizer's `stock.quantity` sees the fresh value.
+                if (raw.stock && typeof raw.stock === 'object') raw.stock.quantity = stockInfo.quantity;
+                else raw.stock = { quantity: stockInfo.quantity };
+                if (stockInfo.salePrice > 0) {
+                  raw.salePrice = stockInfo.salePrice;
+                  if (raw.price && typeof raw.price === 'object') raw.price.salePrice = stockInfo.salePrice;
+                }
+                if (stockInfo.listPrice && stockInfo.listPrice > 0) {
+                  raw.listPrice = stockInfo.listPrice;
+                  if (raw.price && typeof raw.price === 'object') raw.price.listPrice = stockInfo.listPrice;
+                }
                 if (stockInfo.onSale != null) raw.onSale = stockInfo.onSale;
+              } else if (marketplace === 'trendyol') {
+                // No inventory entry found for this barcode — keep the quantity from the full product payload
+                // but log for debugging so we can see if lightweight endpoint missed barcodes.
+                logger.debug({ barcode: stockKey }, 'No inventory-and-price entry for Trendyol barcode');
               }
             }
             let mapped: any;
@@ -423,7 +514,7 @@ export async function createImportWorker() {
                   storeId,
                   platform: marketplace,
                   externalId,
-                  status: 'active',
+                  status: mapped.isActive === false ? 'inactive' : 'active',
                   lastSyncedAt: new Date(),
                 } as any);
               }

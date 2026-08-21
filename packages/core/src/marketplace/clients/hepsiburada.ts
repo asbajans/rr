@@ -65,9 +65,21 @@ export class HepsiburadaClient extends BaseMarketplaceClient implements Marketpl
   }
 
   async getProducts(params: { page?: number; size?: number; status?: string } = {}): Promise<{ products: any[]; hasMore: boolean }> {
-    const { page = 1, size = 50 } = params;
+    // Queues drives pagination with 0-indexed `page`; the Hepsiburada mpop
+    // surface is 1-indexed. Normalize and handle multiple response shapes
+    // (content/last vs data/totalCount vs listings).
+    const rawPage = params.page ?? 0;
+    const page = rawPage + 1;
+    const size = params.size ?? 50;
     const data = await this.authenticatedRequest<any>('GET', `/commerce/v1/products?merchantId=${this.config.merchantId}&page=${page}&size=${size}`);
-    return { products: data.content || [], hasMore: !data.last };
+    const products = data.content || data.data || (data as any).listings || [];
+    let hasMore: boolean;
+    if (typeof (data as any).last === 'boolean') hasMore = !(data as any).last;
+    else if (typeof (data as any).totalCount === 'number' && typeof (data as any).limit === 'number') hasMore = ((data as any).offset ?? 0) + ((data as any).limit ?? size) < (data as any).totalCount;
+    else if (typeof (data as any).totalPages === 'number') hasMore = page < (data as any).totalPages;
+    else if (typeof (data as any).totalElements === 'number') hasMore = page * size < (data as any).totalElements;
+    else hasMore = Array.isArray(products) && products.length === size;
+    return { products: Array.isArray(products) ? products : [], hasMore };
   }
 
   async createProduct(product: HBProduct): Promise<any> {

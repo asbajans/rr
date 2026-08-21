@@ -68,10 +68,28 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
 
   async getCategories(): Promise<any[]> { return []; }
 
-  async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean }> {
-    const headers = await this.signRequest('GET', `/catalog/2022-04-01/items?marketplaceIds=${this.config.marketplaceId}&includedData=attributes,identifiers,images,productTypes,salesRanks,summaries,vendorDetails&sellerId=${this.config.sellerId}`);
-    const data = await this.request<any>({ method: 'GET', url: `/catalog/2022-04-01/items?marketplaceIds=${this.config.marketplaceId}&includedData=attributes,identifiers,images,productTypes,salesRanks,summaries,vendorDetails&sellerId=${this.config.sellerId}`, headers });
-    return { products: data.items || [], hasMore: !!data.nextToken };
+  async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean; nextToken?: string }> {
+    // Queues drives pagination with 0-indexed page/size, but Amazon SP-API catalog
+    // uses token-based pagination (nextToken). We support both: if nextToken is
+    // provided we use it, otherwise we treat page as token-less first page.
+    // NOTE: catalog items do not include seller stock (fulfillmentAvailability);
+    // for accurate stock the Listings API (GET /listings/.../items/{sellerId})
+    // would be needed. We still return catalog rows so title/images import,
+    // but quantity will be 0 until Listings inventory is integrated.
+    const size = params.size ?? params.limit ?? 50;
+    const token = params.nextToken ?? params.pageToken ?? (params.page ? String(params.page) : undefined);
+    const query = new URLSearchParams({
+      marketplaceIds: this.config.marketplaceId,
+      includedData: 'attributes,identifiers,images,productTypes,salesRanks,summaries,vendorDetails',
+      sellerId: this.config.sellerId,
+      pageSize: String(Math.min(size, 20)),
+    });
+    if (token) query.set('pageToken', token);
+    const path = `/catalog/2022-04-01/items?${query.toString()}`;
+    const headers = await this.signRequest('GET', path);
+    const data = await this.request<any>({ method: 'GET', url: path, headers });
+    const products = data.items || data.data || [];
+    return { products: Array.isArray(products) ? products : [], hasMore: !!data.nextToken, nextToken: data.nextToken };
   }
 
   async createProduct(product: any): Promise<any> {
