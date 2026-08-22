@@ -423,6 +423,47 @@ export async function createImportWorker() {
               if (raw.SalePrice != null && raw.listPrice == null) raw.listPrice = raw.SalePrice;
               if (raw.Images && Array.isArray(raw.Images) && !raw.images) raw.images = raw.Images;
               if (raw.ListPrice != null && raw.listPrice == null) raw.listPrice = raw.ListPrice;
+
+              // Pazarama: list endpoint does NOT return images for approved products.
+              // The detail endpoint does — fetch it when images are missing so
+              // imports after “clear + re-import” keep the product covers.
+              // Pazarama rate limit is ~30 req/min, so throttle detail calls.
+              const hasImages = Array.isArray(raw.images) ? raw.images.length > 0
+                : Array.isArray(raw.Images) ? raw.Images.length > 0
+                : !!(raw.imageUrl || raw.imageurl || raw.ImageUrl);
+              if (!hasImages) {
+                const detailCode = String(raw.code || raw.Code || raw.barcode || raw.sku || '').trim();
+                if (detailCode && typeof (client as any).getProductDetail === 'function') {
+                  try {
+                    const detail: any = await (client as any).getProductDetail(detailCode);
+                    const src = detail && typeof detail === 'object' ? detail : {};
+                    // Pazarama detail returns images under various casings
+                    const detailImages = (src as any).images ?? (src as any).Images ?? (src as any).imageUrls ?? (src as any).imageUrl ?? (src as any).ImageUrl ?? null;
+                    if (Array.isArray(detailImages) && detailImages.length > 0) {
+                      raw.images = detailImages;
+                      // keep normalized `Images` alias as well for downstream mapProduct/preserve logic
+                      (raw as any).Images = detailImages;
+                    } else if (detailImages && typeof detailImages === 'string') {
+                      raw.images = [detailImages];
+                      (raw as any).Images = [detailImages];
+                    } else if (Array.isArray((src as any).data) && (src as any).data.length > 0) {
+                      // some Pazarama detail responses wrap in data array
+                      const first = (src as any).data[0];
+                      const di = first?.images ?? first?.Images ?? null;
+                      if (Array.isArray(di) && di.length > 0) {
+                        raw.images = di;
+                        (raw as any).Images = di;
+                      }
+                    }
+                    // Throttle to ~25 req/min to stay under Pazarama 30/min limit
+                    await new Promise<void>((r) => setTimeout(r, 2400));
+                  } catch (e: any) {
+                    logger.warn({ err: e, code: detailCode }, '[pazarama] getProductDetail for images failed — importing without cover');
+                    // brief back-off on error as well
+                    await new Promise<void>((r) => setTimeout(r, 1000));
+                  }
+                }
+              }
             }
             if (stockMap.size) {
               // Trendyol V2 content groups store barcode in variants[0]; after expansion raw.barcode is correct,
