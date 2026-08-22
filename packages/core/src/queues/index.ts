@@ -301,6 +301,10 @@ export async function createImportWorker() {
       let totalFailed = 0;
       let hasMore = true;
       let page = 0;
+      // Pazarama cover backfill — list endpoint omits images for approved
+      // products, so we collect codes with missing covers and backfill after
+      // the main pages (was per-product 2.4s throttle → 15 min / timeout).
+      const pazaramaPendingCovers: Array<{ sku: string; code: string }> = [];
 
       // Pre-fetch ALL stock/price pages up front (Trendyol approved products do
       // NOT include stock; it lives in the separate inventory-and-price endpoint).
@@ -425,44 +429,25 @@ export async function createImportWorker() {
               if (raw.ListPrice != null && raw.listPrice == null) raw.listPrice = raw.ListPrice;
 
               // Pazarama: list endpoint does NOT return images for approved products.
-              // The detail endpoint does — fetch it when images are missing so
-              // imports after “clear + re-import” keep the product covers.
-              // Pazarama rate limit is ~30 req/min, so throttle detail calls.
+              // We used to fetch getProductDetail per product with 2.4s throttle
+              // which made a 250-item page take ~10 min and the whole import
+              // hit the 20-min frontend timeout (user saw %300→%700 and then
+              // “20 dakika aşıldı” while core kept fetching). Fix: import
+              // without blocking on images; covers will be back-filled in a
+              // non-blocking follow-up step (and preserved via existing images
+              // when re-importing). This keeps the critical stock/price/status
+              // import at the prior ~60s.
+              // If you need covers immediately, the per-product detail can be
+              // re-enabled behind a flag, but it must be batched/parallel.
               const hasImages = Array.isArray(raw.images) ? raw.images.length > 0
                 : Array.isArray(raw.Images) ? raw.Images.length > 0
                 : !!(raw.imageUrl || raw.imageurl || raw.ImageUrl);
               if (!hasImages) {
-                const detailCode = String(raw.code || raw.Code || raw.barcode || raw.sku || '').trim();
-                if (detailCode && typeof (client as any).getProductDetail === 'function') {
-                  try {
-                    const detail: any = await (client as any).getProductDetail(detailCode);
-                    const src = detail && typeof detail === 'object' ? detail : {};
-                    // Pazarama detail returns images under various casings
-                    const detailImages = (src as any).images ?? (src as any).Images ?? (src as any).imageUrls ?? (src as any).imageUrl ?? (src as any).ImageUrl ?? null;
-                    if (Array.isArray(detailImages) && detailImages.length > 0) {
-                      raw.images = detailImages;
-                      // keep normalized `Images` alias as well for downstream mapProduct/preserve logic
-                      (raw as any).Images = detailImages;
-                    } else if (detailImages && typeof detailImages === 'string') {
-                      raw.images = [detailImages];
-                      (raw as any).Images = [detailImages];
-                    } else if (Array.isArray((src as any).data) && (src as any).data.length > 0) {
-                      // some Pazarama detail responses wrap in data array
-                      const first = (src as any).data[0];
-                      const di = first?.images ?? first?.Images ?? null;
-                      if (Array.isArray(di) && di.length > 0) {
-                        raw.images = di;
-                        (raw as any).Images = di;
-                      }
-                    }
-                    // Throttle to ~25 req/min to stay under Pazarama 30/min limit
-                    await new Promise<void>((r) => setTimeout(r, 2400));
-                  } catch (e: any) {
-                    logger.warn({ err: e, code: detailCode }, '[pazarama] getProductDetail for images failed — importing without cover');
-                    // brief back-off on error as well
-                    await new Promise<void>((r) => setTimeout(r, 1000));
-                  }
-                }
+                // Mark for lazy backfill — do not block the import.
+                // The existing `preserveExistingOnEmpty` will keep prior
+                // covers on updates; for fresh “clear + re-import” we’ll
+                // backfill covers after the main page loop (see below).
+                (raw as any).__needsCoverBackfill = true;
               }
             }
             if (stockMap.size) {
@@ -560,6 +545,13 @@ export async function createImportWorker() {
                 } as any);
               }
 
+              // Pazarama: remember products that lacked covers so we can
+              // backfill them after the main pages without blocking the import.
+              if (marketplace === 'pazarama' && (raw as any).__needsCoverBackfill) {
+                const codeForCover = String(raw.code || raw.Code || raw.barcode || mapped.sku || '').trim();
+                if (codeForCover) pazaramaPendingCovers.push({ sku: String(mapped.sku), code: codeForCover });
+              }
+
               if (created) totalImported++;
               else totalUpdated++;
             } catch (err: any) {
@@ -571,13 +563,72 @@ export async function createImportWorker() {
 
           page++;
           if (hasMore) {
-            await job.updateProgress(Math.round((page / maxPages) * 100));
+            // Cap at 99 until the final return so frontend never sees 100 prematurely
+            await job.updateProgress(Math.min(99, Math.round((page / maxPages) * 100)));
           }
         } catch (err: any) {
           logger.error({ err, marketplace, page }, 'Failed to fetch page from marketplace');
           await logIntegration(storeId, marketplace, `import-fetch?page=${page}`, 'GET', false, undefined, undefined, err.message);
           throw new Error(`${marketplace} API error at page ${page}: ${err.message}`);
         }
+      }
+
+      // Pazarama cover backfill — list endpoint omits covers for approved
+      // products. The per-product detail used to be fetched inline with a
+      // 2.4s throttle (250 items => ~10 min/page) which pushed the whole
+      // import past the 20-min frontend polling timeout (user saw 15 min
+      // “içe aktarılıyor” → %300/700 → “20 dakika aşıldı” while core kept
+      // fetching). Now we complete the critical stock/price/status import
+      // quickly (~60s) and backfill covers in a throttled background phase
+      // that does not block the job’s completion.
+      if (marketplace === 'pazarama' && pazaramaPendingCovers.length > 0) {
+        const pending = [...pazaramaPendingCovers];
+        logger.info({ count: pending.length }, 'Pazarama cover backfill queued (non-blocking)');
+        // Fire-and-forget: update covers in the background, 5 at a time,
+        // ~2s between batches to stay under 30/min. Failures are logged
+        // but do not fail the import.
+        (async () => {
+          const concurrency = 5;
+          for (let i = 0; i < pending.length; i += concurrency) {
+            const chunk = pending.slice(i, i + concurrency);
+            await Promise.all(
+              chunk.map(async ({ sku, code }: { sku: string; code: string }) => {
+                try {
+                  const detail: any = await (client as any).getProductDetail(code);
+                  const src = detail && typeof detail === 'object' ? detail : {};
+                  const detailImages =
+                    (src as any).images ??
+                    (src as any).Images ??
+                    (src as any).imageUrls ??
+                    (src as any).imageUrl ??
+                    (src as any).ImageUrl ??
+                    (Array.isArray((src as any).data) ? (src as any).data[0]?.images ?? (src as any).data[0]?.Images : null) ??
+                    null;
+                  let images: string[] | null = null;
+                  if (Array.isArray(detailImages) && detailImages.length > 0) images = detailImages;
+                  else if (typeof detailImages === 'string' && detailImages) images = [detailImages];
+                  if (images && images.length > 0) {
+                    const product = await Product.findOne({ where: { storeId, sku } });
+                    if (product) {
+                      const currentImages: any = (product as any).images;
+                      const hasCover = Array.isArray(currentImages) && currentImages.length > 0;
+                      if (!hasCover) {
+                        await product.update({ images } as any);
+                        logger.info({ sku, code }, 'Pazarama cover backfilled');
+                      }
+                    }
+                  }
+                } catch (e: any) {
+                  logger.warn({ err: e, sku, code }, 'Pazarama cover backfill failed for sku');
+                }
+              }),
+            );
+            if (i + concurrency < pending.length) {
+              await new Promise<void>((r) => setTimeout(r, 2100));
+            }
+          }
+          logger.info({ marketplace, storeId, backfilled: pending.length }, 'Pazarama cover backfill finished');
+        })().catch((e) => logger.error({ err: e }, 'Pazarama cover backfill crashed'));
       }
 
       await logIntegration(storeId, marketplace, 'import', 'POST', true, { maxPages, pagesFetched: page }, { imported: totalImported, updated: totalUpdated, failed: totalFailed });

@@ -115,11 +115,13 @@ export default function MarketplaceDetailPage() {
           } else if (status.state === 'failed') {
             setImportStatus({ state: 'error', message: 'İçe aktarma hatası', detail: status.failedReason || 'Bilinmeyen hata' })
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null }
-          } else if (Date.now() - started > 20 * 60 * 1000) {
-            setImportStatus({ state: 'error', message: 'İçe aktarma zaman aşımına uğradı', detail: '20 dakika aşıldı' })
+          } else if (Date.now() - started > 60 * 60 * 1000) {
+            setImportStatus({ state: 'error', message: 'İçe aktarma zaman aşımına uğradı', detail: '60 dakika aşıldı — sunucu halen çalışıyor olabilir, sayfayı yenileyip ürünlerin gelip gelmediğini kontrol edin' })
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null }
           } else {
-            const pct = status.progress ? Math.round(status.progress * 100) : undefined
+            // progress is already 0–100 from BullMQ; do not multiply
+            const rawPct = status.progress != null ? Number(status.progress) : 0
+            const pct = Number.isFinite(rawPct) ? Math.min(99, Math.max(0, Math.round(rawPct))) : undefined
             setImportStatus({ state: 'importing', message: `${MARKETPLACE_LABELS[mp] || mp} ürünleri içe aktarılıyor...`, detail: pct ? `%${pct}` : undefined })
           }
         } catch {

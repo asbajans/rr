@@ -114,7 +114,7 @@ export default function IntegrationsPage() {
       }
       setMessage(`${MARKETPLACE_LOGOS[marketplace] || marketplace}: içe aktarma başlatıldı, ürünler yükleniyor...`)
       const started = Date.now()
-      while (Date.now() - started < 20 * 60 * 1000) {
+      while (Date.now() - started < 60 * 60 * 1000) {
         await new Promise((r) => setTimeout(r, 3000))
         const status = await api.getImportJobStatus(marketplace, res.jobId)
         if (status.state === 'completed' || status.state === 'done') {
