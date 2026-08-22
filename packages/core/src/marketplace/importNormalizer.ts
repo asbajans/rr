@@ -211,12 +211,17 @@ export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProdu
     else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'draft', 'expired', 'sold_out', 'soldout', 'archived', 'blacklisted', 'removed'].includes(statusValue.toLowerCase());
     else normalizedStatus = true;
   } else if (mp === 'pazarama') {
-    const approvedRaw = resolveValue(root, ['Approved', 'approved', 'isActive', 'isApproved']) ?? resolveValue(variant, ['Approved', 'approved', 'isActive', 'isApproved']);
-    if (typeof approvedRaw === 'boolean') normalizedStatus = approvedRaw;
+    const approvedRaw = resolveValue(root, ['Approved', 'approved', 'isActive', 'isApproved', 'IsActive']) ?? resolveValue(variant, ['Approved', 'approved', 'isActive', 'isApproved', 'IsActive']);
+    // Pazarama: StockCount 0 means “stok yok” → not on sale (user bug report).
+    // Also respect explicit sale-closed signals (IsActive false, Status passive etc.)
+    const stockIsZero = quantity === 0;
+    if (typeof approvedRaw === 'boolean' && approvedRaw === false) normalizedStatus = false;
+    else if (stockIsZero) normalizedStatus = false;
+    else if (typeof approvedRaw === 'boolean') normalizedStatus = approvedRaw;
     else if (statusValue == null) normalizedStatus = true;
     else if (typeof statusValue === 'boolean') normalizedStatus = statusValue;
     else if (typeof statusValue === 'number') normalizedStatus = statusValue > 0;
-    else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'archived', 'blacklisted', 'suspended', 'prohibited'].includes(statusValue.toLowerCase());
+    else if (typeof statusValue === 'string') normalizedStatus = !['inactive', 'disabled', 'false', '0', 'off', 'pasif', 'passive', 'unavailable', 'notapproved', 'rejected', 'pending', 'waitingforapproval', 'onhold', 'archived', 'blacklisted', 'suspended', 'prohibited', 'out_of_stock', 'outofstock', 'sale_closed', 'saleclosed', 'before_sale', 'beforesale'].includes(statusValue.toLowerCase());
     else normalizedStatus = true;
   } else {
     // Generic (trendyol, amazon, hepsiburada fallback handled above)

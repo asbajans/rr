@@ -40,7 +40,8 @@ function serializeProductWithSync(p: any): any {
     // not the internal "storefront" platform name.
     const platform = platformRaw === 'storefront' ? 'Kendi Sitem' : platformRaw;
     let status: 'none' | 'pending' | 'synced' | 'error' = 'none';
-    if (listing.status === 'active' || listing.status === 'inactive') status = 'synced';
+    if (listing.status === 'active') status = 'synced';
+    else if (listing.status === 'inactive') status = 'error';
     else if (listing.status === 'pending' || listing.status === 'publishing') status = 'pending';
     else if (listing.status === 'failed') status = 'error';
     marketplace_sync[platform] = {
@@ -76,11 +77,8 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
     }
     if (req.query.categoryId) where.categoryId = req.query.categoryId;
     if (req.query.search) {
-      const searchTerm = `%${req.query.search}%`;
-      where[Op.or] = [
-        { title: { [Op.iLike]: searchTerm } },
-        { sku: { [Op.iLike]: searchTerm } },
-      ];
+      const searchTerm = `%${String(req.query.search).trim()}%`;
+      where[Op.and] = [...(where[Op.and] || []), { [Op.or]: [{ title: { [Op.iLike]: searchTerm } }, { sku: { [Op.iLike]: searchTerm } }] }];
     }
     if (req.query.b2b === '1') {
       where.originalProductId = { [Op.not]: null };
@@ -101,8 +99,12 @@ productRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: R
           mpClause.push({ marketplaces: { [Op.contains]: [mp] } });
         }
       }
-      if (mpClause.length === 1) where.marketplaces = mpClause[0].marketplaces;
-      else if (mpClause.length > 1) where[Op.or] = [...(where[Op.or] || []), ...mpClause];
+      if (mpClause.length === 1) {
+        // Single marketplace / “Pazaryeri Yok” — push as AND clause so it composes with search
+        where[Op.and] = [...(where[Op.and] || []), mpClause[0]];
+      } else if (mpClause.length > 1) {
+        where[Op.and] = [...(where[Op.and] || []), { [Op.or]: mpClause }];
+      }
     }
     if (req.query.priceMin) where.priceTRY = { ...where.priceTRY, [Op.gte]: req.query.priceMin };
     if (req.query.priceMax) where.priceTRY = { ...where.priceTRY, [Op.lte]: req.query.priceMax };
