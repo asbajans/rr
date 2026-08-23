@@ -2,7 +2,7 @@ import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
 import { useI18n } from '../../src/shared/i18n'
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native'
 import type { Store } from '../../src/shared/types'
 
 export default function SettingsScreen() {
@@ -11,6 +11,8 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<Store | null>(null)
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [integrations, setIntegrations] = useState<any[]>([])
 
   async function load() {
     try {
@@ -20,7 +22,39 @@ export default function SettingsScreen() {
     } catch {}
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadIntegrations() }, [])
+
+  async function loadIntegrations() {
+    try {
+      const list = await api.getMarketplaceIntegrations()
+      setIntegrations(list.filter((i: any) => i.isActive))
+    } catch { setIntegrations([]) }
+  }
+
+  async function syncAllProducts() {
+    if (integrations.length === 0) {
+      Alert.alert(t('error'), 'Aktif pazaryeri entegrasyonu yok')
+      return
+    }
+    setSyncing(true)
+    try {
+      let total = 0
+      for (const ig of integrations) {
+        const mp = ig.marketplace
+        try {
+          const res = await api.syncAllToMarketplace(mp)
+          total += res.enqueued || 0
+        } catch (e: any) {
+          // continue with others
+        }
+      }
+      Alert.alert(t('success'), total > 0 ? `${total} ürün senkronizasyon kuyruğuna eklendi` : 'Senkronize edilecek ürün yok')
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   async function save() {
     if (!name.trim()) return
@@ -60,6 +94,15 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Ürün Senkronizasyonu</Text>
+        <Text style={styles.meta}>Aktif pazaryerleri: {integrations.length > 0 ? integrations.map((i: any) => i.marketplace).join(', ') : 'Yok'}</Text>
+        <TouchableOpacity style={[styles.saveBtn, syncing && styles.disabled]} onPress={syncAllProducts} disabled={syncing}>
+          {syncing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Ürünleri Senkronize Et</Text>}
+        </TouchableOpacity>
+        <Text style={[styles.meta, { marginTop: 8, fontSize: 12 }]}>Tüm aktif pazaryerlerine atanmış ürünler kuyruğa eklenir.</Text>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('accountSection')}</Text>
         <Text style={styles.meta}>{t('email')}: {user?.email}</Text>
         <Text style={styles.meta}>{t('aiCredits')}: {user?.ai_credits}</Text>
@@ -94,4 +137,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 16,
   },
   logoutBtnText: { color: '#666', fontSize: 15 },
+  disabled: { opacity: 0.5 },
 })

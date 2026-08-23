@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert,
-  ActivityIndicator, TextInput, ScrollView, Modal, Image, Switch,
+  ActivityIndicator, TextInput, ScrollView, Modal, Image, Switch, Share,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
@@ -46,6 +46,7 @@ export default function ProductsScreen() {
   const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, MarketplaceCategory[]>>({})
   const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
+  const [siteCode, setSiteCode] = useState('')
 
   // modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -147,8 +148,24 @@ export default function ProductsScreen() {
         const res = await api.getBrands()
         setBrands(res ?? [])
       } catch {}
+      try {
+        const s = await api.getSettings()
+        setSiteCode(s.site_code || '')
+      } catch {}
     })()
   }, [])
+
+  async function shareProduct(item: Product) {
+    const sc = siteCode || ''
+    if (!sc) {
+      Alert.alert(t('error'), 'Mağaza site kodu bulunamadı')
+      return
+    }
+    const url = `https://rahatio.com.tr/stores/${sc}/products/${item.id}`
+    try {
+      await Share.share({ message: `${item.label}\n${url}`, url, title: item.label })
+    } catch {}
+  }
 
   function toggleMarketplace(m: string) {
     setPage(1)
@@ -396,9 +413,16 @@ export default function ProductsScreen() {
                     </Text>
                   </View>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
-                  <Text style={styles.editBtnText}>{t('edit')}</Text>
-                </TouchableOpacity>
+                <View style={{ alignItems: 'center', gap: 6 }}>
+                  {(item.marketplaces ?? []).includes('Kendi Sitem') && item.status === 1 && siteCode ? (
+                    <TouchableOpacity style={styles.shareBtn} onPress={() => shareProduct(item)}>
+                      <Text style={styles.shareBtnText}>Paylaş</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
+                    <Text style={styles.editBtnText}>{t('edit')}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )
           }}
@@ -883,6 +907,8 @@ const styles = StyleSheet.create({
   statusOffText: { color: '#c62828' },
   editBtn: { padding: 8 },
   editBtnText: { color: '#000', fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
+  shareBtn: { backgroundColor: '#e0f2fe', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  shareBtnText: { color: '#0284c7', fontSize: 12, fontWeight: '700' },
   modalScroll: { flex: 1, backgroundColor: '#f5f5f5' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 12 },
   modalTitle: { fontSize: 20, fontWeight: '700' },

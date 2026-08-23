@@ -44,6 +44,17 @@ export default function DashboardScreen() {
     { label: t('aiCredits'), value: data?.stats.ai_credits ?? 0, icon: 'sparkles-outline' },
   ]
 
+  const orderStatusCounts = data?.orderStatusCounts ?? {}
+  const orderStatuses: { key: string; label: string; color: string; bg: string }[] = [
+    { key: 'pending', label: t('status_pending'), color: '#e65100', bg: '#fff3e0' },
+    { key: 'confirmed', label: t('status_confirmed'), color: '#0d47a1', bg: '#e3f2fd' },
+    { key: 'processing', label: t('status_processing'), color: '#1565c0', bg: '#e3f2fd' },
+    { key: 'shipped', label: t('status_shipped'), color: '#4527a0', bg: '#ede7f6' },
+    { key: 'delivered', label: t('status_delivered'), color: '#2e7d32', bg: '#e8f5e9' },
+    { key: 'cancelled', label: t('status_cancelled'), color: '#c62828', bg: '#fce4ec' },
+    { key: 'returned', label: t('status_returned'), color: '#6a1b9a', bg: '#f3e5f5' },
+  ]
+
   return (
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <View style={styles.header}>
@@ -79,6 +90,12 @@ export default function DashboardScreen() {
         <Ionicons name="wallet-outline" size={28} color="#000" />
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.aiButton} onPress={() => router.push('/(tabs)/ai')}>
+        <Ionicons name="sparkles" size={20} color="#fff" />
+        <Text style={styles.aiButtonText}>AI ile Ürün Ekle</Text>
+        <Ionicons name="arrow-forward" size={18} color="#fff" />
+      </TouchableOpacity>
+
       <View style={styles.statsRow}>
         {stats.map((s) => (
           <View key={s.label} style={styles.statCard}>
@@ -87,6 +104,21 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>{s.label}</Text>
           </View>
         ))}
+      </View>
+
+      <View style={styles.orderStatusCard}>
+        <Text style={styles.orderStatusTitle}>Siparişler — Durum Dağılımı</Text>
+        <View style={styles.orderStatusGrid}>
+          {orderStatuses.map((s) => (
+            <TouchableOpacity key={s.key} style={[styles.orderStatusItem, { backgroundColor: s.bg }]} onPress={() => router.push('/(tabs)/orders')}>
+              <Text style={[styles.orderStatusCount, { color: s.color }]}>{orderStatusCounts[s.key] ?? 0}</Text>
+              <Text style={[styles.orderStatusLabel, { color: s.color }]} numberOfLines={1}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity style={styles.viewOrdersBtn} onPress={() => router.push('/(tabs)/orders')}>
+          <Text style={styles.viewOrdersText}>Tüm Siparişleri Gör →</Text>
+        </TouchableOpacity>
       </View>
 
       <Modal visible={langOpen} transparent animationType="slide" onRequestClose={() => setLangOpen(false)}>
@@ -139,12 +171,22 @@ const styles = StyleSheet.create({
   planLabel: { fontSize: 12, color: '#999', textTransform: 'uppercase', letterSpacing: 1 },
   planName: { fontSize: 18, fontWeight: '600', marginTop: 4 },
   planCredits: { fontSize: 13, color: '#059669', marginTop: 4, fontWeight: '600' },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12 },
+  aiButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10b981', marginHorizontal: 20, marginTop: 16, borderRadius: 12, paddingVertical: 14 },
+  aiButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginTop: 16 },
   statCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center',
   },
   statValue: { fontSize: 24, fontWeight: '700', marginTop: 8 },
   statLabel: { fontSize: 12, color: '#666', marginTop: 4 },
+  orderStatusCard: { backgroundColor: '#fff', marginHorizontal: 20, marginTop: 16, borderRadius: 12, padding: 16 },
+  orderStatusTitle: { fontSize: 14, fontWeight: '700', color: '#000', marginBottom: 12 },
+  orderStatusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  orderStatusItem: { width: '48%', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center' },
+  orderStatusCount: { fontSize: 22, fontWeight: '800' },
+  orderStatusLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  viewOrdersBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 8 },
+  viewOrdersText: { fontSize: 13, color: '#059669', fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },

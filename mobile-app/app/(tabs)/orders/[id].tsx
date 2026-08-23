@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, Modal, Pressable,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useI18n } from '../../../src/shared/i18n'
@@ -10,12 +10,23 @@ import type { DropshippingOrder, OrderStatusHistory } from '../../../src/shared/
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   pending: { bg: '#fff3e0', color: '#e65100' },
+  confirmed: { bg: '#e3f2fd', color: '#0d47a1' },
   processing: { bg: '#e3f2fd', color: '#1565c0' },
   shipped: { bg: '#ede7f6', color: '#4527a0' },
   delivered: { bg: '#e8f5e9', color: '#2e7d32' },
   cancelled: { bg: '#fce4ec', color: '#c62828' },
   returned: { bg: '#f3e5f5', color: '#6a1b9a' },
 }
+
+const STATUS_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'pending', labelKey: 'status_pending' },
+  { value: 'confirmed', labelKey: 'status_confirmed' },
+  { value: 'processing', labelKey: 'status_processing' },
+  { value: 'shipped', labelKey: 'status_shipped' },
+  { value: 'delivered', labelKey: 'status_delivered' },
+  { value: 'cancelled', labelKey: 'status_cancelled' },
+  { value: 'returned', labelKey: 'status_returned' },
+]
 
 export default function OrderDetailScreen() {
   const router = useRouter()
@@ -32,10 +43,27 @@ export default function OrderDetailScreen() {
   const [ratingComment, setRatingComment] = useState('')
   const [ratingBusy, setRatingBusy] = useState(false)
 
+  // New: status / tracking management
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(false)
+  const [trackingBusy, setTrackingBusy] = useState(false)
+  const [labelBusy, setLabelBusy] = useState(false)
+  const [labelData, setLabelData] = useState<{ labelUrl: string | null; labelZpl: string | null; cargoCompany: string | null } | null>(null)
+  const [newTrackingNumber, setNewTrackingNumber] = useState('')
+  const [newCarrier, setNewCarrier] = useState('')
+  const [refundBusy, setRefundBusy] = useState(false)
+
   async function load() {
     try {
       const res = await api.getAdminDropshippingOrder(parseInt(id, 10))
       setOrder(res)
+      setNewTrackingNumber((res as any).tracking_number || (res as any).trackingNumber || '')
+      setNewCarrier((res as any).carrier || (res as any).tracking_company || '')
+      setLabelData({
+        labelUrl: (res as any).label_url || (res as any).labelUrl || null,
+        labelZpl: (res as any).label_zpl || (res as any).labelZpl || null,
+        cargoCompany: (res as any).cargo_company || (res as any).cargoCompany || null,
+      })
       api.getAdminOrderCapabilities(id).then(setCapabilities).catch(() => setCapabilities(null))
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
@@ -75,6 +103,78 @@ export default function OrderDetailScreen() {
     try { await api.updateMarketplaceReturn(id, refundId, decision); Alert.alert('Başarılı', decision === 'approve' ? 'İade onaylandı' : 'İade reddedildi'); setRefundId('') }
     catch (e: any) { Alert.alert(t('error'), e.message) }
     finally { setMarketplaceBusy(false) }
+  }
+
+  async function handleStatusChange(newStatus: string) {
+    setStatusPickerOpen(false)
+    if (!order || newStatus === order.status) return
+    setStatusBusy(true)
+    try {
+      await api.updateOrderStatus(String(order.id), newStatus)
+      Alert.alert(t('success'), `${t('status_' + newStatus)} olarak güncellendi`)
+      load()
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message)
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+
+  async function handleTrackingSave() {
+    if (!newTrackingNumber.trim() || !newCarrier.trim()) {
+      Alert.alert(t('error'), 'Kargo takip no ve firma zorunludur (min 5 karakter)')
+      return
+    }
+    setTrackingBusy(true)
+    try {
+      await api.updateOrderTracking(String(order!.id), newTrackingNumber.trim(), newCarrier.trim())
+      Alert.alert(t('success'), 'Kargo bilgisi kaydedildi')
+      load()
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message)
+    } finally {
+      setTrackingBusy(false)
+    }
+  }
+
+  async function handleGetLabel() {
+    setLabelBusy(true)
+    try {
+      const res = await api.getOrderLabel(String(order!.id))
+      setLabelData(res)
+      if (res.labelUrl) {
+        Alert.alert(t('success'), `Etiket hazır: ${res.cargoCompany || ''}`)
+      } else {
+        Alert.alert(t('error'), res.reason || 'Etiket henüz hazır değil')
+      }
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message)
+    } finally {
+      setLabelBusy(false)
+    }
+  }
+
+  async function handleRefund() {
+    if (!order) return
+    Alert.alert('Para İadesi', 'Bu siparişe iade yapılsın mı?', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('ok'),
+        style: 'destructive',
+        onPress: async () => {
+          setRefundBusy(true)
+          try {
+            await api.refundOrder(String(order.id))
+            Alert.alert(t('success'), 'İade işlemi başlatıldı')
+            load()
+          } catch (e: any) {
+            Alert.alert(t('error'), e.message)
+          } finally {
+            setRefundBusy(false)
+          }
+        },
+      },
+    ])
   }
 
   if (loading) {
@@ -117,6 +217,45 @@ export default function OrderDetailScreen() {
         </View>
         <Text style={styles.total}>{formatPrice(order.grand_total ?? 0, order.currency)}</Text>
         {order.ordered_at ? <Text style={styles.meta}>{t('ordered')}: {formatDate(order.ordered_at)}</Text> : null}
+      </View>
+
+      {/* Order actions: status + tracking — requested feature 1 */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Sipariş İşlemleri</Text>
+        <Text style={styles.meta}>Durum değiştir, kargo bilgisi gir, etiket/fatura oluştur</Text>
+
+        <Text style={styles.label}>Sipariş Durumu</Text>
+        <TouchableOpacity style={styles.input} onPress={() => setStatusPickerOpen(true)} disabled={statusBusy}>
+          <Text style={styles.pickerValue}>{order.status ? t('status_' + order.status) : 'Seçin'}</Text>
+          <Text style={styles.pickerArrow}>▾</Text>
+        </TouchableOpacity>
+        {statusBusy && <ActivityIndicator size="small" style={{ marginTop: 8 }} />}
+
+        <Text style={styles.label}>Kargo Takip No</Text>
+        <TextInput value={newTrackingNumber} onChangeText={setNewTrackingNumber} placeholder="örn. 1234567890" style={styles.inputText} autoCapitalize="characters" />
+        <Text style={styles.label}>Kargo Firması</Text>
+        <TextInput value={newCarrier} onChangeText={setNewCarrier} placeholder="örn. Aras, Yurtiçi, MNG" style={styles.inputText} />
+        <TouchableOpacity style={[styles.actionBtn, { marginTop: 10 }]} onPress={handleTrackingSave} disabled={trackingBusy}>
+          {trackingBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionText}>Kargo Bilgisini Kaydet</Text>}
+        </TouchableOpacity>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.approveBtn} onPress={handleGetLabel} disabled={labelBusy}>
+            {labelBusy ? <ActivityIndicator size="small" /> : <Text style={styles.actionTextAlt}>Etiket Getir</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.approveBtn} onPress={() => api.createOrderInvoice(String(order.id)).then(() => Alert.alert(t('success'), 'Fatura oluşturuldu')).catch((e: any) => Alert.alert(t('error'), e.message))}>
+            <Text style={styles.actionTextAlt}>Fatura Oluştur</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.approveBtn} onPress={() => api.createShippingLabel(String(order.id)).then(() => Alert.alert(t('success'), 'Kargo etiketi oluşturuldu')).catch((e: any) => Alert.alert(t('error'), e.message))}>
+            <Text style={styles.actionTextAlt}>Kargo Etiketi</Text>
+          </TouchableOpacity>
+        </View>
+        {labelData?.labelUrl ? <Text style={styles.meta}>Etiket: {labelData.labelUrl}</Text> : null}
+        {order.tracking_number || order.tracking_company ? <Text style={styles.meta}>Kayıtlı: {order.tracking_company || newCarrier} - {order.tracking_number || newTrackingNumber}</Text> : null}
+
+        <TouchableOpacity style={[styles.rejectBtn, { marginTop: 8, backgroundColor: '#fff3e0', borderColor: '#e65100' }]} onPress={handleRefund} disabled={refundBusy}>
+          <Text style={[styles.rejectText, { color: '#e65100' }]}>Para İadesi Yap</Text>
+        </TouchableOpacity>
       </View>
 
       {capabilities && (capabilities.unsupported.length > 0 || !capabilities.integrationConnected) ? (
@@ -221,9 +360,9 @@ export default function OrderDetailScreen() {
       {order.marketplace === 'pazarama' && !(order as any).parent_order_id ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Pazarama işlemleri</Text>
-          <TextInput value={invoiceLink} onChangeText={setInvoiceLink} placeholder="Fatura PDF bağlantısı" style={styles.input} autoCapitalize="none" />
+          <TextInput value={invoiceLink} onChangeText={setInvoiceLink} placeholder="Fatura PDF bağlantısı" style={styles.inputText} autoCapitalize="none" />
           <TouchableOpacity style={styles.actionBtn} onPress={sendInvoice} disabled={marketplaceBusy || !invoiceLink}><Text style={styles.actionText}>Fatura bağlantısını gönder</Text></TouchableOpacity>
-          <TextInput value={refundId} onChangeText={setRefundId} placeholder="Pazarama iade ID" style={styles.input} autoCapitalize="none" />
+          <TextInput value={refundId} onChangeText={setRefundId} placeholder="Pazarama iade ID" style={styles.inputText} autoCapitalize="none" />
           <View style={styles.actionRow}><TouchableOpacity style={styles.approveBtn} onPress={() => updateReturn('approve')} disabled={marketplaceBusy || !refundId}><Text style={styles.actionText}>İadeyi onayla</Text></TouchableOpacity><TouchableOpacity style={styles.rejectBtn} onPress={() => updateReturn('reject')} disabled={marketplaceBusy || !refundId}><Text style={styles.rejectText}>İadeyi reddet</Text></TouchableOpacity></View>
         </View>
       ) : null}
@@ -258,7 +397,7 @@ export default function OrderDetailScreen() {
             value={ratingComment}
             onChangeText={setRatingComment}
             placeholder={t('supplierRateComment')}
-            style={styles.input}
+            style={styles.inputText}
             multiline
           />
           <View style={styles.actionRow}>
@@ -271,6 +410,23 @@ export default function OrderDetailScreen() {
           </View>
         </View>
       )}
+
+      <Modal visible={statusPickerOpen} transparent animationType="fade" onRequestClose={() => setStatusPickerOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setStatusPickerOpen(false)}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Sipariş Durumu Seç</Text>
+            {STATUS_OPTIONS.map((o) => (
+              <TouchableOpacity key={o.value} style={styles.modalOption} onPress={() => handleStatusChange(o.value)}>
+                <Text style={styles.modalOptionText}>{t(o.labelKey)}</Text>
+                {order.status === o.value ? <Text style={styles.check}>✓</Text> : null}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setStatusPickerOpen(false)}>
+              <Text style={styles.modalCancelText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </ScrollView>
   )
 }
@@ -290,6 +446,11 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, color: '#666', marginTop: 2 },
   line: { fontSize: 15, fontWeight: '600', marginTop: 2 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 10 },
+  label: { fontSize: 13, fontWeight: '600', color: '#333', marginTop: 10, marginBottom: 4 },
+  input: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#fff' },
+  inputText: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff', fontSize: 14, marginBottom: 4 },
+  pickerValue: { fontSize: 14, color: '#000' },
+  pickerArrow: { fontSize: 14, color: '#999' },
   badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 },
   badgeText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
@@ -301,12 +462,12 @@ const styles = StyleSheet.create({
   grandLabel: { fontSize: 15, fontWeight: '700' },
   grandValue: { fontSize: 15, fontWeight: '800' },
   tracking: { fontSize: 15, fontWeight: '700', marginTop: 2 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8, fontSize: 13 },
-  actionBtn: { backgroundColor: '#3949ab', borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 10 },
-  actionText: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  actionRow: { flexDirection: 'row', gap: 8 },
-  approveBtn: { flex: 1, backgroundColor: '#2e7d32', borderRadius: 8, padding: 10, alignItems: 'center' },
-  rejectBtn: { flex: 1, borderWidth: 1, borderColor: '#e57373', borderRadius: 8, padding: 10, alignItems: 'center' },
+  actionBtn: { backgroundColor: '#000', borderRadius: 8, padding: 12, alignItems: 'center', marginBottom: 6 },
+  actionText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  actionTextAlt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  approveBtn: { flex: 1, backgroundColor: '#e8f5e9', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#a5d6a7' },
+  rejectBtn: { flex: 1, borderWidth: 1, borderColor: '#e57373', borderRadius: 8, padding: 10, alignItems: 'center', backgroundColor: '#fff' },
   rejectText: { color: '#c62828', fontWeight: '700', fontSize: 12 },
   historyRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, marginRight: 10 },
@@ -319,4 +480,12 @@ const styles = StyleSheet.create({
   starsRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   star: { fontSize: 28, color: '#ccc' },
   starActive: { color: '#f59e0b' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, paddingBottom: 24 },
+  modalTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  modalOptionText: { fontSize: 15 },
+  modalCancel: { marginTop: 12, alignItems: 'center', paddingVertical: 12, backgroundColor: '#f5f5f5', borderRadius: 10 },
+  modalCancelText: { fontSize: 15, fontWeight: '600', color: '#666' },
+  check: { color: '#059669', fontWeight: '700' },
 })

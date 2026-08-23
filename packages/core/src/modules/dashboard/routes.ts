@@ -8,6 +8,7 @@ import { Plan } from '../../models/Plan.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
 import { authMiddleware, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
+import { sequelize } from '../../config/database.js';
 import { Op } from 'sequelize';
 
 export const dashboardRoutes: Router = Router();
@@ -22,6 +23,26 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
 
     const totalOrders = await DropshippingOrder.count({ where: { storeId: store.id } });
     const pendingOrders = await DropshippingOrder.count({ where: { storeId: store.id, status: 'pending' } });
+
+    // Per-status breakdown — use individual counts (more reliable than GROUP BY across dialects)
+    const statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'] as const;
+    const orderStatusCounts: Record<string, number> = {};
+    for (const s of statuses) {
+      orderStatusCounts[s] = await DropshippingOrder.count({ where: { storeId: store.id, status: s } });
+    }
+    // Also include any unexpected status values that may exist (e.g. legacy 'confirmed' vs 'completed')
+    try {
+      const rows: any[] = await DropshippingOrder.findAll({
+        where: { storeId: store.id },
+        attributes: ['status', [sequelize.fn('COUNT', sequelize.col('status')), 'count']],
+        group: ['status'],
+        raw: true,
+      } as any);
+      for (const r of rows) {
+        const k = String((r as any).status || '');
+        if (k && !(k in orderStatusCounts)) orderStatusCounts[k] = Number((r as any).count) || 0;
+      }
+    } catch { /* fallback counts already set */ }
 
     const revenueResult = await DropshippingOrder.findAll({
       where: { storeId: store.id, status: 'completed' },
@@ -78,6 +99,7 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
       activeProducts,
       totalOrders,
       pendingOrders,
+      orderStatusCounts,
       totalRevenue,
       activeIntegrations,
       lowStockCount,

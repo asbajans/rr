@@ -10,6 +10,7 @@ import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
 import type { AiCategory, AiChannel, AiChannelValidationResult, AiProductDraft, AiProductSession } from '../../src/shared/types'
 import { Ionicons } from '@expo/vector-icons'
+import SearchablePicker from '../../src/shared/SearchablePicker'
 
 const CHANNELS: { key: AiChannel; icon: any }[] = [
   { key: 'storefront', icon: 'storefront-outline' },
@@ -27,6 +28,13 @@ const CONDITIONS: { key: 'new' | 'refurbished' | 'used' | 'salvage'; label: stri
   { key: 'used', label: 'İkinci El' },
   { key: 'salvage', label: 'Çıkma' },
 ]
+
+type ChannelSelection = {
+  categoryId?: string | number | null
+  brandId?: string | null
+  brand?: string | null
+  attributes?: any[]
+}
 
 interface DraftForm {
   title: string
@@ -94,6 +102,16 @@ export default function AiScreen() {
   const [catPickerOpen, setCatPickerOpen] = useState(false)
   const [catQuery, setCatQuery] = useState('')
 
+  // Marketplace category/brand/attributes (web parity)
+  const [marketplaceTrees, setMarketplaceTrees] = useState<Record<string, any[]>>({})
+  const [categoriesFlat, setCategoriesFlat] = useState<any[]>([])
+  const [brands, setBrands] = useState<any[]>([])
+  const [selections, setSelections] = useState<Record<string, ChannelSelection>>({})
+  const [categoryAttrs, setCategoryAttrs] = useState<Record<string, any[]>>({})
+  const [loadingCategoryAttrs, setLoadingCategoryAttrs] = useState<Record<string, boolean>>({})
+  const [mpPicker, setMpPicker] = useState<{ mp: string; field: 'category' | 'brand' } | null>(null)
+  const [mpAttrPicker, setMpAttrPicker] = useState<{ mp: string; attributeId: number; attributeName: string; values: any[] } | null>(null)
+
   const loadDrafts = async () => {
     setDraftsLoading(true)
     try {
@@ -120,6 +138,87 @@ export default function AiScreen() {
       .catch(() => {})
   }, [aiEnabled])
 
+  // Load marketplace trees / brands / universal categories for per-channel selectors (web parity)
+  useEffect(() => {
+    if (!aiEnabled) return
+    ;(async () => {
+      try {
+        const res = await api.getMarketplaceTrees()
+        setMarketplaceTrees(res.trees ?? {})
+      } catch {}
+      try {
+        const res = await api.getCategoriesFlat()
+        setCategoriesFlat(res.data ?? [])
+      } catch {}
+      try {
+        const res = await api.getBrands()
+        setBrands(res ?? [])
+      } catch {}
+    })()
+  }, [aiEnabled])
+
+  function catOptionsFor(mp: string): { id: string; name: string }[] {
+    if (mp === 'storefront') {
+      return (categoriesFlat ?? []).map((c: any) => ({ id: String(c.id), name: (c.path || c.name) as string }))
+    }
+    const tree = marketplaceTrees[mp] ?? []
+    const opts: { id: string; name: string }[] = []
+    const walk = (nodes: any[], prefix: string) => {
+      nodes.forEach((n: any) => {
+        const name = prefix ? `${prefix} / ${n.name}` : n.name
+        opts.push({ id: String(n.marketplace_category_id ?? n.id), name })
+        if (n.children?.length) walk(n.children, name)
+      })
+    }
+    walk(tree, '')
+    return opts
+  }
+
+  function brandsFor(mp: string): { id: string; name: string }[] {
+    return brands
+      .filter((b: any) => {
+        if (b.isActive === false) return false
+        if (mp === 'storefront') return !b.marketplace || b.marketplace === 'storefront'
+        return b.marketplace === mp && !!b.marketplaceBrandId
+      })
+      .map((b: any) => ({ id: b.marketplaceBrandId!, name: b.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+  }
+
+  async function fetchCategoryAttrs(mp: string, catId: string | number | undefined) {
+    setLoadingCategoryAttrs((prev) => ({ ...prev, [mp]: true }))
+    try {
+      if (catId != null) {
+        const res = await api.getMarketplaceCategoryAttributes(mp, catId)
+        setCategoryAttrs((prev) => ({ ...prev, [mp]: res.attributes ?? [] }))
+      } else {
+        setCategoryAttrs((prev) => ({ ...prev, [mp]: [] }))
+      }
+    } catch {
+      setCategoryAttrs((prev) => ({ ...prev, [mp]: [] }))
+    } finally {
+      setLoadingCategoryAttrs((prev) => ({ ...prev, [mp]: false }))
+    }
+  }
+
+  function setChannelSelection(channel: string, patch: Partial<ChannelSelection>) {
+    setSelections((prev) => ({ ...prev, [channel]: { ...(prev[channel] || {}), ...patch } }))
+    setValidation([])
+  }
+
+  function setChannelAttrValue(channel: string, attributeId: number, value: number | string) {
+    const s = selections[channel] || {}
+    const current = Array.isArray(s.attributes) ? s.attributes : []
+    const idx = current.findIndex((a: any) => a.attributeId === attributeId)
+    const entry: any = { attributeId }
+    if (typeof value === 'string') entry.customValue = value
+    else entry.attributeValueId = value
+    let next: any[]
+    if (idx >= 0) { next = [...current]; next[idx] = entry }
+    else { next = [...current, entry] }
+    setChannelSelection(channel, { attributes: next })
+  }
+
   function setFormFromDraft(d: AiProductDraft) {
     setDraftForm({
       title: d.title || '',
@@ -142,6 +241,7 @@ export default function AiScreen() {
     setDraft(null)
     setDraftForm({ title: '', description: '', shortDescription: '', category: '', sku: '', price: '', stock: '10', keywords: '', tags: '', attributes: '' })
     setSelectedChannels([])
+    setSelections({})
     setValidation([])
     setPublishResults([])
     setError('')
@@ -369,10 +469,25 @@ export default function AiScreen() {
   }
 
   function toggleChannel(channel: AiChannel) {
-    setSelectedChannels((prev) =>
-      prev.includes(channel) ? prev.filter((c) => c !== channel) : [...prev, channel]
-    )
+    setSelectedChannels((prev) => {
+      const next = prev.includes(channel) ? prev.filter((c) => c !== channel) : [...prev, channel]
+      return next
+    })
     setValidation([])
+    // when deselecting, clear its selection; when selecting store existing catId's attrs if any
+    setSelections((prev) => {
+      const had = prev[channel]
+      if (selectedChannels.includes(channel)) {
+        const nxt = { ...prev }
+        delete nxt[channel]
+        return nxt
+      }
+      if (had?.categoryId != null && channel !== 'storefront') {
+        // will fetch attrs in next tick - schedule
+        setTimeout(() => fetchCategoryAttrs(channel, had.categoryId as any), 0)
+      }
+      return prev
+    })
   }
 
   async function handleValidate() {
@@ -380,7 +495,13 @@ export default function AiScreen() {
     setValidating(true)
     setError('')
     try {
-      setValidation(await api.validateAiProductChannels(draft.id, selectedChannels))
+      const allowed = selectedChannels.filter((c) => c !== 'storefront')
+      const cleanSelections: Record<string, ChannelSelection> = {}
+      for (const c of allowed) {
+        const s = selections[c] || {}
+        if (s.categoryId != null || s.brandId || s.brand) cleanSelections[c] = s
+      }
+      setValidation(await api.validateAiProductChannels(draft.id, selectedChannels, cleanSelections))
     } catch (err: any) {
       setError(err.message || t('aiLoadFailed'))
     } finally {
@@ -413,7 +534,29 @@ export default function AiScreen() {
     setSuccess('')
     setPublishResults([])
     try {
-      const res = await api.publishAiProductDraft(draft.id, selectedChannels)
+      // Save current form fields into draft before publish (web does this)
+      const price = draftForm.price ? Number(draftForm.price) : undefined
+      const stock = draftForm.stock ? Number(draftForm.stock) : undefined
+      const saved = await api.updateAiProductDraft(draft.id, {
+        title: draftForm.title,
+        description: draftForm.description,
+        shortDescription: draftForm.shortDescription,
+        categoryPath: draftForm.category.split(' > ').map((s) => s.trim()).filter(Boolean),
+        sku: draftForm.sku,
+        suggestedPrice: price,
+        quantity: stock,
+        keywords: draftForm.keywords.split(',').map((s) => s.trim()).filter(Boolean),
+        tags: draftForm.tags.split(',').map((s) => s.trim()).filter(Boolean),
+        attributes: parseAttributes(draftForm.attributes),
+      })
+      setDraft(saved)
+      const allowed = selectedChannels.filter((c) => c !== 'storefront')
+      const cleanSelections: Record<string, ChannelSelection> = {}
+      for (const c of allowed) {
+        const s = selections[c] || {}
+        if (s.categoryId != null || s.brandId || s.brand) cleanSelections[c] = s
+      }
+      const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels, cleanSelections)
       setPublishResults(res.results || [])
       setSuccess(t('aiPublishResult'))
       refreshMe()
@@ -422,6 +565,9 @@ export default function AiScreen() {
     } catch (err: any) {
       if (err?.code === 'PLAN_PRODUCT_LIMIT') {
         Alert.alert(t('error'), t('productLimitReached'))
+      } else if ((err as any)?.code === 'DRAFT_CHANNEL_VALIDATION_FAILED') {
+        setValidation((err as any)?.data?.results || [])
+        setError(t('aiChannelMissingFields'))
       } else {
         setError(err.message || t('aiSessionFailed'))
       }
@@ -529,7 +675,7 @@ export default function AiScreen() {
               {aiCategories.map((c) => {
                 const active = categoryId === c.id
                 return (
-                  <TouchableOpacity key={c.id} style={[styles.catChip, active && styles.catChipActive]} onPress={() => setCategoryId(c.id)}>
+                  <TouchableOpacity key={c.id} style={[styles.catChip, active && styles.catChipActive]} onPress={() => setCategoryId(active ? null : c.id)}>
                     <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{c.name}{c.isDefault ? ' ★' : ''}</Text>
                   </TouchableOpacity>
                 )
@@ -885,6 +1031,60 @@ export default function AiScreen() {
         )
       })}
 
+      {selectedChannels.filter((c) => c !== 'storefront').length > 0 && (
+        <View style={{ marginTop: 8 }}>
+          {selectedChannels.filter((c) => c !== 'storefront').map((mp) => {
+            const sel = selections[mp] || {}
+            const catOpts = catOptionsFor(mp)
+            const brOpts = brandsFor(mp)
+            const rawAttrs = Array.isArray(categoryAttrs[mp]) ? categoryAttrs[mp] : []
+            const attrs = rawAttrs.filter((a: any) => (a.attribute?.id ?? a.attributeId) != null)
+            const selCatName = catOpts.find((o) => String(o.id) === String(sel.categoryId))?.name || 'Kategori seç'
+            const selBrandName = brOpts.find((o) => String(o.id) === String(sel.brandId))?.name || sel.brand || 'Marka seç (opsiyonel)'
+            return (
+              <View key={mp} style={styles.mpCard}>
+                <Text style={styles.mpTitle}>{mp}</Text>
+                <TouchableOpacity style={[styles.input, styles.mpInputRow]} onPress={() => setMpPicker({ mp, field: 'category' })}>
+                  <Text style={sel.categoryId ? styles.pickerValue : styles.pickerPlaceholder} numberOfLines={1}>{selCatName}</Text>
+                  <Ionicons name="chevron-down" size={16} color="#999" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.input, styles.mpInputRow, { marginTop: 8 }]} onPress={() => setMpPicker({ mp, field: 'brand' })}>
+                  <Text style={sel.brandId || sel.brand ? styles.pickerValue : styles.pickerPlaceholder} numberOfLines={1}>{selBrandName}</Text>
+                  <Ionicons name="chevron-down" size={16} color="#999" />
+                </TouchableOpacity>
+                {sel.categoryId != null && loadingCategoryAttrs[mp] && <Text style={styles.helperText}>Özellikler yükleniyor...</Text>}
+                {sel.categoryId != null && !loadingCategoryAttrs[mp] && attrs.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={styles.mpSub}>Kategori Özellikleri</Text>
+                    {attrs.map((attr: any) => {
+                      const aid = attr.attribute?.id ?? attr.attributeId
+                      const aname = attr.attribute?.name ?? attr.name ?? `Özellik #${aid}`
+                      const required = attr.required
+                      const hasValues = Array.isArray(attr.attributeValues) && attr.attributeValues.length > 0
+                      const cur = (sel.attributes ?? []).find((a: any) => a.attributeId === aid)
+                      const curText = cur?.attributeValueId ? (attr.attributeValues?.find((v: any) => String(v.id) === String(cur.attributeValueId))?.value ?? String(cur.attributeValueId)) : cur?.customValue || ''
+                      return (
+                        <View key={aid} style={{ marginTop: 6 }}>
+                          <Text style={styles.fieldLabel}>{aname}{required ? ' *' : ''}</Text>
+                          {hasValues ? (
+                            <TouchableOpacity style={[styles.input, styles.mpInputRow]} onPress={() => setMpAttrPicker({ mp, attributeId: aid, attributeName: aname, values: attr.attributeValues })}>
+                              <Text style={curText ? styles.pickerValue : styles.pickerPlaceholder} numberOfLines={1}>{curText || 'Seçin'}</Text>
+                              <Ionicons name="chevron-down" size={16} color="#999" />
+                            </TouchableOpacity>
+                          ) : (
+                            <TextInput style={styles.input} value={cur?.customValue || ''} onChangeText={(v) => setChannelAttrValue(mp, aid, v)} placeholder="Değer girin" />
+                          )}
+                        </View>
+                      )
+                    })}
+                  </View>
+                )}
+              </View>
+            )
+          })}
+        </View>
+      )}
+
       {validation.length > 0 && (
         <View style={styles.metaCard}>
           {validation.map((r) => {
@@ -961,6 +1161,59 @@ export default function AiScreen() {
           <Text style={styles.publishBtnText}>{t('aiPublish')}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Marketplace pickers for AI channels */}
+      <SearchablePicker
+        visible={mpPicker !== null}
+        title={mpPicker?.field === 'category' ? 'Pazaryeri Kategorisi' : 'Marka'}
+        options={mpPicker ? (mpPicker.field === 'category' ? catOptionsFor(mpPicker.mp) : brandsFor(mpPicker.mp)) : []}
+        onSelect={(opt) => {
+          if (!mpPicker) return
+          if (mpPicker.field === 'category') {
+            if (opt) {
+              setChannelSelection(mpPicker.mp, { categoryId: opt.id, attributes: [] })
+              fetchCategoryAttrs(mpPicker.mp, opt.id)
+            } else {
+              setChannelSelection(mpPicker.mp, { categoryId: null, attributes: [] })
+              fetchCategoryAttrs(mpPicker.mp, undefined)
+            }
+          } else {
+            setChannelSelection(mpPicker.mp, { brandId: opt ? String(opt.id) : null, brand: opt ? opt.name : null })
+          }
+          setMpPicker(null)
+        }}
+        onClose={() => setMpPicker(null)}
+      />
+
+      <Modal visible={mpAttrPicker !== null} transparent animationType="slide" onRequestClose={() => setMpAttrPicker(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{mpAttrPicker?.attributeName}</Text>
+            <FlatList
+              data={mpAttrPicker?.values ?? []}
+              keyExtractor={(item: any) => String(item.id ?? item.valueId ?? item.value)}
+              style={styles.catList}
+              renderItem={({ item }: any) => (
+                <TouchableOpacity
+                  style={styles.catOption}
+                  onPress={() => {
+                    if (!mpAttrPicker) return
+                    const valId = item.id ?? item.valueId ?? item.value
+                    setChannelAttrValue(mpAttrPicker.mp, mpAttrPicker.attributeId, Number(valId) || String(valId))
+                    setMpAttrPicker(null)
+                  }}
+                >
+                  <Text style={styles.catOptionText}>{item.value ?? item.name ?? String(item.id)}</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.catEmpty}>Seçenek yok</Text>}
+            />
+            <TouchableOpacity style={styles.catCancelBtn} onPress={() => setMpAttrPicker(null)}>
+              <Text style={styles.catCancelText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   )
 }
@@ -1047,6 +1300,10 @@ const styles = StyleSheet.create({
   channelName: { fontSize: 15, fontWeight: '600', color: '#333', flex: 1 },
   channelNameActive: { color: '#7c3aed' },
   channelBadge: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  mpCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e5e7eb' },
+  mpTitle: { fontSize: 13, fontWeight: '700', color: '#7c3aed', marginBottom: 8, textTransform: 'capitalize' },
+  mpSub: { fontSize: 12, fontWeight: '600', color: '#666', marginBottom: 4 },
+  mpInputRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   channelBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   channelActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   publishActions: { flexDirection: 'row', gap: 8, marginTop: 12 },

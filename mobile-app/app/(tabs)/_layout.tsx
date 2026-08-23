@@ -59,7 +59,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="b2b/requests"
         options={{
-          href: b2bEnabled ? undefined : null,
+          href: null,
           title: t('b2bRequests'),
           tabBarLabel: t('b2bRequests'),
           tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,

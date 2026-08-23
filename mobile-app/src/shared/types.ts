@@ -168,6 +168,7 @@ export type DashboardData = {
     active_integrations: number
     low_stock_count: number
   }
+  orderStatusCounts?: Record<string, number>
 }
 
 export type Order = {

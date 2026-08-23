@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Image,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Image, Share,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
@@ -68,6 +68,7 @@ export default function ProductDetailScreen() {
   const [categoriesFlat, setCategoriesFlat] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
   const [picker, setPicker] = useState<{ mp: string; field: 'category' | 'brand' } | null>(null)
+  const [siteCode, setSiteCode] = useState('')
 
   function catOptionsFor(mp: string): { id: string; name: string }[] {
     if (mp === 'Kendi Sitem') {
@@ -116,8 +117,18 @@ export default function ProductDetailScreen() {
         const res = await api.getBrands()
         setBrands(res ?? [])
       } catch {}
+      try {
+        const s = await api.getSettings()
+        setSiteCode(s.site_code || '')
+      } catch {}
     })()
   }, [])
+
+  async function shareProduct() {
+    if (!siteCode) { Alert.alert(t('error'), 'Mağaza site kodu bulunamadı'); return }
+    const url = `https://rahatio.com.tr/stores/${siteCode}/products/${id}`
+    try { await Share.share({ message: `${label}\n${url}`, url, title: label }) } catch {}
+  }
 
   async function load() {
     try {
@@ -307,7 +318,14 @@ export default function ProductDetailScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>&lt; {t('back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.code}>#{product.code}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={styles.code}>#{product.code}</Text>
+          {marketplaces.includes('Kendi Sitem') && status && siteCode ? (
+            <TouchableOpacity style={styles.shareBtn} onPress={shareProduct}>
+              <Text style={styles.shareBtnText}>Paylaş</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       {editingImg !== null && (
@@ -550,4 +568,6 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
   delBtn: { backgroundColor: '#fce4ec', marginHorizontal: 20, marginTop: 12, marginBottom: 30 },
   delBtnText: { color: '#c62828', fontSize: 16, fontWeight: '600' },
+  shareBtn: { backgroundColor: '#e0f2fe', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  shareBtnText: { color: '#0284c7', fontSize: 12, fontWeight: '700' },
 })

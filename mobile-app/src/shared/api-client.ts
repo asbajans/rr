@@ -246,6 +246,7 @@ class ApiClient {
         active_integrations: r.activeIntegrations ?? 0,
         low_stock_count: r.lowStockCount ?? 0,
       },
+      orderStatusCounts: r.orderStatusCounts ?? {},
     } as DashboardData
   }
 
@@ -644,13 +645,17 @@ class ApiClient {
     return r.draft as AiProductDraft
   }
 
-  async validateAiProductChannels(id: number, channels: string[]) {
-    const r = await this.post<{ results: AiChannelValidationResult[] }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels })
+  async validateAiProductChannels(id: number, channels: string[], selections?: Record<string, any>) {
+    const body: any = { channels }
+    if (selections && Object.keys(selections).length) body.selections = selections
+    const r = await this.post<{ results: AiChannelValidationResult[] }>(`/api/ai/product-drafts/${id}/validate-channels`, body)
     return (r.results || []) as AiChannelValidationResult[]
   }
 
-  async publishAiProductDraft(id: number, channels: string[]) {
-    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels })
+  async publishAiProductDraft(id: number, channels: string[], selections?: Record<string, any>) {
+    const body: any = { channels }
+    if (selections && Object.keys(selections).length) body.selections = selections
+    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, body)
   }
 
   async retryAiProductPublish(id: number, channels?: string[]) {
@@ -761,6 +766,57 @@ class ApiClient {
   async getAdminDropshippingOrder(id: number) {
     const r = await this.get<any>(`/api/admin/orders/${id}`)
     return this.mapOrder(r.order || r.data || r)
+  }
+
+  // Order management (status/tracking/label/refund etc.)
+  updateOrderStatus(id: string, status: string, note?: string) {
+    return this.put<any>(`/api/admin/orders/${id}/status`, { status, note })
+  }
+
+  updateOrderTracking(id: string, trackingNumber: string, carrier?: string) {
+    return this.put<any>(`/api/admin/orders/${id}/tracking`, { trackingNumber, carrier })
+  }
+
+  getOrderLabel(id: string) {
+    return this.get<{ labelUrl: string | null; labelZpl: string | null; cargoCompany: string | null; reason?: string | null }>(`/api/admin/orders/${id}/label`)
+  }
+
+  createOrderInvoice(id: string, provider = 'manual') {
+    return this.post<any>(`/api/admin/orders/${id}/invoice`, { provider })
+  }
+
+  createShippingLabel(id: string, provider = 'manual') {
+    return this.post<any>(`/api/admin/orders/${id}/shipping-label`, { provider })
+  }
+
+  refundOrder(id: string, amount?: number, reason?: string) {
+    return this.post<{ success: boolean; refId: string; paymentStatus: string }>(`/api/admin/orders/${id}/refund`, { amount, reason })
+  }
+
+  // Product / marketplace sync
+  syncProduct(productId: string | number, marketplaces?: string[]) {
+    return this.post<{ jobId: string; message: string }>(`/api/admin/products/${productId}/sync`, { marketplaces })
+  }
+
+  syncAllToMarketplace(marketplace: string) {
+    return this.post<{ success: boolean; enqueued: number; message: string }>(`/api/admin/integrations/${marketplace}/sync-all`)
+  }
+
+  getMarketplaceIntegrations() {
+    return this.get<{ integrations: any[] }>('/api/admin/integrations').then(r => r.integrations || [])
+  }
+
+  getMarketplaceCategoryAttributes(marketplace: string, categoryId: string | number) {
+    return this.get<{ attributes: any[] }>(`/api/admin/integrations/${marketplace}/categories/${categoryId}/attributes`)
+  }
+
+  // AI product studio channel selections (marketplace category/brand/attributes)
+  async validateAiProductChannelsWithSelections(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null; attributes?: any[] }>) {
+    return this.post<{ results: AiChannelValidationResult[] }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels, ...(selections ? { selections } : {}) }).then(r => r.results || [])
+  }
+
+  async publishAiProductDraftWithSelections(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null; attributes?: any[] }>) {
+    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels, ...(selections ? { selections } : {}) })
   }
 
   // Admin API Keys

@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 
-type Tab = 'profile' | 'orders' | 'settlements'
+type Tab = 'profile' | 'orders' | 'settlements' | 'requests'
 
 const fmt = (n: number | string | null | undefined) => {
   if (n === null || n === undefined) return '—'
@@ -21,6 +21,8 @@ const statusColor = (s?: string) => {
     case 'shipped': return '#4f46e5'
     case 'requested': return '#d97706'
     case 'paid': return '#059669'
+    case 'approved': return '#059669'
+    case 'pending': return '#d97706'
     default: return '#6b7280'
   }
 }
@@ -69,6 +71,11 @@ export default function SupplierScreen() {
   const [tracking, setTracking] = useState('')
   const [shipping, setShipping] = useState(false)
 
+  // B2B Requests (moved inside supplier)
+  const [b2bRequests, setB2bRequests] = useState<any[]>([])
+  const [b2bTab, setB2bTab] = useState<'incoming' | 'outgoing'>('incoming')
+  const [b2bLoading, setB2bLoading] = useState(false)
+
   async function loadProfile() {
     try {
       const p = await api.getSupplierProfile()
@@ -108,6 +115,18 @@ export default function SupplierScreen() {
     } catch { setPeriodData(null) }
   }
 
+  async function loadB2bRequests() {
+    setB2bLoading(true)
+    try {
+      const res = await api.getB2bRequests({ type: b2bTab })
+      setB2bRequests(res.data || [])
+    } catch {
+      setB2bRequests([])
+    } finally {
+      setB2bLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadProfile().finally(() => setLoading(false))
   }, [])
@@ -115,11 +134,17 @@ export default function SupplierScreen() {
   useEffect(() => {
     if (tab === 'orders') loadOrders()
     if (tab === 'settlements') { loadSettlements(); loadPeriod() }
+    if (tab === 'requests') loadB2bRequests()
   }, [tab])
+
+  useEffect(() => {
+    if (tab === 'requests') loadB2bRequests()
+  }, [b2bTab])
 
   function onRefresh() {
     setRefreshing(true)
-    Promise.all([tab === 'orders' ? loadOrders() : loadProfile()]).finally(() => setRefreshing(false))
+    const p = tab === 'orders' ? loadOrders() : tab === 'requests' ? loadB2bRequests() : tab === 'settlements' ? loadSettlements() : loadProfile()
+    Promise.resolve(p).finally(() => setRefreshing(false))
   }
 
   async function saveProfile() {
@@ -171,6 +196,29 @@ export default function SupplierScreen() {
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
     }
+  }
+
+  // B2B request actions
+  async function approveB2b(id: string) {
+    try {
+      await api.updateB2bRequest(id, 'approved')
+      Alert.alert(t('success'), t('b2bRequestApproved'))
+      loadB2bRequests()
+    } catch (e: any) { Alert.alert(t('error'), e.message) }
+  }
+  async function rejectB2b(id: string) {
+    try {
+      await api.updateB2bRequest(id, 'rejected')
+      Alert.alert(t('success'), t('b2bRequestRejected'))
+      loadB2bRequests()
+    } catch (e: any) { Alert.alert(t('error'), e.message) }
+  }
+  async function cloneB2b(id: string) {
+    try {
+      await api.cloneB2bRequest(id)
+      Alert.alert(t('success'), t('b2bCloned'))
+      loadB2bRequests()
+    } catch (e: any) { Alert.alert(t('error'), e.message) }
   }
 
   function pickDocSource(key: DocKey, source: 'camera' | 'gallery') {
@@ -257,6 +305,7 @@ export default function SupplierScreen() {
           { key: 'profile', label: t('supplierProfile') },
           { key: 'orders', label: t('supplierOrders') },
           { key: 'settlements', label: t('supplierSettlements') },
+          { key: 'requests', label: t('b2bRequests') },
         ] as const).map((tItem) => (
           <TouchableOpacity key={tItem.key} style={[styles.tabBtn, tab === tItem.key && styles.tabActive]}
             onPress={() => setTab(tItem.key)}>
@@ -269,7 +318,11 @@ export default function SupplierScreen() {
         <View style={styles.center}><ActivityIndicator size="large" /></View>
       ) : (
         <FlatList
-          data={tab === 'orders' ? orders : tab === 'settlements' ? settlements : []}
+          data={
+            tab === 'orders' ? orders :
+            tab === 'settlements' ? settlements :
+            tab === 'requests' ? b2bRequests : []
+          }
           keyExtractor={(item, i) => String((item as any).id ?? i)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
@@ -414,12 +467,62 @@ export default function SupplierScreen() {
                 </View>
               )}
 
+              {tab === 'requests' && (
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>{t('b2bRequests')}</Text>
+                  <View style={styles.b2bTabRow}>
+                    <TouchableOpacity style={[styles.b2bTab, b2bTab === 'incoming' && styles.b2bTabActive]} onPress={() => setB2bTab('incoming')}>
+                      <Text style={[styles.b2bTabText, b2bTab === 'incoming' && styles.b2bTabTextActive]}>{t('b2bIncoming')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.b2bTab, b2bTab === 'outgoing' && styles.b2bTabActive]} onPress={() => setB2bTab('outgoing')}>
+                      <Text style={[styles.b2bTabText, b2bTab === 'outgoing' && styles.b2bTabTextActive]}>{t('b2bOutgoing')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {b2bLoading && <ActivityIndicator size="small" style={{ marginTop: 8 }} />}
+                  {!b2bLoading && b2bRequests.length === 0 && <Text style={styles.empty}>{t('b2bNoRequests')}</Text>}
+                </View>
+              )}
+
               {tab === 'orders' && orders.length === 0 && (
                 <Text style={styles.empty}>{t('supplierNoOrders')}</Text>
               )}
             </View>
           }
           renderItem={({ item }) => {
+            if (tab === 'requests') {
+              const r = item as any
+              const isIncoming = b2bTab === 'incoming'
+              const status = r.status
+              return (
+                <View style={styles.card}>
+                  <View style={styles.orderRow}>
+                    <View style={styles.orderLeft}>
+                      <Text style={styles.orderNumber}>{r.product?.label || r.product_id}</Text>
+                      <Text style={styles.orderMeta}>{isIncoming ? r.from_store_name : r.to_store_name} · {r.status}</Text>
+                      {r.note ? <Text style={styles.orderMeta}>{r.note}</Text> : null}
+                    </View>
+                    <Text style={[styles.statusBadge, { color: statusColor(status) }]}>{status}</Text>
+                  </View>
+                  <View style={styles.actions}>
+                    {isIncoming && status === 'pending' ? (
+                      <>
+                        <TouchableOpacity style={styles.actAccept} onPress={() => approveB2b(r.id)}>
+                          <Text style={styles.actAcceptText}>{t('confirm')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actReject} onPress={() => rejectB2b(r.id)}>
+                          <Text style={styles.actRejectText}>{t('cancel')}</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : null}
+                    {!isIncoming && status === 'approved' ? (
+                      <TouchableOpacity style={styles.actShip} onPress={() => cloneB2b(r.id)}>
+                        <Text style={styles.actShipText}>{t('b2bClone')}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              )
+            }
             const o = item as any
             const status = o.supplierStatus || o.status
             return (
@@ -461,7 +564,7 @@ export default function SupplierScreen() {
             )
           }}
           ListEmptyComponent={
-            tab === 'orders' ? null : <View style={{ paddingVertical: 32 }} />
+            tab === 'orders' || tab === 'requests' ? null : <View style={{ paddingVertical: 32 }} />
           }
         />
       )}
@@ -494,7 +597,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: '#000' },
   subtitle: { fontSize: 13, color: '#666', marginTop: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginTop: 14 },
+  tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginTop: 14, flexWrap: 'wrap' },
   tabBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#f4f4f5' },
   tabActive: { backgroundColor: '#000' },
   tabText: { fontSize: 12, fontWeight: '600', color: '#666' },
@@ -540,6 +643,11 @@ const styles = StyleSheet.create({
   actShip: { flex: 1, backgroundColor: '#eef2ff', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
   actShipText: { color: '#4f46e5', fontSize: 12, fontWeight: '700' },
   empty: { textAlign: 'center', color: '#999', paddingVertical: 40 },
+  b2bTabRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  b2bTab: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, backgroundColor: '#fff', alignItems: 'center', paddingVertical: 8 },
+  b2bTabActive: { backgroundColor: '#000', borderColor: '#000' },
+  b2bTabText: { fontSize: 12, fontWeight: '600', color: '#333' },
+  b2bTabTextActive: { color: '#fff' },
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   statBox: { flex: 1, backgroundColor: '#f4f4f5', borderRadius: 10, padding: 10 },
   statEmphasis: { backgroundColor: '#ecfdf5' },
