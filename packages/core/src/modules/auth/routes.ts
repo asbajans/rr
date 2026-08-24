@@ -156,6 +156,7 @@ router.post('/register', [
         site_code: store.siteCode,
         domain: store.domain,
         email: store.email,
+        plan: serializePlan(freePlan),
       },
     });
   } catch (error) {
@@ -205,6 +206,7 @@ router.post('/login', [
         site_code: user.store.siteCode,
         domain: user.store.domain,
         email: user.store.email,
+        plan: user.store.plan ? serializePlan(user.store.plan as any) : null,
       },
     });
   } catch (error) {

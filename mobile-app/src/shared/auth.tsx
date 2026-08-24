@@ -63,16 +63,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.setToken(res.token)
     setToken(res.token)
     setUser(res.user)
+    try { await refreshMe() } catch {}
     registerPushToken()
-  }, [registerPushToken])
+  }, [registerPushToken, refreshMe])
 
   const register = useCallback(async (name: string, email: string, password: string, store_name?: string) => {
     const res = await api.register(name, email, password, store_name)
     await api.setToken(res.token)
     setToken(res.token)
     setUser(res.user)
+    try { await refreshMe() } catch {}
     registerPushToken()
-  }, [registerPushToken])
+  }, [registerPushToken, refreshMe])
 
   const logout = useCallback(async () => {
     try { await api.logout() } catch {}
@@ -83,12 +85,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const can = useCallback((moduleKey: string): boolean => {
-    const modules = store?.plan?.modules
-    if (!modules) return false // selected-modules-only: unlisted modules are disabled
-    const mod = modules[moduleKey]
+    const modules = store?.plan?.modules as Record<string, unknown> | null | undefined
+    // If plan has no modules config at all, treat as open (legacy / default-enabled)
+    if (!modules || Object.keys(modules).length === 0) return true
+    const mod = (modules as Record<string, unknown>)[moduleKey]
     if (mod === undefined || mod === null) return false
     if (typeof mod === 'boolean') return mod
-    return mod.enabled === true
+    return (mod as { enabled?: boolean }).enabled === true
   }, [store])
 
   const productLimit = store?.plan?.product_limit ?? -1

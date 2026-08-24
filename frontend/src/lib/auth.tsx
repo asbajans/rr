@@ -69,8 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const can = useCallback((moduleKey: string): boolean => {
-    const modules = store?.plan?.modules
-    if (!modules) return false // selected-modules-only: unlisted modules are disabled
+    const modules = store?.plan?.modules as Record<string, unknown> | null | undefined
+    if (!modules || Object.keys(modules).length === 0) return true
     const mod = (modules as Record<string, unknown>)[moduleKey]
     if (mod === undefined || mod === null) return false
     if (typeof mod === 'boolean') return mod

@@ -53,10 +53,10 @@ export async function getPlanForStore(store: Store): Promise<Plan | null> {
 }
 
 export function isModuleEnabled(plan: Plan | null, key: ModuleKey): boolean {
+  // If plan has no modules object at all, treat as fully open (legacy plans / default open)
+  if (!plan || !plan.modules || Object.keys(plan.modules as object).length === 0) return true;
   const mod = getModuleSettings(plan, key);
-  // Selected-modules-only: a module is enabled only when it is explicitly
-  // listed in the plan (enabled: true). Unlisted modules are disabled so
-  // plans actually behave according to what the super admin configured.
+  // Selected-modules-only: unlisted modules are disabled only when plan explicitly lists some modules
   if (!mod) return false;
   return mod.enabled;
 }

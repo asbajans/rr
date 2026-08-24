@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth'
 import { Product, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '@/lib/types'
-import { Sparkles, Camera, Coins, ArrowUpRight, Package } from 'lucide-react'
+import { Sparkles, Camera, Coins, ArrowUpRight, Package, ExternalLink, Share2 } from 'lucide-react'
 import { TableSkeleton, EmptyState } from '@/components/ui/skeleton'
+import { storeBase } from '@/lib/store-path'
 
 interface Filters {
   marketplaces: string[]
@@ -45,7 +46,8 @@ function firstMd(p?: Product): MarketplaceEntry | undefined {
 
 export default function ProductsPage() {
   const router = useRouter()
-  const { productLimit, can, refreshMe } = useAuth()
+  const { productLimit, can, refreshMe, store } = useAuth()
+  const siteCode = store?.site_code || ''
   const [planGate, setPlanGate] = useState<null | { type: 'product' | 'credits'; current?: number; limit?: number; required?: number }>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -1113,6 +1115,17 @@ on_sale: !!md.on_sale,
                         <button onClick={() => openModal(p)} className="text-indigo-600 hover:underline">
                           Düzenle
                         </button>
+                        {(p.marketplaces ?? []).includes('Kendi Sitem') && siteCode && (
+                          <a
+                            href={`${storeBase(siteCode)}/products/${p.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sky-600 hover:underline"
+                            title="Yeni sekmede ürünü gör"
+                          >
+                            <ExternalLink className="h-3 w-3" /> Gör
+                          </a>
+                        )}
                         <button
                           onClick={async () => {
                             setSyncingPid(p.id)

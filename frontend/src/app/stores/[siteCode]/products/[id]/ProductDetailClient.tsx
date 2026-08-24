@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag, Share2, Copy, MessageCircle } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import { storeBase } from '@/lib/store-path'
@@ -37,6 +37,8 @@ export default function ProductDetailClient({
   const [loadingRecs, setLoadingRecs] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [zoomImage, setZoomImage] = useState<string | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (initialProduct) return
@@ -118,6 +120,33 @@ export default function ProductDetailClient({
     : product?.image
     ? [product.image]
     : []
+
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
+  const shareTitle = product?.['product.label'] || ''
+
+  async function handleNativeShare() {
+    const text = `${shareTitle} ${shareUrl}`
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try { await (navigator as any).share({ title: shareTitle, text, url: shareUrl }); return } catch {}
+    }
+    setShareOpen(true)
+  }
+
+  async function copyLink() {
+    try {
+      if (navigator.clipboard) await navigator.clipboard.writeText(shareUrl)
+      else {
+        const ta = document.createElement('textarea')
+        ta.value = shareUrl
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
 
   function handleAddToCart() {
     if (!product) return
@@ -211,7 +240,12 @@ export default function ProductDetailClient({
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold text-zinc-900">{product['product.label']}</h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-bold text-zinc-900 flex-1">{product['product.label']}</h1>
+            <button onClick={handleNativeShare} className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 shrink-0" title="Paylaş">
+              <Share2 className="h-4 w-4" /> Paylaş
+            </button>
+          </div>
           {product.price !== null && (
             <p className="mt-4 text-2xl font-semibold text-zinc-900">
               {product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {product.currency ?? 'TRY'}
@@ -326,6 +360,30 @@ export default function ProductDetailClient({
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg" />
           <button onClick={() => setZoomImage(null)}
             className="absolute top-4 right-4 text-white/80 hover:text-white text-3xl font-bold">&times;</button>
+        </div>
+      )}
+
+      {shareOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4" onClick={() => setShareOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-zinc-900">Paylaş</h3>
+            <p className="mt-1 text-xs text-zinc-500 break-all">{shareUrl}</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <a href={`https://wa.me/?text=${encodeURIComponent(shareTitle + ' ' + shareUrl)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-green-700">
+                <MessageCircle className="h-4 w-4" /> WhatsApp
+              </a>
+              <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
+                Facebook
+              </a>
+              <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-sky-600">
+                X
+              </a>
+              <button onClick={copyLink} className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                <Copy className="h-4 w-4" /> {copied ? 'Kopyalandı!' : 'Bağlantıyı Kopyala'}
+              </button>
+            </div>
+            <button onClick={() => setShareOpen(false)} className="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">Kapat</button>
+          </div>
         </div>
       )}
     </div>
