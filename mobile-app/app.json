@@ -18,10 +18,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rahatio.mobile"
+      "bundleIdentifier": "com.rahatio.mobile",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.rahatio.mobile",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#F7F7F7"
