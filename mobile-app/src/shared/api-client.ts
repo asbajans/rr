@@ -730,11 +730,12 @@ class ApiClient {
   }
 
   // Dropshipping / Marketplace Orders (uses same /api/admin/orders endpoint)
-  async getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number; search?: string }) {
+  async getAdminDropshippingOrders(params?: { status?: string; marketplace?: string; page?: number; limit?: number; search?: string }) {
     const queryParams: Record<string, string> = {}
     if (params?.status) queryParams.status = params.status
     if (params?.marketplace) queryParams.marketplace = params.marketplace
     if (params?.page) queryParams.page = String(params.page)
+    if (params?.limit) queryParams.limit = String(Math.min(params.limit, 100))
     if (params?.search) queryParams.search = params.search
     const r = await this.get<any>('/api/admin/orders', { params: Object.keys(queryParams).length ? queryParams : undefined })
     const ordersRaw = r.orders || r.data || []
@@ -1007,9 +1008,10 @@ class ApiClient {
   }
 
   // B2B discover / requests / clone
-  async getB2bDiscover(params?: { page?: number; search?: string }) {
+  async getB2bDiscover(params?: { page?: number; limit?: number; search?: string }) {
     const filters: Record<string, string> = {}
     if (params?.page) filters.page = String(params.page)
+    if (params?.limit) filters.limit = String(Math.min(params.limit, 100))
     if (params?.search) filters.search = params.search
     const raw = await this.get<any>('/api/admin/b2b/discover', { params: filters })
     const products = (raw.products || []).map((p: any) => ({

@@ -110,7 +110,7 @@ export default function DashboardScreen() {
         <Text style={styles.orderStatusTitle}>Siparişler — Durum Dağılımı</Text>
         <View style={styles.orderStatusGrid}>
           {orderStatuses.map((s) => (
-            <TouchableOpacity key={s.key} style={[styles.orderStatusItem, { backgroundColor: s.bg }]} onPress={() => router.push('/(tabs)/orders')}>
+            <TouchableOpacity key={s.key} style={[styles.orderStatusItem, { backgroundColor: s.bg }]} onPress={() => router.push(`/(tabs)/orders?status=${s.key}`)}>
               <Text style={[styles.orderStatusCount, { color: s.color }]}>{orderStatusCounts[s.key] ?? 0}</Text>
               <Text style={[styles.orderStatusLabel, { color: s.color }]} numberOfLines={1}>{s.label}</Text>
             </TouchableOpacity>

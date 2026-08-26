@@ -22,6 +22,7 @@ const TAB_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
+  confirmed: 'bg-sky-100 text-sky-700',
   processing: 'bg-blue-100 text-blue-700',
   shipped: 'bg-purple-100 text-purple-700',
   delivered: 'bg-green-100 text-green-700',
@@ -31,12 +32,24 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Beklemede',
+  confirmed: 'Onaylandı',
   processing: 'Hazırlanıyor',
   shipped: 'Kargoda',
   delivered: 'Teslim Edildi',
   cancelled: 'İptal Edildi',
   returned: 'İade Edildi',
 }
+
+const STATUS_FILTERS = [
+  { value: '', label: 'Tümü' },
+  { value: 'pending', label: 'Beklemede' },
+  { value: 'confirmed', label: 'Onaylandı' },
+  { value: 'processing', label: 'Hazırlanıyor' },
+  { value: 'shipped', label: 'Kargoda' },
+  { value: 'delivered', label: 'Teslim Edildi' },
+  { value: 'cancelled', label: 'İptal Edildi' },
+  { value: 'returned', label: 'İade Edildi' },
+]
 
 interface DropshippingOrder {
   id: number
@@ -51,7 +64,7 @@ interface DropshippingOrder {
   order_date: string
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 interface ImportStatus {
   state: 'importing' | 'success' | 'error'
@@ -72,11 +85,12 @@ export default function OrdersPage() {
   const [reloadKey, setReloadKey] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    api.getOrders({ page, limit: PAGE_SIZE, marketplace: tab || undefined, status: activeFilter || undefined, search: search || undefined })
+    api.getOrders({ page, limit: pageSize, marketplace: tab || undefined, status: activeFilter || undefined, search: search || undefined })
       .then(r => {
         setOrders(r.orders)
         setTotalPages(Math.max(1, r.pagination?.totalPages || 1))
@@ -84,7 +98,7 @@ export default function OrdersPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [user, tab, activeFilter, search, reloadKey, page])
+  }, [user, tab, activeFilter, search, reloadKey, page, pageSize])
 
   if (!user) return null
 
@@ -241,6 +255,21 @@ export default function OrdersPage() {
         )}
       </div>
 
+      {/* Status Filter */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">Durum:</span>
+        {STATUS_FILTERS.map(s => (
+          <button key={s.value} onClick={() => { setActiveFilter(s.value); setPage(1) }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              activeFilter === s.value
+                ? 'border-zinc-900 bg-zinc-900 text-white'
+                : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+            }`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <TableSkeleton rows={6} cols={6} />
       ) : (
@@ -292,24 +321,38 @@ export default function OrdersPage() {
       )}
 
       {/* Pagination */}
-      {!loading && totalPages > 1 && (
+      {!loading && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-zinc-500">
             Sayfa {page} / {totalPages}
           </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">
-              &larr; Önceki
-            </button>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">
-              Sonraki &rarr;
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Sayfa başına:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs"
+              >
+                {PAGE_SIZE_OPTIONS.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">
+                &larr; Önceki
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">
+                Sonraki &rarr;
+              </button>
+            </div>
           </div>
         </div>
       )}

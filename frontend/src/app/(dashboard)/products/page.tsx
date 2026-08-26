@@ -908,16 +908,15 @@ on_sale: !!md.on_sale,
             value={perPage}
             onChange={(e) => {
               setPage(1)
-              setPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))
+              setPerPage(Number(e.target.value))
             }}
             className="border rounded px-2 py-1 text-sm"
           >
-            {[25, 50, 100, 500].map((n) => (
+            {[25, 50, 100].map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
             ))}
-            <option value="all">Tümü</option>
           </select>
         </div>
         <div className="flex items-center gap-2">

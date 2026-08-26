@@ -52,6 +52,11 @@ mobile-app/.expo/
 mobile-app/android/app/build/
 mobile-app/ios/build/
 
+# Secrets / service account keys
+mobile-app/rahatio-*.json
+google-services.json
+GoogleService-Info.plist
+
 # Slave
 slave/vercel/.vercel/
 slave/php/vendor/

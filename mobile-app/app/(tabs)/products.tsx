@@ -35,7 +35,7 @@ export default function ProductsScreen() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [lastPage, setLastPage] = useState(1)
-  const [perPage, setPerPage] = useState<number | 'all'>(25)
+  const [perPage, setPerPage] = useState<number>(25)
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -291,12 +291,11 @@ export default function ProductsScreen() {
         <View style={styles.pagerLeft}>
           <Text style={styles.pagerLabel}>{t('perPage')}:</Text>
           <TouchableOpacity style={styles.pagerSelect} onPress={() => {
-            const opts = [25, 50, 100, 500, 'all'] as (number | 'all')[]
-            const cur = opts.indexOf(perPage)
-            const next = opts[(cur + 1) % opts.length]
-            setPage(1); setPerPage(next)
+            const opts = [10, 25, 50, 100] as number[]
+            const cur = opts.indexOf(perPage as number)
+            setPage(1); setPerPage(opts[(cur + 1) % opts.length])
           }}>
-            <Text style={styles.pagerSelectText}>{perPage === 'all' ? t('all') : perPage}</Text>
+            <Text style={styles.pagerSelectText}>{perPage}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.pagerRight}>

@@ -14,17 +14,17 @@ export default function B2bDiscoverScreen() {
   const [items, setItems] = useState<B2bProductItem[]>([])
   const [page, setPage] = useState(1)
   const [lastPage, setLastPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  async function load(reset = false) {
+  async function load(targetPage = 1) {
     try {
-      const p = reset ? 1 : page
-      const res = await api.getB2bDiscover({ page: p, search: search || undefined })
+      const res = await api.getB2bDiscover({ page: targetPage, limit: perPage, search: search || undefined })
       setItems(res.data)
-      setLastPage(res.last_page)
-      setPage(p)
+      setLastPage(Math.max(1, res.last_page))
+      setPage(targetPage)
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
     } finally {
@@ -33,10 +33,15 @@ export default function B2bDiscoverScreen() {
     }
   }
 
-  useEffect(() => { load(true) }, [search])
-  useEffect(() => { load(true) }, [])
+  useEffect(() => { load(1) }, [search, perPage])
 
-  function onRefresh() { setRefreshing(true); load(true) }
+  function cyclePerPage() {
+    const opts = [10, 20, 50, 100]
+    const idx = opts.indexOf(perPage)
+    setPerPage(opts[(idx + 1) % opts.length])
+  }
+
+  function onRefresh() { setRefreshing(true); load(page) }
 
   async function sendRequest(item: B2bProductItem) {
     try {
@@ -55,11 +60,17 @@ export default function B2bDiscoverScreen() {
       </View>
       <View style={styles.searchRow}>
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { flex: 1 }]}
           placeholder={t('searchPlaceholder')}
           value={search}
           onChangeText={(v) => setSearch(v)}
         />
+        <View style={styles.perPageBox}>
+          <Text style={styles.perPageLabel}>{t('perPage')}:</Text>
+          <TouchableOpacity style={styles.pagerSelect} onPress={cyclePerPage}>
+            <Text style={styles.pagerSelectText}>{perPage}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" /></View>
@@ -112,14 +123,14 @@ export default function B2bDiscoverScreen() {
       <View style={styles.pager}>
         <TouchableOpacity
           style={[styles.pageBtn, page <= 1 && styles.disabled]}
-          onPress={() => { if (page > 1) load() }}
+          onPress={() => { if (page > 1) load(page - 1) }}
         >
           <Text style={styles.pageBtnText}>{t('prev')}</Text>
         </TouchableOpacity>
         <Text style={styles.pageInfo}>{t('page')} {page}/{lastPage}</Text>
         <TouchableOpacity
           style={[styles.pageBtn, page >= lastPage && styles.disabled]}
-          onPress={() => { if (page < lastPage) load() }}
+          onPress={() => { if (page < lastPage) load(page + 1) }}
         >
           <Text style={styles.pageBtnText}>{t('next')}</Text>
         </TouchableOpacity>
@@ -133,8 +144,12 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '700' },
   subtitle: { fontSize: 13, color: '#666' },
-  searchRow: { paddingHorizontal: 16, paddingBottom: 8 },
+  searchRow: { paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14, backgroundColor: '#fff' },
+  perPageBox: { flexDirection: 'row', alignItems: 'center' },
+  perPageLabel: { fontSize: 12, color: '#666', marginRight: 4 },
+  pagerSelect: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#fff' },
+  pagerSelectText: { fontSize: 13 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { textAlign: 'center', color: '#999', marginTop: 40 },
   list: { paddingHorizontal: 16, paddingBottom: 20 },
