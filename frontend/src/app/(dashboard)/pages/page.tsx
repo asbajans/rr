@@ -5,8 +5,10 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Page, PageBlock } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { FileText, Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, X } from 'lucide-react'
+import { FileText, Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical, X, ShieldCheck, Scale } from 'lucide-react'
 import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
+
+const LEGAL_SLUGS = ['gizlilik-politikasi','kvkk-aydinlatma-metni','cerez-politikasi','kullanim-sartlari','mesafeli-satis-sozlesmesi','on-bilgilendirme-formu','teslimat-ve-kargo','iade-ve-degisim'] as const
 
 let blockIdCounter = 1
 function newBlockId() { return `block_${blockIdCounter++}` }
@@ -64,16 +66,39 @@ export default function PagesPage() {
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const [message, setMessage] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<FormState>(defaultForm)
 
-  useEffect(() => {
+  const missingLegal = LEGAL_SLUGS.filter(slug => !pages.some(p => p.slug === slug))
+
+  function reloadPages() {
+    setLoading(true)
     api.getPages()
       .then(setPages)
       .catch(() => {})
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    reloadPages()
   }, [])
+
+  async function handleSeedLegal() {
+    setSeeding(true)
+    setMessage('')
+    try {
+      const res = await api.seedLegalPages()
+      setMessage(`Yasal sayfalar oluşturuldu: ${res.pagesCreated} sayfa, ${res.menusCreated} menü. Lütfen köşeli parantezli alanları kendi bilgilerinizle güncelleyin.`)
+      const updated = await api.getPages()
+      setPages(updated)
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Yasal sayfalar oluşturulamadı')
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   if (!user) return null
 
@@ -415,16 +440,40 @@ export default function PagesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Sayfalar</h1>
-          <p className="mt-1 text-sm text-zinc-600">Site sayfalarını blok düzenleyici ile yönet.</p>
+          <p className="mt-1 text-sm text-zinc-600">Site sayfalarını blok düzenleyici ile yönet. Yasal sayfalar müşteriye gösterilen sözleşmelerdir.</p>
         </div>
         <Button onClick={openNew}>
           <Plus className="mr-1 h-3 w-3" />Yeni Sayfa
         </Button>
       </div>
 
+      {/* Legal pages seed banner */}
+      {!loading && missingLegal.length > 0 && (
+        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <div className="hidden sm:flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700"><ShieldCheck className="h-5 w-5" /></div>
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900">Yasal sayfalarınız eksik ({missingLegal.length})</h3>
+              <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                Gizlilik, KVKK, Mesafeli Satış, Kargo &amp; İade gibi sözleşmeler mağazanızın footer’ında gösterilir. Tek tıkla şablon oluşturup panelden düzenleyebilirsiniz.
+              </p>
+              <p className="mt-1 text-[11px] text-amber-700">Eksikler: <span className="font-mono">{missingLegal.join(', ')}</span></p>
+            </div>
+          </div>
+          <Button size="sm" onClick={handleSeedLegal} disabled={seeding} className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white">
+            <Scale className="mr-1.5 h-4 w-4" />{seeding ? 'Oluşturuluyor...' : 'Yasal Sayfaları Oluştur'}
+          </Button>
+        </div>
+      )}
+      {!loading && missingLegal.length === 0 && pages.length > 0 && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" /> Tüm yasal sayfalar hazır. Footer menülerinizi Menüler &gt; Footer bölümünden düzenleyebilirsiniz.
+        </div>
+      )}
+
       {message && (
         <div className={`mt-4 rounded-lg p-3 text-sm ${
-          message.includes('Hata') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+          message.includes('Hata') || message.includes('başarısız') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
         }`}>{message}</div>
       )}
 

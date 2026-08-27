@@ -311,6 +311,10 @@ class ApiClient {
     return this.post<void>('/api/auth/logout')
   }
 
+  deleteMyAccount(password: string, confirmation: string) {
+    return this.post<{ success: boolean; message: string; storeDeactivated: boolean }>('/api/auth/delete-my-account', { password, confirmation })
+  }
+
   refreshToken(refreshToken: string) {
     return this.post<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', { refreshToken })
   }
@@ -1355,6 +1359,10 @@ class ApiClient {
 
   deletePage(id: number) {
     return this.delete<void>(`/api/admin/pages/${id}`)
+  }
+
+  seedLegalPages() {
+    return this.post<{ success: boolean; pagesCreated: number; menusCreated: number }>(`/api/admin/pages/seed-legal`)
   }
 
   // Blog

@@ -400,16 +400,70 @@ function FinalCta({ t }: { t: LandingContent }) {
 }
 
 function Footer({ t }: { t: LandingContent }) {
+  const LEGAL_TR = [
+    { href: '/gizlilik-politikasi', label: 'Gizlilik Politikası' },
+    { href: '/kvkk-aydinlatma-metni', label: 'KVKK Aydınlatma Metni' },
+    { href: '/cerez-politikasi', label: 'Çerez Politikası' },
+    { href: '/kullanim-sartlari', label: 'Kullanım Şartları' },
+    { href: '/mesafeli-satis-sozlesmesi', label: 'Mesafeli Satış Sözleşmesi' },
+    { href: '/iptal-iade', label: 'İptal & İade' },
+    { href: '/teslimat', label: 'Teslimat Bilgisi' },
+  ]
+  const LEGAL_EN = [
+    { href: '/gizlilik-politikasi', label: 'Privacy Policy' },
+    { href: '/kvkk-aydinlatma-metni', label: 'KVKK Disclosure' },
+    { href: '/cerez-politikasi', label: 'Cookie Policy' },
+    { href: '/kullanim-sartlari', label: 'Terms of Service' },
+    { href: '/mesafeli-satis-sozlesmesi', label: 'Distance Sales Agreement' },
+    { href: '/iptal-iade', label: 'Cancellation & Refund' },
+    { href: '/teslimat', label: 'Delivery Info' },
+  ]
+  const legalLinks = t.nav.how === 'Nasıl Çalışır' ? LEGAL_TR : LEGAL_EN
   return (
-    <footer className="border-t border-border/60 py-10">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 text-sm text-muted-foreground sm:flex-row">
-        <div className="flex items-center gap-2">
-          <img src="/logo.jpeg" alt="Rahatio logo" className="h-7 w-7 rounded-md object-cover" width={28} height={28} />
-          <span className="font-display font-semibold text-foreground">Rahatio</span>
+    <footer className="border-t border-border/60">
+      <div className="mx-auto max-w-6xl px-5 py-10">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <img src="/logo.jpeg" alt="Rahatio logo" className="h-7 w-7 rounded-md object-cover" width={28} height={28} />
+              <span className="font-display font-semibold text-foreground">Rahatio</span>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              {t.footer}
+              <br />
+              <a href="mailto:hello@rahatio.com.tr" className="text-primary hover:underline">hello@rahatio.com.tr</a>
+            </p>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">Ürün</h4>
+            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+              <li><Link href="/features" className="hover:text-foreground hover:underline">Özellikler</Link></li>
+              <li><Link href="/pricing" className="hover:text-foreground hover:underline">Fiyatlandırma</Link></li>
+              <li><Link href="/blog" className="hover:text-foreground hover:underline">Blog</Link></li>
+              <li><Link href="/#how" className="hover:text-foreground hover:underline">{t.nav.how}</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">Yasal</h4>
+            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+              {legalLinks.slice(0, 4).map((l) => (
+                <li key={l.href}><Link href={l.href} className="hover:text-foreground hover:underline">{l.label}</Link></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">Sözleşmeler</h4>
+            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+              {legalLinks.slice(4).map((l) => (
+                <li key={l.href}><Link href={l.href} className="hover:text-foreground hover:underline">{l.label}</Link></li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <p>
-          © {new Date().getFullYear()} {t.footer}
-        </p>
+        <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
+          <p>© {new Date().getFullYear()} Rahatio. Tüm hakları saklıdır.</p>
+          <p className="text-[11px]">Yasal metinler bilgilendirme şablonudur — hukuk danışmanınıza inceletin.</p>
+        </div>
       </div>
     </footer>
   )

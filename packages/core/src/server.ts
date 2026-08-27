@@ -445,6 +445,27 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if column doesn't exist yet
   }
 
+  // Seed missing legal pages + footer menus for existing stores (idempotent, once per boot)
+  try {
+    const { Store: S } = await import('./models/Store.model.js');
+    const { Page: P } = await import('./models/ContentModels.js');
+    const { seedLegalPagesForStore } = await import('./modules/page/legalTemplates.js');
+    const stores = await S.findAll({ attributes: ['id', 'name', 'email', 'siteCode'] });
+    for (const s of stores as any[]) {
+      const count = await P.count({ where: { storeId: s.id } });
+      if (count === 0) {
+        try {
+          await seedLegalPagesForStore(s.id, { name: s.name, email: s.email, siteCode: s.siteCode });
+          logger.info(`Auto-seeded legal pages for existing store ${s.siteCode} (${s.id})`);
+        } catch (e) {
+          logger.warn({ err: e }, `Failed to auto-seed legal pages for store ${s.id}`);
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn({ err: e }, 'Auto-seed legal pages skipped');
+  }
+
   setupAssociations();
 
   app.use(tenantMiddleware);
@@ -475,6 +496,7 @@ export const createApp = async (): Promise<Express> => {
   app.use('/api/store/:siteCode/payments/initiate', strictLimit(10));
   app.use('/api/auth/login', strictLimit(20));
   app.use('/api/auth/register', strictLimit(10));
+  app.use('/api/auth/delete-my-account', strictLimit(10));
 
   // Serve uploaded media files (images) at /uploads/...
   app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '30d', fallthrough: true }));

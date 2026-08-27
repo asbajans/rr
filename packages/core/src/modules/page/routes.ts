@@ -89,6 +89,22 @@ pageRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore
   }
 });
 
+pageRoutes.post('/seed-legal', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const { seedLegalPagesForStore } = await import('./legalTemplates.js');
+    const result = await seedLegalPagesForStore(store.id, {
+      name: store.name,
+      email: store.email,
+      siteCode: store.siteCode,
+    });
+    res.json({ success: true, ...result });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Seed legal pages error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 pageRoutes.get('/:id', authMiddleware, requireStore, [
   param('id').isInt(),
 ], validate, async (req: Request, res: Response) => {

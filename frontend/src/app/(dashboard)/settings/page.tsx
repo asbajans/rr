@@ -640,6 +640,27 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        <div className="rounded-xl border border-red-200 bg-red-50/50 p-6">
+          <div className="flex items-center gap-2">
+            <Trash2 className="h-5 w-5 text-red-600" />
+            <h2 className="text-lg font-semibold text-red-900">Tehlikeli Bölge</h2>
+          </div>
+          <p className="mt-1 text-sm text-red-700">
+            Hesabınızı ve verilerinizi silme talebi. Bu işlem 3 ayrı onayla hesabınızı pasife alır; tekrar giriş yapamazsınız.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Link href="/deletemyaccount">
+              <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
+                <Trash2 className="mr-1 h-3 w-3" /> Hesabımı Sil — deletemyaccount
+              </Button>
+            </Link>
+            <span className="text-xs text-red-600">rahatio.com.tr/deletemyaccount</span>
+          </div>
+          <p className="mt-2 text-xs text-red-600">
+            KVKK m.11 / Gizlilik Politikası kapsamında silme hakkınız. Talebiniz derhâl işlenir; yasal saklama süresi (fatura/VUK) sonunda veriler silinir.
+          </p>
+        </div>
       </div>
     </div>
   )

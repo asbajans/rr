@@ -37,6 +37,7 @@ export default function CheckoutPage() {
   const [showNewAddress, setShowNewAddress] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState('')
   const [note, setNote] = useState('')
+  const [acceptContracts, setAcceptContracts] = useState(false)
 
   // New address form
   const [addrForm, setAddrForm] = useState({
@@ -407,13 +408,36 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            <div className="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <label className="flex items-start gap-2 text-xs leading-relaxed text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={acceptContracts}
+                  onChange={(e) => setAcceptContracts(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                />
+                <span>
+                  <a href={`${storeBase(siteCode)}/pages/mesafeli-satis-sozlesmesi`} target="_blank" rel="noreferrer" className="font-medium text-zinc-900 underline-offset-4 hover:underline">Mesafeli Satış Sözleşmesi</a>
+                  {' '}ve&nbsp;
+                  <a href={`${storeBase(siteCode)}/pages/on-bilgilendirme-formu`} target="_blank" rel="noreferrer" className="font-medium text-zinc-900 underline-offset-4 hover:underline">Ön Bilgilendirme Formu</a>
+                  ’nu okudum, onaylıyorum. Ayrıca&nbsp;
+                  <a href={`${storeBase(siteCode)}/pages/teslimat-ve-kargo`} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">Teslimat &amp; Kargo</a>
+                  {' '}ve&nbsp;
+                  <a href={`${storeBase(siteCode)}/pages/iade-ve-degisim`} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">İade &amp; Değişim</a>
+                  {' '}koşullarını kabul ediyorum.
+                </span>
+              </label>
+              <p className="mt-2 text-[11px] text-zinc-400">Siparişi tamamlayarak <a href={`${storeBase(siteCode)}/pages/gizlilik-politikasi`} target="_blank" rel="noreferrer" className="underline hover:text-zinc-600">Gizlilik Politikası</a> ve <a href={`${storeBase(siteCode)}/pages/kvkk-aydinlatma-metni`} target="_blank" rel="noreferrer" className="underline hover:text-zinc-600">KVKK Aydınlatma Metni</a>’ni de kabul etmiş olursunuz.</p>
+            </div>
+
             <button
               onClick={handleSubmit}
-              disabled={processing || !selectedPayment}
-              className="mt-6 w-full sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+              disabled={processing || !selectedPayment || !acceptContracts}
+              className="mt-3 w-full sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
             >
               {processing ? 'İşleniyor...' : 'Siparişi Tamamla'}
             </button>
+            {!acceptContracts && <p className="mt-2 text-center text-xs text-amber-600">Lütfen sözleşmeleri onaylayın.</p>}
           </section>
         )}
       </div>

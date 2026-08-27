@@ -117,6 +117,14 @@ router.post('/register', [
       isActive: true,
     });
 
+    // Seed default legal pages + footer menus (non-blocking; ignore errors)
+    try {
+      const { seedLegalPagesForStore } = await import('../page/legalTemplates.js');
+      await seedLegalPagesForStore(store.id, { name: store.name, email: store.email, siteCode: store.siteCode });
+    } catch (e) {
+      logger.warn({ err: e }, 'Failed to seed legal pages for new store');
+    }
+
     const user = await User.create({
       storeId: store.id,
       email,
@@ -371,6 +379,72 @@ router.delete('/api-keys/:id', authMiddleware, requireRole('owner', 'admin'), as
     res.json({ message: 'API key revoked' });
   } catch (error) {
     logger.error({ err: error }, 'Revoke API key error:');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/auth/delete-my-account
+ * KVKK m.11 / GDPR erasure: kullanıcının kendi hesabını pasife alması.
+ * Panel + /deletemyaccount sayfasından çağrılır. 3 adımlı UI onayı sonrası
+ * password + "SİL" doğrulamasıyla tetiklenir; kullanıcıyı pasife alır.
+ */
+router.post('/delete-my-account', authMiddleware, [
+  body('password').isString().isLength({ min: 1, max: 200 }),
+  body('confirmation').isString().isLength({ min: 1, max: 20 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user as User;
+    const store = (req as any).store as Store;
+    const { password, confirmation } = req.body as { password: string; confirmation: string };
+
+    const normalized = String(confirmation).trim().toLocaleUpperCase('tr-TR');
+    const isConfirmed = normalized === 'SİL' || normalized === 'SIL' || normalized === 'SİL';
+    if (!isConfirmed) {
+      return res.status(400).json({ error: 'Onay metni hatalı. Lütfen SİL yazın.' });
+    }
+
+    const ok = await bcrypt.compare(String(password), user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Şifre hatalı' });
+    }
+
+    // Son süper yöneticiyi silmeye izin verme
+    if (user.role === 'superadmin') {
+      const superCount = await User.count({ where: { role: 'superadmin', isActive: true } });
+      if (superCount <= 1) {
+        return res.status(403).json({ error: 'Son süper yönetici hesabı silinemez. Önce başka bir süper yönetici ekleyin.' });
+      }
+    }
+
+    // Owner ise ve mağazada tek aktif owner kaldıysa, mağazayı da pasife al
+    let storeDeactivated = false;
+    if (user.role === 'owner') {
+      const activeOwnerCount = await User.count({ where: { storeId: user.storeId, role: 'owner', isActive: true } });
+      if (activeOwnerCount <= 1) {
+        await store.update({ isActive: false, published: false } as any);
+        storeDeactivated = true;
+        logger.warn({ userId: user.id, storeId: store.id }, 'Store deactivated because last owner self-deleted');
+      }
+    }
+
+    await user.update({ isActive: false } as any);
+    logger.info({ userId: user.id, storeId: user.storeId, storeDeactivated }, 'User self-deleted (set inactive) via delete-my-account');
+
+    // API anahtarlarını da iptal et (güvenlik)
+    try {
+      await ApiKey.destroy({ where: { storeId: user.storeId } } as any);
+    } catch { /* ignore */ }
+
+    res.json({
+      success: true,
+      message: storeDeactivated
+        ? 'Hesabınız ve mağazanız pasife alındı. Verileriniz mevzuat gereği saklama süresi boyunca korunur, ardından silinir/anonimleşir.'
+        : 'Hesabınız pasife alındı. Girişiniz kapatıldı. Verileriniz mevzuat gereği saklama süresi sonunda silinecektir.',
+      storeDeactivated,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Delete-my-account error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

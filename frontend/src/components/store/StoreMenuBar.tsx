@@ -76,6 +76,7 @@ export function StoreMenuBar({ siteCode, location = 'header' }: { siteCode: stri
 export function StoreFooterMenus({ siteCode }: { siteCode: string }) {
   const [menus, setMenus] = useState<StoreMenu[]>([])
   const [pageSlugs, setPageSlugs] = useState<Map<number, string>>(new Map())
+  const [pages, setPages] = useState<any[]>([])
 
   useEffect(() => {
     let active = true
@@ -83,17 +84,72 @@ export function StoreFooterMenus({ siteCode }: { siteCode: string }) {
     api.getStoreMenus(siteCode).then(ms => {
       if (!active) return
       setMenus(ms.filter(m => m.location === 'footer'))
-      return api.getStorePages(siteCode).then((pages: any[]) => {
+      return api.getStorePages(siteCode).then((pgs: any[]) => {
         if (!active) return
         const map = new Map<number, string>()
-        pages.forEach((p: any) => { if (p?.id && p?.slug) map.set(p.id, p.slug) })
+        pgs.forEach((p: any) => { if (p?.id && p?.slug) map.set(p.id, p.slug) })
         setPageSlugs(map)
+        setPages(pgs)
       })
     }).catch(() => {})
     return () => { active = false }
   }, [siteCode])
 
-  if (!menus.length) return null
+  // Fallback: mağaza henüz footer menüsü oluşturmamışsa ama yasal sayfaları varsa, sayfaları doğrudan göster
+  if (!menus.length) {
+    if (!pages.length) return null
+    const legalOrder = ['gizlilik-politikasi','kvkk-aydinlatma-metni','cerez-politikasi','kullanim-sartlari','mesafeli-satis-sozlesmesi','on-bilgilendirme-formu','teslimat-ve-kargo','iade-ve-degisim']
+    const sorted = [...pages].sort((a, b) => {
+      const ia = legalOrder.indexOf(a.slug)
+      const ib = legalOrder.indexOf(b.slug)
+      if (ia === -1 && ib === -1) return a.slug.localeCompare(b.slug)
+      if (ia === -1) return 1
+      if (ib === -1) return -1
+      return ia - ib
+    })
+    const pageTitle = (p: any) => {
+      const t = p?.title
+      if (!t) return p.slug
+      if (typeof t === 'string') return t
+      if (typeof t === 'object') return (t as any).tr ?? (t as any).en ?? p.slug
+      return String(t)
+    }
+    return (
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-zinc-900">Kurumsal</h3>
+          <ul className="space-y-2">
+            {sorted.slice(0, 4).map((p) => (
+              <li key={p.id}>
+                <Link href={`${storeBase(siteCode)}/pages/${p.slug}`} className="text-sm text-zinc-500 hover:text-zinc-900">
+                  {pageTitle(p)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-zinc-900">Sözleşmeler &amp; Kargo</h3>
+          <ul className="space-y-2">
+            {sorted.slice(4).map((p) => (
+              <li key={p.id}>
+                <Link href={`${storeBase(siteCode)}/pages/${p.slug}`} className="text-sm text-zinc-500 hover:text-zinc-900">
+                  {pageTitle(p)}
+                </Link>
+              </li>
+            ))}
+            {sorted.length <= 4 && <li className="text-xs text-zinc-400">Menüler &gt; Footer bölümünden sözleşmeleri düzenleyin.</li>}
+          </ul>
+        </div>
+        <div className="sm:col-span-2">
+          <h3 className="mb-3 text-sm font-semibold text-zinc-900">Mağaza Bilgisi</h3>
+          <p className="text-xs leading-relaxed text-zinc-500">
+            Mesafeli satış, kargo ve iade koşullarının tümü yukarıdaki sözleşmelerde yer alır. Sipariş öncesi lütfen <em>Mesafeli Satış Sözleşmesi</em> ve <em>Ön Bilgilendirme Formu</em>nu okuyun. Sorularınız için hesabım &gt; destek veya mağaza e-postası üzerinden ulaşabilirsiniz.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

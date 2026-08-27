@@ -33,6 +33,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${PLATFORM_ORIGIN}/pricing`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${PLATFORM_ORIGIN}/features`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${PLATFORM_ORIGIN}/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+    { url: `${PLATFORM_ORIGIN}/gizlilik-politikasi`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${PLATFORM_ORIGIN}/kvkk-aydinlatma-metni`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${PLATFORM_ORIGIN}/cerez-politikasi`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${PLATFORM_ORIGIN}/kullanim-sartlari`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${PLATFORM_ORIGIN}/mesafeli-satis-sozlesmesi`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${PLATFORM_ORIGIN}/iptal-iade`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${PLATFORM_ORIGIN}/teslimat`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${PLATFORM_ORIGIN}/deletemyaccount`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
   ]
 
   try {
