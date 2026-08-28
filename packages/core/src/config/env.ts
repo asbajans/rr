@@ -68,10 +68,24 @@ export const config = {
   },
 
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    clientId: process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_WEB_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
     clientIds: (() => {
-      const raw = process.env.GOOGLE_CLIENT_IDS || process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
-      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+      const parts: string[] = [];
+      const push = (v?: string) => {
+        if (!v) return;
+        v.split(',').forEach((s) => {
+          const t = s.trim();
+          if (t) parts.push(t);
+        });
+      };
+      push(process.env.GOOGLE_CLIENT_IDS);
+      push(process.env.GOOGLE_CLIENT_ID);
+      push(process.env.GOOGLE_WEB_CLIENT_ID);
+      push(process.env.GOOGLE_ANDROID_CLIENT_ID);
+      push(process.env.GOOGLE_IOS_CLIENT_ID);
+      push(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+      // dedupe, keep order
+      return [...new Set(parts)];
     })(),
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
   },
