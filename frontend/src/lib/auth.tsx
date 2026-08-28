@@ -15,6 +15,7 @@ type AuthContextType = {
   loading: boolean
   login: (email: string, password: string) => Promise<User>
   register: (name: string, email: string, password: string, store_name?: string) => Promise<User>
+  googleLogin: (idToken: string, accessToken?: string) => Promise<User>
   logout: () => Promise<void>
   refreshMe: () => Promise<void>
   can: (moduleKey: string) => boolean
@@ -61,6 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res.user
   }, [])
 
+  const googleLogin = useCallback(async (idToken: string, accessToken?: string) => {
+    const res = await api.googleLogin(idToken, accessToken)
+    api.setToken(res.token)
+    setUser(res.user)
+    setStore((res as any).store ?? null)
+    return res.user
+  }, [])
+
   const logout = useCallback(async () => {
     try { await api.logout() } catch { /* ignore */ }
     api.setToken(null)
@@ -80,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const productLimit = store?.plan?.product_limit ?? -1
 
   return (
-    <AuthContext.Provider value={{ user, store, loading, login, register, logout, refreshMe, can, productLimit }}>
+    <AuthContext.Provider value={{ user, store, loading, login, register, googleLogin, logout, refreshMe, can, productLimit }}>
       {children}
     </AuthContext.Provider>
   )

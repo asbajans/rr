@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { I18nProvider, LanguageSwitcher } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
+import { GoogleSignInButton } from '@/components/GoogleSignInButton'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -51,6 +52,7 @@ export default function LoginPage() {
           </div>
           <Button type="submit" className="w-full">Giriş Yap</Button>
         </form>
+        <GoogleSignInButton mode="login" />
       </div>
       </div>
     </I18nProvider>

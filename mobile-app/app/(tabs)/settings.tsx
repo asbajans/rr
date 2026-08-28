@@ -13,6 +13,10 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [integrations, setIntegrations] = useState<any[]>([])
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
 
   async function load() {
     try {
@@ -70,6 +74,27 @@ export default function SettingsScreen() {
     }
   }
 
+  async function changePassword() {
+    if (!newPassword || newPassword.length < 8) {
+      Alert.alert(t('error'), 'Yeni şifre en az 8 karakter olmalı')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t('error'), 'Yeni şifre ve tekrarı uyuşmuyor')
+      return
+    }
+    setPwLoading(true)
+    try {
+      await api.changePassword(currentPassword || undefined, newPassword)
+      Alert.alert(t('success'), 'Şifre güncellendi')
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message || 'Şifre değiştirilemedi')
+    } finally {
+      setPwLoading(false)
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.section}>
@@ -100,6 +125,20 @@ export default function SettingsScreen() {
           {syncing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Ürünleri Senkronize Et</Text>}
         </TouchableOpacity>
         <Text style={[styles.meta, { marginTop: 8, fontSize: 12 }]}>Tüm aktif pazaryerlerine atanmış ürünler kuyruğa eklenir.</Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Şifre Değiştir</Text>
+        <Text style={styles.meta}>Google ile giriş yaptıysanız mevcut şifreyi boş bırakın.</Text>
+        <Text style={styles.label}>Mevcut Şifre</Text>
+        <TextInput style={styles.input} value={currentPassword} onChangeText={setCurrentPassword} placeholder="Mevcut şifre" secureTextEntry placeholderTextColor="#999" />
+        <Text style={styles.label}>Yeni Şifre</Text>
+        <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} placeholder="En az 8 karakter" secureTextEntry placeholderTextColor="#999" />
+        <Text style={styles.label}>Yeni Şifre (Tekrar)</Text>
+        <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Yeni şifre tekrar" secureTextEntry placeholderTextColor="#999" />
+        <TouchableOpacity style={styles.saveBtn} onPress={changePassword} disabled={pwLoading}>
+          {pwLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Şifreyi Güncelle</Text>}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>

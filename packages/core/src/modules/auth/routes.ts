@@ -449,4 +449,270 @@ router.post('/delete-my-account', authMiddleware, [
   }
 });
 
+/**
+ * GET /api/auth/google/config
+ * Public — returns Google OAuth client ID for frontend (GIS).
+ */
+router.get('/google/config', async (_req: Request, res: Response) => {
+  const clientId = config.google?.clientId || '';
+  const clientIds: string[] = (config.google as any)?.clientIds || (clientId ? [clientId] : []);
+  res.json({ enabled: !!clientId, clientId: clientId || null, clientIds });
+});
+
+/**
+ * Helper: verify Google ID token via tokeninfo endpoint (best-effort).
+ * Returns decoded payload or throws.
+ */
+async function verifyGoogleIdToken(idToken: string): Promise<{ sub: string; email: string; name: string; picture?: string; email_verified: boolean; aud: string; iss: string }> {
+  const resp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+  const data: any = await resp.json().catch(() => ({}));
+  if (!resp.ok || data.error || data.error_description) {
+    const msg = data.error_description || data.error || `Google token verification failed (${resp.status})`;
+    throw new Error(msg);
+  }
+  const expMs = Number(data.exp) * 1000;
+  if (expMs && expMs < Date.now()) throw new Error('Google token expired');
+  if (!data.email) throw new Error('Google token missing email');
+  const verified = data.email_verified === true || data.email_verified === 'true';
+  if (!verified) throw new Error('Google email not verified');
+  const audOk = (() => {
+    const allowed: string[] = (config.google as any)?.clientIds || [];
+    if (!allowed.length) return true; // dev: skip check if not configured
+    return allowed.includes(data.aud);
+  })();
+  if (!audOk) throw new Error('Invalid Google token audience');
+  const iss = String(data.iss || '');
+  if (iss !== 'https://accounts.google.com' && iss !== 'accounts.google.com') {
+    throw new Error('Invalid Google token issuer');
+  }
+  return {
+    sub: String(data.sub),
+    email: String(data.email).toLowerCase(),
+    name: String(data.name || data.given_name || data.email.split('@')[0]),
+    picture: data.picture ? String(data.picture) : undefined,
+    email_verified: true,
+    aud: String(data.aud),
+    iss,
+  };
+}
+
+async function verifyGoogleAccessToken(accessToken: string): Promise<{ sub: string; email: string; name: string; picture?: string }> {
+  const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const data: any = await resp.json().catch(() => ({}));
+  if (!resp.ok || data.error) {
+    throw new Error(data.error_description || data.error || `Google userinfo failed (${resp.status})`);
+  }
+  if (!data.email) throw new Error('Google userinfo missing email');
+  if (data.email_verified === false || data.email_verified === 'false') throw new Error('Google email not verified');
+  return {
+    sub: String(data.sub || data.id || data.email),
+    email: String(data.email).toLowerCase(),
+    name: String(data.name || data.given_name || data.email.split('@')[0]),
+    picture: data.picture ? String(data.picture) : undefined,
+  };
+}
+
+/**
+ * POST /api/auth/google
+ * Body: { idToken?: string, credential?: string, accessToken?: string }
+ * Verifies Google identity, finds or creates user+store, returns JWT pair.
+ */
+router.post('/google', [
+  body('idToken').optional().isString(),
+  body('credential').optional().isString(),
+  body('accessToken').optional().isString(),
+  body('access_token').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const idToken: string | undefined = req.body.idToken || req.body.credential;
+    const accessToken: string | undefined = req.body.accessToken || req.body.access_token;
+    if (!idToken && !accessToken) {
+      return res.status(400).json({ error: 'Google token required (idToken or accessToken)' });
+    }
+
+    let google: { sub: string; email: string; name: string; picture?: string };
+    if (idToken) {
+      google = await verifyGoogleIdToken(idToken);
+    } else {
+      google = await verifyGoogleAccessToken(accessToken!);
+    }
+
+    const email = google.email;
+    const googleId = google.sub;
+    const displayName = google.name || email.split('@')[0];
+
+    // Try find by googleId first, then by email
+    let user: User | null = null;
+    try {
+      user = await User.findOne({ where: { googleId } as any, include: [{ model: Store, as: 'store', include: [{ model: Plan, as: 'plan' }] }] });
+    } catch { /* column may not exist yet */ }
+    if (!user) {
+      user = await User.findOne({ where: { email, isActive: true }, include: [{ model: Store, as: 'store', include: [{ model: Plan, as: 'plan' }] }] });
+    }
+
+    let store: Store;
+    if (user && user.store) {
+      store = user.store as Store;
+      // Link googleId if not set
+      if (!(user as any).googleId) {
+        try { await user.update({ googleId, authProvider: 'google' } as any); } catch { /* ignore */ }
+      }
+      if (!store.isActive) {
+        return res.status(403).json({ error: 'Store is inactive' });
+      }
+    } else if (user && !user.store) {
+      // Orphan user (should not happen) — load store separately
+      const s = await Store.findByPk((user as any).storeId, { include: [{ model: Plan, as: 'plan' }] });
+      if (!s) return res.status(500).json({ error: 'Store not found for existing user' });
+      store = s as Store;
+      if (!(user as any).googleId) {
+        try { await user.update({ googleId, authProvider: 'google' } as any); } catch {}
+      }
+    } else {
+      // New user — create store + user + subscription (same as register)
+      const freePlan = await Plan.findOne({ where: { name: 'Free' } });
+      if (!freePlan) return res.status(500).json({ error: 'Server configuration error' });
+
+      const baseSlug = email.split('@')[0].toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'store';
+      const siteCode = `${baseSlug}-${Date.now().toString(36)}`;
+      store = await Store.create({
+        name: `${displayName}'s Store`,
+        siteCode,
+        email,
+        planId: freePlan.id,
+        isActive: true,
+      } as any);
+
+      try {
+        const { seedLegalPagesForStore } = await import('../page/legalTemplates.js');
+        await seedLegalPagesForStore(store.id, { name: store.name, email: store.email, siteCode: store.siteCode });
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to seed legal pages for Google user store');
+      }
+
+      const randomPass = crypto.randomBytes(32).toString('hex');
+      const passwordHash = await bcrypt.hash(randomPass, 12);
+      user = await User.create({
+        storeId: store.id,
+        email,
+        passwordHash,
+        name: displayName,
+        role: 'owner',
+        isActive: true,
+        aiCredits: freePlan.aiCredits,
+        googleId,
+        authProvider: 'google',
+      } as any);
+
+      await Subscription.create({
+        storeId: store.id,
+        planId: freePlan.id,
+        status: 'active',
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      } as any);
+
+      logger.info(`New Google store registered: ${store.siteCode} (${store.id}) via ${email}`);
+    }
+
+    // Ensure we have fresh store with plan
+    const freshStore = await Store.findByPk((store as any).id, { include: [{ model: Plan, as: 'plan' }] });
+    const effectiveStore = freshStore || store;
+    const token = generateAccessToken(user as User, effectiveStore as Store);
+    const refreshToken = generateRefreshToken(user as User, effectiveStore as Store);
+
+    res.json({
+      token,
+      refreshToken,
+      user: {
+        id: (user as any).id,
+        name: (user as any).name,
+        email: (user as any).email,
+        is_admin: (user as any).role === 'superadmin',
+        store_id: (user as any).storeId,
+        ai_credits: (user as any).aiCredits,
+      },
+      store: {
+        id: (effectiveStore as any).id,
+        name: (effectiveStore as any).name,
+        site_code: (effectiveStore as any).siteCode,
+        domain: (effectiveStore as any).domain,
+        email: (effectiveStore as any).email,
+        plan: (effectiveStore as any).plan ? serializePlan((effectiveStore as any).plan) : null,
+      },
+    });
+  } catch (error: any) {
+    logger.error({ err: error }, 'Google auth error');
+    const msg = error?.message || 'Google authentication failed';
+    const status = /audience|issuer|expired|verified|missing/i.test(msg) ? 401 : 500;
+    res.status(status).json({ error: msg });
+  }
+});
+
+/**
+ * POST /api/auth/change-password
+ * Authenticated user changes own password.
+ * Google users may set a password without currentPassword (they authenticate via Google JWT).
+ */
+router.post('/change-password', authMiddleware, [
+  body('currentPassword').optional().isString(),
+  body('current_password').optional().isString(),
+  body('newPassword').optional().isString(),
+  body('new_password').optional().isString(),
+  body('password').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user as User;
+    // Normalize field names (support snake_case from older clients)
+    const currentPassword: string | undefined = req.body.currentPassword ?? req.body.current_password;
+    const newPassword: string | undefined = req.body.newPassword ?? req.body.new_password ?? req.body.password;
+
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'Yeni şifre en az 8 karakter olmalı' });
+    }
+    if (String(newPassword).length > 128) {
+      return res.status(400).json({ error: 'Yeni şifre en fazla 128 karakter olabilir' });
+    }
+
+    const isGoogleUser = !!(user as any).googleId;
+
+    if (!isGoogleUser) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Mevcut şifre gerekli' });
+      }
+      const ok = await bcrypt.compare(String(currentPassword), (user as any).passwordHash);
+      if (!ok) {
+        return res.status(401).json({ error: 'Mevcut şifre hatalı' });
+      }
+    } else if (currentPassword) {
+      // If Google user supplied currentPassword, verify it when possible (optional hardening)
+      const ok = await bcrypt.compare(String(currentPassword), (user as any).passwordHash).catch(() => false);
+      if (!ok) {
+        // Don't block Google users who don't know the random hash — allow without currentPassword.
+        // If they did supply a wrong currentPassword, treat as bad request only if they clearly tried.
+        // We allow empty currentPassword to set a new one; if they gave wrong one, tell them.
+        return res.status(401).json({ error: 'Mevcut şifre hatalı (Google hesabınız için mevcut şifreyi boş bırakabilirsiniz)' });
+      }
+    }
+
+    // Prevent reusing same password when current is known
+    if (currentPassword) {
+      const same = await bcrypt.compare(String(newPassword), (user as any).passwordHash).catch(() => false);
+      if (same) {
+        return res.status(400).json({ error: 'Yeni şifre mevcut şifreyle aynı olamaz' });
+      }
+    }
+
+    const hash = await bcrypt.hash(String(newPassword), 12);
+    await (user as any).update({ passwordHash: hash, authProvider: 'local' } as any);
+    logger.info({ userId: (user as any).id }, 'Password changed via change-password');
+
+    res.json({ success: true, message: 'Şifre başarıyla güncellendi' });
+  } catch (error) {
+    logger.error({ err: error }, 'Change-password error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export { router as authRoutes, authMiddleware, requireRole };

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { User } from '@/lib/types'
 import type { Plan } from '@/lib/types'
-import { Pencil, Coins, Tag, Shield } from 'lucide-react'
+import { Pencil, Coins, Tag, Shield, KeyRound } from 'lucide-react'
 
 export default function SuperUsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -19,6 +19,9 @@ export default function SuperUsersPage() {
   const [selectedRole, setSelectedRole] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [pwUserId, setPwUserId] = useState<number | null>(null)
+  const [newPw, setNewPw] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
 
   useEffect(() => {
     Promise.all([api.getAdminUsers(), api.getAdminPlans()])
@@ -95,6 +98,25 @@ export default function SuperUsersPage() {
       setMessage(err.message || 'Durum güncellenemedi')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function resetPassword(user: User) {
+    if (!newPw || newPw.length < 8) {
+      setMessage('Yeni şifre en az 8 karakter olmalı')
+      return
+    }
+    setPwSaving(true)
+    setMessage('')
+    try {
+      await api.resetUserPassword(user.id, newPw)
+      setMessage(`${user.name} şifresi güncellendi`)
+      setPwUserId(null)
+      setNewPw('')
+    } catch (err: any) {
+      setMessage(err.message || 'Şifre güncellenemedi')
+    } finally {
+      setPwSaving(false)
     }
   }
 
@@ -186,6 +208,17 @@ export default function SuperUsersPage() {
                           <button onClick={() => { setRoleUserId(null); setSelectedRole('') }}
                             className="text-xs text-zinc-500 hover:text-zinc-300">İptal</button>
                         </div>
+                      ) : pwUserId === user.id ? (
+                        <div className="flex items-center gap-2">
+                          <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Yeni şifre (min 8)"
+                            className="w-36 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-white placeholder-zinc-500 focus:border-zinc-500 focus:outline-none" />
+                          <button onClick={() => resetPassword(user)} disabled={pwSaving || newPw.length < 8}
+                            className="rounded bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50">
+                            {pwSaving ? '...' : 'Kaydet'}
+                          </button>
+                          <button onClick={() => { setPwUserId(null); setNewPw('') }}
+                            className="text-xs text-zinc-500 hover:text-zinc-300">İptal</button>
+                        </div>
                       ) : (
                         <>
                           <button onClick={() => { setEditingId(user.id); setCreditAmount('') }}
@@ -199,6 +232,10 @@ export default function SuperUsersPage() {
                           <button onClick={() => { setRoleUserId(user.id); setSelectedRole(user.role || 'staff') }}
                             className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300">
                             <Shield className="h-3 w-3" /> Yetki
+                          </button>
+                          <button onClick={() => { setPwUserId(user.id); setNewPw('') }}
+                            className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300">
+                            <KeyRound className="h-3 w-3" /> Şifre
                           </button>
                           <button onClick={() => toggleActive(user)} disabled={saving}
                             className={`flex items-center gap-1 text-xs ${user.is_active ? 'text-rose-400 hover:text-rose-300' : 'text-emerald-400 hover:text-emerald-300'} disabled:opacity-50`}>

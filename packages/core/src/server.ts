@@ -412,6 +412,15 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if plans table not ready
   }
 
+  // Google OAuth columns (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "googleId" VARCHAR(255)`);
+    await sequelize.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "authProvider" VARCHAR(20) DEFAULT 'local'`);
+    await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_google_id_unique ON users ("googleId") WHERE "googleId" IS NOT NULL`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Seed default AI provider/models/scenarios + Free-plan model overrides (idempotent)
   try {
     const { seedAiDefaults } = await import('./modules/ai/defaults.js');
@@ -496,6 +505,8 @@ export const createApp = async (): Promise<Express> => {
   app.use('/api/store/:siteCode/payments/initiate', strictLimit(10));
   app.use('/api/auth/login', strictLimit(20));
   app.use('/api/auth/register', strictLimit(10));
+  app.use('/api/auth/google', strictLimit(20));
+  app.use('/api/auth/change-password', strictLimit(10));
   app.use('/api/auth/delete-my-account', strictLimit(10));
 
   // Serve uploaded media files (images) at /uploads/...

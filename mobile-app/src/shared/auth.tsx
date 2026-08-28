@@ -10,6 +10,7 @@ type AuthContextType = {
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string, store_name?: string) => Promise<void>
+  googleLogin: (idToken: string, accessToken?: string) => Promise<void>
   logout: () => Promise<void>
   refreshMe: () => Promise<void>
   can: (moduleKey: string) => boolean
@@ -76,6 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerPushToken()
   }, [registerPushToken, refreshMe])
 
+  const googleLogin = useCallback(async (idToken: string, accessToken?: string) => {
+    const res = await api.googleLogin(idToken, accessToken)
+    await api.setToken(res.token)
+    setToken(res.token)
+    setUser(res.user)
+    try { await refreshMe() } catch {}
+    registerPushToken()
+  }, [registerPushToken, refreshMe])
+
   const logout = useCallback(async () => {
     try { await api.logout() } catch {}
     await api.setToken(null)
@@ -97,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const productLimit = store?.plan?.product_limit ?? -1
 
   return (
-    <AuthContext.Provider value={{ user, store, token, loading, login, register, logout, refreshMe, can, productLimit }}>
+    <AuthContext.Provider value={{ user, store, token, loading, login, register, googleLogin, logout, refreshMe, can, productLimit }}>
       {children}
     </AuthContext.Provider>
   )

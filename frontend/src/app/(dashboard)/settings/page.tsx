@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell, Sparkles, Star, Tag, Loader2, ShieldCheck, Link2, CheckCircle2, XCircle } from 'lucide-react'
+import { Key, Plus, Trash2, Copy, Download, Globe, Server, Bell, Sparkles, Star, Tag, Loader2, ShieldCheck, Link2, CheckCircle2, XCircle, Lock } from 'lucide-react'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -33,6 +33,14 @@ export default function SettingsPage() {
   const [catCreating, setCatCreating] = useState(false)
   const [catGenerating, setCatGenerating] = useState<number | null>(null)
   const [catDeleting, setCatDeleting] = useState<number | null>(null)
+
+  // Change password (self)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwMsg, setPwMsg] = useState('')
+  const [pwError, setPwError] = useState('')
 
   // Custom domain
   const [customDomain, setCustomDomain] = useState<{ domain: string | null; verified: boolean; token: string | null; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }>; siteUrl: string | null } | null>(null)
@@ -264,6 +272,32 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwMsg('')
+    setPwError('')
+    if (!newPassword || newPassword.length < 8) {
+      setPwError('Yeni şifre en az 8 karakter olmalı')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError('Yeni şifre ve tekrarı uyuşmuyor')
+      return
+    }
+    setPwSaving(true)
+    try {
+      const res = await api.changePassword(currentPassword || undefined, newPassword)
+      setPwMsg(res.message || 'Şifre başarıyla güncellendi')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : 'Şifre değiştirilemedi')
+    } finally {
+      setPwSaving(false)
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-zinc-900">Ayarlar</h1>
@@ -289,6 +323,39 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-zinc-500" />
+            <h2 className="text-lg font-semibold text-zinc-900">Şifre Değiştir</h2>
+          </div>
+          <p className="mt-1 text-sm text-zinc-600">Hesap şifrenizi güncelleyin. Google ile giriş yaptıysanız mevcut şifreyi boş bırakabilirsiniz.</p>
+          <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-900">Mevcut Şifre</label>
+              <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Mevcut şifreniz (Google hesabı için boş bırakın)"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-900">Yeni Şifre</label>
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="En az 8 karakter"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-900">Yeni Şifre (Tekrar)</label>
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Yeni şifreyi tekrar girin"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            </div>
+            {pwError && <p className="text-sm text-red-600">{pwError}</p>}
+            {pwMsg && <p className="text-sm text-green-600">{pwMsg}</p>}
+            <Button type="submit" disabled={pwSaving}>
+              {pwSaving ? 'Kaydediliyor...' : 'Şifreyi Güncelle'}
+            </Button>
+          </form>
+        </div>
 
         <Link href="/settings/notifications"
           className="flex items-center gap-3 rounded-xl border border-zinc-200 p-6 hover:bg-zinc-50 transition">

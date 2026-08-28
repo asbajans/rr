@@ -1,15 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { Link } from 'expo-router'
+import * as WebBrowser from 'expo-web-browser'
+import * as Google from 'expo-auth-session/providers/google'
 import { useAuth } from '../../src/shared/auth'
 import { useI18n, LOCALES } from '../../src/shared/i18n'
+import { api } from '../../src/shared/api-client'
+
+WebBrowser.maybeCompleteAuthSession()
 
 export default function LoginScreen() {
-  const { login } = useAuth()
+  const { login, googleLogin } = useAuth()
   const { t, locale, setLocale } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleConfig, setGoogleConfig] = useState<{ enabled: boolean; clientId: string | null } | null>(null)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  useEffect(() => {
+    api.getGoogleConfig().then(setGoogleConfig).catch(() => setGoogleConfig({ enabled: false, clientId: null }))
+  }, [])
+
+  const [googleRequest, googleResponse, googlePrompt] = Google.useIdTokenAuthRequest(
+    googleConfig?.clientId ? { clientId: googleConfig.clientId } : undefined as any
+  )
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const idToken = (googleResponse as any).params?.id_token || (googleResponse as any).authentication?.idToken
+      const accessToken = (googleResponse as any).authentication?.accessToken
+      if (idToken || accessToken) {
+        setGoogleLoading(true)
+        googleLogin(idToken || '', accessToken)
+          .catch((e: any) => Alert.alert(t('login'), e.message || 'Google ile giriş başarısız'))
+          .finally(() => setGoogleLoading(false))
+      }
+    } else if (googleResponse?.type === 'error') {
+      Alert.alert(t('error'), (googleResponse as any).error?.message || 'Google ile giriş başarısız')
+    }
+  }, [googleResponse, googleLogin, t])
 
   async function handleLogin() {
     if (!email || !password) {
@@ -23,6 +53,22 @@ export default function LoginScreen() {
       Alert.alert(t('login'), e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleGoogle() {
+    if (!googleConfig?.enabled || !googleConfig?.clientId) {
+      Alert.alert(t('error'), 'Google ile giriş şu anda yapılandırılmadı')
+      return
+    }
+    if (!googleRequest) {
+      Alert.alert(t('error'), 'Google isteği hazırlanıyor, lütfen tekrar deneyin')
+      return
+    }
+    try {
+      await googlePrompt()
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message || 'Google penceresi açılamadı')
     }
   }
 
@@ -66,6 +112,19 @@ export default function LoginScreen() {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('login')}</Text>}
         </TouchableOpacity>
 
+        {googleConfig?.enabled && (
+          <>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>veya</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            <TouchableOpacity style={styles.googleBtn} onPress={handleGoogle} disabled={googleLoading || !googleRequest}>
+              {googleLoading ? <ActivityIndicator color="#4285F4" /> : <Text style={styles.googleBtnText}>Google ile Giriş Yap</Text>}
+            </TouchableOpacity>
+          </>
+        )}
+
         <Link href="/(auth)/register" style={styles.link}>
           <Text style={styles.linkText}>{t('noAccount')}</Text>
         </Link>
@@ -94,6 +153,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 8,
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#e5e5e5' },
+  dividerText: { fontSize: 12, color: '#999' },
+  googleBtn: {
+    borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingVertical: 12,
+    alignItems: 'center', backgroundColor: '#fff',
+  },
+  googleBtnText: { color: '#333', fontSize: 15, fontWeight: '600' },
   link: { marginTop: 24, alignItems: 'center' },
   linkText: { color: '#666', fontSize: 14 },
 })

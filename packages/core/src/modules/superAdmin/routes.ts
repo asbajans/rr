@@ -171,6 +171,55 @@ router.put('/users/:id', superAdminOnly, [
 });
 
 /**
+ * PUT /api/admin/users/:id/password
+ * Reset user's password. Superadmin can reset anyone. Store owner/admin can reset users within same store
+ * (owner → anyone except superadmin, admin → staff only). No current password required.
+ */
+router.put('/users/:id/password', [
+  param('id').isInt(),
+  body('newPassword').optional().isString().isLength({ min: 8, max: 128 }),
+  body('new_password').optional().isString().isLength({ min: 8, max: 128 }),
+  body('password').optional().isString().isLength({ min: 8, max: 128 }),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const actor = (req as any).user as any;
+    const target = await User.findByPk(req.params.id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const newPassword: string | undefined = req.body.newPassword ?? req.body.new_password ?? req.body.password;
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'Yeni şifre en az 8 karakter olmalı' });
+    }
+
+    const isSuper = actor?.role === 'superadmin';
+    if (!isSuper) {
+      // Store-level permission: must belong to same store and have owner/admin role
+      if (!actor?.storeId || actor.storeId !== (target as any).storeId) {
+        return res.status(403).json({ error: 'Yetkiniz yok (başka mağaza)' });
+      }
+      if (!['owner', 'admin'].includes(actor.role)) {
+        return res.status(403).json({ error: 'Yetkiniz yok' });
+      }
+      if ((target as any).role === 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin şifresi değiştirilemez' });
+      }
+      if (actor.role === 'admin' && ['owner', 'admin'].includes((target as any).role)) {
+        return res.status(403).json({ error: 'Yetkiniz yok' });
+      }
+    }
+
+    const bcrypt = await import('bcryptjs');
+    const hash = await bcrypt.default.hash(String(newPassword), 12);
+    await (target as any).update({ passwordHash: hash, authProvider: 'local' } as any);
+    logger.info({ userId: (target as any).id, by: actor?.email, isSuper }, 'User password reset');
+    res.json({ success: true, message: 'Şifre güncellendi' });
+  } catch (error) {
+    logger.error({ err: error }, 'Reset password error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/admin/users/:id/assign-plan
  * Assign plan to user's store
  */

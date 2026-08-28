@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { I18nProvider, LanguageSwitcher } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
+import { GoogleSignInButton } from '@/components/GoogleSignInButton'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -65,6 +66,7 @@ export default function RegisterPage() {
           </div>
           <Button type="submit" className="w-full">Kaydol</Button>
         </form>
+        <GoogleSignInButton mode="register" />
 
         <p className="mt-6 text-center text-sm text-zinc-500">
           Hesabın var mı?{' '}

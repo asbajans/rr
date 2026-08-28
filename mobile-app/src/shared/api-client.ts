@@ -219,6 +219,28 @@ class ApiClient {
     return this.post<{ success: boolean }>('/api/auth/fcm-token', { token })
   }
 
+  changePassword(currentPassword: string | undefined, newPassword: string) {
+    const body: Record<string, string> = { newPassword }
+    if (currentPassword) body.currentPassword = currentPassword
+    return this.post<{ success: boolean; message: string }>('/api/auth/change-password', body)
+  }
+
+  getGoogleConfig() {
+    return this.get<{ enabled: boolean; clientId: string | null; clientIds: string[] }>('/api/auth/google/config')
+  }
+
+  googleLogin(idToken: string, accessToken?: string) {
+    const payload: Record<string, string> = {}
+    if (idToken) payload.idToken = idToken
+    if (accessToken) payload.accessToken = accessToken
+    if (!payload.idToken && !accessToken) payload.credential = idToken
+    return this.post<AuthResponse>('/api/auth/google', payload)
+  }
+
+  resetUserPassword(userId: number, newPassword: string) {
+    return this.put<{ success: boolean; message: string }>(`/api/admin/users/${userId}/password`, { newPassword })
+  }
+
   // Dashboard
   async getDashboard() {
     const r = await this.get<any>('/api/admin/dashboard')

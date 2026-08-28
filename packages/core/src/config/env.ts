@@ -67,6 +67,15 @@ export const config = {
     apiKey: secret('CORE_API_KEY', undefined, 'core-dev-key'),
   },
 
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    clientIds: (() => {
+      const raw = process.env.GOOGLE_CLIENT_IDS || process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+      return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    })(),
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  },
+
   fcm: {
     serverKey: process.env.FCM_SERVER_KEY || '',
   },

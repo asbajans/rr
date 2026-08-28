@@ -51,6 +51,14 @@ export class User extends Model {
   @Column(DataType.STRING(255))
   declare passwordHash: string;
 
+  @AllowNull(true)
+  @Column(DataType.STRING(255))
+  declare googleId: string | null;
+
+  @Default('local')
+  @Column(DataType.STRING(20))
+  declare authProvider: string;
+
   @Default('staff')
   @Column(DataType.ENUM('superadmin', 'owner', 'admin', 'staff'))
   declare role: 'superadmin' | 'owner' | 'admin' | 'staff';
