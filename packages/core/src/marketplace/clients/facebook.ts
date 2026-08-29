@@ -28,18 +28,26 @@ export function buildTrackingUrl(baseUrl: string, source: string, extra: Record<
   }
 }
 
-export const META_OAUTH_SCOPES = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_posts',
-  'pages_manage_metadata',
-  'instagram_basic',
-  'instagram_content_publish',
-  'catalog_management',
-  'business_management',
-  'ads_management',
-  'manage_business_extension',
-].join(',');
+/**
+ * Minimal valid scopes for v26.0 — these are the only ones that pass
+ * Facebook Login validation without an approved App Review.
+ * `ads_management` and `manage_business_extension` are TechProvider-only
+ * and must be requested after Business verification + review, otherwise
+ * Graph returns "Invalid Scopes" (shown only to app admins).
+ * Keep this list in sync with developers.facebook.com → App → Permissions.
+ * Env override: META_OAUTH_SCOPES=comma,list
+ */
+export const META_OAUTH_SCOPES = ((envConfig as any)?.meta?.oauthScopes || process.env.META_OAUTH_SCOPES ||
+  [
+    'pages_show_list',
+    'pages_read_engagement',
+    'pages_manage_posts',
+    'pages_manage_metadata',
+    'instagram_basic',
+    'instagram_content_publish',
+    'catalog_management',
+    'business_management',
+  ].join(',')) as string;
 
 export interface MetaConfig {
   appId: string;
@@ -338,20 +346,23 @@ export class FacebookClient extends BaseMarketplaceClient implements Marketplace
     const mapped = product.retailer_id ? product : product;
     const retailerId = String(mapped.retailer_id || mapped.sku || '');
     const images = Array.isArray(mapped.additional_image_urls) ? mapped.additional_image_urls : [];
+    // v26.0: price must be integer (cents), currency separate. Example 999.00 TRY -> price=99900, currency=TRY
+    const rawPrice = mapped.price != null ? String(mapped.price).replace(/[^0-9.]/g, '') : '';
+    const numericPrice = rawPrice ? parseFloat(rawPrice) : (mapped.price != null ? Number(mapped.price) : 0);
+    const priceCents = Number.isFinite(numericPrice) ? Math.round(numericPrice * 100) : 0;
+    const currency = String(mapped.currency || 'TRY').toUpperCase();
     const payload: Record<string, any> = {
       retailer_id: retailerId,
       name: mapped.name || mapped.title,
       description: stripHtml(mapped.description || mapped.name || ''),
       availability: mapped.availability || ((mapped.quantity ?? mapped.inventory ?? 0) > 0 ? 'in stock' : 'out of stock'),
       condition: mapped.condition || 'new',
-      price: mapped.price,
+      price: priceCents,
+      currency,
       url: asHttps(mapped.url || ''),
       image_url: asHttps(mapped.image_url || ''),
       brand: mapped.brand || undefined,
     };
-    if (mapped.currency && !String(payload.price || '').includes(' ')) {
-      payload.price = `${Number(mapped.price || 0).toFixed(2)} ${mapped.currency}`;
-    }
     if (images.length) payload.additional_image_urls = images.map(asHttps).filter(Boolean);
     if (mapped.inventory != null || mapped.quantity != null) {
       payload.inventory = Number(mapped.inventory ?? mapped.quantity ?? 0);
@@ -448,7 +459,8 @@ export class FacebookClient extends BaseMarketplaceClient implements Marketplace
   }
 
   async updatePrice(productId: string, price: number): Promise<any> {
-    return this.updateProduct(productId, { retailer_id: productId, price: `${Number(price).toFixed(2)} TRY` });
+    const cents = Math.round(Number(price) * 100);
+    return this.updateProduct(productId, { retailer_id: productId, price: cents, currency: 'TRY' });
   }
 
   async updateStock(productId: string, quantity: number): Promise<any> {

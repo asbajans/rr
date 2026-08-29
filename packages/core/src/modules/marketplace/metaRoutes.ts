@@ -68,7 +68,7 @@ function verifyState(state: string): { storeId: number } | null {
   } catch { return null; }
 }
 
-function oauthCallbackUrl(): string {
+export function oauthCallbackUrl(): string {
   return `${String(config.apiUrl).replace(/\/$/, '')}/api/admin/integrations/facebook/oauth/callback`;
 }
 
@@ -122,6 +122,22 @@ function parseSignedRequest(signedRequest: string, appSecret: string): any {
   return JSON.parse(json);
 }
 
+metaRoutes.get('/facebook/oauth/config', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  try {
+    const app = await getMetaAppConfig();
+    res.json({
+      redirectUri: oauthCallbackUrl(),
+      appIdConfigured: !!app.appId,
+      appSecretConfigured: !!app.appSecret,
+      graphVersion: (config as any).meta?.graphVersion || 'v26.0',
+      frontendUrl: config.frontendUrl,
+      apiUrl: config.apiUrl,
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 metaRoutes.get('/facebook/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
   try {
     const store = (req as any).store as Store;
@@ -139,11 +155,11 @@ metaRoutes.get('/facebook/oauth/connect', authMiddleware, requireRole('owner', '
     }
     const app = await getMetaAppConfig();
     if (!app.appId || !app.appSecret) {
-      return res.status(400).json({ error: 'Meta App ID/Secret tanımlı değil. Super admin Global API Ayarları\'na eklemeli.' });
+      return res.status(400).json({ error: 'Meta App ID/Secret tanımlı değil. Super admin Global API Ayarları\'na eklemeli.', redirectUri: oauthCallbackUrl() });
     }
     const state = buildState(store.id);
     const client = new FacebookClient({ ...app, redirectUri: oauthCallbackUrl() });
-    res.json({ url: client.getAuthUrl(state), fbeEnabled: true });
+    res.json({ url: client.getAuthUrl(state), fbeEnabled: true, redirectUri: oauthCallbackUrl() });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Meta OAuth connect error');
     res.status(500).json({ error: 'Internal server error' });

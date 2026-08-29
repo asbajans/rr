@@ -121,6 +121,7 @@ services:
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v26.0}
+      META_OAUTH_SCOPES: ${META_OAUTH_SCOPES:-pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish,catalog_management,business_management}
       META_SYSTEM_USER_TOKEN: ${META_SYSTEM_USER_TOKEN:-}
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

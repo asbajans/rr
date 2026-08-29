@@ -703,7 +703,10 @@ class ApiClient {
 
   // Meta / Facebook / Instagram (TechProvider)
   getMetaConnectUrl() {
-    return this.get<{ url: string; fbeEnabled?: boolean }>('/api/admin/integrations/facebook/oauth/connect')
+    return this.get<{ url: string; fbeEnabled?: boolean; redirectUri?: string }>('/api/admin/integrations/facebook/oauth/connect')
+  }
+  getMetaOAuthConfig() {
+    return this.get<{ redirectUri: string; appIdConfigured: boolean; appSecretConfigured: boolean; graphVersion: string; frontendUrl: string; apiUrl: string }>('/api/admin/integrations/facebook/oauth/config')
   }
   getMetaAssets() {
     return this.get<{ pages: any[]; catalogs: any[]; instagram: any[]; selected: { pageId: string | null; catalogId: string | null; igUserId: string | null } }>('/api/admin/integrations/facebook/assets')

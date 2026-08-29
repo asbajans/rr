@@ -99,6 +99,7 @@ export const config = {
     appId: process.env.META_APP_ID || '',
     appSecret: process.env.META_APP_SECRET || '',
     graphVersion: process.env.META_GRAPH_VERSION || 'v26.0',
+    oauthScopes: process.env.META_OAUTH_SCOPES || 'pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish,catalog_management,business_management',
     systemUserToken: process.env.META_SYSTEM_USER_TOKEN || '',
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || '',
   },

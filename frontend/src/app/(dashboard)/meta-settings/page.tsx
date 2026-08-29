@@ -11,17 +11,22 @@ export default function MetaSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({ meta_app_id: '', meta_app_secret: '', meta_graph_version: 'v26.0' })
+  const [redirectUri, setRedirectUri] = useState('https://api.rahatio.com.tr/api/admin/integrations/facebook/oauth/callback')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    api.getGlobalSettings().then((res: any) => {
-      const m = res.settings || {}
-      setForm({
-        meta_app_id: String(m.meta_app_id?.value ?? m.meta_app_id ?? ''),
-        meta_app_secret: String(m.meta_app_secret?.value ?? m.meta_app_secret ?? ''),
-        meta_graph_version: String(m.meta_graph_version?.value ?? m.meta_graph_version ?? 'v26.0'),
-      })
+    Promise.allSettled([api.getGlobalSettings(), api.getMetaOAuthConfig().catch(() => null as any)]).then(([a, b]) => {
+      if (a.status === 'fulfilled') {
+        const m = (a.value as any).settings || {}
+        setForm({
+          meta_app_id: String(m.meta_app_id?.value ?? m.meta_app_id ?? ''),
+          meta_app_secret: String(m.meta_app_secret?.value ?? m.meta_app_secret ?? ''),
+          meta_graph_version: String(m.meta_graph_version?.value ?? m.meta_graph_version ?? 'v26.0'),
+        })
+      }
+      if (b.status === 'fulfilled' && (b.value as any)?.redirectUri) setRedirectUri((b.value as any).redirectUri)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [user])
 
@@ -66,9 +71,27 @@ export default function MetaSettingsPage() {
           <button onClick={save} disabled={saving} className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? 'Kaydediliyor...' : 'Kaydet'}</button>
           {message && <p className={`text-sm ${message.includes('Kaydedildi') ? 'text-green-700 bg-green-50 p-3 rounded-lg' : 'text-red-600'}`}>{message}</p>}
 
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-semibold text-amber-900">⚠️ En önemli adım — Valid OAuth Redirect URI (beyaz liste)</p>
+            <p className="mt-1 text-xs text-amber-800">Aldığın hata (“Yönlendirme URI’si beyaz listede değil”) tam bu yüzden. Aşağıdaki URI’yi <span className="font-medium">aynen</span> eklemelisin:</p>
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-white border border-amber-200 px-3 py-2">
+              <code className="flex-1 text-xs font-mono text-zinc-900 break-all">{redirectUri}</code>
+              <button onClick={() => { navigator.clipboard.writeText(redirectUri); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className="shrink-0 rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800">{copied ? 'Kopyalandı' : 'Kopyala'}</button>
+            </div>
+            <ol className="mt-2 list-decimal pl-4 text-xs text-amber-800 space-y-1">
+              <li><a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" className="underline">developers.facebook.com</a> → Uygulamalarım → senin Meta uygulaman → <span className="font-medium">Facebook Login → Ayarlar</span></li>
+              <li><span className="font-medium">Client OAuth Login</span> ve <span className="font-medium">Web OAuth Login</span> → <span className="font-medium">Açık</span> yap</li>
+              <li><span className="font-medium">Valid OAuth Redirect URIs</span> alanına yukarıdaki URI’yi yapıştır → <span className="font-medium">Değişiklikleri Kaydet</span></li>
+              <li>Aynı sayfada <span className="font-medium">Enforce HTTPS</span> açıksa kalabilir (biz https kullanıyoruz)</li>
+              <li>Üstteki <span className="font-medium">Ayarlar → Temel</span> → <span className="font-medium">Uygulama Domainleri</span> → <span className="font-mono">rahatio.com.tr</span> ve <span className="font-mono">api.rahatio.com.tr</span> ekle</li>
+            </ol>
+            <p className="mt-2 text-xs text-amber-700">Not: URI <span className="font-mono">http</span> değil <span className="font-mono">https</span>, sonunda <span className="font-mono">/</span> yok, birebir aynı olmalı. Ekledikten sonra 1dk bekleyip tekrar “Meta’yı Bağla” dene.</p>
+          </div>
+
           <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600">
             <p className="font-medium text-zinc-900">Token nereye girilir?</p>
-            <p className="mt-1">Hiçbir satıcı token girmez. Satıcı Marketing → Meta’yı Otomatik Bağla deyince Facebook login popup’ında izin verir, token bizde `MarketplaceIntegration.config`’te saklanır (60 gün, günlük yenilenir). Senin girmen gereken tek şey bu sayfadaki App ID/Secret. Uygulamayı developers.facebook.com → TechProvider portfolyon → App → Valid OAuth Redirect URI: <span className="font-mono">https://api.rahatio.com.tr/api/admin/integrations/facebook/oauth/callback</span> ekle.</p>
+            <p className="mt-1">Hiçbir satıcı token girmez. Satıcı Marketing → Meta’yı Otomatik Bağla deyince Facebook login popup’ında izin verir, token bizde `MarketplaceIntegration.config`’te saklanır (60 gün, günlük yenilenir). Senin girmen gereken tek şey bu sayfadaki App ID/Secret.</p>
+            <p className="mt-1 text-zinc-500">Facebook SDK: ayrıca npm paketi kurmadık. Akış Graph API v26 OAuth redirect (`https://www.facebook.com/v26.0/dialog/oauth`) ile — JS SDK gerekmez. FBE için gerekirse `connect.facebook.net/en_US/sdk.js` otomatik yüklenir.</p>
           </div>
         </div>
       )}

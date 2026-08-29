@@ -33,10 +33,12 @@ export default function MarketingPage() {
   const [error, setError] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(false)
 
-  // Handle meta=select redirect after OAuth
+  // Handle meta=select / meta=error redirect after OAuth
   useEffect(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('meta') === 'select') {
-      setShowAssetPicker(true)
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search)
+      if (sp.get('meta') === 'select') setShowAssetPicker(true)
+      if (sp.get('meta') === 'error') setError(decodeURIComponent(sp.get('message') || 'Meta bağlantısı başarısız. Geçersiz yetkiler veya whitelist hatası — Meta Ayarları’ndaki yönlendirme URI’yi kontrol et.'))
     }
   }, [])
 
@@ -91,6 +93,8 @@ export default function MarketingPage() {
   }
   useEffect(() => { loadProducts('') }, [])
 
+  const [oauthRedirectUri, setOauthRedirectUri] = useState<string>('')
+  useEffect(() => { api.getMetaOAuthConfig().then(r => setOauthRedirectUri(r.redirectUri)).catch(() => {}) }, [])
   const handleConnect = async () => {
     setConnecting(true); setError('')
     try {
@@ -100,9 +104,8 @@ export default function MarketingPage() {
     } catch (e: any) {
       const msg = e?.data?.error || e?.message || 'Bağlantı başlatılamadı'
       const detail = e?.data?.message || ''
-      // Backend 400: Meta App ID/Secret tanımlı değil → yönlendir
       if (String(msg).includes('Meta App') || String(detail).includes('Meta App')) {
-        setError('Meta uygulaması henüz yapılandırılmadı. Super Admin → Meta Ayarları’ndan App ID ve App Secret girmen gerekiyor. (developers.facebook.com → Uygulama → Ayarlar → Temel) — Alternatif: .env’de META_APP_ID / META_APP_SECRET')
+        setError('Meta uygulaması henüz yapılandırılmadı. Super Admin → Meta Ayarları’ndan App ID ve App Secret girmen gerekiyor. (developers.facebook.com → Uygulama → Ayarlar → Temel)')
       } else if (String(msg).includes('PLAN_MARKETPLACE_LIMIT') || e?.status === 403) {
         setError('Pazaryeri limitin dolu veya marketplace modülü kapalı. Planını kontrol et.')
       } else {
@@ -269,7 +272,20 @@ export default function MarketingPage() {
           <button onClick={handlePublish} disabled={publishing || selectedIds.length === 0} className="w-full rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2">
             <Megaphone className="h-4 w-4" /> {publishing ? 'Paylaşılıyor...' : `Paylaş (${selectedIds.length} ürün × ${channels.length} kanal)`}
           </button>
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>}
+          {error && (
+            <div className="rounded-lg bg-red-50 p-3">
+              <p className="text-sm text-red-700">{error}</p>
+              {String(error).toLowerCase().includes('beyaz liste') || String(error).toLowerCase().includes('whitelist') || String(error).toLowerCase().includes('redirect') ? (
+                <div className="mt-2 rounded-md bg-white border border-red-200 p-3">
+                  <p className="text-xs font-semibold text-zinc-900">Yapman gereken (30 sn):</p>
+                  <p className="mt-1 text-xs text-zinc-600">developers.facebook.com → Uygulaman → Facebook Login → Ayarlar → Valid OAuth Redirect URIs → şunu ekle:</p>
+                  <code className="mt-1 block rounded bg-zinc-900 px-2 py-1.5 text-xs font-mono text-white break-all">{oauthRedirectUri || 'https://api.rahatio.com.tr/api/admin/integrations/facebook/oauth/callback'}</code>
+                  <p className="mt-1 text-xs text-zinc-500">Client OAuth Login ve Web OAuth Login = Açık, App Domains = rahatio.com.tr</p>
+                  <a href="/meta-settings" className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-700">Meta Ayarları’na git →</a>
+                </div>
+              ) : null}
+            </div>
+          )}
           {result && (
             <div className="rounded-lg bg-green-50 p-3 text-sm">
               <p className="font-medium text-green-800">{result.results ? `${result.results.filter((r:any)=>r.ok).length}/${result.results.length} başarılı` : 'Bitti'}</p>
