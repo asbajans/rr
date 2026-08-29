@@ -617,4 +617,35 @@ router.delete('/supplier/ratings-admin/:id', superAdminOnly, [
   }
 });
 
+// Super Admin Meta test area — direct endpoint for permission testing
+router.get('/meta/test', authMiddleware, requireRole('owner', 'admin'), async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user as any;
+    // Return the current scope config and endpoint list for testing
+    const { META_OAUTH_SCOPES, META_FULL_SCOPES } = await import('../../marketplace/clients/facebook.js')
+    res.json({
+      message: 'Meta test endpoint',
+      user: { id: user.id, email: user.email, role: user.role },
+      scopes: {
+        current: META_OAUTH_SCOPES,
+        full: META_FULL_SCOPES,
+        minimal: 'catalog_management',
+      },
+      endpoints: {
+        comments: { get: '/api/admin/integrations/facebook/ig/comments', reply: 'POST /:commentId/reply', delete: 'DELETE /:commentId' },
+        messages: { list: '/api/admin/integrations/facebook/ig/messages', get: '/:conversationId', send: 'POST :conversationId/send' },
+        ads: { list: '/api/admin/integrations/facebook/ads', insights: '/:adId/insights' },
+        insights: { page: '/api/admin/integrations/facebook/page/insights', igAccount: '/api/admin/integrations/facebook/ig/account' },
+        publish: '/api/admin/integrations/meta/publish',
+        assets: '/api/admin/integrations/facebook/assets',
+        oauth: { config: '/api/admin/integrations/facebook/oauth/config', connect: '/api/admin/integrations/facebook/oauth/connect?scopes=minimal|full' },
+      },
+      instructions: 'Call any of the endpoints above from the frontend Test Alanı or directly. Check console for full responses.'
+    })
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Meta test error')
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export { router as superAdminRoutes };

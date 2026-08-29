@@ -44,6 +44,13 @@ export async function getMetaAppConfig(): Promise<{ appId: string; appSecret: st
   return { appId, appSecret };
 }
 
+export async function getMetaOAuthScopes(): Promise<string> {
+  const settings = await Setting.findAll({ where: { key: ['meta_oauth_scopes'] } });
+  const map: Record<string, string> = {};
+  for (const s of settings) map[s.key] = settingString(s.value);
+  return map.meta_oauth_scopes || (config as any).meta?.oauthScopes || process.env.META_OAUTH_SCOPES || 'catalog_management';
+}
+
 function signState(payload: string): string {
   return generateHmacSHA256Hex(payload, config.apiKey.internalKey);
 }
@@ -157,9 +164,21 @@ metaRoutes.get('/facebook/oauth/connect', authMiddleware, requireRole('owner', '
     if (!app.appId || !app.appSecret) {
       return res.status(400).json({ error: 'Meta App ID/Secret tanımlı değil. Super admin Global API Ayarları\'na eklemeli.', redirectUri: oauthCallbackUrl() });
     }
+    let scopes = await getMetaOAuthScopes();
+    // allow ?scopes=full/minimal or custom comma list for testing
+    const qs = String(req.query.scopes || '').trim();
+    if (qs === 'full') {
+      const { META_FULL_SCOPES } = await import('../../marketplace/clients/facebook.js');
+      scopes = META_FULL_SCOPES.join(',') as string;
+    } else if (qs === 'minimal') {
+      const { META_MINIMAL_SCOPES } = await import('../../marketplace/clients/facebook.js');
+      scopes = META_MINIMAL_SCOPES;
+    } else if (qs && qs.includes(',')) {
+      scopes = qs;
+    }
     const state = buildState(store.id);
-    const client = new FacebookClient({ ...app, redirectUri: oauthCallbackUrl() });
-    res.json({ url: client.getAuthUrl(state), fbeEnabled: true, redirectUri: oauthCallbackUrl() });
+    const client = new FacebookClient({ ...(app as any), redirectUri: oauthCallbackUrl(), oauthScopes: scopes } as any);
+    res.json({ url: client.getAuthUrl(state, scopes), fbeEnabled: true, redirectUri: oauthCallbackUrl(), scopes });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Meta OAuth connect error');
     res.status(500).json({ error: 'Internal server error' });
@@ -608,4 +627,175 @@ metaRoutes.post('/facebook/data-deletion', async (req: Request, res: Response) =
 
 metaRoutes.get('/facebook/data-deletion/:code', async (req: Request, res: Response) => {
   res.json({ confirmation_code: req.params.code, status: 'completed' });
+});
+
+// ---- instagram_manage_comments ----
+metaRoutes.get('/facebook/ig/comments', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const cfg = (integration.config || {}) as MetaConfig;
+    const { mediaId, limit } = req.query as any;
+    const comments = await client.listIgComments(cfg.igUserId || '', mediaId || undefined, limit ? Number(limit) : 50);
+    res.json({ comments });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG comments error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+metaRoutes.post('/facebook/ig/comments/:commentId/reply', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
+  body('message').isString().notEmpty(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const { message } = req.body;
+    const result = await client.replyToIgComment(req.params.commentId, message);
+    res.json({ ok: true, result });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG reply error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+metaRoutes.delete('/facebook/ig/comments/:commentId', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const ok = await client.deleteIgComment(req.params.commentId);
+    res.json({ ok });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG delete comment error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+// ---- instagram_business_manage_messages ----
+metaRoutes.get('/facebook/ig/messages', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const conversations = await client.listIgConversations();
+    res.json({ conversations });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG messages error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+metaRoutes.get('/facebook/ig/messages/:conversationId', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const conv = await client.getIgConversation(req.params.conversationId);
+    res.json({ conversation: conv });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG conversation error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+metaRoutes.post('/facebook/ig/messages/:conversationId/send', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), [
+  body('message').isString().notEmpty(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const result = await client.sendIgMessage(req.params.conversationId, req.body.message);
+    res.json({ ok: true, result });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG send message error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+// ---- ads_read + ads_management ----
+metaRoutes.get('/facebook/ads', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Facebook bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const ads = await client.listAds();
+    res.json({ ads });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Facebook ads error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+metaRoutes.get('/facebook/ads/:adId/insights', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Facebook bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const insights = await client.getAdInsights(req.params.adId);
+    res.json({ adId: req.params.adId, insights });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'FB ad insights error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+// ---- pages_read_engagement ----
+metaRoutes.get('/facebook/page/insights', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Facebook bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const insights = await client.getPageInsights();
+    const posts = await client.getPagePosts();
+    res.json({ insights, posts });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'FB page insights error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
+});
+
+metaRoutes.get('/facebook/ig/account', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store as Store;
+    const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'instagram' } })
+      || await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'facebook', isActive: true } });
+    if (!integration) return res.status(400).json({ error: 'Instagram bağlı değil' });
+    const app = await getMetaAppConfig();
+    const client = clientFromIntegration(integration, app);
+    const cfg = (integration.config || {}) as MetaConfig;
+    const info = cfg.igUserId ? await client.getInstagramAccountInfo(cfg.igUserId) : null;
+    const accounts = await client.listInstagramAccounts();
+    res.json({ account: info, accounts });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'IG account info error');
+    res.status(500).json({ error: (error as Error).message || 'Internal server error' });
+  }
 });

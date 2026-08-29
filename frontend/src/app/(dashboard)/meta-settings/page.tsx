@@ -10,7 +10,7 @@ export default function MetaSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const [form, setForm] = useState({ meta_app_id: '', meta_app_secret: '', meta_graph_version: 'v26.0' })
+  const [form, setForm] = useState({ meta_app_id: '', meta_app_secret: '', meta_graph_version: 'v26.0', meta_oauth_scopes: 'catalog_management' })
   const [redirectUri, setRedirectUri] = useState('https://api.rahatio.com.tr/api/admin/integrations/facebook/oauth/callback')
   const [copied, setCopied] = useState(false)
 
@@ -24,6 +24,7 @@ export default function MetaSettingsPage() {
           meta_app_id: String(m.meta_app_id?.value ?? m.meta_app_id ?? ''),
           meta_app_secret: String(m.meta_app_secret?.value ?? m.meta_app_secret ?? ''),
           meta_graph_version: String(m.meta_graph_version?.value ?? m.meta_graph_version ?? 'v26.0'),
+          meta_oauth_scopes: String(m.meta_oauth_scopes?.value ?? m.meta_oauth_scopes ?? 'catalog_management'),
         })
       }
       if (b.status === 'fulfilled' && (b.value as any)?.redirectUri) setRedirectUri((b.value as any).redirectUri)
@@ -36,6 +37,7 @@ export default function MetaSettingsPage() {
       await api.updateGlobalSetting('meta_app_id', form.meta_app_id)
       await api.updateGlobalSetting('meta_app_secret', form.meta_app_secret)
       await api.updateGlobalSetting('meta_graph_version', form.meta_graph_version || 'v26.0')
+      await api.updateGlobalSetting('meta_oauth_scopes', form.meta_oauth_scopes || 'catalog_management')
       setMessage('Kaydedildi. Artık Marketing → Meta’yı Otomatik Bağla çalışır.')
     } catch (e: any) { setMessage(e.message || 'Kaydedilemedi') } finally { setSaving(false) }
   }
@@ -68,6 +70,11 @@ export default function MetaSettingsPage() {
             <input value={form.meta_graph_version} onChange={e => setForm(f => ({ ...f, meta_graph_version: e.target.value }))} className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono" />
             <p className="mt-1 text-xs text-zinc-500">Güncel: v26.0 (biz v22→v26 geçtik). Değiştirmen gerekmez.</p>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-700">OAuth Scopes (izinler)</label>
+            <input value={form.meta_oauth_scopes} onChange={e => setForm(f => ({ ...f, meta_oauth_scopes: e.target.value }))} className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-xs font-mono" />
+            <p className="mt-1 text-xs text-zinc-500">Hatalı “Invalid Scopes” aldığın için şu an <span className="font-mono">catalog_management</span> ile başla. App Type Business + Facebook Login for Business aktif edip App Review sonrası tam listeye geç: <span className="font-mono text-[11px]">pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish,catalog_management,business_management</span> <button onClick={() => setForm(f => ({ ...f, meta_oauth_scopes: 'pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish,catalog_management,business_management' }))} className="ml-1 underline text-indigo-600">Tam listeyi yükle</button></p>
+          </div>
           <button onClick={save} disabled={saving} className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? 'Kaydediliyor...' : 'Kaydet'}</button>
           {message && <p className={`text-sm ${message.includes('Kaydedildi') ? 'text-green-700 bg-green-50 p-3 rounded-lg' : 'text-red-600'}`}>{message}</p>}
 
@@ -90,8 +97,11 @@ export default function MetaSettingsPage() {
 
           <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600">
             <p className="font-medium text-zinc-900">Token nereye girilir?</p>
-            <p className="mt-1">Hiçbir satıcı token girmez. Satıcı Marketing → Meta’yı Otomatik Bağla deyince Facebook login popup’ında izin verir, token bizde `MarketplaceIntegration.config`’te saklanır (60 gün, günlük yenilenir). Senin girmen gereken tek şey bu sayfadaki App ID/Secret.</p>
-            <p className="mt-1 text-zinc-500">Facebook SDK: ayrıca npm paketi kurmadık. Akış Graph API v26 OAuth redirect (`https://www.facebook.com/v26.0/dialog/oauth`) ile — JS SDK gerekmez. FBE için gerekirse `connect.facebook.net/en_US/sdk.js` otomatik yüklenir.</p>
+            <p className="mt-1">Hiçbir satıcı token girmez. Satıcı Marketing → Meta'yu Otomatik Bağla deyince Facebook login popup'ında izin verir, token bizde <code className="bg-zinc-200 px-1 rounded">MarketplaceIntegration.config</code>'te saklanır (60 gün, günlük yenilenir). Senin girmen gereken tek şey bu sayfadaki App ID/Secret.</p>
+            <p className="mt-1 text-zinc-500">Facebook SDK: ayrıca npm paketi kurmadık. Akış Graph API v26 OAuth redirect (<code className="bg-zinc-200 px-1 rounded">https://www.facebook.com/v26.0/dialog/oauth</code>) ile — JS SDK gerekmez. FBE için gerekirse <code className="bg-zinc-200 px-1 rounded">connect.facebook.net/en_US/sdk.js</code> otomatik yüklenir.</p>
+            {user?.role === 'superadmin' && (
+              <p className="mt-2"><a href="/meta-test" className="text-indigo-600 font-medium hover:underline">🧪 Meta Test Alanı</a> — tüm endpoint'leri test et (sadece süperadmin).</p>
+            )}
           </div>
         </div>
       )}

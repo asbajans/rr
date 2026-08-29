@@ -29,30 +29,43 @@ export function buildTrackingUrl(baseUrl: string, source: string, extra: Record<
 }
 
 /**
- * Minimal valid scopes for v26.0 — these are the only ones that pass
- * Facebook Login validation without an approved App Review.
- * `ads_management` and `manage_business_extension` are TechProvider-only
- * and must be requested after Business verification + review, otherwise
- * Graph returns "Invalid Scopes" (shown only to app admins).
- * Keep this list in sync with developers.facebook.com → App → Permissions.
- * Env override: META_OAUTH_SCOPES=comma,list
+ * Scope handling for v26.0.
+ * All scopes below are approved in App Review for this app.
+ * If the app is not Business type or Facebook Login for Business
+ * product is not enabled, Facebook marks some as "Invalid Scopes"
+ * (shown only to developers). Business type + login products fix that.
+ * Env override: META_OAUTH_SCOPES=comma,list  or Setting meta_oauth_scopes
  */
-export const META_OAUTH_SCOPES = ((envConfig as any)?.meta?.oauthScopes || process.env.META_OAUTH_SCOPES ||
-  [
-    'pages_show_list',
-    'pages_read_engagement',
-    'pages_manage_posts',
-    'pages_manage_metadata',
-    'instagram_basic',
-    'instagram_content_publish',
-    'catalog_management',
-    'business_management',
-  ].join(',')) as string;
+export const META_FULL_SCOPES = [
+  // Pages
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_posts',
+  'pages_manage_metadata',
+  // Instagram
+  'instagram_basic',
+  'instagram_content_publish',
+  'instagram_manage_comments',
+  'instagram_business_manage_messages',
+  'instagram_business_basic',
+  // Business / Ads
+  'business_management',
+  'ads_read',
+  'ads_management',
+  // Catalog / Profile
+  'catalog_management',
+  'public_profile',
+] as const;
+export type MetaScope = typeof META_FULL_SCOPES[number];
+const DEFAULT_SCOPES = [...META_FULL_SCOPES].join(',');
+export const META_OAUTH_SCOPES = ((envConfig as any)?.meta?.oauthScopes || process.env.META_OAUTH_SCOPES || DEFAULT_SCOPES) as string;
+export const META_MINIMAL_SCOPES = 'catalog_management';
 
 export interface MetaConfig {
   appId: string;
   appSecret?: string;
   redirectUri?: string;
+  oauthScopes?: string;
   accessToken?: string;
   userAccessToken?: string;
   tokenExpiry?: number;
@@ -145,13 +158,14 @@ export class FacebookClient extends BaseMarketplaceClient implements Marketplace
     }
   }
 
-  getAuthUrl(state: string): string {
+  getAuthUrl(state: string, customScopes?: string): string {
+    const scopes = customScopes || (this.config as any).oauthScopes || META_OAUTH_SCOPES;
     const params = new URLSearchParams({
       client_id: this.config.appId,
       redirect_uri: this.config.redirectUri || '',
       state,
       response_type: 'code',
-      scope: META_OAUTH_SCOPES,
+      scope: scopes,
     });
     return `https://www.facebook.com/${META_GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
   }
@@ -530,6 +544,99 @@ export class FacebookClient extends BaseMarketplaceClient implements Marketplace
       token: this.config.pageAccessToken || this.userToken(),
       data: { creation_id: creationId },
     });
+  }
+
+  // ---- instagram_business_basic + pages_show_list ----
+  async listInstagramAccounts(): Promise<Array<{ id: string; username: string; pageId: string }>> {
+    const data = await this.graph<any>('GET', '/me/accounts', {
+      token: this.userToken(),
+      params: { fields: 'id,name,instagram_business_account{id,username}', limit: 100 },
+    });
+    const out: Array<{ id: string; username: string; pageId: string }> = [];
+    for (const p of (data.data || [])) {
+      const ig = p.instagram_business_account;
+      if (ig) out.push({ id: String(ig.id), username: ig.username, pageId: String(p.id) });
+    }
+    return out;
+  }
+
+  async getInstagramAccountInfo(igUserId: string): Promise<{ id: string; username?: string; followers?: number; followsCount?: number; mediaCount?: number }> {
+    try {
+      const d = await this.graph<any>('GET', `/${igUserId}`, { token: this.userToken(), params: { fields: 'id,username,edge_followed_by{count},edge_follow{count},edge_owner_to_timeline_media{count}' } });
+      return { id: String(d.id), username: d.username, followers: d.edge_followed_by?.count, followsCount: d.edge_follow?.count, mediaCount: d.edge_owner_to_timeline_media?.count };
+    } catch { return { id: igUserId }; }
+  }
+
+  // ---- instagram_manage_comments ----
+  async listIgComments(igUserId: string, mediaId?: string, limit = 50): Promise<Array<{ id: string; text: string; created_time?: string; from?: { id: string; name: string }; like_count?: number; is_hidden?: boolean }>> {
+    const path = mediaId ? `/${mediaId}/comments` : `/${igUserId}/media`;
+    const params: any = { limit };
+    if (mediaId) params.fields = 'id,message,created_time,from{name,id},like_count,is_hidden';
+    const data = await this.graph<any>('GET', path, { token: this.userToken(), params });
+    const items = mediaId ? [data] : (data.data || []);
+    return items.flatMap((m: any) => (m.comments?.data || []).map((c: any) => ({ id: String(c.id), text: c.message, created_time: c.created_time, from: c.from, like_count: c.like_count, is_hidden: c.is_hidden })));
+  }
+
+  async deleteIgComment(commentId: string): Promise<boolean> {
+    try { await this.graph<any>('DELETE', `/${commentId}`, { token: this.userToken() }); return true; } catch { return false; }
+  }
+
+  async replyToIgComment(commentId: string, message: string): Promise<any> {
+    return this.graph<any>('POST', `/${commentId}/comments`, { token: this.userToken(), data: { message } });
+  }
+
+  // ---- instagram_business_manage_messages ----
+  async listIgConversations(): Promise<Array<{ id: string; page_id?: string; status?: string; updated_time?: string }>> {
+    try {
+      const data = await this.graph<any>('GET', '/me/conversations', { token: this.userToken(), params: { fields: 'id,page_id,status,updated_time', limit: 50 } });
+      return (data.data || []).map((c: any) => ({ id: String(c.id), page_id: c.page_id, status: c.status, updated_time: c.updated_time }));
+    } catch { return []; }
+  }
+
+  async getIgConversation(conversationId: string): Promise<{ id: string; messages?: Array<{ id: string; message: string; from?: { id: string; name: string }; created_time?: string }> }> {
+    try {
+      const data = await this.graph<any>('GET', `/${conversationId}`, { token: this.userToken(), params: { fields: 'id,messages{message,from,created_time}', limit: 50 } });
+      return data;
+    } catch { return { id: conversationId }; }
+  }
+
+  async sendIgMessage(conversationId: string, message: string): Promise<any> {
+    return this.graph<any>('POST', `/${conversationId}/messages`, { token: this.userToken(), data: { message } });
+  }
+
+  // ---- ads_read + ads_management ----
+  async listAds(): Promise<Array<{ id: string; name: string; status?: string; objective?: string; created_time?: string }>> {
+    let accountId: string | undefined;
+    try { accountId = (await this.listBusinesses())[0]?.id; } catch {}
+    if (!accountId) return [];
+    try {
+      const data = await this.graph<any>('GET', `/${accountId}/ads`, { token: this.userToken(), params: { fields: 'id,name,status,objective,created_time', limit: 50 } });
+      return (data.data || []).map((a: any) => ({ id: String(a.id), name: a.name, status: a.status, objective: a.objective, created_time: a.created_time }));
+    } catch { return []; }
+  }
+
+  async getAdInsights(adId: string): Promise<Record<string, any>[]> {
+    try {
+      const data = await this.graph<any>('GET', `/${adId}/insights`, { token: this.userToken(), params: { fields: 'impressions,clicks,spend,reach,ctr,cpc,cpm', date_preset: 'last_7d', limit: 1 }, });
+      return (data.data || []);
+    } catch { return []; }
+  }
+
+  // ---- pages_read_engagement ----
+  async getPageInsights(): Promise<{ page_id?: string; followers?: number; reach?: number; impressions?: number; engaged_users?: number }> {
+    if (!this.config.pageId) return {};
+    try {
+      const data = await this.graph<any>('GET', `/${this.config.pageId}/insights`, { token: this.userToken(), params: { metric: 'page_impressions,page_engaged_users,page_followers', period: 'day', limit: 1 }, });
+      return { page_id: this.config.pageId, ...(data.data?.[0]?.values?.[0] || {}) };
+    } catch { return {}; }
+  }
+
+  async getPagePosts(limit = 20): Promise<Array<{ id: string; message?: string; created_time?: string; likes?: number; comments_count?: number; shares?: number }>> {
+    if (!this.config.pageId) return [];
+    try {
+      const data = await this.graph<any>('GET', `/${this.config.pageId}/feed`, { token: this.userToken(), params: { fields: 'id,message,created_time,likes.summary(true),comments.summary(true),shares', limit }, });
+      return (data.data || []).map((p: any) => ({ id: String(p.id), message: p.message, created_time: p.created_time, likes: p.likes?.summary?.total_count, comments_count: p.comments?.summary?.total_count, shares: p.shares?.count }));
+    } catch { return []; }
   }
 }
 

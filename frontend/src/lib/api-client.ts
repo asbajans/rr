@@ -702,8 +702,10 @@ class ApiClient {
   }
 
   // Meta / Facebook / Instagram (TechProvider)
-  getMetaConnectUrl() {
-    return this.get<{ url: string; fbeEnabled?: boolean; redirectUri?: string }>('/api/admin/integrations/facebook/oauth/connect')
+  getMetaConnectUrl(scopes?: string) {
+    const params: Record<string, string> = {}
+    if (scopes) params.scopes = scopes
+    return this.get<{ url: string; fbeEnabled?: boolean; redirectUri?: string; scopes?: string }>('/api/admin/integrations/facebook/oauth/connect', { params })
   }
   getMetaOAuthConfig() {
     return this.get<{ redirectUri: string; appIdConfigured: boolean; appSecretConfigured: boolean; graphVersion: string; frontendUrl: string; apiUrl: string }>('/api/admin/integrations/facebook/oauth/config')
@@ -734,6 +736,41 @@ class ApiClient {
   }
   metaSyncBrands() {
     return this.post<{ imported: number; total: number; brands: any[] }>('/api/admin/integrations/meta/sync-brands')
+  }
+
+  // Meta integrations (permissions: instagram_manage_comments, ig_business_messages, ads_read, pages_read_engagement, ig_business_basic)
+  getMetaIgComments(mediaId?: string, limit?: number) {
+    const params: Record<string, string> = {}
+    if (mediaId) params.mediaId = mediaId
+    if (limit) params.limit = String(limit)
+    return this.get<{ comments: any[] }>('/api/admin/integrations/facebook/ig/comments', { params })
+  }
+  replyMetaIgComment(commentId: string, message: string) {
+    return this.post<{ ok: boolean; result?: any }>(`/api/admin/integrations/facebook/ig/comments/${commentId}/reply`, { message })
+  }
+  deleteMetaIgComment(commentId: string) {
+    return this.delete<{ ok: boolean }>(`/api/admin/integrations/facebook/ig/comments/${commentId}`)
+  }
+  getMetaIgMessages() {
+    return this.get<{ conversations: any[] }>('/api/admin/integrations/facebook/ig/messages')
+  }
+  getMetaIgConversation(conversationId: string) {
+    return this.get<{ conversation: any }>(`/api/admin/integrations/facebook/ig/messages/${conversationId}`)
+  }
+  sendMetaIgMessage(conversationId: string, message: string) {
+    return this.post<{ ok: boolean; result?: any }>(`/api/admin/integrations/facebook/ig/messages/${conversationId}/send`, { message })
+  }
+  getMetaAds() {
+    return this.get<{ ads: any[] }>('/api/admin/integrations/facebook/ads')
+  }
+  getMetaAdInsights(adId: string) {
+    return this.get<{ adId: string; insights: any[] }>(`/api/admin/integrations/facebook/ads/${adId}/insights`)
+  }
+  getMetaPageInsights() {
+    return this.get<{ insights: any; posts: any[] }>('/api/admin/integrations/facebook/page/insights')
+  }
+  getMetaIgAccount() {
+    return this.get<{ account: any; accounts: any[] }>('/api/admin/integrations/facebook/ig/account')
   }
 
   // B2B
