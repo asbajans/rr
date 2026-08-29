@@ -13,7 +13,7 @@ import type { AiChannel, PublishResult } from '@rahatio/shared';
 
 export const publishRoutes: Router = Router();
 
-const ALL_CHANNELS: AiChannel[] = ['storefront', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy'];
+const ALL_CHANNELS: AiChannel[] = ['storefront', 'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'facebook', 'instagram'];
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);

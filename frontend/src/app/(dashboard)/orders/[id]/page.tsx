@@ -504,6 +504,23 @@ export default function OrderDetailPage() {
             )}
           </div>
 
+          {(order as any).attribution && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
+              <h3 className="text-sm font-semibold text-indigo-900">Kaynak (Attribution)</h3>
+              <p className="text-xs text-indigo-700 mt-1">Sipariş nereden geldi? Tracking linki ile izlendi.</p>
+              <div className="mt-3 space-y-1.5 text-xs">
+                {Object.entries((order as any).attribution).map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2"><span className="text-indigo-600 font-medium">{k}</span><span className="text-indigo-900 break-all text-right">{String(v)}</span></div>
+                ))}
+                {(order as any).attribution_source && (
+                  <div className="mt-2 inline-flex rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white">
+                    {(order as any).attribution_source.includes('facebook') ? 'Facebook' : (order as any).attribution_source.includes('instagram') ? 'Instagram' : (order as any).attribution_source}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-semibold text-zinc-900">Teslimat</h3>
             <p className="mt-2 text-sm text-zinc-600 whitespace-pre-wrap">{order.shipping_address || '—'}</p>

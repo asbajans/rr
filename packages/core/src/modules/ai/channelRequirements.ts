@@ -17,10 +17,12 @@ export const CHANNEL_RULES: Record<AiChannel, ChannelRule> = {
   n11: { requiredFields: ['title', 'description', 'price', 'quantity'], requiresCategoryMapping: true, requiresBrand: false },
   amazon: { requiredFields: ['title', 'description', 'price', 'quantity'], requiresCategoryMapping: true, requiresBrand: true },
   etsy: { requiredFields: ['title', 'description', 'price', 'quantity'], requiresCategoryMapping: true, requiresBrand: false },
+  facebook: { requiredFields: ['title', 'description', 'price', 'quantity'], requiresCategoryMapping: false, requiresBrand: false },
+  instagram: { requiredFields: ['title', 'description', 'price', 'quantity'], requiresCategoryMapping: false, requiresBrand: false },
 };
 
 export const MARKETPLACE_CHANNEL_KEYS: AiChannel[] = [
-  'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy',
+  'trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'facebook', 'instagram',
 ];
 
 function missingFieldsFor(draft: AiProductDraft, requiredFields: string[]): string[] {

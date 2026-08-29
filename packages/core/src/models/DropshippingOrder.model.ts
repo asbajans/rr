@@ -194,6 +194,10 @@ export class DropshippingOrder extends Model {
   declare supplierStatus: string;
 
   @AllowNull(true)
+  @Column(DataType.JSONB)
+  declare attribution: object;
+
+  @AllowNull(true)
   @Index
   @Column(DataType.DATE)
   declare orderDate: Date;

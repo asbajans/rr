@@ -21,6 +21,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   version: process.env.npm_package_version || '2.0.0',
   apiUrl: process.env.APP_URL || 'http://localhost:3000',
+  frontendUrl: process.env.APP_FRONTEND_URL || process.env.FRONTEND_URL || 'https://rahatio.com.tr',
   corsOrigin: process.env.CORS_ORIGIN ? [...new Set([...process.env.CORS_ORIGIN.split(','), 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'])] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081', 'https://rahatio.com.tr', 'https://www.rahatio.com.tr'],
   
   jwt: {
@@ -92,6 +93,14 @@ export const config = {
 
   fcm: {
     serverKey: process.env.FCM_SERVER_KEY || '',
+  },
+
+  meta: {
+    appId: process.env.META_APP_ID || '',
+    appSecret: process.env.META_APP_SECRET || '',
+    graphVersion: process.env.META_GRAPH_VERSION || 'v26.0',
+    systemUserToken: process.env.META_SYSTEM_USER_TOKEN || '',
+    webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || '',
   },
 
   smtp: {

@@ -62,6 +62,8 @@ interface DropshippingOrder {
   currency: string
   created_at: string
   order_date: string
+  attribution?: any
+  attribution_source?: string
 }
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -280,6 +282,7 @@ export default function OrdersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Sipariş No</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Müşteri</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Pazaryeri</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Kaynak</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Durum</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Tutar</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Tarih</th>
@@ -295,6 +298,17 @@ export default function OrdersPage() {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-700">{o.customer_name || '—'}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-500">{o.marketplace}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">
+                    {o.marketplace === 'storefront' && (o as any).attribution_source ? (
+                      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-200" title={JSON.stringify((o as any).attribution)}>
+                        {String((o as any).attribution_source).includes('facebook') ? 'Facebook' : String((o as any).attribution_source).includes('instagram') ? 'Instagram' : (o as any).attribution_source}
+                      </span>
+                    ) : o.marketplace === 'storefront' ? (
+                      <span className="inline-flex items-center rounded-full bg-zinc-50 px-2 py-0.5 text-xs text-zinc-500">Direkt</span>
+                    ) : (
+                      <span className="text-xs text-zinc-400">—</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
                     <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[o.status] || 'bg-zinc-100 text-zinc-700'}`}>
                       {STATUS_LABELS[o.status] || o.status}

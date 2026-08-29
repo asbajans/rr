@@ -292,6 +292,74 @@ brand: entry.brand || '',
     };
 }
 
+function firstImageUrl(product: any): string {
+  const images = Array.isArray(product.images) ? product.images : [];
+  const raw = images.map((u: any) => (typeof u === 'string' ? u : (u?.url || u))).find(Boolean) || '';
+  if (!raw) return '';
+  if (String(raw).startsWith('//')) return `https:${raw}`;
+  if (String(raw).startsWith('http://')) return `https://${String(raw).slice(7)}`;
+  return String(raw);
+}
+
+function withTracking(base: string, source: string, pid: string | number): string {
+  try {
+    const url = new URL(base);
+    url.searchParams.set('utm_source', source);
+    url.searchParams.set('utm_medium', source === 'facebook_catalog' ? 'catalog' : 'social');
+    url.searchParams.set('rh_src', source);
+    if (pid) url.searchParams.set('rh_pid', String(pid));
+    return url.toString();
+  } catch { return base; }
+}
+
+export function mapProductForFacebook(product: any, integration: any): Record<string, any> {
+  const entry = getMarketplaceEntry(product, 'facebook');
+  const igEntry = getMarketplaceEntry(product, 'instagram');
+  const brand = entry.brand || igEntry.brand || product.brand || '';
+  const qty = marketplaceQuantity(product, entry);
+  const image = firstImageUrl(product);
+  const extra = (Array.isArray(product.images) ? product.images : [])
+    .map((u: any) => (typeof u === 'string' ? u : u?.url))
+    .filter(Boolean)
+    .slice(1, 10);
+  const cfg = integration?.config || {};
+  const rawUrl = product.storefrontUrl || entry.url || (cfg.storefrontBase && product.id ? `${String(cfg.storefrontBase).replace(/\/$/, '')}/products/${product.id}` : '');
+  // Catalog clicks go to site — add tracking so checkout attribution knows it came from FB catalog
+  const url = rawUrl ? withTracking(rawUrl, 'facebook_catalog', product.id) : '';
+  const price = Number(product.priceTRY ?? product.priceUSD ?? 0);
+
+  if (!cfg.catalogId) return { _skip: true, reason: 'Meta katalog seçilmedi' };
+  if (!image) return { _skip: true, reason: 'Meta katalog için HTTPS görsel yok' };
+  if (!url) return { _skip: true, reason: 'Meta katalog için ürün URL yok' };
+
+  return {
+    retailer_id: product.sku,
+    name: product.title,
+    description: product.description || product.title,
+    availability: qty > 0 ? 'in stock' : 'out of stock',
+    condition: 'new',
+    price: `${price.toFixed(2)} TRY`,
+    currency: 'TRY',
+    url,
+    image_url: image,
+    additional_image_urls: extra,
+    brand,
+    quantity: qty,
+    inventory: qty,
+    salePrice: price,
+    item_group_id: product.sku ? String(product.sku).split('-')[0] : undefined,
+  };
+}
+
+export function mapProductForInstagram(product: any, integration: any): Record<string, any> {
+  const mapped = mapProductForFacebook(product, integration);
+  if ((mapped as any)._skip) {
+    const reason = String((mapped as any).reason || '').replace('Meta katalog', 'Instagram Shop katalog');
+    return { _skip: true, reason };
+  }
+  return mapped;
+}
+
 export function mapProductForMarketplace(mp: string, product: any, integration: any): Record<string, any> {
   switch (mp) {
     case 'trendyol': return mapProductForTrendyol(product, integration);
@@ -300,6 +368,8 @@ export function mapProductForMarketplace(mp: string, product: any, integration: 
     case 'pazarama': return mapProductForPazarama(product, integration);
     case 'amazon': return mapProductForAmazon(product, integration);
     case 'etsy': return mapProductForEtsy(product, integration);
+    case 'facebook': return mapProductForFacebook(product, integration);
+    case 'instagram': return mapProductForInstagram(product, integration);
     default: return { title: product.title, salePrice: product.priceTRY ?? product.priceUSD ?? 0 };
   }
 }

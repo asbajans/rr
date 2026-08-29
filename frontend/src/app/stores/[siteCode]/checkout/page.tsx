@@ -7,6 +7,7 @@ import { useCart } from '@/lib/cart'
 import { storeBase } from '@/lib/store-path'
 import type { CustomerAddress } from '@/lib/types'
 import { ArrowLeft, Check, Plus } from 'lucide-react'
+import { getAttribution } from '@/lib/attribution'
 
 type Step = 'info' | 'payment' | 'review' | 'done'
 
@@ -148,6 +149,7 @@ export default function CheckoutPage() {
         }
 
     try {
+      const attribution = getAttribution()
       const res = await api.checkout(siteCode, {
         items: items.map(i => ({ product_id: Number(i.product_id), sku: i.sku, quantity: Number(i.quantity) })),
         customer: {
@@ -160,6 +162,7 @@ export default function CheckoutPage() {
         shipping_address: selectedAddressId ? undefined : shippingAddress,
         payment_method: selectedPayment,
         note: note || undefined,
+        attribution: attribution || undefined,
       })
 
       setOrderId(String(res.orderId))

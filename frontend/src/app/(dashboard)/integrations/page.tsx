@@ -183,12 +183,32 @@ export default function IntegrationsPage() {
     )
   }
 
+  const [metaConnecting, setMetaConnecting] = useState(false)
+  const handleMetaConnect = async () => {
+    setMetaConnecting(true)
+    try { const { url } = await api.getMetaConnectUrl(); window.location.href = url } catch (e: any) { setMessage(e.message) } finally { setMetaConnecting(false) }
+  }
+
   if (!user) return null
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-zinc-900">Pazaryeri Entegrasyonları</h1>
-      <p className="mt-1 text-sm text-zinc-600">Trendyol ve Hepsiburada API bağlantılarını yapılandır.</p>
+      <p className="mt-1 text-sm text-zinc-600">Trendyol/Hepsiburada API ve Meta (Facebook/Instagram) TechProvider bağlantıları.</p>
+
+      <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-white border border-indigo-200 flex items-center justify-center text-indigo-600">◉</div>
+          <div>
+            <p className="text-sm font-semibold text-indigo-900">Meta — Facebook & Instagram (TechProvider)</p>
+            <p className="text-xs text-indigo-700">Katalog + Instagram Shop + Piksel oto-kurulum + post/story paylaşım. Siparişler sitede kalır, kaynak tracking ile izlenir.</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <a href="/marketing" className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800">Marketing’e Git</a>
+          <button onClick={handleMetaConnect} disabled={metaConnecting} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50">{metaConnecting ? 'Yönlendiriliyor...' : 'Meta’yı Otomatik Bağla'}</button>
+        </div>
+      </div>
 
       {message && (
         <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{message}</div>

@@ -109,6 +109,8 @@ const MARKETPLACE_LABELS: Record<string, string> = {
   n11: 'N11',
   amazon: 'Amazon',
   etsy: 'Etsy',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
 }
 
 const MARKETPLACE_FIELDS: Record<string, Record<string, string>> = {
@@ -118,6 +120,8 @@ const MARKETPLACE_FIELDS: Record<string, Record<string, string>> = {
   n11: { appKey: 'App Key', appSecret: 'App Secret' },
   amazon: { refreshToken: 'Refresh Token', sellerId: 'Satıcı ID', awsAccessKey: 'AWS Access Key', awsSecretKey: 'AWS Secret Key' },
   etsy: { clientId: 'Client ID', clientSecret: 'Client Secret' },
+  facebook: {},
+  instagram: {},
 }
 
 function mapIntegration(i: any): any {
@@ -162,6 +166,8 @@ function mapOrder(o: any): any {
   const addressStr = typeof address === 'object'
     ? [address.fullAddress || address.addressLine1, address.addressLine2, address.district, address.city, address.state, address.country].filter(Boolean).join(', ')
     : (address || '')
+  const attribution = o.attribution || o.attributionJson || null
+  const src = (attribution as any)?.utm_source || (attribution as any)?.rh_src || null
   return {
     ...o,
     id: Number(o.id),
@@ -188,6 +194,8 @@ function mapOrder(o: any): any {
     label_url: o.labelUrl ?? o.label_url,
     label_zpl: o.labelZpl ?? o.label_zpl,
     cargo_company: o.cargoCompany ?? o.cargo_company,
+    attribution,
+    attribution_source: src,
   }
 }
 
@@ -691,6 +699,38 @@ class ApiClient {
 
   getMarketplaceShipmentTemplates(marketplace: string) {
     return this.get<{ templates: { templateName: string }[] }>(`/api/admin/integrations/${marketplace}/shipment-templates`)
+  }
+
+  // Meta / Facebook / Instagram (TechProvider)
+  getMetaConnectUrl() {
+    return this.get<{ url: string; fbeEnabled?: boolean }>('/api/admin/integrations/facebook/oauth/connect')
+  }
+  getMetaAssets() {
+    return this.get<{ pages: any[]; catalogs: any[]; instagram: any[]; selected: { pageId: string | null; catalogId: string | null; igUserId: string | null } }>('/api/admin/integrations/facebook/assets')
+  }
+  selectMetaAssets(data: { pageId: string; catalogId: string; igUserId?: string | null }) {
+    return this.post<{ ok: boolean; facebook: any; instagram: any | null }>('/api/admin/integrations/facebook/assets', data)
+  }
+  fbeCallback(data: { pageId?: string; catalogId?: string; igUserId?: string; businessId?: string; pixelId?: string }) {
+    return this.post<{ ok: boolean; pageId?: string; catalogId?: string; pixelId?: string; domainToken?: string | null; businessId?: string | null }>('/api/admin/integrations/facebook/fbe/callback', data)
+  }
+  getMetaPixels() {
+    return this.get<{ pixels: any[]; selected: string | null; businessId: string | null }>('/api/admin/integrations/facebook/pixels')
+  }
+  selectMetaPixel(pixelId: string) {
+    return this.post<{ ok: boolean; pixelId: string }>('/api/admin/integrations/facebook/pixels', { pixelId })
+  }
+  getMetaDomain() {
+    return this.get<{ domain: string; verificationToken: string | null; businessId: string | null }>('/api/admin/integrations/facebook/domain')
+  }
+  getInstagramShoppingStatus() {
+    return this.get<{ connected: boolean; eligible: boolean | null; raw?: any; error?: string; reason?: string; igUserId?: string; igUsername?: string; catalogId?: string }>('/api/admin/integrations/facebook/instagram-shopping-status')
+  }
+  metaPublish(data: { productId?: number; productIds?: number[]; channel?: string; channels?: string[]; caption?: string }) {
+    return this.post<{ ok: boolean; results: any[] }>('/api/admin/integrations/meta/publish', data)
+  }
+  metaSyncBrands() {
+    return this.post<{ imported: number; total: number; brands: any[] }>('/api/admin/integrations/meta/sync-brands')
   }
 
   // B2B

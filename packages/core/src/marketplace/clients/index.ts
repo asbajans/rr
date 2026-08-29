@@ -5,8 +5,9 @@ import { N11Client, type N11Config } from './n11.js';
 import { PazaramaClient, type PazaramaConfig } from './pazarama.js';
 import { AmazonClient, type AmazonConfig } from './amazon.js';
 import { EtsyClient, type EtsyConfig } from './etsy.js';
+import { FacebookClient, InstagramClient, type MetaConfig } from './facebook.js';
 
-export type MarketplaceType = 'trendyol' | 'hepsiburada' | 'pazarama' | 'n11' | 'amazon' | 'etsy';
+export type MarketplaceType = 'trendyol' | 'hepsiburada' | 'pazarama' | 'n11' | 'amazon' | 'etsy' | 'facebook' | 'instagram';
 
 export type MarketplaceConfig = 
   | { type: 'trendyol'; config: TrendyolConfig }
@@ -14,7 +15,9 @@ export type MarketplaceConfig =
   | { type: 'pazarama'; config: PazaramaConfig }
   | { type: 'n11'; config: N11Config }
   | { type: 'amazon'; config: AmazonConfig }
-  | { type: 'etsy'; config: EtsyConfig };
+  | { type: 'etsy'; config: EtsyConfig }
+  | { type: 'facebook'; config: MetaConfig }
+  | { type: 'instagram'; config: MetaConfig };
 
 export function createMarketplaceClient(marketplace: MarketplaceType, config: any): MarketplaceClient {
   switch (marketplace) {
@@ -30,6 +33,10 @@ export function createMarketplaceClient(marketplace: MarketplaceType, config: an
       return new AmazonClient(config as AmazonConfig);
     case 'etsy':
       return new EtsyClient(config as EtsyConfig);
+    case 'facebook':
+      return new FacebookClient(config as MetaConfig);
+    case 'instagram':
+      return new InstagramClient(config as MetaConfig);
     default:
       throw new Error(`Unknown marketplace: ${marketplace}`);
   }
@@ -80,6 +87,24 @@ export function getMarketplaceConfig(marketplace: MarketplaceType, integration: 
         accessToken: baseConfig.accessToken,
         refreshToken: baseConfig.refreshToken,
         tokenExpiry: baseConfig.tokenExpiry,
+      };
+    case 'facebook':
+    case 'instagram':
+      return {
+        appId: baseConfig.appId || process.env.META_APP_ID || '1427365415966697',
+        appSecret: baseConfig.appSecret || process.env.META_APP_SECRET,
+        accessToken: baseConfig.userAccessToken || baseConfig.accessToken,
+        userAccessToken: baseConfig.userAccessToken || baseConfig.accessToken,
+        tokenExpiry: baseConfig.tokenExpiry,
+        pageId: baseConfig.pageId,
+        pageName: baseConfig.pageName,
+        pageAccessToken: baseConfig.pageAccessToken,
+        igUserId: baseConfig.igUserId,
+        igUsername: baseConfig.igUsername,
+        catalogId: baseConfig.catalogId,
+        catalogName: baseConfig.catalogName,
+        businessId: baseConfig.businessId,
+        storefrontBase: baseConfig.storefrontBase,
       };
     default:
       return {};

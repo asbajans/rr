@@ -21,7 +21,7 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-const MARKETPLACES = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy'];
+const MARKETPLACES = ['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy', 'facebook', 'instagram'];
 
 function buildCategoryTree(rows: any[]): any[] {
   const byParent = new Map<string, any[]>();
@@ -194,6 +194,9 @@ marketplaceRoutes.get('/:marketplace', authMiddleware, requireStore, [
     delete safeConfig.clientSecret;
     delete safeConfig.accessToken;
     delete safeConfig.refreshToken;
+    delete safeConfig.userAccessToken;
+    delete safeConfig.pageAccessToken;
+    delete safeConfig.appSecret;
 
     res.json({ integration: { ...integration.toJSON(), config: safeConfig }, marketplace });
   } catch (error: unknown) {

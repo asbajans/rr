@@ -7,6 +7,7 @@ import { categoryRoutes } from './modules/category/routes.js';
 import { variationRoutes } from './modules/variation/routes.js';
 import { b2bRoutes } from './modules/b2b/routes.js';
 import { marketplaceRoutes } from './modules/marketplace/routes.js';
+import { metaRoutes } from './modules/marketplace/metaRoutes.js';
 import { orderRoutes } from './modules/order/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { draftRoutes } from './modules/ai/draftRoutes.js';
@@ -52,6 +53,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/categories', categoryRoutes);
   app.use('/api/admin/variations', variationRoutes);
   app.use('/api/admin/b2b', b2bRoutes);
+  app.use('/api/admin/integrations', metaRoutes);
   app.use('/api/admin/integrations', marketplaceRoutes);
   app.use('/api/admin/orders', orderRoutes);
   app.use('/api/admin/pages', pageRoutes);

@@ -92,6 +92,13 @@ export const createApp = async (): Promise<Express> => {
     // Ignore
   }
 
+  // Meta attribution + domain verification (safe migration)
+  try {
+    await sequelize.query(`ALTER TABLE dropshipping_orders ADD COLUMN IF NOT EXISTS attribution JSONB`);
+  } catch (e) {
+    // Ignore
+  }
+
   // Phase 8B deployment provider metadata (safe migration)
   try {
     await sequelize.query(`ALTER TABLE site_deployments ADD COLUMN IF NOT EXISTS provider VARCHAR(20) DEFAULT 'rahatio'`);
@@ -562,6 +569,30 @@ export const startServer = async (): Promise<void> => {
     }
   }, 30 * 60 * 1000);
   lowStockTimer.unref?.();
+
+  // Meta long-lived token refresh — daily check, refresh if expires within 7 days (TechProvider)
+  const metaTokenTimer = setInterval(async () => {
+    try {
+      const { MarketplaceIntegration } = await import('./models/MarketplaceIntegration.model.js');
+      const { getMetaAppConfig } = await import('./modules/marketplace/metaRoutes.js');
+      const { FacebookClient } = await import('./marketplace/clients/facebook.js');
+      const app = await getMetaAppConfig().catch(() => null);
+      if (!app?.appId || !app?.appSecret) return;
+      const integrations = await MarketplaceIntegration.findAll({ where: { marketplace: 'facebook', isActive: true } as any });
+      for (const ig of integrations) {
+        const cfg: any = ig.config || {};
+        if (!cfg.tokenExpiry || !cfg.userAccessToken) continue;
+        if (cfg.tokenExpiry - Date.now() > 7 * 24 * 60 * 60 * 1000) continue;
+        try {
+          const client = new FacebookClient({ appId: app.appId, appSecret: app.appSecret, userAccessToken: cfg.userAccessToken, accessToken: cfg.accessToken });
+          const refreshed = await client.exchangeLongLived(cfg.userAccessToken);
+          await ig.update({ config: { ...cfg, accessToken: refreshed.access_token, userAccessToken: refreshed.access_token, tokenExpiry: Date.now() + ((refreshed.expires_in || 5184000) - 86400) * 1000 } as any });
+          logger.info({ storeId: ig.storeId }, 'Meta token refreshed');
+        } catch (e: any) { logger.warn({ err: e.message, storeId: ig.storeId }, 'Meta token refresh failed'); }
+      }
+    } catch (err) { logger.error({ err }, 'Meta token refresh check failed'); }
+  }, 24 * 60 * 60 * 1000);
+  metaTokenTimer.unref?.();
 
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');

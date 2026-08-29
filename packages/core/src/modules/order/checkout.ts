@@ -134,7 +134,7 @@ export async function createCheckoutOrder(
   requiresGateway: boolean;
   paymentStatus: 'pending' | 'awaiting';
 }> {
-  const { items, shipping_address, customer, payment_method, address_id, address_owner_token, note, website, coupon_code } = payload;
+  const { items, shipping_address, customer, payment_method, address_id, address_owner_token, note, website, coupon_code, attribution } = payload as any;
 
   if (website && website.trim().length > 0) {
     throw new CheckoutError(400, 'Spam detected');
@@ -252,7 +252,8 @@ export async function createCheckoutOrder(
         customerEmail: cust.email || null,
         customerPhone: addr.phone,
         note: coupon ? `${note || ''}${note ? ' | ' : ''}Coupon: ${coupon.code}` : (note || null),
-      },
+        attribution: attribution || null,
+      } as any,
       { transaction }
     );
 

@@ -134,8 +134,8 @@ function resolveQuantity(raw: MarketplaceRawProduct): number {
 export function normalizeMarketplaceProduct(mp: string, raw: MarketplaceRawProduct, storeId: number) {
   const { root, variant } = getVariantPayload(raw);
   const title = resolveValue(root, ['title', 'name', 'productName', 'label']) || resolveValue(variant, ['title', 'name', 'productName', 'label']) || 'Imported Product';
-  const sku = resolveValue(root, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id', 'productSellerCode', 'sellerSKU', 'code'])
-    || resolveValue(variant, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'id', 'productSellerCode', 'sellerSKU', 'code'])
+  const sku = resolveValue(root, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'retailer_id', 'id', 'productSellerCode', 'sellerSKU', 'code'])
+    || resolveValue(variant, ['barcode', 'stockCode', 'merchantSku', 'sku', 'productCode', 'asin', 'sellerSKU', 'retailer_id', 'id', 'productSellerCode', 'sellerSKU', 'code'])
     || `imp-${Date.now()}`;
   const description = resolveValue(root, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || resolveValue(variant, ['description', 'itemDescription', 'shortDescription', 'summary', 'content', 'detail']) || '';
   const quantity = resolveQuantity(raw);

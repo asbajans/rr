@@ -85,6 +85,8 @@ function getExternalId(mp: string, raw: any): string {
     case 'n11': return raw.stockCode || raw.n11ProductId?.toString() || '';
     case 'amazon': return raw.asin || raw.sellerSKU || raw.sku || '';
     case 'etsy': return raw.listing_id?.toString() || raw.sku || '';
+    case 'facebook':
+    case 'instagram': return raw.retailer_id || raw.id?.toString() || raw.sku || '';
     default: return raw.code || raw.sku || raw.barcode || '';
   }
 }
@@ -843,6 +845,10 @@ export async function createSyncWorker() {
 
       const store = await Store.findByPk(storeId);
       if (store) {
+        const base = store.siteUrl
+          ? String(store.siteUrl).replace(/\/$/, '')
+          : `https://rahatio.com.tr/stores/${store.siteCode}`;
+        (product as any).storefrontUrl = `${base}/products/${product.id}`;
         const plan = await getPlanForStore(store);
         if (!isModuleEnabled(plan, 'marketplace')) {
           logger.warn({ storeId, productId }, 'Marketplace module disabled, sync skipped');
@@ -1053,6 +1059,8 @@ export async function createSyncWorker() {
               }
             } else if (isN11) {
               externalId = product.sku;
+            } else if (mp === 'facebook' || mp === 'instagram') {
+              externalId = listingResult?.id?.toString() || listingResult?.retailer_id || product.sku;
             } else if (typeof listingResult === 'string') {
               externalId = listingResult;
             } else if (listingResult?.batchRequestId) {

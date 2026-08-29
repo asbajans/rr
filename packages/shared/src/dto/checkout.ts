@@ -44,6 +44,20 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const AttributionSchema = z.object({
+  utm_source: z.string().max(100).optional(),
+  utm_medium: z.string().max(100).optional(),
+  utm_campaign: z.string().max(200).optional(),
+  utm_content: z.string().max(200).optional(),
+  utm_term: z.string().max(200).optional(),
+  rh_src: z.string().max(100).optional(),
+  rh_pid: z.string().max(50).optional(),
+  fbclid: z.string().max(200).optional(),
+  gclid: z.string().max(200).optional(),
+  referrer: z.string().max(500).optional(),
+  landingPath: z.string().max(500).optional(),
+}).passthrough().optional();
+
 export const CheckoutPayloadSchema = z.object({
   items: z.array(CheckoutItemSchema).min(1),
   customer: CheckoutCustomerSchema.default({}),
@@ -53,6 +67,7 @@ export const CheckoutPayloadSchema = z.object({
   address_owner_token: z.string().min(16).max(256).optional(),
   shipping_address: CheckoutShippingAddressSchema.optional(),
   note: z.string().max(2000).optional(),
+  attribution: AttributionSchema,
   /** Honeypot — bots auto-fill hidden fields; the real frontend never sends it. */
   website: z.string().max(100).optional().default(''),
 }).refine((value) => Boolean(value.address_id) || Boolean(value.shipping_address), {

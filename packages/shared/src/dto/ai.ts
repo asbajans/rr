@@ -21,7 +21,9 @@ export type AiChannel =
   | 'pazarama'
   | 'n11'
   | 'amazon'
-  | 'etsy';
+  | 'etsy'
+  | 'facebook'
+  | 'instagram';
 
 export interface AiProductSessionDTO {
   id: string;

@@ -43,6 +43,8 @@ export const MARKETPLACE_CHANNELS: Exclude<AiChannel, 'storefront'>[] = [
   'n11',
   'amazon',
   'etsy',
+  'facebook',
+  'instagram',
 ];
 
 export const ALL_CHANNELS: AiChannel[] = [
@@ -53,4 +55,6 @@ export const ALL_CHANNELS: AiChannel[] = [
   'n11',
   'amazon',
   'etsy',
+  'facebook',
+  'instagram',
 ];
