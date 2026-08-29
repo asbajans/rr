@@ -92,11 +92,24 @@ export default function MarketingPage() {
   useEffect(() => { loadProducts('') }, [])
 
   const handleConnect = async () => {
-    setConnecting(true)
+    setConnecting(true); setError('')
     try {
       const { url } = await api.getMetaConnectUrl()
+      if (!url) throw new Error('Bağlantı URL’si alınamadı')
       window.location.href = url
-    } catch (e: any) { setError(e.message || 'Bağlantı başlatılamadı'); setConnecting(false) }
+    } catch (e: any) {
+      const msg = e?.data?.error || e?.message || 'Bağlantı başlatılamadı'
+      const detail = e?.data?.message || ''
+      // Backend 400: Meta App ID/Secret tanımlı değil → yönlendir
+      if (String(msg).includes('Meta App') || String(detail).includes('Meta App')) {
+        setError('Meta uygulaması henüz yapılandırılmadı. Super Admin → Meta Ayarları’ndan App ID ve App Secret girmen gerekiyor. (developers.facebook.com → Uygulama → Ayarlar → Temel) — Alternatif: .env’de META_APP_ID / META_APP_SECRET')
+      } else if (String(msg).includes('PLAN_MARKETPLACE_LIMIT') || e?.status === 403) {
+        setError('Pazaryeri limitin dolu veya marketplace modülü kapalı. Planını kontrol et.')
+      } else {
+        setError(`${msg}${detail ? ` — ${detail}` : ''}`)
+      }
+      setConnecting(false)
+    }
   }
 
   const handleFbeAuto = async () => {
@@ -153,7 +166,7 @@ export default function MarketingPage() {
               <p className="text-xs text-zinc-500">
                 {metaStatus.connected
                   ? `Sayfa: ${assets.selected?.pageId || '-'} · Katalog: ${assets.selected?.catalogId || '-'} · IG: ${assets.selected?.igUserId || '-'}`
-                  : 'TechProvider ile tek tıkla tüm varlıklar (katalog+piksel+domain) otomatik kurulur'}
+                  : 'Tek tıkla Facebook Sayfası, ürün kataloğu ve piksel/domain doğrulaması otomatik kurulur'}
               </p>
               {metaStatus.domain?.verificationToken && <p className="text-xs text-green-600 mt-0.5">Domain doğrulaması aktif ✓ — piksel otomatik enjekte ediliyor</p>}
               {igShop && igShop.connected && igShop.eligible === true && <p className="text-xs text-green-600 mt-0.5">Instagram Shop uygun ✓ — @{igShop.igUsername} ürün etiketlemeye açık</p>}
@@ -267,7 +280,7 @@ export default function MarketingPage() {
           )}
           <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600">
             <p className="font-medium text-zinc-900 flex items-center gap-1"><Sparkles className="h-3 w-3" /> Nasıl izlenir?</p>
-            <p className="mt-1">Siparişler → sipariş detayında <span className="font-mono">attribution</span> alanında <span className="font-medium">utm_source / rh_src</span> görünür. Ayrıca Facebook Pixel (otomatik) sayfada tetiklenir. Piksel ve domain TechProvider ile 1 kez kurulduktan sonra tüm yeni ürünler otomatik tracking’li link ile paylaşılmaya hazırdır.</p>
+            <p className="mt-1">Siparişler → sipariş detayında <span className="font-mono">attribution</span> alanında <span className="font-medium">utm_source / rh_src</span> görünür. Ayrıca Facebook Piksel sayfada otomatik tetiklenir. İlk kurulumdan sonra tüm yeni ürünler tracking’li link ile paylaşılmaya hazırdır.</p>
             <a href="/pixels" className="inline-flex items-center gap-1 mt-2 text-indigo-600 hover:text-indigo-700">Piksel ayarları <ExternalLink className="h-3 w-3" /></a>
           </div>
         </div>

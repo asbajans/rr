@@ -73,6 +73,7 @@ const navGroups = [
       { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
       { href: '/settings', labelKey: 'settings', icon: Settings },
+      { href: '/meta-settings', labelKey: 'metaSettings', icon: Settings },
     ],
   },
 ]
@@ -90,6 +91,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     items: group.items.filter((item) => {
       if (item.href === '/b2b' || item.href === '/b2b/requests') return can('b2b')
       if (item.href === '/blog') return can('blog')
+      if (item.href === '/meta-settings' && !(user as any)?.is_admin && (user as any)?.role !== 'superadmin') return false
       return true
     }),
   }))

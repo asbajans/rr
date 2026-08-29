@@ -16,6 +16,8 @@
   b2bRequests: 'B2B Requests',
   supplier: 'Supplier',
   marketplaces: 'Marketplaces',
+  marketing: 'Marketing',
+  metaSettings: 'Meta Settings',
   pages: 'Pages',
   blog: 'Blog',
   menus: 'Menus',

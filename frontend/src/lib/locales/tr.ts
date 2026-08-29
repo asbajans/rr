@@ -16,6 +16,8 @@
   b2bRequests: 'B2B Talepler',
   supplier: 'Tedarikçi',
   marketplaces: 'Pazaryerleri',
+  marketing: 'Marketing',
+  metaSettings: 'Meta Ayarları',
   pages: 'Sayfalar',
   blog: 'Blog',
   menus: 'Menüler',
