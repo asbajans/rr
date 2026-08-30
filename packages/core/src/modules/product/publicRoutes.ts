@@ -52,7 +52,28 @@ publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Respons
     const offset = (page - 1) * limit;
 
     const andFilters: any[] = [siteProductWhere(store.id)];
-    if (req.query.categoryId) andFilters.push({ categoryId: req.query.categoryId });
+    if (req.query.categoryId) {
+      const catId = Number(req.query.categoryId)
+      if (Number.isFinite(catId)) {
+        const allCats = await Category.findAll({ where: { storeId: store.id }, attributes: ['id', 'parentId'] })
+        const childMap = new Map<number | null, number[]>()
+        for (const c of allCats as any[]) {
+          const pid = (c.parentId ?? null) as number | null
+          if (!childMap.has(pid)) childMap.set(pid, [])
+          childMap.get(pid)!.push(c.id)
+        }
+        const ids = new Set<number>([catId])
+        const stack = [catId]
+        while (stack.length) {
+          const cur = stack.pop()!
+          const children = childMap.get(cur) ?? []
+          for (const ch of children) if (!ids.has(ch)) { ids.add(ch); stack.push(ch) }
+        }
+        andFilters.push({ categoryId: { [Op.in]: Array.from(ids) } })
+      } else {
+        andFilters.push({ categoryId: req.query.categoryId })
+      }
+    }
     if (req.query.search) andFilters.push({ [Op.or]: [
       { title: { [Op.iLike]: `%${req.query.search}%` } },
       { sku: { [Op.iLike]: `%${req.query.search}%` } },
@@ -113,14 +134,14 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
   }
 });
 
-publicProductRoutes.get('/:siteCode/categories', async (req: Request, res: Response) => {
+  publicProductRoutes.get('/:siteCode/categories', async (req: Request, res: Response) => {
   try {
     const { siteCode } = req.params;
     const store = await Store.findOne({ where: { siteCode, isActive: true, published: true } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const categories = await Category.findAll({
-      where: { storeId: store.id, isActive: true },
+      where: { storeId: store.id, isActive: true, source: { [Op.eq]: null as any } },
       order: [['sortOrder', 'ASC'], ['name', 'ASC']],
     });
     res.json({ categories });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '@/lib/api-client'
-import { FolderTree, Plus, ChevronRight, ChevronDown, Pencil, Trash2, Search, Store } from 'lucide-react'
+import { FolderTree, Plus, ChevronRight, ChevronDown, Pencil, Trash2, Search, Store, Copy } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
 type TabKey = 'own' | 'n11' | 'trendyol' | 'hepsiburada' | 'pazarama' | 'amazon' | 'etsy'
@@ -61,6 +61,9 @@ export default function CategoriesPage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({ name: '', slug: '', parentId: '', sortOrder: 0, isActive: true })
+  const [ownCatsForPick, setOwnCatsForPick] = useState<CategoryItem[]>([])
+  const [copyModal, setCopyModal] = useState<{ open: boolean; cat: CategoryItem | null; targetParentId: string }>({ open: false, cat: null, targetParentId: '' })
+  const [copying, setCopying] = useState(false)
 
   const isOwn = tab === 'own'
 
@@ -76,6 +79,41 @@ export default function CategoriesPage() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => { setExpanded(new Set()); setSearch('') }, [tab])
+
+  const loadOwnCatsForPick = useCallback(() => {
+    api.getCategoryTree(undefined as any).then((raw: any) => setOwnCatsForPick((raw || []).map(mapCategory))).catch(() => setOwnCatsForPick([]))
+  }, [])
+
+  function countBranch(cat: CategoryItem): number {
+    let n = 1
+    if (cat.children?.length) for (const ch of cat.children) n += countBranch(ch)
+    return n
+  }
+
+  function openCopyModal(cat: CategoryItem) {
+    loadOwnCatsForPick()
+    setCopyModal({ open: true, cat, targetParentId: '' })
+  }
+
+  async function handleCopyBranch() {
+    if (!copyModal.cat) return
+    setCopying(true)
+    try {
+      const res = await api.copyMarketplaceCategoryBranch({
+        marketplace: tab as string,
+        categoryId: copyModal.cat.id,
+        targetParentId: copyModal.targetParentId ? Number(copyModal.targetParentId) : null,
+      })
+      setCopyModal({ open: false, cat: null, targetParentId: '' })
+      alert(`${res.copied} kategori kendi katalogunuza kopyalandı (özniteliksiz).`)
+      // if user was on marketplace tab, optionally switch to own to see result
+      // keep on same tab but notify
+    } catch (e: any) {
+      alert(e.message || 'Kopyalama başarısız')
+    } finally {
+      setCopying(false)
+    }
+  }
 
   function openCreate(parentId?: number) {
     if (!isOwn) return
@@ -214,7 +252,7 @@ export default function CategoriesPage() {
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3 text-center">Durum</th>
                 <th className="px-4 py-3 text-right w-24">Sıra</th>
-                {isOwn && <th className="px-4 py-3 text-right w-24"></th>}
+                <th className="px-4 py-3 text-right w-28"></th>
               </tr>
             </thead>
             <tbody>
@@ -242,25 +280,59 @@ export default function CategoriesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-zinc-500">{cat.sortOrder}</td>
-                  {isOwn && (
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => openCreate(cat.id)} title="Alt Kategori Ekle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
-                          <Plus className="h-4 w-4" />
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      {!isOwn ? (
+                        <button onClick={() => openCopyModal(cat)} title={`Dalını kopyala (${countBranch(cat)} kategori)`} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700">
+                          <Copy className="h-4 w-4" />
                         </button>
-                        <button onClick={() => openEdit(cat)} title="Düzenle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => handleDelete(cat.id)} title="Sil" className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  )}
+                      ) : (
+                        <>
+                          <button onClick={() => openCreate(cat.id)} title="Alt Kategori Ekle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
+                            <Plus className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => openEdit(cat)} title="Düzenle" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDelete(cat.id)} title="Sil" className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {copyModal.open && !isOwn && copyModal.cat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setCopyModal({ open: false, cat: null, targetParentId: '' })}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-zinc-900">Dalını Kopyala — Özniteliksiz</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              <span className="font-medium">{copyModal.cat.name}</span> ve alt kategorileri ({countBranch(copyModal.cat)} adet) pazaryeri öznitelikleri olmadan kendi katalogunuza kopyalanacak.
+            </p>
+            <div className="mt-4">
+              <label className="text-xs font-medium text-zinc-500">Hedef Üst Kategori (opsiyonel)</label>
+              <select value={copyModal.targetParentId} onChange={e => setCopyModal(prev => ({ ...prev, targetParentId: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none">
+                <option value="">— Yok (Ana Kategori) —</option>
+                {flattenTree(ownCatsForPick).map(c => (
+                  <option key={c.id} value={c.id}>{'—'.repeat(c.depth)}{c.name || c.slug}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500">Seçmezseniz dal kök olarak eklenir.</p>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setCopyModal({ open: false, cat: null, targetParentId: '' })} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50">İptal</button>
+              <button onClick={handleCopyBranch} disabled={copying} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                {copying ? 'Kopyalanıyor...' : `Kopyala (${countBranch(copyModal.cat)})`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

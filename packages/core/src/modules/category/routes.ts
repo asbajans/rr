@@ -103,6 +103,131 @@ categoryRoutes.get('/search', authMiddleware, requireStore, [
   }
 });
 
+function slugifyTr(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9ğüşıöç]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'kategori'
+}
+
+// POST /api/admin/categories/copy-marketplace — branch copy without attributes
+categoryRoutes.post('/copy-marketplace', authMiddleware, requireRole('owner', 'admin'), requireStore, [
+  body('marketplace').isString().isIn(['trendyol', 'hepsiburada', 'pazarama', 'n11', 'amazon', 'etsy']),
+  body('categoryId').isInt(),
+  body('targetParentId').optional({ values: 'null' }).isInt(),
+], validate, async (req: Request, res: Response) => {
+  const t = await Category.sequelize!.transaction()
+  try {
+    const store = (req as any).store
+    const { marketplace, categoryId, targetParentId } = req.body
+
+    let targetParent: any = null
+    if (targetParentId != null) {
+      targetParent = await Category.findOne({ where: { id: targetParentId, storeId: store.id }, transaction: t })
+      if (!targetParent) { await t.rollback(); return res.status(404).json({ error: 'Hedef üst kategori bulunamadı' }) }
+      if ((targetParent as any).source) { await t.rollback(); return res.status(400).json({ error: 'Hedef kategori kendi kategorilerinizden olmalı' }) }
+    }
+
+    const sourceRoot = await Category.findOne({ where: { id: categoryId, storeId: store.id, source: marketplace }, transaction: t })
+    if (!sourceRoot) { await t.rollback(); return res.status(404).json({ error: 'Kaynak kategori bulunamadı. Önce pazaryeri kategorilerini senkronize edin.' }) }
+
+    // prevent circular: target parent cannot be inside branch (will be checked after collecting branch)
+    const allMp = await Category.findAll({ where: { storeId: store.id, source: marketplace }, transaction: t })
+    const parentMap = new Map<number | null, any[]>()
+    for (const c of allMp) {
+      const pid = (c as any).parentId ?? null
+      if (!parentMap.has(pid)) parentMap.set(pid, [])
+      parentMap.get(pid)!.push(c)
+    }
+    const branchIds = new Set<number>()
+    const stack: number[] = [sourceRoot.id]
+    while (stack.length) {
+      const cur = stack.pop()!
+      if (branchIds.has(cur)) continue
+      branchIds.add(cur)
+      const children = parentMap.get(cur) ?? []
+      for (const ch of children) stack.push((ch as any).id)
+    }
+    if (targetParentId != null && branchIds.has(Number(targetParentId))) {
+      await t.rollback(); return res.status(400).json({ error: 'Hedef kategori, kopyalanan dalın içinde olamaz' })
+    }
+
+    // ordered BFS ensures parent before child
+    const ordered: any[] = []
+    const q: any[] = [sourceRoot]
+    const seen = new Set<number>([sourceRoot.id])
+    // build ordered via BFS using parentMap for quick lookup
+    const queue: number[] = [sourceRoot.id]
+    const idToCat = new Map<number, any>(allMp.map((c: any) => [c.id, c]))
+    while (queue.length) {
+      const curId = queue.shift()!
+      const cur = idToCat.get(curId)
+      if (!cur) continue
+      ordered.push(cur)
+      const children = parentMap.get(curId) ?? []
+      for (const ch of children) {
+        if (!seen.has((ch as any).id)) { seen.add((ch as any).id); queue.push((ch as any).id) }
+      }
+    }
+
+    // collect existing own slugs for uniqueness
+    const ownCats = await Category.findAll({ where: { storeId: store.id, source: { [Op.eq]: null as any } }, attributes: ['slug'], transaction: t })
+    const usedSlugs = new Set<string>(ownCats.map((c: any) => c.slug))
+
+    const getTr = (name: any) => {
+      if (!name) return ''
+      if (typeof name === 'string') return name
+      if (typeof name === 'object') return (name as any).tr || (name as any).en || ''
+      return ''
+    }
+
+    const oldToNew = new Map<number, number>()
+    const created: any[] = []
+
+    for (const old of ordered) {
+      const trName = getTr((old as any).name)
+      let base = slugifyTr(trName)
+      if (!base) base = `kategori-${(old as any).id}`
+      let slug = base
+      let suf = 1
+      while (usedSlugs.has(slug)) { slug = `${base}-${suf++}` }
+      usedSlugs.add(slug)
+
+      const parentOldId = (old as any).parentId
+      let newParentId: number | null = null
+      if ((old as any).id === sourceRoot.id) {
+        newParentId = targetParentId != null ? Number(targetParentId) : null
+      } else if (parentOldId != null) {
+        newParentId = oldToNew.get(parentOldId) ?? null
+      }
+
+      const createdCat = await Category.create({
+        storeId: store.id,
+        name: (old as any).name,
+        slug,
+        parentId: newParentId,
+        translations: (old as any).translations || {},
+        icon: (old as any).icon || null,
+        sortOrder: (old as any).sortOrder ?? 0,
+        isActive: true,
+        source: null as any,
+        marketplaceCategoryId: null as any,
+        aiAttributes: null as any,
+      } as any, { transaction: t })
+
+      oldToNew.set((old as any).id, (createdCat as any).id)
+      created.push(createdCat)
+    }
+
+    await t.commit()
+    res.status(201).json({ copied: created.length, categories: created })
+  } catch (error) {
+    try { await t.rollback() } catch {}
+    logger.error({ err: error }, 'Copy marketplace category branch error:')
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // GET /api/admin/categories/:id/channel-requirements
 categoryRoutes.get('/:id/channel-requirements', authMiddleware, requireStore, [
   param('id').isInt(),

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { StoreMenu, Page } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Save, Edit, ChevronUp, ChevronDown, FileText, Link as LinkIcon, X, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Save, Edit, ChevronUp, ChevronDown, FileText, Link as LinkIcon, X, GripVertical, FolderTree, Tag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
@@ -13,9 +13,12 @@ type MenuItem = {
   label: string
   url?: string
   page_id?: number
+  categoryId?: number
   target?: '_self' | '_blank'
   children?: MenuItem[]
 }
+
+type CategoryNode = { id: number; parentId: number | null; name: string; slug: string; children?: CategoryNode[] }
 
 let itemCounter = 1
 const newItemId = () => `item_${itemCounter++}`
@@ -35,6 +38,7 @@ function pageTitle(page: Page): string {
 export default function MenusPage() {
   const [menus, setMenus] = useState<(StoreMenu & { isActive?: boolean })[]>([])
   const [pages, setPages] = useState<Page[]>([])
+  const [catTree, setCatTree] = useState<CategoryNode[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState<{ name: string; slug: string; location: string; isActive: boolean; items: MenuItem[] }>({
@@ -42,11 +46,36 @@ export default function MenusPage() {
   })
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [showCatModal, setShowCatModal] = useState(false)
+  const [catPick, setCatPick] = useState<{ id: string; includeChildren: boolean }>({ id: '', includeChildren: true })
 
   useEffect(() => {
     loadMenus()
     api.getPages().then(setPages).catch(() => {})
+    loadCategories()
   }, [])
+
+  function mapCat(raw: any): CategoryNode {
+    const name = typeof raw.name === 'object' && raw.name !== null ? (raw.name.tr || raw.name.en || '') : raw.name || ''
+    return { id: raw.id, parentId: raw.parentId ?? raw.parent_id ?? null, name, slug: raw.slug || '', children: raw.children ? raw.children.map(mapCat) : [] }
+  }
+  function loadCategories() {
+    api.getCategoryTree(undefined as any).then((raw: any) => setCatTree((raw || []).map(mapCat))).catch(() => setCatTree([]))
+  }
+  function flattenCat(nodes: CategoryNode[], depth = 0): (CategoryNode & { depth: number })[] {
+    const out: (CategoryNode & { depth: number })[] = []
+    for (const n of nodes) { out.push({ ...n, depth } as any); if (n.children?.length) out.push(...flattenCat(n.children, depth + 1)) }
+    return out
+  }
+  function findCat(id: number, nodes: CategoryNode[]): CategoryNode | null {
+    for (const n of nodes) { if (n.id === id) return n; if (n.children) { const f = findCat(id, n.children); if (f) return f } }
+    return null
+  }
+  function catToMenuItem(cat: CategoryNode, withChildren: boolean): MenuItem {
+    const item: MenuItem = { id: newItemId(), label: cat.name, categoryId: cat.id, children: [] }
+    if (withChildren && cat.children?.length) item.children = cat.children.map(ch => catToMenuItem(ch, true))
+    return item
+  }
 
   async function loadMenus() {
     try {
@@ -171,6 +200,7 @@ export default function MenusPage() {
 
   function renderItemEditor(item: MenuItem, depth: number) {
     const isChild = depth > 0
+    const catName = item.categoryId ? (flattenCat(catTree).find(c => String(c.id) === String(item.categoryId))?.name || `#${item.categoryId}`) : null
     const labelInput = (
       <input
         value={item.label}
@@ -211,25 +241,47 @@ export default function MenusPage() {
 
             <div className="flex items-center gap-2">
               <select
-                value={item.page_id ? 'page' : item.url ? 'url' : 'none'}
+                value={item.categoryId ? 'category' : item.page_id ? 'page' : item.url ? 'url' : 'none'}
                 onChange={e => {
                   const kind = e.target.value
                   setForm(prev => ({
                     ...prev,
                     items: updateItem(prev.items, item.id, kind === 'page'
-                      ? { page_id: pages[0]?.id, url: undefined }
+                      ? { page_id: pages[0]?.id, url: undefined, categoryId: undefined }
                       : kind === 'url'
-                        ? { url: item.url || '/', page_id: undefined }
-                        : { url: undefined, page_id: undefined }),
+                        ? { url: item.url || '/', page_id: undefined, categoryId: undefined }
+                        : kind === 'category'
+                          ? { categoryId: flattenCat(catTree)[0]?.id, page_id: undefined, url: undefined, label: prev.items.find(x => x.id === item.id)?.label || flattenCat(catTree)[0]?.name || '' }
+                          : { url: undefined, page_id: undefined, categoryId: undefined }),
                   }))
                 }}
                 className="rounded-lg border border-zinc-300 px-2 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none">
                 <option value="none">Link yok</option>
                 <option value="url">Harici bağlantı / URL</option>
                 <option value="page">Sayfa</option>
+                <option value="category">Kategori</option>
               </select>
 
-              {item.page_id ? (
+              {item.categoryId ? (
+                <div className="flex flex-1 items-center gap-1">
+                  <Tag className="h-4 w-4 text-zinc-400" />
+                  <select
+                    value={item.categoryId ?? ''}
+                    onChange={e => {
+                      const newId = Number(e.target.value) || undefined
+                      const cat = newId ? flattenCat(catTree).find(c => c.id === newId) : null
+                      setForm(prev => ({
+                        ...prev,
+                        items: updateItem(prev.items, item.id, { categoryId: newId, label: !prev.items.find(x => x.id === item.id)?.label || prev.items.find(x => x.id === item.id)?.label === catName ? (cat?.name ?? '') : prev.items.find(x => x.id === item.id)!.label }),
+                      }))
+                    }}
+                    className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none">
+                    <option value="">Kategori seç...</option>
+                    {flattenCat(catTree).map(c => <option key={c.id} value={c.id}>{'—'.repeat(c.depth)}{c.name || c.slug}</option>)}
+                  </select>
+                  {catName && <span className="hidden sm:inline text-xs text-zinc-500">→ ?categoryId={item.categoryId}</span>}
+                </div>
+              ) : item.page_id ? (
                 <div className="flex flex-1 items-center gap-1">
                   <FileText className="h-4 w-4 text-zinc-400" />
                   <select
@@ -306,11 +358,16 @@ export default function MenusPage() {
             ) : (
               <div className="space-y-2">{form.items.map(item => renderItemEditor(item, 0))}</div>
             )}
-            <Button size="sm" variant="outline" className="mt-3" onClick={() => addItem()}>
-              <Plus className="mr-1 h-3 w-3" />Menü Öğesi Ekle
-            </Button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => addItem()}>
+                <Plus className="mr-1 h-3 w-3" />Menü Öğesi Ekle
+              </Button>
+              <Button size="sm" variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => { loadCategories(); setShowCatModal(true) }}>
+                <FolderTree className="mr-1 h-3 w-3" />Kategori Dalı Ekle
+              </Button>
+            </div>
             <p className="mt-2 text-xs text-zinc-500">
-              Her öğeye başlık ve bir hedef seçin (URL veya sitenizdeki bir sayfa). Bir öğenin yanındaki + butonu ile alt menü (açılır menü) öğeleri ekleyebilirsiniz.
+              Her öğeye başlık ve bir hedef seçin (URL, sayfa veya <span className="font-medium">kategori</span> — kategori menüsü mağazada o kategori ve alt kategorilerindeki ürünleri filtreler). Bir öğenin yanındaki + ile alt menü ekleyebilirsiniz. “Kategori Dalı Ekle” seçilen dalı altlarıyla beraber tek tıkta ekler.
             </p>
           </div>
         </div>
@@ -331,6 +388,42 @@ export default function MenusPage() {
           </div>
         </div>
       </div>
+
+      {showCatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowCatModal(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-zinc-900 flex items-center gap-2"><FolderTree className="h-5 w-5 text-indigo-600" />Kategori Dalı Ekle</h2>
+            <p className="mt-1 text-sm text-zinc-600">Seçilen kategori dalı menüye eklenecek; alt kategorileri otomatik alt menü olur. Mağazada tıklandığında ilgili kategori (ve altları) filtrelenir.</p>
+            <div className="mt-4">
+              <label className="text-xs font-medium text-zinc-500">Kategori</label>
+              <select value={catPick.id} onChange={e => setCatPick(prev => ({ ...prev, id: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                <option value="">Seçin...</option>
+                {flattenCat(catTree).map(c => <option key={c.id} value={c.id}>{'—'.repeat(c.depth)}{c.name || c.slug}</option>)}
+              </select>
+            </div>
+            <label className="mt-3 flex items-center gap-2 text-sm text-zinc-700">
+              <input type="checkbox" checked={catPick.includeChildren} onChange={e => setCatPick(prev => ({ ...prev, includeChildren: e.target.checked }))} className="h-4 w-4 rounded border-zinc-300 text-indigo-600" />
+              Alt kategorileri de ekle (dal)
+            </label>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setShowCatModal(false)} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50">İptal</button>
+              <button
+                onClick={() => {
+                  if (!catPick.id) return
+                  const cat = findCat(Number(catPick.id), catTree)
+                  if (!cat) return
+                  const item = catToMenuItem(cat, catPick.includeChildren)
+                  setForm(prev => ({ ...prev, items: [...prev.items, item] }))
+                  setShowCatModal(false)
+                  setCatPick({ id: '', includeChildren: true })
+                }}
+                disabled={!catPick.id}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">Ekle</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-zinc-200 overflow-hidden">
         <table className="w-full">

@@ -106,6 +106,7 @@ export type StoreMenuItem = {
   label: string
   url?: string
   page_id?: number
+  categoryId?: number
   target?: '_self' | '_blank'
   children?: StoreMenuItem[]
 }

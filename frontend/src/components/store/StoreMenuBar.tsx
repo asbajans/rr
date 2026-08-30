@@ -7,6 +7,9 @@ import { storeBase } from '@/lib/store-path'
 import type { StoreMenu, StoreMenuItem } from '@/lib/types'
 
 function itemUrl(item: StoreMenuItem, siteCode: string, pageSlugs: Map<number, string>): string {
+  if ((item as any).categoryId) {
+    return `${storeBase(siteCode)}?categoryId=${(item as any).categoryId}`
+  }
   if (item.page_id && pageSlugs.has(item.page_id)) {
     return `${storeBase(siteCode)}/pages/${pageSlugs.get(item.page_id)}`
   }

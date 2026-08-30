@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, X } from 'lucide-react'
 import { api } from '@/lib/api-client'
@@ -32,6 +32,9 @@ function toStoreProduct(p: any): StoreProduct {
 
 export default function StoreFrontPage() {
   const { siteCode } = useParams<{ siteCode: string }>()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const categoryId = searchParams.get('categoryId') ? Number(searchParams.get('categoryId')) : undefined
   const pageSize = 24
   const [storeName, setStoreName] = useState('')
   const [homepage, setHomepage] = useState<StoreHomepage | null>(null)
@@ -43,13 +46,15 @@ export default function StoreFrontPage() {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searching, setSearching] = useState(false)
+  const [categories, setCategories] = useState<any[]>([])
+  const [activeCatName, setActiveCatName] = useState<string | null>(null)
   const searchRef = useRef('')
   const reqId = useRef(0)
 
-  const fetchProducts = useCallback(async (pageNum: number, q: string, append: boolean) => {
+  const fetchProducts = useCallback(async (pageNum: number, q: string, append: boolean, catId?: number) => {
     const current = ++reqId.current
     try {
-      const res = await api.getStoreProducts(siteCode, { page: pageNum, limit: pageSize, search: q || undefined })
+      const res = await api.getStoreProducts(siteCode, { page: pageNum, limit: pageSize, search: q || undefined, categoryId: catId })
       if (current !== reqId.current) return
       setProducts(prev => append ? [...prev, ...res.data.map(toStoreProduct)] : res.data.map(toStoreProduct))
       setPage(res.current_page)
@@ -73,9 +78,23 @@ export default function StoreFrontPage() {
         setHomepage(r.store?.homepage ?? null)
       })
       .catch(() => {})
+    api.getStoreCategories(siteCode).then(setCategories).catch(() => {})
+  }, [siteCode])
+
+  useEffect(() => {
+    const cat = categoryId ? categories.find((c: any) => c.id === categoryId) : null
+    if (cat) {
+      const n = (cat as any).name
+      setActiveCatName(typeof n === 'object' ? (n.tr || n.en || '') : n)
+    } else if (categoryId) {
+      setActiveCatName(`Kategori #${categoryId}`)
+    } else setActiveCatName(null)
+  }, [categoryId, categories])
+
+  useEffect(() => {
     setLoading(true)
-    fetchProducts(1, '', false)
-  }, [siteCode, fetchProducts])
+    fetchProducts(1, searchRef.current, false, categoryId)
+  }, [siteCode, categoryId, fetchProducts])
 
   useEffect(() => {
     if (!products.length) return
@@ -87,13 +106,13 @@ export default function StoreFrontPage() {
           setLoadingMore(true)
           const next = page + 1
           setPage(next)
-          fetchProducts(next, searchRef.current, true)
+          fetchProducts(next, searchRef.current, true, categoryId)
         }
       }
     }
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
-  }, [products.length, total, page, loadingMore, searching, fetchProducts])
+  }, [products.length, total, page, loadingMore, searching, fetchProducts, categoryId])
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -103,7 +122,7 @@ export default function StoreFrontPage() {
     setSearching(true)
     setLoading(true)
     setPage(1)
-    fetchProducts(1, q, false)
+    fetchProducts(1, q, false, categoryId)
   }
 
   function clearSearch() {
@@ -112,7 +131,14 @@ export default function StoreFrontPage() {
     reqId.current++
     setLoading(true)
     setPage(1)
-    fetchProducts(1, '', false)
+    fetchProducts(1, '', false, categoryId)
+  }
+
+  function clearCategory() {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('categoryId')
+    const qs = params.toString()
+    router.push(`${storeBase(siteCode as string)}${qs ? `?${qs}` : ''}`)
   }
 
   if (loading && products.length === 0) {
@@ -159,7 +185,17 @@ export default function StoreFrontPage() {
         </button>
       </form>
 
-      <p className="mb-6 text-xs text-zinc-400">{total} ürün</p>
+      {categoryId ? (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium text-white">
+            {activeCatName || `Kategori #${categoryId}`} — filtreli
+            <button onClick={clearCategory} className="ml-1 rounded-full bg-white/20 p-0.5 hover:bg-white/30"><X className="h-3 w-3" /></button>
+          </span>
+          <span className="text-xs text-zinc-500">Bu kategori ve alt kategorilerindeki ürünler listeleniyor.</span>
+        </div>
+      ) : null}
+
+      <p className="mb-6 text-xs text-zinc-400">{total} ürün{categoryId ? ' (filtreli)' : ''}</p>
 
       {products.length === 0 ? (
         <div className="py-16 text-center">

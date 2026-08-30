@@ -1871,6 +1871,10 @@ class ApiClient {
     return { data: r.categories }
   }
 
+  copyMarketplaceCategoryBranch(data: { marketplace: string; categoryId: number; targetParentId?: number | null }) {
+    return this.post<{ copied: number; categories: import('./types').Category[] }>('/api/admin/categories/copy-marketplace', data)
+  }
+
   generateProductDescription(data: { name?: string; brand?: string; category?: string; price?: number; field?: string; title?: string; attributes?: Record<string, any>; keywords?: string[] }) {
     const payload: Record<string, any> = {}
     if (data.title) payload.title = data.title
