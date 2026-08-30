@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { CardSkeleton } from '@/components/ui/skeleton'
+import { FlaskConical, Loader2 } from 'lucide-react'
 
 export default function MetaSettingsPage() {
   const { user } = useAuth()
@@ -95,15 +96,59 @@ export default function MetaSettingsPage() {
             <p className="mt-2 text-xs text-amber-700">Not: URI <span className="font-mono">http</span> değil <span className="font-mono">https</span>, sonunda <span className="font-mono">/</span> yok, birebir aynı olmalı. Ekledikten sonra 1dk bekleyip tekrar “Meta’yı Bağla” dene.</p>
           </div>
 
+          {/* Superadmin test area — inline (sadece superadmin) */}
+          {user?.role === 'superadmin' && (
+            <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-4 space-y-3">
+              <p className="text-xs font-semibold text-indigo-900 flex items-center gap-1.5"><FlaskConical className="h-4 w-4" /> Meta Test Alanı (sadece süperadmin)</p>
+              <p className="text-xs text-indigo-700">Tüm endpoint'leri tek tıkla test et. Hata mesajları eksik izinleri gösterir (F12 → Network/Console).</p>
+              <div className="grid gap-2">
+                {[
+                  { name: 'Yorumlar', path: '/api/admin/integrations/facebook/ig/comments' },
+                  { name: 'Mesajlar', path: '/api/admin/integrations/facebook/ig/messages' },
+                  { name: 'Reklamlar', path: '/api/admin/integrations/facebook/ads' },
+                  { name: 'İstatistik', path: '/api/admin/integrations/facebook/page/insights' },
+                  { name: 'IG Hesap', path: '/api/admin/integrations/facebook/ig/account' },
+                ].map(item => (
+                  <TestButton key={item.name} path={item.path} label={item.name} />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600">
             <p className="font-medium text-zinc-900">Token nereye girilir?</p>
             <p className="mt-1">Hiçbir satıcı token girmez. Satıcı Marketing → Meta'yu Otomatik Bağla deyince Facebook login popup'ında izin verir, token bizde <code className="bg-zinc-200 px-1 rounded">MarketplaceIntegration.config</code>'te saklanır (60 gün, günlük yenilenir). Senin girmen gereken tek şey bu sayfadaki App ID/Secret.</p>
             <p className="mt-1 text-zinc-500">Facebook SDK: ayrıca npm paketi kurmadık. Akış Graph API v26 OAuth redirect (<code className="bg-zinc-200 px-1 rounded">https://www.facebook.com/v26.0/dialog/oauth</code>) ile — JS SDK gerekmez. FBE için gerekirse <code className="bg-zinc-200 px-1 rounded">connect.facebook.net/en_US/sdk.js</code> otomatik yüklenir.</p>
-            {user?.role === 'superadmin' && (
-              <p className="mt-2"><a href="/meta-test" className="text-indigo-600 font-medium hover:underline">🧪 Meta Test Alanı</a> — tüm endpoint'leri test et (sadece süperadmin).</p>
-            )}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function TestButton({ path, label }: { path: string; label: string }) {
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const [ok, setOk] = useState<boolean | null>(null)
+  return (
+    <div className="rounded-lg bg-white border border-indigo-200 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-zinc-700">{label} <span className="font-mono text-[10px] text-zinc-500">{path}</span></span>
+        <button
+          onClick={async () => {
+            setLoading(true); setResult(null); setOk(null)
+            try { const r = await api.get(path); setResult(JSON.stringify(r, null, 2).slice(0, 800)); setOk(true) }
+            catch (e: any) { setResult('Hata: ' + (e?.data?.error || e.message || 'Bilinmeyen hata')); setOk(false) }
+            finally { setLoading(false) }
+          }}
+          disabled={loading}
+          className="shrink-0 rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
+        >
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Test
+        </button>
+      </div>
+      {result && (
+        <pre className={`mt-2 max-h-40 overflow-auto rounded p-2 text-[11px] whitespace-pre-wrap break-all ${ok ? 'bg-zinc-900 text-green-300' : 'bg-red-50 text-red-700 border border-red-200'}`}>{result}</pre>
       )}
     </div>
   )

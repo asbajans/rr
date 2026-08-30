@@ -52,12 +52,36 @@ export default function MarketingPage() {
 
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Handle meta=select / meta=error redirect after OAuth
+  // Handle meta=select / meta=error redirect after OAuth — supports popup flow (window.open)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search)
-      if (sp.get('meta') === 'select') setShowAssetPicker(true)
-      if (sp.get('meta') === 'error') setError(decodeURIComponent(sp.get('message') || 'Meta bağlantısı başarısız. Geçersiz yetkiler veya whitelist hatası — Meta Ayarları’ndaki yönlendirme URI’yi kontrol et.'))
+      const meta = sp.get('meta')
+      const isPopup = window.opener != null && !window.opener.closed
+      if (meta === 'select') {
+        setShowAssetPicker(true)
+        refreshMeta()
+        if (isPopup) {
+          try { window.opener.postMessage({ type: 'meta_connected' }, window.location.origin) } catch {}
+          // give user a moment to see success, then close popup
+          setTimeout(() => { try { window.close() } catch {} }, 1500)
+        }
+      }
+      if (meta === 'error') {
+        setError(decodeURIComponent(sp.get('message') || 'Meta bağlantısı başarısız. Geçersiz yetkiler veya whitelist hatası — Meta Ayarları’ndaki yönlendirme URI’yi kontrol et.'))
+        if (isPopup) {
+          try { window.opener.postMessage({ type: 'meta_error', message: sp.get('message') }, window.location.origin) } catch {}
+          setTimeout(() => { try { window.close() } catch {} }, 3000)
+        }
+      }
+      // Listen for popup success when this window is the opener
+      const onMsg = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return
+        if (e.data?.type === 'meta_connected') { refreshMeta(); setShowAssetPicker(true) }
+        if (e.data?.type === 'meta_error') setError(decodeURIComponent(e.data.message || 'Meta bağlantısı başarısız.'))
+      }
+      window.addEventListener('message', onMsg)
+      return () => window.removeEventListener('message', onMsg)
     }
   }, [])
 
@@ -142,7 +166,12 @@ export default function MarketingPage() {
     try {
       const { url } = await api.getMetaConnectUrl(mode)
       if (!url) throw new Error('Bağlantı URL’si alınamadı')
-      window.location.href = url
+      const popup = window.open(url, '_blank', 'width=600,height=700')
+      // popup blocked fallback: same-window redirect
+      if (!popup) window.location.href = url
+      // reset button after popup opened
+      setTimeout(() => setConnecting(false), 800)
+      return
     } catch (e: any) {
       const msg = e?.data?.error || e?.message || 'Bağlantı başlatılamadı'
       const detail = e?.data?.message || ''
@@ -164,6 +193,7 @@ export default function MarketingPage() {
       setResult(res)
       await refreshMeta()
       setShowAssetPicker(false)
+      if (window.opener && !window.opener.closed) { try { window.opener.postMessage({ type: 'meta_connected' }, window.location.origin) } catch {} ; setTimeout(() => { try { window.close() } catch {} }, 800) }
     } catch (e: any) { setError(e.message) }
   }
 
