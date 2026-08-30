@@ -7,6 +7,12 @@ import { Subscription } from '../../models/Subscription.model.js';
 import { Setting } from '../../models/Setting.model.js';
 import { Supplier } from '../../models/Supplier.model.js';
 import { SupplierRating } from '../../models/SupplierRating.model.js';
+import { Product } from '../../models/Product.model.js';
+import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
+import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
+import { CreditLog } from '../../models/CreditLog.model.js';
+import { IntegrationLog } from '../../models/LogModels.js';
+import { AiUsageLog } from '../../models/AiModels.js';
 import { authMiddleware, requireRole } from '../auth/middleware.js';
 import { getRatingSettings, setRatingSettings, recomputeSupplierRating } from '../supplier/rating.js';
 import { logger } from '../../utils/logger.js';
@@ -71,6 +77,83 @@ router.get('/stores', superAdminOnly, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/admin/stores/:id
+ * Store detail + aggregated stats + recent logs (superadmin only)
+ */
+router.get('/stores/:id', superAdminOnly, [param('id').isInt()], validate, async (req: Request, res: Response) => {
+  try {
+    const store = await Store.findByPk(req.params.id, {
+      include: [
+        { model: Plan, as: 'plan' },
+        { model: User, as: 'users', attributes: ['id', 'name', 'email', 'role', 'aiCredits', 'isActive', 'createdAt'] },
+        { model: Subscription, as: 'subscriptions', separate: true, order: [['createdAt', 'DESC']], limit: 1 },
+      ],
+    });
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+    const storeId = store.id;
+
+    const [
+      totalProducts,
+      activeProducts,
+      totalOrders,
+      pendingOrders,
+      totalRevenue,
+      activeIntegrations,
+      totalIntegrations,
+      totalUsers,
+      lowStockCount,
+      creditLogsCount,
+      aiUsageCount,
+      aiCreditsUsed,
+    ] = await Promise.all([
+      Product.count({ where: { storeId } }),
+      Product.count({ where: { storeId, isActive: true } }),
+      DropshippingOrder.count({ where: { storeId } }),
+      DropshippingOrder.count({ where: { storeId, status: 'pending' } }),
+      DropshippingOrder.sum('totalAmount', { where: { storeId } }).then(v => Number(v || 0)),
+      MarketplaceIntegration.count({ where: { storeId, isActive: true } }),
+      MarketplaceIntegration.count({ where: { storeId } }),
+      User.count({ where: { storeId } }),
+      Product.count({ where: { storeId, quantity: { [require('sequelize').Op.lte]: (store as any).lowStockThreshold ?? 5 } } } ).catch(() => 0),
+      CreditLog.count({ where: { storeId } }),
+      AiUsageLog.count({ where: { storeId } }),
+      AiUsageLog.sum('creditsUsed', { where: { storeId } }).then(v => Number(v || 0)),
+    ]);
+
+    const [recentProducts, recentOrders, recentCreditLogs, recentAiLogs, integrations, recentIntegrationLogs] = await Promise.all([
+      Product.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 5, attributes: ['id', 'title', 'sku', 'priceTRY', 'quantity', 'isActive', 'createdAt'] }),
+      DropshippingOrder.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 5, attributes: ['id', 'orderNumber', 'marketplace', 'status', 'totalAmount', 'currency', 'createdAt'] }),
+      CreditLog.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 10 }),
+      AiUsageLog.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 10 }),
+      MarketplaceIntegration.findAll({ where: { storeId }, attributes: ['id', 'marketplace', 'isActive', 'lastSyncAt', 'createdAt'] }),
+      IntegrationLog.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 10 }),
+    ]);
+
+    res.json({
+      store,
+      stats: {
+        totalProducts,
+        activeProducts,
+        totalOrders,
+        pendingOrders,
+        totalRevenue,
+        activeIntegrations,
+        totalIntegrations,
+        totalUsers,
+        lowStockCount,
+        creditLogsCount,
+        aiUsageCount,
+        aiCreditsUsed,
+      },
+      recent: { products: recentProducts, orders: recentOrders, creditLogs: recentCreditLogs, aiLogs: recentAiLogs, integrations, integrationLogs: recentIntegrationLogs },
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get store detail error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/admin/users
  * List all users across all stores
  */
@@ -109,6 +192,70 @@ router.get('/users', superAdminOnly, async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get all users error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/users/:id
+ * User detail + store stats + logs (superadmin only)
+ */
+router.get('/users/:id', superAdminOnly, [param('id').isInt()], validate, async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByPk(req.params.id, {
+      include: [{ model: Store, as: 'store', include: [{ model: Plan, as: 'plan' }] }],
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const storeId = (user as any).storeId;
+    const store = (user as any).store;
+
+    let stats: any = null;
+    let recent: any = null;
+    if (storeId) {
+      const [
+        totalProducts,
+        activeProducts,
+        totalOrders,
+        pendingOrders,
+        totalRevenue,
+        activeIntegrations,
+        totalIntegrations,
+        creditLogsCount,
+        aiUsageCount,
+        aiCreditsUsed,
+        userCreditLogsCount,
+        userAiUsageCount,
+      ] = await Promise.all([
+        Product.count({ where: { storeId } }),
+        Product.count({ where: { storeId, isActive: true } }),
+        DropshippingOrder.count({ where: { storeId } }),
+        DropshippingOrder.count({ where: { storeId, status: 'pending' } }),
+        DropshippingOrder.sum('totalAmount', { where: { storeId } }).then(v => Number(v || 0)),
+        MarketplaceIntegration.count({ where: { storeId, isActive: true } }),
+        MarketplaceIntegration.count({ where: { storeId } }),
+        CreditLog.count({ where: { storeId } }),
+        AiUsageLog.count({ where: { storeId } }),
+        AiUsageLog.sum('creditsUsed', { where: { storeId } }).then(v => Number(v || 0)),
+        CreditLog.count({ where: { userId: user.id } }),
+        AiUsageLog.count({ where: { userId: user.id } }),
+      ]);
+      stats = {
+        totalProducts, activeProducts, totalOrders, pendingOrders, totalRevenue,
+        activeIntegrations, totalIntegrations, creditLogsCount, aiUsageCount, aiCreditsUsed,
+        userCreditLogsCount, userAiUsageCount,
+      };
+      const [recentCreditLogs, recentAiLogs, recentIntegrationLogs, integrations] = await Promise.all([
+        CreditLog.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 10 }),
+        AiUsageLog.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 10 }),
+        IntegrationLog.findAll({ where: { storeId }, order: [['createdAt', 'DESC']], limit: 10 }),
+        MarketplaceIntegration.findAll({ where: { storeId }, attributes: ['id', 'marketplace', 'isActive', 'lastSyncAt'] }),
+      ]);
+      recent = { creditLogs: recentCreditLogs, aiLogs: recentAiLogs, integrationLogs: recentIntegrationLogs, integrations };
+    }
+
+    res.json({ user, store, stats, recent });
+  } catch (error) {
+    logger.error({ err: error }, 'Get user detail error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

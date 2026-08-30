@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { Store } from '@/lib/types'
-import { Store as StoreIcon, ExternalLink } from 'lucide-react'
+import { Store as StoreIcon, ExternalLink, Eye } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SuperStoresPage() {
   const [stores, setStores] = useState<Store[]>([])
@@ -36,6 +37,7 @@ export default function SuperStoresPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Plan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Site</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Durum</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Detay</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
@@ -59,6 +61,9 @@ export default function SuperStoresPage() {
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${store.is_active ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>
                       {store.is_active ? 'Aktif' : 'Pasif'}
                     </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">
+                    <Link href={`/super/stores/${store.id}`} className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-1 text-xs text-white hover:bg-zinc-700"><Eye className="h-3 w-3" /> Detay</Link>
                   </td>
                 </tr>
               ))}

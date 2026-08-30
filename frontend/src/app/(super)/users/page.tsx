@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api-client'
 import type { User } from '@/lib/types'
 import type { Plan } from '@/lib/types'
-import { Pencil, Coins, Tag, Shield, KeyRound } from 'lucide-react'
+import { Pencil, Coins, Tag, Shield, KeyRound, Eye } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SuperUsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -142,6 +143,7 @@ export default function SuperUsersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">AI Kredisi</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Yetki</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">İşlemler</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Detay</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
@@ -244,6 +246,9 @@ export default function SuperUsersPage() {
                         </>
                       )}
                     </div>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">
+                    <Link href={`/users/${user.id}`} className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-1 text-xs text-white hover:bg-zinc-700"><Eye className="h-3 w-3" /> Detay</Link>
                   </td>
                 </tr>
               ))}

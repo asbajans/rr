@@ -1994,6 +1994,14 @@ class ApiClient {
     return this.put<any>(`/api/admin/users/${id}`, data)
   }
 
+  getAdminUser(id: number | string) {
+    return this.get<any>(`/api/admin/users/${id}`)
+  }
+
+  getAdminStore(id: number | string) {
+    return this.get<any>(`/api/admin/stores/${id}`)
+  }
+
   assignPlanToUser(userId: number, planId: number) {
     return this.post<{ message: string }>(`/api/admin/users/${userId}/assign-plan`, { planId })
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
+import { useAuth } from '@/lib/auth'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import { Megaphone, Share2, Camera, Check, ExternalLink, Sparkles, ShoppingBag, MessageCircle, Mail, TrendingUp, Users, BarChart3, MessageSquare, Trash2, Reply } from 'lucide-react'
 import { FlaskConical } from 'lucide-react'
@@ -16,6 +17,8 @@ const CHANNELS = [
 ]
 
 export default function MarketingPage() {
+  const { user } = useAuth()
+  const isSuperAdmin = (user as any)?.role === 'superadmin' || (user as any)?.is_admin === true
   const [metaStatus, setMetaStatus] = useState<{ connected: boolean; pages: any[]; catalogs: any[]; selected: any; pixels: any[]; domain: any; loading: boolean }>({ connected: false, pages: [], catalogs: [], selected: null, pixels: [], domain: null, loading: true })
   const [assets, setAssets] = useState<any>({ pages: [], catalogs: [], selected: {} })
   const [showAssetPicker, setShowAssetPicker] = useState(false)
@@ -141,7 +144,11 @@ export default function MarketingPage() {
   }
 
   useEffect(() => { refreshMeta() }, [])
-  useEffect(() => { if (activeSection !== 'publish') refreshExtras() }, [activeSection, refreshKey])
+  useEffect(() => {
+    // superadmin değilse test sekmesine düşerse publish'e at
+    if (!isSuperAdmin && activeSection === 'test') setActiveSection('publish')
+    if (activeSection !== 'publish') refreshExtras()
+  }, [activeSection, refreshKey, isSuperAdmin])
 
   useEffect(() => {
     if (assets.selected?.pageId) setSelectedPage(assets.selected.pageId)
@@ -244,15 +251,16 @@ export default function MarketingPage() {
 
   if (metaStatus.loading) return <div className="mt-8"><CardSkeleton count={3} /></div>
 
-  // Section tabs
-  const sections = [
+  // Section tabs — Test Alanı sadece superadmin
+  const allSections = [
     { key: 'publish', label: 'Paylaşım', icon: <Megaphone className="h-4 w-4" /> },
     { key: 'comments', label: 'Yorum Yönet', icon: <MessageCircle className="h-4 w-4" /> },
     { key: 'messages', label: 'Mesajlar', icon: <Mail className="h-4 w-4" /> },
     { key: 'ads', label: 'Reklamlar', icon: <TrendingUp className="h-4 w-4" /> },
     { key: 'insights', label: 'İstatistik', icon: <BarChart3 className="h-4 w-4" /> },
-    { key: 'test', label: 'Test Alanı', icon: <FlaskConical className="h-4 w-4" /> },
+    { key: 'test', label: 'Test Alanı', icon: <FlaskConical className="h-4 w-4" />, superOnly: true },
   ]
+  const sections = allSections.filter(s => !(s as any).superOnly || isSuperAdmin)
 
   return (
     <div className="space-y-6">
@@ -472,8 +480,8 @@ export default function MarketingPage() {
         </div>
       )}
 
-      {/* Test area */}
-      {activeSection === 'test' && (
+      {/* Test area — sadece superadmin (Meta Ayarları'ndaki inline test asıl yer) */}
+      {isSuperAdmin && activeSection === 'test' && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 mt-4">
           <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2 mb-1"><FlaskConical className="h-4 w-4" /> Super Admin Test Alanı</h3>
           <p className="text-xs text-amber-700 mb-3">Tüm API endpoint'lerini doğrudan çağırıp yanıtları test et. Sadece süperadmin tarafından kullanılır.</p>
