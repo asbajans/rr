@@ -23,36 +23,36 @@ const validate = (req: Request, res: Response, next: Function) => {
 function dedupeMarketplaceRows(rows: any[]): any[] {
   if (!rows.length) return rows
   const byMp = new Map<string, any>()
-  const byId = new Map<number, any>()
-  for (const r of rows) { byId.set((r as any).id, r) }
+  const byId = new Map<string, any>()
+  for (const r of rows) { byId.set(String((r as any).id), r) }
   for (const r of rows) {
     const src = (r as any).source
     const mpId = (r as any).marketplaceCategoryId
     if (src && mpId) {
-      const key = `${(r as any).storeId}-${src}-${mpId}`
+      const key = `${String((r as any).storeId)}-${src}-${String(mpId)}`
       const ex = byMp.get(key)
-      if (!ex || (r as any).id > (ex as any).id) byMp.set(key, r)
+      if (!ex || Number((r as any).id) > Number((ex as any).id)) byMp.set(key, r)
     }
   }
   if (byMp.size === 0) return rows
-  const keptIds = new Set<number>(Array.from(byMp.values()).map(r => (r as any).id))
+  const keptIds = new Set<string>(Array.from(byMp.values()).map(r => String((r as any).id)))
   const result = rows.filter(r => {
     const src = (r as any).source
     const mpId = (r as any).marketplaceCategoryId
-    if (src && mpId) return keptIds.has((r as any).id)
+    if (src && mpId) return keptIds.has(String((r as any).id))
     return true
   })
-  const mpToKeptId = new Map<string, number>()
-  for (const r of byMp.values()) mpToKeptId.set(`${(r as any).storeId}-${(r as any).source}-${(r as any).marketplaceCategoryId}`, (r as any).id)
+  const mpToKeptId = new Map<string, string>()
+  for (const r of byMp.values()) mpToKeptId.set(`${String((r as any).storeId)}-${(r as any).source}-${String((r as any).marketplaceCategoryId)}`, String((r as any).id))
   for (const r of result) {
     const pid = (r as any).parentId
-    if (pid != null && byId.has(pid) && !keptIds.has(pid)) {
-      const parentRow = byId.get(pid)!
+    if (pid != null && byId.has(String(pid)) && !keptIds.has(String(pid))) {
+      const parentRow = byId.get(String(pid))!
       const pSrc = (parentRow as any).source
       const pMpId = (parentRow as any).marketplaceCategoryId
       if (pSrc && pMpId) {
-        const kept = mpToKeptId.get(`${(parentRow as any).storeId}-${pSrc}-${pMpId}`)
-        if (kept) (r as any).parentId = kept
+        const kept = mpToKeptId.get(`${String((parentRow as any).storeId)}-${pSrc}-${String(pMpId)}`)
+        if (kept) (r as any).parentId = kept as any
         else (r as any).parentId = null
       }
     }
@@ -62,18 +62,20 @@ function dedupeMarketplaceRows(rows: any[]): any[] {
 
 function buildCategoryTree(rows: any[]): any[] {
   const deduped = dedupeMarketplaceRows(rows)
-  const map = new Map<number, any>()
+  const map = new Map<string, any>()
   const roots: any[] = []
   for (const r of deduped) {
     const node = (r.toJSON ? r.toJSON() : { ...r })
-    // ensure plain object copy to avoid mutating original
     const copy: any = { ...node, children: [] }
-    // toJSON already converts name JSONB etc.
-    map.set(copy.id, copy)
+    const idStr = String(copy.id)
+    copy.id = idStr as any
+    if (copy.parentId != null) copy.parentId = String(copy.parentId) as any
+    map.set(idStr, copy)
   }
   for (const r of deduped) {
-    const node = map.get((r as any).id)!
-    const pid = (r as any).parentId ?? null
+    const idStr = String((r as any).id)
+    const node = map.get(idStr)!
+    const pid = (r as any).parentId != null ? String((r as any).parentId) : null
     if (pid != null && map.has(pid)) {
       map.get(pid)!.children.push(node)
     } else {
@@ -285,34 +287,36 @@ categoryRoutes.post('/copy-marketplace', authMiddleware, requireRole('owner', 'a
     } else {
       const rawAllMp = await Category.findAll({ where: { storeId: store.id, source: marketplace }, transaction: t })
       const allMp = dedupeMarketplaceRows(rawAllMp)
-      // if sourceRoot is a duplicate that was pruned, map to kept one
       let effectiveRoot: any = sourceRoot
-      const mpKey = `${(sourceRoot as any).storeId}-${(sourceRoot as any).source}-${(sourceRoot as any).marketplaceCategoryId}`
-      const keptForRoot = allMp.find((c: any) => `${(c as any).storeId}-${(c as any).source}-${(c as any).marketplaceCategoryId}` === mpKey)
+      const mpKey = `${String((sourceRoot as any).storeId)}-${(sourceRoot as any).source}-${String((sourceRoot as any).marketplaceCategoryId)}`
+      const keptForRoot = allMp.find((c: any) => `${String((c as any).storeId)}-${(c as any).source}-${String((c as any).marketplaceCategoryId)}` === mpKey)
       if (keptForRoot) effectiveRoot = keptForRoot
-      const parentMap = new Map<number | null, any[]>()
+      const parentMap = new Map<string | null, any[]>()
       for (const c of allMp) {
-        const pid = (c as any).parentId ?? null
+        const pid = (c as any).parentId != null ? String((c as any).parentId) : null
         if (!parentMap.has(pid)) parentMap.set(pid, [])
         parentMap.get(pid)!.push(c)
       }
-      branchIds = new Set<number>()
-      const stack: number[] = [effectiveRoot.id]
+      branchIds = new Set<number>() as any
+      const effIdStr = String(effectiveRoot.id)
+      const branchIdsStr = new Set<string>()
+      const stack: string[] = [effIdStr]
       while (stack.length) {
         const cur = stack.pop()!
-        if (branchIds.has(cur)) continue
-        branchIds.add(cur)
+        if (branchIdsStr.has(cur)) continue
+        branchIdsStr.add(cur)
         const children = parentMap.get(cur) ?? []
-        for (const ch of children) stack.push((ch as any).id)
+        for (const ch of children) stack.push(String((ch as any).id))
       }
-      if (targetParentId != null && branchIds.has(Number(targetParentId))) {
+      // keep branchIds as numbers for later check (convert)
+      branchIds = new Set(Array.from(branchIdsStr).map(Number)) as any
+      if (targetParentId != null && branchIdsStr.has(String(targetParentId))) {
         await t.rollback(); return res.status(400).json({ error: 'Hedef kategori, kopyalanan dalın içinde olamaz' })
       }
-      const queue: number[] = [effectiveRoot.id]
-      const idToCat = new Map<number, any>(allMp.map((c: any) => [c.id, c]))
-      const seen = new Set<number>([effectiveRoot.id])
-      // override sourceRoot for later parent check
-      ;(sourceRoot as any).id = effectiveRoot.id
+      const queue: string[] = [effIdStr]
+      const idToCat = new Map<string, any>(allMp.map((c: any) => [String((c as any).id), c]))
+      const seen = new Set<string>([effIdStr])
+      ;(sourceRoot as any).id = effIdStr as any
       while (queue.length) {
         const curId = queue.shift()!
         const cur = idToCat.get(curId)
@@ -320,7 +324,8 @@ categoryRoutes.post('/copy-marketplace', authMiddleware, requireRole('owner', 'a
         ordered.push(cur)
         const children = parentMap.get(curId) ?? []
         for (const ch of children) {
-          if (!seen.has((ch as any).id)) { seen.add((ch as any).id); queue.push((ch as any).id) }
+          const cid = String((ch as any).id)
+          if (!seen.has(cid)) { seen.add(cid); queue.push(cid) }
         }
       }
     }

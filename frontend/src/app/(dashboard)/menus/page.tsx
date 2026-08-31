@@ -67,9 +67,9 @@ export default function MenusPage() {
     for (const n of nodes) { out.push({ ...n, depth } as any); if (n.children?.length) out.push(...flattenCat(n.children, depth + 1)) }
     return out
   }
-  function findCat(id: number, nodes: CategoryNode[]): CategoryNode | null {
+  function findCat(id: number | string, nodes: CategoryNode[]): CategoryNode | null {
     const flat = flattenCat(nodes)
-    return flat.find(c => c.id === id) as unknown as CategoryNode | null
+    return flat.find(c => String(c.id) === String(id)) as unknown as CategoryNode | null
   }
   function catToMenuItem(cat: CategoryNode, withChildren: boolean): MenuItem {
     // find full node with children from tree to preserve hierarchy

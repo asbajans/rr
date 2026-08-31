@@ -58,7 +58,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<CategoryItem | null>(null)
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({ name: '', slug: '', parentId: '', sortOrder: 0, isActive: true })
   const [ownCatsForPick, setOwnCatsForPick] = useState<CategoryItem[]>([])
@@ -193,26 +193,28 @@ export default function CategoriesPage() {
     }
   }
 
-  function toggleExpand(id: number) {
-    setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  function toggleExpand(id: number | string) {
+    const s = String(id)
+    setExpanded(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n })
   }
 
   const flatList = useMemo(() => {
     const all = flattenTree(categories)
-    const map = new Map<number, typeof all[0]>()
-    for (const c of all) if (!map.has(c.id)) map.set(c.id, c)
+    const map = new Map<string, typeof all[0]>()
+    for (const c of all) { const k = String(c.id); if (!map.has(k)) map.set(k, c) }
     return Array.from(map.values())
   }, [categories])
   const ownFlatForForm = useMemo(() => isOwn ? flatList : [], [isOwn, flatList])
   const visibleList = useMemo(() => {
     const result: (CategoryItem & { depth: number })[] = []
-    const seen = new Set<number>()
+    const seen = new Set<string>()
     const walk = (nodes: CategoryItem[], depth: number) => {
       for (const n of nodes) {
-        if (seen.has(n.id)) continue
-        seen.add(n.id)
+        const k = String(n.id)
+        if (seen.has(k)) continue
+        seen.add(k)
         result.push({ ...n, depth })
-        if (n.children?.length && expanded.has(n.id)) walk(n.children, depth + 1)
+        if (n.children?.length && expanded.has(k)) walk(n.children, depth + 1)
       }
     }
     walk(categories, 0)
@@ -303,11 +305,11 @@ export default function CategoriesPage() {
             </thead>
             <tbody>
               {filtered.map((cat) => (
-                <tr key={cat.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
+                <tr key={String(cat.id)} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
                   <td className="px-4 py-3">
                     {cat.children?.length ? (
                       <button onClick={() => toggleExpand(cat.id)} className="text-zinc-400 hover:text-zinc-600">
-                        {expanded.has(cat.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        {expanded.has(String(cat.id)) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </button>
                     ) : <span className="ml-4" />}
                   </td>

@@ -53,23 +53,25 @@ publicProductRoutes.get('/:siteCode/products', async (req: Request, res: Respons
 
     const andFilters: any[] = [siteProductWhere(store.id)];
     if (req.query.categoryId) {
-      const catId = Number(req.query.categoryId)
-      if (Number.isFinite(catId)) {
+      const catIdStr = String(req.query.categoryId)
+      const catIdNum = Number(catIdStr)
+      if (Number.isFinite(catIdNum)) {
         const allCats = await Category.findAll({ where: { storeId: store.id }, attributes: ['id', 'parentId'] })
-        const childMap = new Map<number | null, number[]>()
+        const childMap = new Map<string | null, string[]>()
         for (const c of allCats as any[]) {
-          const pid = (c.parentId ?? null) as number | null
+          const pid = (c as any).parentId != null ? String((c as any).parentId) : null
+          const idStr = String((c as any).id)
           if (!childMap.has(pid)) childMap.set(pid, [])
-          childMap.get(pid)!.push(c.id)
+          childMap.get(pid)!.push(idStr)
         }
-        const ids = new Set<number>([catId])
-        const stack = [catId]
+        const ids = new Set<string>([catIdStr])
+        const stack = [catIdStr]
         while (stack.length) {
           const cur = stack.pop()!
           const children = childMap.get(cur) ?? []
           for (const ch of children) if (!ids.has(ch)) { ids.add(ch); stack.push(ch) }
         }
-        andFilters.push({ categoryId: { [Op.in]: Array.from(ids) } })
+        andFilters.push({ categoryId: { [Op.in]: Array.from(ids).map(v => Number(v)) } })
       } else {
         andFilters.push({ categoryId: req.query.categoryId })
       }
