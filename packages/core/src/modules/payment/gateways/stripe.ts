@@ -1,14 +1,18 @@
 import Stripe from 'stripe';
-import { config } from '../../../config/env.js';
 import { logger } from '../../../utils/logger.js';
 import type { StorePaymentMethod } from '../../../models/ContentModels.js';
 import type { PaymentGateway, GatewayPaymentRequest, GatewayPaymentResult, GatewayWebhookResult, GatewayRefundResult } from './types.js';
 
-const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: '2024-04-10' }) : null;
-
+/**
+ * Satıcı (storefront) Stripe gateway'i — SAAS ile KARIŞMAZ.
+ * SAAS abonelik/kredi tahsilatı `packages/core/src/modules/store/routes.ts` içinde
+ * `config.stripe.secretKey` (platformun kendi Stripe hesabı) üzerinden yapılır.
+ * Buradaki tüm işlemler SADECE satıcının kendi StorePaymentMethod.config.secret_key
+ * / webhook_secret anahtarlarıyla yapılır — env fallback YOKTUR.
+ */
 function clientFor(secretKey: string): Stripe | null {
   if (!secretKey) return null;
-  return secretKey === config.stripe.secretKey ? stripe : new Stripe(secretKey, { apiVersion: '2024-04-10' });
+  return new Stripe(secretKey, { apiVersion: '2024-04-10' });
 }
 
 export class StripeGateway implements PaymentGateway {
@@ -16,8 +20,10 @@ export class StripeGateway implements PaymentGateway {
 
   async createPayment(req: GatewayPaymentRequest): Promise<GatewayPaymentResult> {
     const cfg = (req.method.config as any) || {};
-    const client = clientFor(cfg.secret_key || config.stripe.secretKey);
-    if (!client) throw new Error('Stripe secret key is not configured for this store');
+    const secretKey = cfg.secret_key as string | undefined;
+    if (!secretKey) throw new Error('Stripe secret key is not configured for this store — satıcı Ödeme Yöntemleri > Stripe ayarından kendi sk_... anahtarını girmeli');
+    const client = clientFor(secretKey);
+    if (!client) throw new Error('Stripe secret key is not configured for this store — satıcı Ödeme Yöntemleri > Stripe ayarından kendi sk_... anahtarını girmeli');
 
     const amount = Math.round(Number(req.order.totalAmount) * 100);
     if (amount <= 0) throw new Error('Invalid order amount');
@@ -107,9 +113,10 @@ export class StripeGateway implements PaymentGateway {
     reason?: string
   ): Promise<GatewayRefundResult> {
     const cfg = ((method.config as any) || {}) as { secret_key?: string };
-    const secretKey = cfg.secret_key || config.stripe.secretKey || '';
+    const secretKey = cfg.secret_key || '';
+    if (!secretKey) throw new Error('Stripe secret key is not configured for this store — satıcı kendi sk_... anahtarını girmeli');
     const client = clientFor(secretKey);
-    if (!client) throw new Error('Stripe secret key is not configured');
+    if (!client) throw new Error('Stripe secret key is not configured for this store');
     const refId = order.paymentRefId;
     if (!refId) throw new Error('Order has no Stripe payment reference');
     const refund = await client.refunds.create({

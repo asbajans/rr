@@ -45,9 +45,10 @@ export const config = {
     region: process.env.S3_REGION || 'us-east-1',
   },
 
+  // SAAS — platformun kendi Stripe hesabı (abonelik + kredi). Satıcı storefront ödemeleri DB'deki StorePaymentMethod.config üzerinden izoledir.
   stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY || '',
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    secretKey: process.env.STRIPE_SECRET_KEY || '', // platform SAAS sk_... (Stripe Dashboard > Developers > API keys)
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '', // platform SAAS whsec_... (Stripe Dashboard > Developers > Webhooks > https://api.rahatio.com.tr/api/admin/webhook/stripe)
   },
 
   marketplace: {

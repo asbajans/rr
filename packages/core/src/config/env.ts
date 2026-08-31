@@ -54,9 +54,13 @@ export const config = {
     region: 'us-east-1',
   },
 
+  // SAAS — platformun kendi Stripe hesabı (abonelik + kredi satışı)
+  // Satıcı storefront Stripe tahsilatı BURAYI KULLANMAZ — satıcı anahtarları
+  // StorePaymentMethod.config.secret_key / webhook_secret (DB) üzerinden izoledir.
+  // Bkz: packages/core/src/modules/payment/gateways/stripe.ts
   stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY,
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    secretKey: process.env.STRIPE_SECRET_KEY, // platform SAAS sk_... (Stripe Dashboard > Developers > API keys)
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET, // platform SAAS whsec_... (Stripe Dashboard > Developers > Webhooks > Add endpoint > https://api.rahatio.com.tr/api/admin/webhook/stripe)
   },
 
   aiService: {
