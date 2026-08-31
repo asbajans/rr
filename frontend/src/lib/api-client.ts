@@ -1875,6 +1875,10 @@ class ApiClient {
     return this.post<{ copied: number; categories: import('./types').Category[] }>('/api/admin/categories/copy-marketplace', data)
   }
 
+  cleanupCategoryDuplicates() {
+    return this.post<{ deleted: number; message: string }>('/api/admin/categories/cleanup-duplicates', {})
+  }
+
   generateProductDescription(data: { name?: string; brand?: string; category?: string; price?: number; field?: string; title?: string; attributes?: Record<string, any>; keywords?: string[] }) {
     const payload: Record<string, any> = {}
     if (data.title) payload.title = data.title

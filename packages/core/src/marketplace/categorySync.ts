@@ -51,19 +51,35 @@ export async function syncMarketplaceCategories(
 
   for (const fc of flat) {
     const mpCatId = String(fc.id);
-    const slug = `${slugify(fc.name)}-${mpCatId}`;
+    const slugBase = `${slugify(fc.name)}-${mpCatId}`;
+    // prevent duplicates: find existing by marketplaceCategoryId, else by slug
+    let cat = await Category.findOne({ where: { storeId, source: marketplace, marketplaceCategoryId: mpCatId } });
+    if (cat) {
+      await cat.update({ name: { tr: fc.name, en: fc.name }, slug: slugBase, isActive: true } as any);
+    } else {
+      // also check slug collision from old upsert duplicates
+      const bySlug = await Category.findOne({ where: { storeId, slug: slugBase } });
+      if (bySlug && (bySlug as any).source === marketplace && (bySlug as any).marketplaceCategoryId === mpCatId) {
+        cat = bySlug;
+        await cat.update({ name: { tr: fc.name, en: fc.name }, isActive: true } as any);
+      } else {
+        let slug = slugBase;
+        let suf = 1;
+        while (await Category.findOne({ where: { storeId, slug } })) slug = `${slugBase}-${suf++}`;
+        cat = await Category.create({
+          storeId,
+          source: marketplace,
+          marketplaceCategoryId: mpCatId,
+          name: { tr: fc.name, en: fc.name },
+          slug,
+          isActive: true,
+          sortOrder: 0,
+          parentId: null,
+        } as any);
+      }
+    }
 
-    const [cat] = await Category.upsert({
-      storeId,
-      source: marketplace,
-      marketplaceCategoryId: mpCatId,
-      name: { tr: fc.name, en: fc.name },
-      slug,
-      isActive: true,
-      sortOrder: 0,
-    } as any);
-
-    idMap.set(mpCatId, cat.id);
+    idMap.set(mpCatId, (cat as any).id);
     if (fc.parentId && fc.parentId > 0) {
       parentMap.set(mpCatId, String(fc.parentId));
     }

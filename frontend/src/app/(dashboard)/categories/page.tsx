@@ -71,7 +71,23 @@ export default function CategoriesPage() {
     setLoading(true)
     const source = isOwn ? undefined : tab
     api.getCategoryTree(source)
-      .then((raw: any) => setCategories((raw || []).map(mapCategory)))
+      .then((raw: any) => {
+        // dedupe by id as safety (backend already dedupes)
+        const mapped = (raw || []).map(mapCategory)
+        const seen = new Set<number>()
+        const deduped: CategoryItem[] = []
+        const walkDedup = (nodes: CategoryItem[]): CategoryItem[] => {
+          const out: CategoryItem[] = []
+          for (const n of nodes) {
+            if (seen.has(n.id)) continue
+            seen.add(n.id)
+            const copy = { ...n, children: n.children ? walkDedup(n.children) : [] }
+            out.push(copy)
+          }
+          return out
+        }
+        setCategories(walkDedup(mapped))
+      })
       .catch(() => setCategories([]))
       .finally(() => setLoading(false))
   }, [tab, isOwn])
@@ -181,12 +197,20 @@ export default function CategoriesPage() {
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
-  const flatList = useMemo(() => flattenTree(categories), [categories])
+  const flatList = useMemo(() => {
+    const all = flattenTree(categories)
+    const map = new Map<number, typeof all[0]>()
+    for (const c of all) if (!map.has(c.id)) map.set(c.id, c)
+    return Array.from(map.values())
+  }, [categories])
   const ownFlatForForm = useMemo(() => isOwn ? flatList : [], [isOwn, flatList])
   const visibleList = useMemo(() => {
     const result: (CategoryItem & { depth: number })[] = []
+    const seen = new Set<number>()
     const walk = (nodes: CategoryItem[], depth: number) => {
       for (const n of nodes) {
+        if (seen.has(n.id)) continue
+        seen.add(n.id)
         result.push({ ...n, depth })
         if (n.children?.length && expanded.has(n.id)) walk(n.children, depth + 1)
       }
@@ -209,11 +233,21 @@ export default function CategoriesPage() {
           <h1 className="text-2xl font-bold text-zinc-900">Kategoriler</h1>
           <p className="mt-1 text-sm text-zinc-600">Ürün kategorilerini yönet veya pazaryeri kategorilerini görüntüle.</p>
         </div>
-        {isOwn && (
-          <button onClick={() => openCreate()} className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-            <Plus className="h-4 w-4" /> Kategori Ekle
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isOwn && (
+            <button onClick={async () => {
+              if (!confirm('Pazaryeri kategorilerindeki yinelenen kayıtlar temizlensin mi? (En yeni kayıt korunur)')) return
+              try { const r = await api.cleanupCategoryDuplicates(); alert(r.message); load() } catch (e:any) { alert(e.message || 'Temizleme hatası') }
+            }} className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100">
+              Yinelenenleri Temizle
+            </button>
+          )}
+          {isOwn && (
+            <button onClick={() => openCreate()} className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+              <Plus className="h-4 w-4" /> Kategori Ekle
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex gap-1 overflow-x-auto border-b border-zinc-200">
