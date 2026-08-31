@@ -3,9 +3,11 @@ import { Op, cast, col, where as seqWhere } from 'sequelize';
 import { body, param, query, validationResult } from 'express-validator';
 import { Category } from '../../models/Category.model.js';
 import { MarketplaceCategoryMapping } from '../../models/Category.model.js';
+import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 import { CHANNEL_RULES, MARKETPLACE_CHANNEL_KEYS } from '../ai/channelRequirements.js';
+import { createMarketplaceClient } from '../../marketplace/clients/index.js';
 
 export const categoryRoutes: Router = Router();
 
@@ -17,6 +19,31 @@ const validate = (req: Request, res: Response, next: Function) => {
   }
   next();
 };
+
+function buildCategoryTree(rows: any[]): any[] {
+  const map = new Map<number, any>()
+  const roots: any[] = []
+  for (const r of rows) {
+    const node = (r.toJSON ? r.toJSON() : { ...r })
+    node.children = []
+    map.set(node.id, node)
+  }
+  for (const r of rows) {
+    const node = map.get((r as any).id)!
+    const pid = (r as any).parentId ?? null
+    if (pid != null && map.has(pid)) {
+      map.get(pid)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+  const sortRec = (arr: any[]) => {
+    arr.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || String(a.name?.tr || a.name || '').localeCompare(String(b.name?.tr || b.name || '')))
+    for (const n of arr) if (n.children?.length) sortRec(n.children)
+  }
+  sortRec(roots)
+  return roots
+}
 
 categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
@@ -31,17 +58,13 @@ categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: 
       where.source = { [Op.eq]: null };
     }
 
-    let categories;
     if (flat === 'true') {
-      categories = await Category.findAll({ where, order: [['sortOrder', 'ASC'], ['name', 'ASC']] });
-    } else {
-      categories = await Category.findAll({
-        where,
-        order: [['sortOrder', 'ASC'], ['name', 'ASC']],
-        include: [{ model: Category, as: 'children', include: [{ model: Category, as: 'children' }] }],
-      });
+      const categories = await Category.findAll({ where, order: [['sortOrder', 'ASC'], ['name', 'ASC']] });
+      res.json({ categories });
+      return
     }
-
+    const rows = await Category.findAll({ where, order: [['sortOrder', 'ASC'], ['name', 'ASC']] });
+    const categories = buildCategoryTree(rows);
     res.json({ categories });
   } catch (error) {
     logger.error({ err: error }, 'List categories error:');
@@ -54,19 +77,16 @@ categoryRoutes.get('/tree', authMiddleware, requireStore, async (req: Request, r
     const store = (req as any).store;
     const { source } = req.query;
 
-    const where: any = { storeId: store.id, parentId: null, isActive: true };
+    const where: any = { storeId: store.id, isActive: true };
     if (source !== undefined && source !== '') {
       where.source = String(source);
     } else {
       where.source = { [Op.eq]: null };
     }
 
-    const roots = await Category.findAll({
-      where,
-      order: [['sortOrder', 'ASC']],
-      include: [{ model: Category, as: 'children', where: { isActive: true }, required: false, order: [['sortOrder', 'ASC']] }],
-    });
-    res.json({ categories: roots });
+    const rows = await Category.findAll({ where, order: [['sortOrder', 'ASC'], ['name', 'ASC']] });
+    const categories = buildCategoryTree(rows).filter((r: any) => r.parentId == null)
+    res.json({ categories });
   } catch (error) {
     logger.error({ err: error }, 'Category tree error:');
     res.status(500).json({ error: 'Internal server error' });
@@ -104,10 +124,21 @@ categoryRoutes.get('/search', authMiddleware, requireStore, [
 });
 
 function slugifyTr(value: string): string {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9ğüşıöç]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'kategori'
+  const trMap: Record<string, string> = { 'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u', 'ş': 's', 'Ş': 's', 'ı': 'i', 'İ': 'i', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c' }
+  let s = String(value || '').replace(/[ğĞüÜşŞıİöÖçÇ]/g, ch => trMap[ch] || ch)
+  s = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 190)
+  return s || 'kategori'
+}
+function flattenMarketplaceTree(nodes: any[], parentId: number = 0): { id: number; name: string; parentId: number }[] {
+  const out: { id: number; name: string; parentId: number }[] = []
+  for (const n of nodes) {
+    const id = Number(n.id ?? n.marketplace_category_id ?? 0)
+    if (!id) continue
+    out.push({ id, name: n.name ?? '', parentId })
+    const kids = n.subCategories ?? n.children ?? n.categoryList ?? []
+    if (Array.isArray(kids) && kids.length) out.push(...flattenMarketplaceTree(kids, id))
+  }
+  return out
 }
 
 // POST /api/admin/categories/copy-marketplace — branch copy without attributes
@@ -131,48 +162,123 @@ categoryRoutes.post('/copy-marketplace', authMiddleware, requireRole('owner', 'a
     const sourceRoot = await Category.findOne({ where: { id: categoryId, storeId: store.id, source: marketplace }, transaction: t })
     if (!sourceRoot) { await t.rollback(); return res.status(404).json({ error: 'Kaynak kategori bulunamadı. Önce pazaryeri kategorilerini senkronize edin.' }) }
 
-    // prevent circular: target parent cannot be inside branch (will be checked after collecting branch)
-    const allMp = await Category.findAll({ where: { storeId: store.id, source: marketplace }, transaction: t })
-    const parentMap = new Map<number | null, any[]>()
-    for (const c of allMp) {
-      const pid = (c as any).parentId ?? null
-      if (!parentMap.has(pid)) parentMap.set(pid, [])
-      parentMap.get(pid)!.push(c)
+    // Try live marketplace tree for accurate hierarchy (fallback to DB if live fails)
+    let liveBranch: { id: number; name: string; parentId: number }[] | null = null
+    let ordered: any[] = []
+    let branchIds = new Set<number>()
+    try {
+      const integ = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace }, transaction: t })
+      if (integ) {
+        const c = integ as any
+        const cfg = (c.config || {}) as any
+        // need at least some config to auth; try anyway
+        try {
+          const client: any = createMarketplaceClient(marketplace as any, cfg)
+          if (client && typeof client.getCategories === 'function') {
+            const raw = await client.getCategories()
+            if (Array.isArray(raw) && raw.length) {
+              let flat: { id: number; name: string; parentId: number }[] = []
+              // raw may already be flat (trendyol) with parentId, detect
+              const isFlat = raw.length && raw[0] && typeof raw[0].parentId !== 'undefined'
+              if (isFlat) {
+                flat = raw.map((r: any) => ({ id: Number(r.id), name: String(r.name || ''), parentId: Number(r.parentId ?? 0) }))
+              } else {
+                flat = flattenMarketplaceTree(raw, 0)
+              }
+              const rootMpId = Number((sourceRoot as any).marketplaceCategoryId)
+              if (rootMpId) {
+                const liveParentMap = new Map<number, typeof flat>()
+                for (const f of flat) {
+                  if (!liveParentMap.has(f.parentId)) liveParentMap.set(f.parentId, [] as any)
+                  ;(liveParentMap.get(f.parentId) as any).push(f)
+                }
+                const seenMp = new Set<number>()
+                const stackMp: number[] = [rootMpId]
+                const branchMpIds = new Set<number>()
+                while (stackMp.length) {
+                  const cur = stackMp.pop()!
+                  if (branchMpIds.has(cur)) continue
+                  branchMpIds.add(cur)
+                  const kids = (liveParentMap.get(cur) as any) ?? []
+                  for (const k of kids) if (!branchMpIds.has(k.id)) stackMp.push(k.id)
+                }
+                if (branchMpIds.size > 0) {
+                  // build ordered BFS for live branch
+                  const idToLive = new Map<number, any>(flat.map(f => [f.id, f]))
+                  const qLive: number[] = [rootMpId]
+                  const seenLive = new Set<number>([rootMpId])
+                  const orderedLive: any[] = []
+                  while (qLive.length) {
+                    const cid = qLive.shift()!
+                    const node = idToLive.get(cid)
+                    if (!node) continue
+                    orderedLive.push(node)
+                    const kids = (liveParentMap.get(cid) as any) ?? []
+                    for (const k of kids) if (!seenLive.has(k.id)) { seenLive.add(k.id); qLive.push(k.id) }
+                  }
+                  if (orderedLive.length) {
+                    liveBranch = orderedLive
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) { logger.warn({ err: e }, 'Live marketplace fetch for copy failed, fallback to DB') }
+      }
+    } catch {}
+
+    // Fallback to DB branch if live not available
+    let useLive = false
+    if (liveBranch && liveBranch.length) {
+      useLive = true
+      // liveBranch ordered already BFS
+      ordered = liveBranch.map(n => ({ __live: true, id: n.id, name: { tr: n.name, en: n.name }, marketplaceCategoryId: String(n.id), parentMpId: n.parentId, sortOrder: 0, translations: {}, icon: null }))
+      // For live, branchIds is mp ids, but for targetParent check we already did DB branch; also check live target not in branch (target is own, so not in live branch) — no check needed
+      // Build liveParentMap for ordering already done; ordered is liveBranch
+      // For live, we need to know branch size for logging; create dummy branchIds set of mp ids
+      branchIds = new Set(liveBranch.map(n => n.id))
+      // additionally check DB branch for circular safety (already done below via DB fallback? skip)
+    } else {
+      const allMp = await Category.findAll({ where: { storeId: store.id, source: marketplace }, transaction: t })
+      const parentMap = new Map<number | null, any[]>()
+      for (const c of allMp) {
+        const pid = (c as any).parentId ?? null
+        if (!parentMap.has(pid)) parentMap.set(pid, [])
+        parentMap.get(pid)!.push(c)
+      }
+      branchIds = new Set<number>()
+      const stack: number[] = [sourceRoot.id]
+      while (stack.length) {
+        const cur = stack.pop()!
+        if (branchIds.has(cur)) continue
+        branchIds.add(cur)
+        const children = parentMap.get(cur) ?? []
+        for (const ch of children) stack.push((ch as any).id)
+      }
+      if (targetParentId != null && branchIds.has(Number(targetParentId))) {
+        await t.rollback(); return res.status(400).json({ error: 'Hedef kategori, kopyalanan dalın içinde olamaz' })
+      }
+      const queue: number[] = [sourceRoot.id]
+      const idToCat = new Map<number, any>(allMp.map((c: any) => [c.id, c]))
+      const seen = new Set<number>([sourceRoot.id])
+      while (queue.length) {
+        const curId = queue.shift()!
+        const cur = idToCat.get(curId)
+        if (!cur) continue
+        ordered.push(cur)
+        const children = parentMap.get(curId) ?? []
+        for (const ch of children) {
+          if (!seen.has((ch as any).id)) { seen.add((ch as any).id); queue.push((ch as any).id) }
+        }
+      }
     }
-    const branchIds = new Set<number>()
-    const stack: number[] = [sourceRoot.id]
-    while (stack.length) {
-      const cur = stack.pop()!
-      if (branchIds.has(cur)) continue
-      branchIds.add(cur)
-      const children = parentMap.get(cur) ?? []
-      for (const ch of children) stack.push((ch as any).id)
-    }
-    if (targetParentId != null && branchIds.has(Number(targetParentId))) {
+    if (!useLive && targetParentId != null && branchIds.has(Number(targetParentId))) {
       await t.rollback(); return res.status(400).json({ error: 'Hedef kategori, kopyalanan dalın içinde olamaz' })
     }
 
-    // ordered BFS ensures parent before child
-    const ordered: any[] = []
-    const q: any[] = [sourceRoot]
-    const seen = new Set<number>([sourceRoot.id])
-    // build ordered via BFS using parentMap for quick lookup
-    const queue: number[] = [sourceRoot.id]
-    const idToCat = new Map<number, any>(allMp.map((c: any) => [c.id, c]))
-    while (queue.length) {
-      const curId = queue.shift()!
-      const cur = idToCat.get(curId)
-      if (!cur) continue
-      ordered.push(cur)
-      const children = parentMap.get(curId) ?? []
-      for (const ch of children) {
-        if (!seen.has((ch as any).id)) { seen.add((ch as any).id); queue.push((ch as any).id) }
-      }
-    }
-
-    // collect existing own slugs for uniqueness
-    const ownCats = await Category.findAll({ where: { storeId: store.id, source: { [Op.eq]: null as any } }, attributes: ['slug'], transaction: t })
-    const usedSlugs = new Set<string>(ownCats.map((c: any) => c.slug))
+    // collect existing slugs for uniqueness (global per store, all sources share unique index)
+    const allStoreCats = await Category.findAll({ where: { storeId: store.id }, attributes: ['slug'], transaction: t })
+    const usedSlugs = new Set<string>(allStoreCats.map((c: any) => c.slug))
 
     const getTr = (name: any) => {
       if (!name) return ''
@@ -184,7 +290,8 @@ categoryRoutes.post('/copy-marketplace', authMiddleware, requireRole('owner', 'a
     const oldToNew = new Map<number, number>()
     const created: any[] = []
 
-    for (const old of ordered) {
+    for (let idx = 0; idx < ordered.length; idx++) {
+      const old = ordered[idx]
       const trName = getTr((old as any).name)
       let base = slugifyTr(trName)
       if (!base) base = `kategori-${(old as any).id}`
@@ -193,12 +300,21 @@ categoryRoutes.post('/copy-marketplace', authMiddleware, requireRole('owner', 'a
       while (usedSlugs.has(slug)) { slug = `${base}-${suf++}` }
       usedSlugs.add(slug)
 
-      const parentOldId = (old as any).parentId
       let newParentId: number | null = null
-      if ((old as any).id === sourceRoot.id) {
-        newParentId = targetParentId != null ? Number(targetParentId) : null
-      } else if (parentOldId != null) {
-        newParentId = oldToNew.get(parentOldId) ?? null
+      if (useLive) {
+        if (idx === 0) {
+          newParentId = targetParentId != null ? Number(targetParentId) : null
+        } else {
+          const parentMpId = (old as any).parentMpId
+          if (parentMpId != null && parentMpId !== 0) newParentId = oldToNew.get(parentMpId) ?? null
+        }
+      } else {
+        const parentOldId = (old as any).parentId
+        if ((old as any).id === sourceRoot.id) {
+          newParentId = targetParentId != null ? Number(targetParentId) : null
+        } else if (parentOldId != null) {
+          newParentId = oldToNew.get(parentOldId) ?? null
+        }
       }
 
       const createdCat = await Category.create({

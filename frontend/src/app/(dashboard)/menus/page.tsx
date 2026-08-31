@@ -68,12 +68,14 @@ export default function MenusPage() {
     return out
   }
   function findCat(id: number, nodes: CategoryNode[]): CategoryNode | null {
-    for (const n of nodes) { if (n.id === id) return n; if (n.children) { const f = findCat(id, n.children); if (f) return f } }
-    return null
+    const flat = flattenCat(nodes)
+    return flat.find(c => c.id === id) as unknown as CategoryNode | null
   }
   function catToMenuItem(cat: CategoryNode, withChildren: boolean): MenuItem {
-    const item: MenuItem = { id: newItemId(), label: cat.name, categoryId: cat.id, children: [] }
-    if (withChildren && cat.children?.length) item.children = cat.children.map(ch => catToMenuItem(ch, true))
+    // find full node with children from tree to preserve hierarchy
+    const full = findCat(cat.id, catTree) ?? cat
+    const item: MenuItem = { id: newItemId(), label: full.name, categoryId: full.id, children: [] }
+    if (withChildren && (full as any).children?.length) item.children = (full as any).children.map((ch: any) => catToMenuItem(ch, true))
     return item
   }
 
@@ -395,12 +397,14 @@ export default function MenusPage() {
             <h2 className="text-lg font-semibold text-zinc-900 flex items-center gap-2"><FolderTree className="h-5 w-5 text-indigo-600" />Kategori Dalı Ekle</h2>
             <p className="mt-1 text-sm text-zinc-600">Seçilen kategori dalı menüye eklenecek; alt kategorileri otomatik alt menü olur. Mağazada tıklandığında ilgili kategori (ve altları) filtrelenir.</p>
             <div className="mt-4">
-              <label className="text-xs font-medium text-zinc-500">Kategori</label>
+              <label className="text-xs font-medium text-zinc-500">Kategori {catTree.length === 0 && <span className="text-amber-600">(yükleniyor...)</span>}</label>
               <select value={catPick.id} onChange={e => setCatPick(prev => ({ ...prev, id: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
                 <option value="">Seçin...</option>
                 {flattenCat(catTree).map(c => <option key={c.id} value={c.id}>{'—'.repeat(c.depth)}{c.name || c.slug}</option>)}
               </select>
+              {catTree.length === 0 && <p className="mt-1 text-xs text-amber-600">Kategoriler yükleniyor, lütfen bekleyin ve tekrar deneyin. “Kendi Kategorilerim”de hiç kategori yoksa önce kategori oluşturun veya pazaryerinden kopyalayın.</p>}
+              {flattenCat(catTree).length === 0 && catTree.length === 0 && <button onClick={loadCategories} className="mt-1 text-xs text-indigo-600 underline">Tekrar yükle</button>}
             </div>
             <label className="mt-3 flex items-center gap-2 text-sm text-zinc-700">
               <input type="checkbox" checked={catPick.includeChildren} onChange={e => setCatPick(prev => ({ ...prev, includeChildren: e.target.checked }))} className="h-4 w-4 rounded border-zinc-300 text-indigo-600" />
@@ -412,7 +416,7 @@ export default function MenusPage() {
                 onClick={() => {
                   if (!catPick.id) return
                   const cat = findCat(Number(catPick.id), catTree)
-                  if (!cat) return
+                  if (!cat) { alert('Kategori bulunamadı, lütfen listeyi yenileyin'); loadCategories(); return }
                   const item = catToMenuItem(cat, catPick.includeChildren)
                   setForm(prev => ({ ...prev, items: [...prev.items, item] }))
                   setShowCatModal(false)

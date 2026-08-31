@@ -105,11 +105,13 @@ export default function CategoriesPage() {
         targetParentId: copyModal.targetParentId ? Number(copyModal.targetParentId) : null,
       })
       setCopyModal({ open: false, cat: null, targetParentId: '' })
-      alert(`${res.copied} kategori kendi katalogunuza kopyalandı (özniteliksiz).`)
-      // if user was on marketplace tab, optionally switch to own to see result
-      // keep on same tab but notify
+      alert(`${res.copied} kategori kendi katalogunuza kopyalandı (özniteliksiz). “Kendi Kategorilerim” sekmesine geçerek ağacı görebilirsiniz.`)
+      // refresh own pick cache
+      loadOwnCatsForPick()
+      if (isOwn) load()
     } catch (e: any) {
-      alert(e.message || 'Kopyalama başarısız')
+      const msg = e?.data?.error || e?.message || 'Kopyalama başarısız'
+      alert(msg)
     } finally {
       setCopying(false)
     }
@@ -135,9 +137,14 @@ export default function CategoriesPage() {
     setShowForm(true)
   }
 
+  function slugifyInput(v: string): string {
+    const map: Record<string,string> = { 'ğ':'g','Ğ':'g','ü':'u','Ü':'u','ş':'s','Ş':'s','ı':'i','İ':'i','ö':'o','Ö':'o','ç':'c','Ç':'c' }
+    return String(v).replace(/[ğĞüÜşŞıİöÖçÇ]/g, ch => map[ch] || ch).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')
+  }
   async function handleSave() {
     if (!form.name.trim()) return
-    const slug = form.slug.trim() || form.name.toLowerCase().replace(/[^a-z0-9ğüşıöç]+/g, '-').replace(/^-+|-+$/g, '')
+    const slug = form.slug.trim() ? slugifyInput(form.slug.trim()) : slugifyInput(form.name)
+    if (!slug) { alert('Slug oluşturulamadı'); return }
     const data: any = {
       name: { tr: form.name },
       slug,
@@ -174,7 +181,8 @@ export default function CategoriesPage() {
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
-  const flatList = flattenTree(categories)
+  const flatList = useMemo(() => flattenTree(categories), [categories])
+  const ownFlatForForm = useMemo(() => isOwn ? flatList : [], [isOwn, flatList])
   const visibleList = useMemo(() => {
     const result: (CategoryItem & { depth: number })[] = []
     const walk = (nodes: CategoryItem[], depth: number) => {
@@ -186,9 +194,13 @@ export default function CategoriesPage() {
     walk(categories, 0)
     return result
   }, [categories, expanded])
-  const filtered = search
-    ? flatList.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.slug.includes(search))
-    : visibleList
+  const filtered = useMemo(() => {
+    if (!search) return visibleList
+    const q = search.toLowerCase()
+    // limit search results for performance
+    const res = flatList.filter(c => c.name.toLowerCase().includes(q) || c.slug.includes(q))
+    return res.slice(0, 200)
+  }, [search, flatList, visibleList])
 
   return (
     <div>
@@ -356,7 +368,7 @@ export default function CategoriesPage() {
                 <select value={form.parentId} onChange={e => setForm({ ...form, parentId: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none">
                   <option value="">— Yok (Ana Kategori) —</option>
-                  {flatList.map(c => (
+                  {ownFlatForForm.map(c => (
                     <option key={c.id} value={c.id} disabled={c.id === editing?.id}>{'—'.repeat(c.depth)}{c.name || c.slug}</option>
                   ))}
                 </select>
