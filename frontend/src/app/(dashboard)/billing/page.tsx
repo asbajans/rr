@@ -7,7 +7,7 @@ import { api } from '@/lib/api-client'
 import type { Plan, Subscription } from '@/lib/types'
 import { Coins, ShoppingCart, ArrowUp, ArrowDown } from 'lucide-react'
 
-const PURCHASE_PACKS = [
+const FALLBACK_PACKS = [
   { credits: 50, price: 50 },
   { credits: 200, price: 150, popular: true },
   { credits: 500, price: 300 },
@@ -54,6 +54,7 @@ export default function BillingPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [buying, setBuying] = useState(false)
   const [message, setMessage] = useState('')
+  const [packs, setPacks] = useState<{ credits: number; price: number; popular?: boolean; label?: string }[]>(FALLBACK_PACKS)
 
   const loadBilling = useCallback(async () => {
     const [sub, pl] = await Promise.all([api.getSubscription(), api.getPlans()])
@@ -64,9 +65,10 @@ export default function BillingPage() {
 
   const loadCredits = useCallback(async () => {
     try {
-      const [stats, logs] = await Promise.all([api.getCreditStats(), api.getCreditLogs()])
+      const [stats, logs, fetchedPacks] = await Promise.all([api.getCreditStats(), api.getCreditLogs(), api.getCreditPacks().catch(() => FALLBACK_PACKS)])
       setCreditStats(stats)
       setCreditLogs(logs)
+      if (Array.isArray(fetchedPacks) && fetchedPacks.length) setPacks(fetchedPacks)
     } catch {
       setCreditStats(null)
       setCreditLogs([])
@@ -263,8 +265,9 @@ export default function BillingPage() {
 
           <div className="mt-8">
             <h2 className="text-lg font-semibold text-zinc-900">{t('buyCreditsTitle')}</h2>
+            <p className="mt-1 text-xs text-zinc-500">Süperadmin tarafından yönetilir — fiyatlar anlık güncellenir.</p>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {PURCHASE_PACKS.map(pack => (
+              {packs.map(pack => (
                 <div key={pack.credits} className={`relative rounded-xl border p-5 ${pack.popular ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-zinc-200'}`}>
                   {pack.popular && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white">{t('popular')}</span>}
                   <p className="text-lg font-bold text-zinc-900">{pack.credits} {t('creditsUnit')}</p>

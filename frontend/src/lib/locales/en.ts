@@ -48,6 +48,7 @@
   superSupplierApps: 'Supplier Applications',
   superSupplierRatings: 'Supplier Ratings',
   superCategories: 'Categories',
+  superCreditPacks: 'Credit Packs',
   superAi: 'AI Management',
   superApi: 'API Settings',
   superProviders: 'AI Providers',

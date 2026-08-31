@@ -415,6 +415,18 @@ class ApiClient {
     return this.post<{ url: string }>('/api/admin/subscription/purchase-credits', { credits })
   }
 
+  getCreditPacks() {
+    return this.get<{ packs: { credits: number; price: number; popular?: boolean; label?: string }[] }>('/api/admin/credit-packs').then(r => r.packs || [])
+  }
+
+  getSubscriptionCreditPacks() {
+    return this.get<{ packs: { credits: number; price: number; popular?: boolean; label?: string }[] }>('/api/admin/subscription/credit-packs').then(r => r.packs || []).catch(() => this.getCreditPacks())
+  }
+
+  updateCreditPacks(packs: { credits: number; price: number; popular?: boolean; label?: string }[]) {
+    return this.put<{ packs: { credits: number; price: number; popular?: boolean; label?: string }[] }>('/api/admin/credit-packs', { packs }).then(r => r.packs)
+  }
+
   // Users
   getUsers() {
     return this.get<{ data: import('./types').User[]; pagination?: any }>('/api/admin/users')

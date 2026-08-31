@@ -544,6 +544,42 @@ router.delete('/plans/:id', superAdminOnly, [
 });
 
 /**
+ * GET /api/admin/credit-packs
+ * List credit packs (superadmin — yönetilen fiyatlar). Billing/credits sayfaları için de kullanılır.
+ */
+router.get('/credit-packs', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { getCreditPacks } = await import('../credits/packs.js');
+    const packs = await getCreditPacks();
+    res.json({ packs });
+  } catch (error) {
+    logger.error({ err: error }, 'Get credit packs error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/admin/credit-packs
+ * Update credit packs (superadmin only) — body: { packs: [{ credits, price, popular?, label? }] }
+ */
+router.put('/credit-packs', superAdminOnly, [
+  body('packs').isArray({ min: 1, max: 10 }),
+  body('packs.*.credits').isInt({ min: 1 }),
+  body('packs.*.price').isFloat({ min: 0 }),
+  body('packs.*.popular').optional().isBoolean(),
+  body('packs.*.label').optional().isString(),
+], validate, async (req: Request, res: Response) => {
+  try {
+    const { setCreditPacks } = await import('../credits/packs.js');
+    const packs = await setCreditPacks(req.body.packs);
+    logger.info(`Credit packs updated by ${(req as any).user?.email}: ${JSON.stringify(packs)}`);
+    res.json({ packs });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Invalid packs' });
+  }
+});
+
+/**
  * GET /api/admin/settings
  * List all global settings
  */

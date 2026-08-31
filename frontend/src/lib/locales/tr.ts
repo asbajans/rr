@@ -51,6 +51,7 @@
   superSupplierApps: 'Tedarikçi Başvuruları',
   superSupplierRatings: 'Tedarikçi Puanlama',
   superCategories: 'Kategoriler',
+  superCreditPacks: 'Kredi Paketleri',
   superAi: 'AI Yönetimi',
   superApi: 'API Ayarları',
   superProviders: 'AI Sağlayıcılar',

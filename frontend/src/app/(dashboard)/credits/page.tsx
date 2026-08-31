@@ -5,7 +5,7 @@ import { api } from '@/lib/api-client'
 import { Coins, TrendingDown, TrendingUp, ArrowDown, ArrowUp, ShoppingCart } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
 
-const PURCHASE_PACKS = [
+const FALLBACK_PACKS = [
   { credits: 50, price: 50 },
   { credits: 200, price: 150, popular: true },
   { credits: 500, price: 300 },
@@ -19,13 +19,14 @@ const MODULE_LABELS: Record<string, string> = {
 export default function CreditsPage() {
   const [logs, setLogs] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
+  const [packs, setPacks] = useState(FALLBACK_PACKS)
   const [loading, setLoading] = useState(true)
   const [buying, setBuying] = useState(false)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    Promise.all([api.getCreditLogs(), api.getCreditStats()])
-      .then(([l, s]) => { setLogs(l); setStats(s) })
+    Promise.all([api.getCreditLogs(), api.getCreditStats(), api.getCreditPacks().catch(() => FALLBACK_PACKS)])
+      .then(([l, s, p]) => { setLogs(l); setStats(s); if (Array.isArray(p) && p.length) setPacks(p as any) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -74,8 +75,9 @@ export default function CreditsPage() {
       {/* Purchase Section */}
       <div className="mt-8">
         <h2 className="text-sm font-semibold text-white">Kredi Satın Al</h2>
+        <p className="mt-1 text-xs text-zinc-500">Fiyatlar süperadmin tarafından yönetilir.</p>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {PURCHASE_PACKS.map(pack => (
+          {packs.map(pack => (
             <div key={pack.credits} className={`relative rounded-xl border p-5 ${pack.popular ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-zinc-700 bg-zinc-900'}`}>
               {pack.popular && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white">Popüler</span>}
               <p className="text-lg font-bold text-white">{pack.credits} Kredi</p>
