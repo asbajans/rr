@@ -69,12 +69,16 @@ export async function proxy(request: NextRequest) {
   const host = request.headers.get('host') || ''
   if (isPlatformHost(host)) return NextResponse.next()
 
+  const { pathname, search } = request.nextUrl
+  // Already a platform storefront path — don't double-rewrite.
+  if (pathname.startsWith('/stores/')) return NextResponse.next()
+
   const domain = normalizeHost(host)
   const siteCode = await resolveStore(domain)
   if (!siteCode) return NextResponse.next()
 
-  const { pathname, search } = request.nextUrl
-  const url = new URL(`/stores/${siteCode}${pathname}${search}`, request.url)
+  const destPath = pathname === '/' ? `/stores/${siteCode}` : `/stores/${siteCode}${pathname}`
+  const url = new URL(`${destPath}${search}`, request.url)
   return NextResponse.rewrite(url)
 }
 
