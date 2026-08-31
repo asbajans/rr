@@ -12,7 +12,13 @@ import type { NextRequest } from 'next/server'
  */
 
 const PLATFORM_DOMAINS = ['rahatio.com.tr']
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
+const API_BASES = [
+  process.env.API_PROXY_TARGET,
+  process.env.NEXT_PUBLIC_API_URL,
+  'https://api.rahatio.com.tr',
+  'http://rahatio-core:3000',
+  'http://core-api:3000',
+].filter(Boolean) as string[]
 const CACHE_TTL_MS = 60_000
 
 const resolveCache = new Map<string, { siteCode: string; expires: number }>()
@@ -38,20 +44,25 @@ async function resolveStore(domain: string): Promise<string | null> {
   const cached = resolveCache.get(domain)
   if (cached && cached.expires > Date.now()) return cached.siteCode
 
-  try {
-    const res = await fetch(`${API_BASE}/api/store/resolve?domain=${encodeURIComponent(domain)}`, {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    const siteCode: string | undefined = data?.store?.siteCode
-    if (!siteCode) return null
-    resolveCache.set(domain, { siteCode, expires: Date.now() + CACHE_TTL_MS })
-    return siteCode
-  } catch {
-    return null
+  for (const base of API_BASES) {
+    try {
+      const url = `${base.replace(/\/$/, '')}/api/store/resolve?domain=${encodeURIComponent(domain)}`
+      const res = await fetch(url, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) continue
+      const data: any = await res.json()
+      const siteCode: string | undefined = data?.store?.siteCode
+      if (!siteCode) continue
+      resolveCache.set(domain, { siteCode, expires: Date.now() + CACHE_TTL_MS })
+      return siteCode
+    } catch (e) {
+      // try next base
+      continue
+    }
   }
+  return null
 }
 
 export async function proxy(request: NextRequest) {
