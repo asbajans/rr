@@ -4,7 +4,7 @@ import { config } from '../config/env.js';
 
 export const tenantMiddleware = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (req.path.startsWith('/health') || req.path.startsWith('/api/auth/register')) {
+    if (req.path.startsWith('/health') || req.path.startsWith('/api/auth/register') || req.path.startsWith('/api/slave')) {
       return next();
     }
 
@@ -14,10 +14,17 @@ export const tenantMiddleware = async (req: Request, _res: Response, next: NextF
     let store: Store | null = null;
 
     if (apiKey) {
-      store = await Store.findOne({
-        where: { apiKey: apiKey, isActive: true },
-        include: [{ association: 'plan' }],
-      });
+      try {
+        const cryptoMod: any = await import('crypto');
+        const cryptoObj = cryptoMod.default ?? cryptoMod;
+        const { ApiKey } = await import('../models/ApiKey.model.js');
+        const keyHash = cryptoObj.createHash('sha256').update(apiKey).digest('hex');
+        const apiKeyRow: any = await (ApiKey as any).findOne({ where: { keyHash } });
+        if (apiKeyRow) {
+          store = await Store.findOne({ where: { id: (apiKeyRow as any).storeId, isActive: true }, include: [{ association: 'plan' }] });
+        }
+      } catch {}
+      // Fallback: if ApiKey not found, do not throw 500 — just continue without store
     } else if (domain) {
       store = await Store.findOne({
         where: { domain: domain, isActive: true },
