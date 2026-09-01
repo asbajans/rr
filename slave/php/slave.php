@@ -157,7 +157,8 @@ function ensureProductsCache(array $cfg): array {
             $data = ['synced_at' => date('c'), 'products' => $products];
             @file_put_contents($cacheFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
         } catch (Throwable $e) {
-            // Sync başarısızsa cache varsa onu kullan, yoksa boş
+            // Sync başarısızsa cache varsa onu kullan, yoksa boş (hata log'lanmaz)
+            error_log('Rahatio API sync failed: ' . $e->getMessage());
             if (!$data) $data = ['synced_at' => null, 'products' => []];
         }
     }
@@ -369,13 +370,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         . '</div></div></section>';
 
     if ($total === 0) {
-        echo '<section class="mx-auto max-w-6xl px-4 py-12"><div class="rounded-xl border border-dashed border-zinc-300 bg-white p-12 text-center"><p class="text-sm font-medium text-zinc-700">Henüz ürün yok</p><p class="mx-auto mt-2 max-w-md text-xs text-zinc-500">Yönetim panelinden ürün ekleyin veya mağaza sync işlemini tetikleyin. Önbellek 5 dakikada bir otomatik yenilenir.</p>';
-        if (is_file($cfg['cache_dir'] . '/products.json')) {
-            echo '<p class="mt-3 text-xs text-zinc-400">cache: ' . h($cfg['cache_dir'] . '/products.json') . '</p>';
-        } else {
-            echo '<p class="mt-3 text-xs text-amber-600">API bağlantısı kontrol edin — core: ' . h($cfg['api_url']) . '</p>';
-        }
-        echo '</div></section>';
+        echo '<section class="mx-auto max-w-6xl px-4 py-12"><div class="rounded-xl border border-dashed border-zinc-300 bg-white p-12 text-center"><p class="text-sm font-medium text-zinc-700">Henüz ürün yok</p><p class="mx-auto mt-2 max-w-md text-xs text-zinc-500">Yönetim panelinden ürün ekleyin ve mağazanızı yayınlayın. Ürünler otomatik olarak burada görünecektir.</p></div></section>';
     } else {
         echo '<section class="mx-auto max-w-6xl px-4 py-8"><div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">';
         foreach ($active as $p) {
@@ -408,9 +403,9 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     // Footer
     $base = currentBaseUrl($cfg);
     echo '<footer class="mx-auto max-w-6xl px-4 pb-8"><div class="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500">'
-        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">Ana Sayfa</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a> · <a href="/robots.txt" class="hover:underline">Robots</a> · <a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a> · <a href="/health" class="hover:underline">Health</a></div>'
-        . '<div class="mt-2">Powered by <b>Rahatio Slave</b> · ' . h($storeCode) . ' · PHP ' . h(PHP_VERSION) . ' · <span class="hidden sm:inline">API: <code class="rounded bg-zinc-100 px-1">' . h($cfg['api_url']) . '</code></span></div>'
-        . '<div class="mt-2 text-[11px]">Google Index için <code>sitemap.xml</code> Search Console\'a ekle. .htaccess yoksa detay linkleri <code>/index.php?product=ID</code> de çalışır.</div>'
+        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">Ana Sayfa</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a> · <a href="/robots.txt" class="hover:underline">Robots</a> · <a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a></div>'
+        . '<div class="mt-2">Powered by <b>Rahatio Slave</b> · PHP ' . h(PHP_VERSION) . '</div>'
+        . '<div class="mt-2 text-[11px]">Google Index için <code>sitemap.xml</code> Search Console\'a ekle.</div>'
         . '</div></footer>';
     echo '<script>try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");document.getElementById("cart-count").textContent=c.reduce((s,i)=>s+(i.qty||1),0)}catch(e){}</script>';
     if ($currentUri !== '/' ) {
@@ -504,7 +499,7 @@ function renderNotFoundHtml(array $cfg, string $path): void {
     http_response_code(404);
     header('Content-Type: text/html; charset=utf-8');
     $siteName = $cfg['site_name'] ?? 'Mağaza';
-    echo '<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 — ' . h($siteName) . '</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-zinc-50"><div class="mx-auto max-w-xl px-4 py-16 text-center"><h1 class="text-3xl font-bold">404</h1><p class="mt-2 text-sm text-zinc-600">Sayfa bulunamadı: <code class="rounded bg-zinc-100 px-1">' . h($path) . '</code></p><a href="/" class="mt-6 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white">Ana sayfaya dön</a><p class="mt-6 text-xs text-zinc-400">Sağlık: <a href="/health" class="underline">/health</a> · <a href="/slave-config" class="underline">/slave-config</a></p></div></body></html>';
+    echo '<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 — ' . h($siteName) . '</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-zinc-50"><div class="mx-auto max-w-xl px-4 py-16 text-center"><h1 class="text-3xl font-bold">404</h1><p class="mt-2 text-sm text-zinc-600">Aradığınız sayfa bulunamadı.</p><a href="/" class="mt-6 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white">Ana sayfaya dön</a></div></body></html>';
     exit;
 }
 function renderErrorHtml(array $cfg, string $msg): void {
@@ -519,13 +514,10 @@ function renderErrorHtml(array $cfg, string $msg): void {
 // ============================================================
 
 function health(array $cfg): void {
-    $cacheSize = 0;
-    $cacheDir = $cfg['cache_dir'];
-    if (is_dir($cacheDir)) {
-        foreach (glob($cacheDir . '/*.json') as $f) {
-            $cacheSize += filesize($f);
-        }
-    }
+    // Admin-only: Basit sağlık kontrolü (Debug bilgisi gizli)
+    $cacheFile = $cfg['cache_dir'] . '/products.json';
+    $cached = is_file($cacheFile) ? filemtime($cacheFile) : 0;
+    $age = $cached ? (time() - $cached) : null;
     jsonResponse([
         'status'    => 'ok',
         'version'   => '1.2.0',
@@ -533,19 +525,19 @@ function health(array $cfg): void {
         'store'     => $cfg['store_code'],
         'site'      => $cfg['site_name'],
         'php'       => PHP_VERSION,
-        'cache_dir' => $cacheDir,
-        'cache_mb'  => round($cacheSize / 1024 / 1024, 2),
+        'cached'    => $cached ? true : false,
+        'cache_age' => $age,
         'time'      => date('c'),
     ]);
 }
 
 function configInfo(array $cfg): void {
+    // Admin-only: Konfigürasyonu göster (API keyleri hariç)
     jsonResponse([
-        'api_url'     => $cfg['api_url'],
         'store_code'  => $cfg['store_code'],
         'site_name'   => $cfg['site_name'],
-        'cache_dir'   => $cfg['cache_dir'],
         'php_version' => PHP_VERSION,
+        'cache_dir'   => 'configured',
     ]);
 }
 
@@ -670,8 +662,8 @@ class CoreClient
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_POSTFIELDS     => $body ?: null,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
                 'Accept: application/json',
