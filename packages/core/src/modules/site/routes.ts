@@ -1,5 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
+import crypto from 'crypto';
+import { promises as dns } from 'node:dns';
+import https from 'node:https';
+import http from 'node:http';
 import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { SiteDeployment } from '../../models/SiteDeployment.model.js';
@@ -8,6 +12,7 @@ import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js
 import { computeNextVersion, resolveRollbackTarget, serializeDeployment } from './publish.js';
 import { getHostingProvider, getVercelAdapterForStore, verifyVercelToken } from './providers.js';
 import { buildVercelArtifactFiles } from '../slave/routes.js';
+import { config } from '../../config/index.js';
 
 export const siteRoutes: Router = Router();
 
@@ -31,6 +36,39 @@ async function latestVercelDeployment(storeId: number) {
 async function storeHosting(store: Store): Promise<'rahatio' | 'vercel' | 'custom'> {
   const plan = (store as any).plan || (store.planId ? await Plan.findByPk(store.planId) : null);
   return plan?.hosting || 'rahatio';
+}
+
+function normalizeDomainInput(v: string): string {
+  return v.trim().toLowerCase().replace(/\.$/, '').replace(/^www\./, '');
+}
+function getStoreDomains(store: any): Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null }> {
+  const raw = (store as any).domains;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') { try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch { return []; } }
+  // Fallback to single domain field
+  if ((store as any).domain) return [{ domain: String((store as any).domain).toLowerCase(), verified: true, addedAt: new Date().toISOString() }];
+  return [];
+}
+function domainVerificationToken(storeId: number, domain: string): string {
+  return crypto.createHmac('sha256', (config as any).internal?.key || 'fallback').update(`domain-verify:${storeId}:${domain}`).digest('hex').slice(0,24);
+}
+function fetchHealthForDomain(domain: string, timeoutMs = 6000): Promise<{ ok: boolean; body?: any; error?: string }> {
+  return new Promise((resolve) => {
+    const tryFetch = (proto: 'https'|'http', cb:(r:any)=>void) => {
+      const mod = proto === 'https' ? https : http;
+      const req = mod.get(`${proto}://${domain}/health`, { timeout: timeoutMs }, (res) => {
+        let data=''; res.on('data',c=>data+=c); res.on('end',()=>{
+          try { const j=JSON.parse(data); cb({ ok: res.statusCode===200 && j.status==='ok', body: j }); } catch { cb({ ok:false, error:'invalid json' }); }
+        });
+      });
+      req.on('error', (e:any)=> cb({ ok:false, error: e.message }));
+      req.on('timeout', ()=> { req.destroy(); cb({ ok:false, error:'timeout' }); });
+    };
+    tryFetch('https', (r1)=> {
+      if (r1.ok) resolve(r1);
+      else tryFetch('http', (r2)=> resolve(r2.ok? r2 : r1));
+    });
+  });
 }
 
 /** Next version number for a store (last publish version + 1). */
@@ -112,6 +150,144 @@ siteRoutes.delete('/vercel-config', authMiddleware, requireRole('owner', 'admin'
   const store = (req as any).store;
   await store.update({ vercelToken: null, vercelTeamId: null });
   res.json({ hasToken: false });
+});
+
+// Domain Yönetimi — max 5, her domain ayrı doğrulama (Vercel veya PHP health)
+siteRoutes.get('/domains', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  const store = (req as any).store;
+  const domains = getStoreDomains(store);
+  res.json({ domains, max: 5, primary: (store as any).domain || null });
+});
+
+siteRoutes.post('/domains', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  const store = (req as any).store;
+  let domain = String(req.body?.domain || '').trim().toLowerCase();
+  domain = normalizeDomainInput(domain);
+  if (!isValidHostname(domain)) return res.status(400).json({ error: 'Geçerli bir domain girin (örn. magaza.com.tr)' });
+  const domains = getStoreDomains(store);
+  if (domains.length >= 5) return res.status(400).json({ error: 'En fazla 5 domain ekleyebilirsiniz' });
+  if (domains.some(d => d.domain === domain) || (store as any).domain === domain) return res.status(400).json({ error: 'Bu domain zaten ekli' });
+  // Global uniqueness: domain başka mağazada kullanılıyor mu?
+  const existsPrimary = await Store.findOne({ where: { domain } as any });
+  if (existsPrimary && (existsPrimary as any).id !== store.id) return res.status(400).json({ error: 'Bu domain başka bir mağaza tarafından kullanılıyor' });
+  // Check JSONB array contains domain (raw query)
+  try {
+    const [rows]: any = await (Store as any).sequelize.query(`SELECT id FROM stores WHERE domains @> '[{"domain":"${domain.replace(/'/g, "''")}"}]'::jsonb AND id != ${Number(store.id)} LIMIT 1`);
+    if (rows && rows.length) return res.status(400).json({ error: 'Bu domain başka bir mağaza tarafından kullanılıyor' });
+  } catch {}
+  const entry = { domain, verified: false, method: null, addedAt: new Date().toISOString(), lastCheckedAt: null as string | null };
+  const next = [...domains, entry];
+  await store.update({ domains: next as any });
+  // Legacy single domain sync for backward compat
+  if (!(store as any).domain) await store.update({ domain } as any);
+  res.json({ domains: next, domain });
+});
+
+siteRoutes.delete('/domains/:domain', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  const store = (req as any).store;
+  const raw = String(req.params.domain || '').toLowerCase();
+  const domain = normalizeDomainInput(raw);
+  let domains = getStoreDomains(store);
+  const before = domains.length;
+  domains = domains.filter(d => d.domain !== domain);
+  if (domains.length === before) {
+    // Also check legacy primary
+    if ((store as any).domain === domain) {
+      await store.update({ domain: null as any, domains } as any);
+      return res.json({ domains });
+    }
+    return res.status(404).json({ error: 'Domain bulunamadı' });
+  }
+  await store.update({ domains: domains as any });
+  if ((store as any).domain === domain) {
+    const nextPrimary = domains.find(d=>d.verified)?.domain || domains[0]?.domain || null;
+    await store.update({ domain: nextPrimary as any } as any);
+  }
+  res.json({ domains });
+});
+
+siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  const store = (req as any).store;
+  const raw = String(req.params.domain || '').toLowerCase();
+  const domain = normalizeDomainInput(raw);
+  let domains = getStoreDomains(store);
+  const idx = domains.findIndex(d => d.domain === domain);
+  // Also allow verifying legacy primary even if not in array
+  const isLegacyPrimary = (store as any).domain === domain && idx === -1;
+  if (idx === -1 && !isLegacyPrimary) return res.status(404).json({ error: 'Domain bulunamadı — önce ekleyin' });
+
+  const hosting = await storeHosting(store);
+  let verified = false;
+  let method: string | null = null;
+  let detail: any = null;
+
+  // Try Vercel verification if hosting is vercel and token exists
+  if (hosting === 'vercel') {
+    try {
+      const deployment = await latestVercelDeployment(store.id);
+      if (deployment?.providerProjectId) {
+        const adapter = getVercelAdapterForStore(store);
+        // Try verifyDomain, fallback to getDomain
+        try {
+          const r = await adapter.verifyDomain(deployment.providerProjectId, domain);
+          verified = !!r.verified;
+          detail = r;
+          method = 'vercel';
+          if (verified) {
+            await store.update({ domain } as any);
+            await deployment.update({ domain, siteUrl: r.url || deployment.siteUrl } as any);
+          }
+        } catch {
+          const r2 = await adapter.getDomain(deployment.providerProjectId, domain);
+          verified = !!r2.verified;
+          detail = r2;
+          method = 'vercel';
+        }
+      }
+    } catch (e:any) { detail = { error: e.message }; }
+  }
+
+  // Fallback / PHP health check — always try if not yet verified
+  if (!verified) {
+    try {
+      const health = await fetchHealthForDomain(domain, 6000);
+      if (health.ok && health.body && String(health.body.store).toLowerCase() === String(store.siteCode).toLowerCase()) {
+        verified = true;
+        method = method || 'php';
+        detail = health.body;
+      } else if (health.ok) {
+        // Health ok but store mismatch — still consider verified if health is reachable and domain is not vercel-exclusive?
+        // Require store match for php
+        detail = health.body || { error: 'store mismatch' };
+      } else {
+        detail = detail || health;
+      }
+    } catch (e:any) { if (!detail) detail = { error: e.message }; }
+  }
+
+  // TXT fallback check (manual)
+  if (!verified) {
+    try {
+      const token = domainVerificationToken(store.id, domain);
+      const txts = await dns.resolveTxt(`_rahatio-verify.${domain}`).then(rs=> rs.map(r=>r.join('')).join(' ')).catch(()=> '');
+      if (txts && txts.includes(token)) { verified = true; method = method || 'txt'; detail = { txt: true }; }
+    } catch {}
+  }
+
+  // Update domains array
+  if (idx !== -1) {
+    domains[idx] = { ...domains[idx], verified, method: method || domains[idx].method || null, lastCheckedAt: new Date().toISOString() };
+    await store.update({ domains: domains as any });
+    if (verified) await store.update({ domain } as any);
+  } else if (isLegacyPrimary) {
+    // Promote legacy to array
+    const entry = { domain, verified, method, addedAt: new Date().toISOString(), lastCheckedAt: new Date().toISOString() };
+    const next = [...domains, entry];
+    await store.update({ domains: next as any, domain: verified ? domain : (store as any).domain } as any);
+    domains = next;
+  }
+
+  res.json({ domain, verified, method, detail, domains });
 });
 
 // POST /api/admin/site/mapping — manual siteUrl + domain update (Option A — ZIP ile kendi Vercel'ine deploy edenler)

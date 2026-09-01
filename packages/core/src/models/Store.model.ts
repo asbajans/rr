@@ -124,6 +124,11 @@ export class Store extends Model {
   @Column(DataType.STRING(100))
   declare vercelTeamId: string | null;
 
+  @AllowNull(true)
+  @Column(DataType.JSONB)
+  @Default([])
+  declare domains: Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null }>;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

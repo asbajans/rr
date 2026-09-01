@@ -1426,6 +1426,20 @@ class ApiClient {
     return this.post<{ siteUrl: string | null; domain: string | null }>('/api/admin/site/mapping', data)
   }
 
+  // Multi-domain (max 5) — new
+  getSiteDomains() {
+    return this.get<{ domains: Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null }>; max: number; primary: string | null }>('/api/admin/site/domains')
+  }
+  addSiteDomainMulti(domain: string) {
+    return this.post<{ domains: Array<{ domain: string; verified: boolean }>; domain: string }>('/api/admin/site/domains', { domain })
+  }
+  removeSiteDomain(domain: string) {
+    return this.delete<{ domains: Array<{ domain: string; verified: boolean }> }>(`/api/admin/site/domains/${encodeURIComponent(domain)}`)
+  }
+  verifySiteDomainMulti(domain: string) {
+    return this.post<{ domain: string; verified: boolean; method: string | null; detail: any; domains: Array<{ domain: string; verified: boolean }> }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/verify`)
+  }
+
   addSiteDomain(domain: string, opts?: { token?: string; teamId?: string | null }) {
     return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain', { domain, ...opts })
   }

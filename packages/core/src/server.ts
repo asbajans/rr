@@ -373,6 +373,9 @@ export const createApp = async (): Promise<Express> => {
   try {
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "vercelToken" TEXT`);
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "vercelTeamId" VARCHAR(100)`);
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS domains JSONB DEFAULT '[]'::jsonb`);
+    // Backfill primary domain into domains array if missing
+    await sequelize.query(`UPDATE stores SET domains = jsonb_build_array(jsonb_build_object('domain', domain, 'verified', true, 'addedAt', NOW()::text)) WHERE domain IS NOT NULL AND domain <> '' AND (domains IS NULL OR domains = '[]'::jsonb)`);
   } catch (e) {
     // Ignore if columns already exist
   }
