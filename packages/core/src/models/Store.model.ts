@@ -125,8 +125,8 @@ export class Store extends Model {
   declare vercelTeamId: string | null;
 
   @AllowNull(true)
-  @Column(DataType.JSONB)
   @Default([])
+  @Column(DataType.JSONB)
   declare domains: Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null }>;
 
   @CreatedAt
