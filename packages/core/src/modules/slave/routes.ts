@@ -43,7 +43,8 @@ async function slaveAuth(req: Request, res: Response, next: Function) {
 
     const hmacSecret = getSlaveHmacSecret();
     const method = req.method;
-    const reqPath = req.path;
+    // Full path including mount point for signature verification (req.path alone omits /api/slave mount)
+    const reqPath = '/api/slave' + req.path;
     // Match slave firmware: empty body for GET/no-body, JSON only when present
     const rawBody = req.body && Object.keys(req.body as object).length ? JSON.stringify(req.body) : '';
     const body = rawBody;

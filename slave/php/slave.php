@@ -403,9 +403,8 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     // Footer
     $base = currentBaseUrl($cfg);
     echo '<footer class="mx-auto max-w-6xl px-4 pb-8"><div class="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500">'
-        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">Ana Sayfa</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a> · <a href="/robots.txt" class="hover:underline">Robots</a> · <a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a></div>'
-        . '<div class="mt-2">Powered by <b>Rahatio Slave</b> · PHP ' . h(PHP_VERSION) . '</div>'
-        . '<div class="mt-2 text-[11px]">Google Index için <code>sitemap.xml</code> Search Console\'a ekle.</div>'
+        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">Ana Sayfa</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a> · <a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a></div>'
+        . '<div class="mt-2">Bu site <b>Rahatio</b> ile yayında</div>'
         . '</div></footer>';
     echo '<script>try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");document.getElementById("cart-count").textContent=c.reduce((s,i)=>s+(i.qty||1),0)}catch(e){}</script>';
     if ($currentUri !== '/' ) {
@@ -487,7 +486,7 @@ function renderProductDetail(array $cfg, string $id): void {
         . '<p id="cart-msg" class="mt-3 hidden text-sm text-emerald-600">✓ Sepete eklendi — <a href="/cart" class="underline">Sepete git</a></p>'
         . '</div>';
     echo '</div></main>';
-    echo '<footer class="mx-auto max-w-6xl px-4 pb-8 text-center text-xs text-zinc-400">Powered by Rahatio Slave · ' . h($cfg['store_code']) . ' · <a href="/sitemap.xml" class="underline">Sitemap</a> · <a href="/robots.txt" class="underline">Robots</a></footer>';
+    echo '<footer class="mx-auto max-w-6xl px-4 pb-8 text-center text-xs text-zinc-400"><a href="/sitemap.xml" class="underline">Sitemap</a></footer>';
     echo '<script>
 function addToCart(id,label,price){try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");var f=c.find(x=>String(x.id)===String(id));if(f)f.qty=(f.qty||1)+1;else c.push({id:id,label:label,price:price,qty:1});localStorage.setItem("rahatio_cart",JSON.stringify(c));var el=document.getElementById("cart-msg");if(el)el.classList.remove("hidden");var cnt=c.reduce((s,i)=>s+(i.qty||1),0);var cc=document.getElementById("cart-count");if(cc)cc.textContent=cnt;}catch(e){alert("Sepet hatası: "+e.message)}}
 </script>';
