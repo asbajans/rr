@@ -48,7 +48,7 @@ function DomainManager() {
     <div className="space-y-4">
       <div className="flex items-start gap-2 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
         <Info className="mt-0.5 h-4 w-4 shrink-0"/>
-        <p>En fazla <b>5</b> domain ekleyebilirsin. Domaini <b>önce ekle, sonra doğrula</b> — doğrulama, kullandığın yayın yöntemine göre yapılır (Vercel → Vercel DNS, PHP → <code>/health</code> sağlık kontrolü). Her domain ayrı doğrulanır.</p>
+        <p>En fazla <b>5</b> domain ekleyebilirsiniz. Domaini <b>önce ekleyin, sonra doğrulayın</b> — doğrulama, kullandığın yayın yöntemine göre yapılır (Vercel → Vercel DNS, PHP → <code>/health</code> sağlık kontrolü). Her domain ayrı doğrulanır.</p>
       </div>
 
       <div className="flex gap-2">
@@ -58,7 +58,7 @@ function DomainManager() {
       {domains.length>=5 && <p className="text-xs text-amber-600">Limit doldu (5/5). Birini silerek yeni ekleyebilirsin.</p>}
 
       {domains.length===0 ? (
-        <p className="text-sm text-zinc-500">Henüz domain yok. Yukarıdan ekle.</p>
+        <p className="text-sm text-zinc-500">Henüz domain yok. Yukarıdan ekleyebilirsiniz.</p>
       ) : (
         <div className="space-y-2">
           {domains.map(d=>(
