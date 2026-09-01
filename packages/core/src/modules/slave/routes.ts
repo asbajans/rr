@@ -290,11 +290,21 @@ slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
     }
 
     let content = fs.readFileSync(templatePath, 'utf-8');
+    // Escape single quotes in site_name for PHP single-quoted string
+    const safeName = String((store as any).name ?? '').replace(/'/g, "\\'").replace(/\$/g, '\\$');
     content = content.replace(
       /\/\/ #CONFIG_START[\s\S]*?\/\/ #CONFIG_END/,
-      `// #CONFIG_START\n$_RAHATIO_CONFIG = [\n    'api_url'     => '${appUrl}',\n    'api_key'     => '${apiKey}',\n    'hmac_secret' => '${hmacSecret}',\n    'store_code'  => '${store.siteCode}',\n    'cache_dir'   => '__CACHE_DIR__',\n    'site_name'   => '${(store as any).name}',\n];\n// #CONFIG_END`
+      `// #CONFIG_START\n$_RAHATIO_CONFIG = [\n    'api_url'     => '${appUrl}',\n    'api_key'     => '${apiKey}',\n    'hmac_secret' => '${hmacSecret}',\n    'store_code'  => '${store.siteCode}',\n    'cache_dir'   => '__CACHE_DIR__',\n    'site_name'   => '${safeName}',\n];\n// #CONFIG_END`
     );
     content = content.replace(/\/api\/(products|sync|orders)/g, '/api/slave/$1');
+
+    // If client explicitly wants single php (?single=1), keep legacy — do this BEFORE any zip headers
+    if (String(req.query.single ?? '') === '1') {
+      res.setHeader('Content-Type', 'application/x-php');
+      res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}.php"`);
+      res.send(content);
+      return;
+    }
 
     // Provide ZIP archive with index.php + .htaccess for one-click deploy (SEO-ready)
     const htaccessPath = path.join(SLAVE_DIR, 'php', '.htaccess');
@@ -305,23 +315,46 @@ slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
       `3) /sitemap.xml ve /robots.txt otomatik oluşur, Google Search Console'a sitemap ekle\n` +
       `4) Sepet ve ödeme JS ile Rahatio API üzerinden çalışır (CORS)\n`;
 
-    // If client explicitly wants single php (?single=1), keep legacy
-    if (String(req.query.single ?? '') === '1') {
+    let archiver: any;
+    try {
+      archiver = (await import('archiver') as any).default ?? (await import('archiver') as any);
+      // Some builds expose archiver as module itself
+      if (typeof archiver !== 'function') {
+        const mod: any = await import('archiver');
+        archiver = mod.default ?? mod;
+      }
+    } catch (e: any) {
+      logger.error({ err: e }, 'Archiver import failed, falling back to single PHP');
       res.setHeader('Content-Type', 'application/x-php');
       res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}.php"`);
       res.send(content);
       return;
     }
 
-    const { default: archiver } = await import('archiver') as any;
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}-php.zip"`);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    archive.pipe(res);
-    archive.append(content, { name: 'index.php' });
-    archive.append(htaccess, { name: '.htaccess' });
-    archive.append(readme, { name: 'README.txt' });
-    await archive.finalize();
+    try {
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}-php.zip"`);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.on('error', (err: any) => {
+        logger.error({ err }, 'Archiver error');
+        if (!res.headersSent) res.status(500).json({ error: err.message });
+        else try { res.end(); } catch {}
+      });
+      archive.pipe(res);
+      archive.append(content, { name: 'index.php' });
+      archive.append(htaccess, { name: '.htaccess' });
+      archive.append(readme, { name: 'README.txt' });
+      await archive.finalize();
+    } catch (e: any) {
+      logger.error({ err: e }, 'Zip finalize failed');
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'application/x-php');
+        res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}.php"`);
+        res.send(content);
+      } else {
+        try { res.end(); } catch {}
+      }
+    }
   } catch (error: any) {
     logger.error('Slave PHP download error:', error);
     res.status(500).json({ error: error.message });
@@ -367,7 +400,7 @@ slaveRoutes.get('/download-vercel', async (req: Request, res: Response) => {
     let indexContent = fs.readFileSync(templatePath, 'utf-8');
     indexContent = indexContent.replace(
       /\/\/ #CONFIG_START[\s\S]*?\/\/ #CONFIG_END/,
-      `// #CONFIG_START\nconst CONFIG = {\n  apiUrl: '${appUrl}',\n  apiKey: '${apiKey}',\n  hmacSecret: '${hmacSecret}',\n  storeCode: '${store.siteCode}',\n  siteName: '${(store as any).name}',\n}\n// #CONFIG_END`
+      `// #CONFIG_START\nconst CONFIG = {\n  apiUrl: '${appUrl}',\n  apiKey: '${apiKey}',\n  hmacSecret: '${hmacSecret}',\n  storeCode: '${store.siteCode}',\n  siteName: ${JSON.stringify((store as any).name)},\n}\n// #CONFIG_END`
     );
     indexContent = indexContent.replace(/\/api\/(products|sync|orders)/g, '/api/slave/$1');
 
