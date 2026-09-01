@@ -208,6 +208,62 @@ function ensureStoreCache(array $cfg): array {
     }
     return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? []) : [];
 }
+
+function ensureMenusCache(array $cfg): array {
+    $cacheFile = $cfg['cache_dir'] . '/menus.json';
+    if (is_file($cacheFile) && (time()-filemtime($cacheFile) < 1800)) {
+        $j=json_decode(@file_get_contents($cacheFile),true);
+        if (is_array($j) && isset($j['menus'])) return $j;
+    }
+    $data = fetchPublicJson($cfg, '/api/store/' . urlencode($cfg['store_code']) . '/menus');
+    if (is_array($data) && isset($data['menus'])) {
+        @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        return $data;
+    }
+    return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['menus'=>[]]) : ['menus'=>[]];
+}
+
+function ensurePagesCache(array $cfg): array {
+    $cacheFile = $cfg['cache_dir'] . '/pages.json';
+    if (is_file($cacheFile) && (time()-filemtime($cacheFile) < 1800)) {
+        $j=json_decode(@file_get_contents($cacheFile),true);
+        if (is_array($j) && isset($j['pages'])) return $j;
+    }
+    $data = fetchPublicJson($cfg, '/api/store/' . urlencode($cfg['store_code']) . '/pages');
+    if (is_array($data) && isset($data['pages'])) {
+        @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        return $data;
+    }
+    return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['pages'=>[]]) : ['pages'=>[]];
+}
+
+function ensureMenusCache(array $cfg): array {
+    $cacheFile = $cfg['cache_dir'] . '/menus.json';
+    if (is_file($cacheFile) && (time()-filemtime($cacheFile) < 1800)) {
+        $j=json_decode(@file_get_contents($cacheFile),true);
+        if (is_array($j) && isset($j['menus'])) return $j;
+    }
+    $data = fetchPublicJson($cfg, '/api/store/' . urlencode($cfg['store_code']) . '/menus');
+    if (is_array($data) && isset($data['menus'])) {
+        @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        return $data;
+    }
+    return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['menus'=>[]]) : ['menus'=>[]];
+}
+
+function ensurePagesCache(array $cfg): array {
+    $cacheFile = $cfg['cache_dir'] . '/pages.json';
+    if (is_file($cacheFile) && (time()-filemtime($cacheFile) < 1800)) {
+        $j=json_decode(@file_get_contents($cacheFile),true);
+        if (is_array($j) && isset($j['pages'])) return $j;
+    }
+    $data = fetchPublicJson($cfg, '/api/store/' . urlencode($cfg['store_code']) . '/pages');
+    if (is_array($data) && isset($data['pages'])) {
+        @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        return $data;
+    }
+    return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['pages'=>[]]) : ['pages'=>[]];
+}
 function renderSitemap(array $cfg): void {
     $base = currentBaseUrl($cfg);
     $data = ensureProductsCache($cfg);
@@ -313,6 +369,20 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     $products = $data['products'] ?? [];
     $syncedAt = $data['synced_at'] ?? null;
     $active = array_values(array_filter($products, fn($p) => ($p['product.status'] ?? $p['status'] ?? 1) == 1));
+    
+    // Arama filtresi
+    $searchQuery = $_GET['search'] ?? '';
+    if ($searchQuery) {
+        $searchLower = mb_strtolower(trim($searchQuery), 'UTF-8');
+        $active = array_filter($active, function($p) use ($searchLower) {
+            $label = mb_strtolower(($p['product.label'] ?? $p['title'] ?? ''), 'UTF-8');
+            $code = mb_strtolower(($p['product.code'] ?? $p['sku'] ?? ''), 'UTF-8');
+            $desc = mb_strtolower(($p['description'] ?? ''), 'UTF-8');
+            return str_contains($label, $searchLower) || str_contains($code, $searchLower) || str_contains($desc, $searchLower);
+        });
+        $active = array_values($active);
+    }
+    
     $total = count($active);
     $siteName = $cfg['site_name'] ?: ($store['name'] ?? 'Mağazam');
     $storeCode = $cfg['store_code'] ?? '';
@@ -336,9 +406,30 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         . '<script type="application/ld+json">' . json_encode(['@context'=>'https://schema.org','@type'=>'Store','name'=>$siteName,'url'=>$canonical], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . '</script>'
         . '</head><body class="bg-zinc-50 text-zinc-900">';
 
+    // Tema CSS
+    $theme = $store['theme'] ?? [];
+    $themeCss = '';
+    if (is_array($theme)) {
+        $primary = $theme['primary_color'] ?? '#4f46e5';
+        $accent = $theme['accent_color'] ?? '#f59e0b';
+        $dark = $theme['background_dark'] ?? '#18181b';
+        $light = $theme['background_light'] ?? '#f4f4f5';
+        $themeCss = ":root { --primary: $primary; --accent: $accent; --dark: $dark; --light: $light; }";
+    }
+    echo '<style>' . $themeCss . ' .btn-primary { background-color: var(--primary); } .text-primary { color: var(--primary); }</style>';
+
+    // Header — Logo + Search + Menü
+    $menus = ensureMenusCache($cfg)['menus'] ?? [];
+    $searchQuery = $_GET['search'] ?? '';
+    $headerMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'header');
+
     echo '<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">'
-        . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a><div class="hidden text-xs text-zinc-500 sm:block"><a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a></div></div></div>'
-        . '<div class="flex items-center gap-2"><a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
+        . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a><div class="hidden text-xs text-zinc-500 sm:block">'
+        . implode(' · ', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="hover:underline">' . h($m['label'] ?? '') . '</a>', $headerMenus))
+        . '</div></div></div>'
+        . '<div class="flex items-center gap-2">'
+        . '<form method="GET" action="/products" class="hidden flex-1 sm:block"><input type="text" name="search" placeholder="Ara..." value="' . h($searchQuery) . '" class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs" autocomplete="off"><button type="submit" class="ml-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">Ara</button></form>'
+        . '<a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
         . '</div></header>';
 
     // Cart / Checkout / Account sayfaları — JS ile localStorage sepet + core API üzerinden sipariş
