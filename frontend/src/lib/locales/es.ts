@@ -19,6 +19,7 @@
   pages: 'PÃ¡ginas',
   blog: 'Blog',
   menus: 'MenÃºs',
+  sitePublish: 'Site Publish',
   siteBuilder: 'DiseÃ±ador de sitio',
   pixels: 'PÃ­xel y seguimiento',
   payment: 'MÃ©todos de pago',

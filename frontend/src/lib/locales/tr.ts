@@ -18,6 +18,7 @@
   marketplaces: 'Pazaryerleri',
   marketing: 'Marketing',
   metaSettings: 'Meta Ayarları',
+  sitePublish: 'Site Yayın',
   pages: 'Sayfalar',
   blog: 'Blog',
   menus: 'Menüler',

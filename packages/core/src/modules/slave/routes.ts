@@ -296,9 +296,32 @@ slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
     );
     content = content.replace(/\/api\/(products|sync|orders)/g, '/api/slave/$1');
 
-    res.setHeader('Content-Type', 'application/x-php');
-    res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}.php"`);
-    res.send(content);
+    // Provide ZIP archive with index.php + .htaccess for one-click deploy (SEO-ready)
+    const htaccessPath = path.join(SLAVE_DIR, 'php', '.htaccess');
+    const htaccess = fs.existsSync(htaccessPath) ? fs.readFileSync(htaccessPath, 'utf-8') : 'RewriteEngine On\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule ^(.*)$ index.php [QSA,L]\n';
+    const readme = `Rahatio PHP Slave — ${store.siteCode}\n` +
+      `1) ZIP'i aç, içindeki index.php + .htaccess'i hosting kök dizinine (public_html) yükle\n` +
+      `2) Tarayıcıdan https://domain.com aç — vitrin HTML olarak gelir\n` +
+      `3) /sitemap.xml ve /robots.txt otomatik oluşur, Google Search Console'a sitemap ekle\n` +
+      `4) Sepet ve ödeme JS ile Rahatio API üzerinden çalışır (CORS)\n`;
+
+    // If client explicitly wants single php (?single=1), keep legacy
+    if (String(req.query.single ?? '') === '1') {
+      res.setHeader('Content-Type', 'application/x-php');
+      res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}.php"`);
+      res.send(content);
+      return;
+    }
+
+    const { default: archiver } = await import('archiver') as any;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}-php.zip"`);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+    archive.append(content, { name: 'index.php' });
+    archive.append(htaccess, { name: '.htaccess' });
+    archive.append(readme, { name: 'README.txt' });
+    await archive.finalize();
   } catch (error: any) {
     logger.error('Slave PHP download error:', error);
     res.status(500).json({ error: error.message });

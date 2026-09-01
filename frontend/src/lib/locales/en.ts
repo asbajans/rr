@@ -18,6 +18,7 @@
   marketplaces: 'Marketplaces',
   marketing: 'Marketing',
   metaSettings: 'Meta Settings',
+  sitePublish: 'Site Publish',
   pages: 'Pages',
   blog: 'Blog',
   menus: 'Menus',
