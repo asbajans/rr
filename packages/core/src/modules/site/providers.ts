@@ -144,14 +144,28 @@ class VercelHostingAdapter implements HostingProviderAdapter {
   }
 }
 
-export function getHostingProvider(kind: string | null | undefined): HostingProviderAdapter {
-  // Vercel/custom are deliberately explicit until their credentials and
-  // deployment implementation are configured. Never silently deploy them as
-  // Rahatio hosting.
+/** Per-store Vercel token helper — prefers store token, then env fallback (legacy central). */
+export function getVercelAdapterForStore(store?: any, override?: { token?: string; teamId?: string | null }): VercelHostingAdapter {
+  const token = override?.token || store?.vercelToken || process.env.VERCEL_TOKEN;
+  const teamId = override?.teamId !== undefined ? override.teamId || undefined : (store?.vercelTeamId || process.env.VERCEL_TEAM_ID || undefined);
+  if (!token) throw new Error('Vercel token yok — ayarlardan kendi Vercel tokenını ekle veya merkezi VERCEL_TOKEN tanımla');
+  return new VercelHostingAdapter(token, teamId || undefined);
+}
+
+export async function verifyVercelToken(token: string, teamId?: string | null): Promise<{ valid: boolean; user?: any; team?: any }> {
+  const adapter = new VercelHostingAdapter(token, teamId || undefined);
+  // Test token by fetching user; team param is added if present
+  // Using private client via bracket access
+  const client: any = (adapter as any).client;
+  const params = teamId ? { teamId } : undefined;
+  const userRes = await client.get('/v2/user', { params });
+  return { valid: true, user: userRes.data?.user || userRes.data };
+}
+
+export function getHostingProvider(kind: string | null | undefined, store?: any, override?: { token?: string; teamId?: string | null }): HostingProviderAdapter {
+  // Vercel: per-store token preferred, env fallback for legacy/migration
   if (kind === 'vercel') {
-    const token = process.env.VERCEL_TOKEN;
-    if (!token) throw new Error('Hosting provider \'vercel\' is not configured yet (VERCEL_TOKEN missing)');
-    return new VercelHostingAdapter(token, process.env.VERCEL_TEAM_ID);
+    return getVercelAdapterForStore(store, override);
   }
   if (kind === 'custom') throw new Error(`Hosting provider '${kind}' is not configured yet`);
   return new RahatioHostingAdapter();

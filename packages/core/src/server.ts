@@ -369,6 +369,14 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Per-store Vercel deploy token (decentralized hosting) — Option B
+  try {
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "vercelToken" TEXT`);
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "vercelTeamId" VARCHAR(100)`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
   // Product attributes (key-value pairs shown on storefront)
   try {
     await sequelize.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS attributes JSONB`);

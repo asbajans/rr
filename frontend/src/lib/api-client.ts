@@ -1400,19 +1400,34 @@ class ApiClient {
   }
 
   getSiteProvider() {
-    return this.get<{ provider: 'rahatio' | 'vercel' | 'custom'; configured: boolean; canDeploy: boolean; reason: string | null; supportedProviders: string[] }>('/api/admin/site/provider')
+    return this.get<{ provider: 'rahatio' | 'vercel' | 'custom'; configured: boolean; canDeploy: boolean; reason: string | null; hasOwnToken?: boolean; supportedProviders: string[] }>('/api/admin/site/provider')
   }
 
-  deployManagedSite(note?: string) {
-    return this.post<{ deployment: import('./types').SiteDeployment }>('/api/admin/site/deploy', { note })
+  deployManagedSite(note?: string, opts?: { token?: string; teamId?: string | null; saveToken?: boolean }) {
+    return this.post<{ deployment: import('./types').SiteDeployment }>('/api/admin/site/deploy', { note, ...opts })
   }
 
   getSiteDeploymentStatus(id: number | string) {
     return this.get<{ deployment: import('./types').SiteDeployment }>(`/api/admin/site/deployments/${id}/status`)
   }
 
-  addSiteDomain(domain: string) {
-    return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain', { domain })
+  // Per-store Vercel token (Option B)
+  getVercelConfig() {
+    return this.get<{ hasToken: boolean; maskedToken: string | null; teamId: string | null }>('/api/admin/site/vercel-config')
+  }
+  saveVercelConfig(token: string, teamId?: string | null) {
+    return this.put<{ hasToken: boolean; maskedToken: string | null; teamId: string | null }>('/api/admin/site/vercel-config', { token, teamId: teamId || null })
+  }
+  clearVercelConfig() {
+    return this.delete<{ hasToken: boolean }>('/api/admin/site/vercel-config')
+  }
+  // Manual mapping for ZIP flow (Option A)
+  saveSiteMapping(data: { siteUrl?: string | null; domain?: string | null }) {
+    return this.post<{ siteUrl: string | null; domain: string | null }>('/api/admin/site/mapping', data)
+  }
+
+  addSiteDomain(domain: string, opts?: { token?: string; teamId?: string | null }) {
+    return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain', { domain, ...opts })
   }
 
   getSiteDomain() {
@@ -1421,23 +1436,6 @@ class ApiClient {
 
   verifySiteDomain() {
     return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain/verify')
-  }
-
-  // Custom domain (direct DNS pointing to the Rahatio edge)
-  getCustomDomain() {
-    return this.get<{ domain: string | null; verified: boolean; token: string | null; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }>; siteUrl: string | null }>('/api/admin/site/custom-domain')
-  }
-
-  setCustomDomain(domain: string) {
-    return this.post<{ domain: string; verified: boolean; token: string; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }>; siteUrl: null }>('/api/admin/site/custom-domain', { domain })
-  }
-
-  verifyCustomDomain() {
-    return this.post<{ domain: string; verified: boolean; checks: { txt: boolean; cname: boolean; a: boolean }; dnsRecords: Array<{ type: string; name: string; value: string; purpose?: string }> }>('/api/admin/site/custom-domain/verify')
-  }
-
-  removeCustomDomain() {
-    return this.delete<{ domain: null; verified: boolean }>('/api/admin/site/custom-domain')
   }
 
   async resolveStoreByDomain(domain: string) {

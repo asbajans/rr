@@ -42,6 +42,7 @@ export type Store = {
   homepage?: StoreHomepage | null
   tax_settings?: Record<string, any> | null
   shipping_settings?: Record<string, any> | null
+  plan?: Plan | null
 }
 
 export type StoreHomepage = {

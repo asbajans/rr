@@ -116,6 +116,14 @@ export class Store extends Model {
   @Column(DataType.INTEGER)
   declare lowStockThreshold: number | null;
 
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare vercelToken: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(100))
+  declare vercelTeamId: string | null;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

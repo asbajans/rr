@@ -44,11 +44,15 @@ async function slaveAuth(req: Request, res: Response, next: Function) {
     const hmacSecret = getSlaveHmacSecret();
     const method = req.method;
     const reqPath = req.path;
-    const body = JSON.stringify(req.body || {});
+    // Match slave firmware: empty body for GET/no-body, JSON only when present
+    const rawBody = req.body && Object.keys(req.body as object).length ? JSON.stringify(req.body) : '';
+    const body = rawBody;
     const payload = `${method}\n${reqPath.replace(/^\//, '')}\n${timestamp}\n${body}`;
     const expectedSig = crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
       res.status(401).json({ error: 'Invalid signature' });
       return;
     }
