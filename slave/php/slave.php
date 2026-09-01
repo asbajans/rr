@@ -237,33 +237,6 @@ function ensurePagesCache(array $cfg): array {
     return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['pages'=>[]]) : ['pages'=>[]];
 }
 
-function ensureMenusCache(array $cfg): array {
-    $cacheFile = $cfg['cache_dir'] . '/menus.json';
-    if (is_file($cacheFile) && (time()-filemtime($cacheFile) < 1800)) {
-        $j=json_decode(@file_get_contents($cacheFile),true);
-        if (is_array($j) && isset($j['menus'])) return $j;
-    }
-    $data = fetchPublicJson($cfg, '/api/store/' . urlencode($cfg['store_code']) . '/menus');
-    if (is_array($data) && isset($data['menus'])) {
-        @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
-        return $data;
-    }
-    return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['menus'=>[]]) : ['menus'=>[]];
-}
-
-function ensurePagesCache(array $cfg): array {
-    $cacheFile = $cfg['cache_dir'] . '/pages.json';
-    if (is_file($cacheFile) && (time()-filemtime($cacheFile) < 1800)) {
-        $j=json_decode(@file_get_contents($cacheFile),true);
-        if (is_array($j) && isset($j['pages'])) return $j;
-    }
-    $data = fetchPublicJson($cfg, '/api/store/' . urlencode($cfg['store_code']) . '/pages');
-    if (is_array($data) && isset($data['pages'])) {
-        @file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
-        return $data;
-    }
-    return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['pages'=>[]]) : ['pages'=>[]];
-}
 function renderSitemap(array $cfg): void {
     $base = currentBaseUrl($cfg);
     $data = ensureProductsCache($cfg);
