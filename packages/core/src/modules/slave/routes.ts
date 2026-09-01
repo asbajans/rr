@@ -315,14 +315,15 @@ slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
       `3) /sitemap.xml ve /robots.txt otomatik oluşur, Google Search Console'a sitemap ekle\n` +
       `4) Sepet ve ödeme JS ile Rahatio API üzerinden çalışır (CORS)\n`;
 
-    let archiver: any;
+    let ZipArchive: any;
     try {
-      archiver = (await import('archiver') as any).default ?? (await import('archiver') as any);
-      // Some builds expose archiver as module itself
-      if (typeof archiver !== 'function') {
-        const mod: any = await import('archiver');
-        archiver = mod.default ?? mod;
+      const mod: any = await import('archiver');
+      ZipArchive = mod.ZipArchive ?? mod.default?.ZipArchive ?? mod.default;
+      if (!ZipArchive) {
+        const m2: any = await import('archiver');
+        ZipArchive = m2.ZipArchive;
       }
+      if (!ZipArchive) throw new Error('ZipArchive not found in archiver');
     } catch (e: any) {
       logger.error({ err: e }, 'Archiver import failed, falling back to single PHP');
       res.setHeader('Content-Type', 'application/x-php');
@@ -334,7 +335,7 @@ slaveRoutes.get('/download-php', async (req: Request, res: Response) => {
     try {
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}-php.zip"`);
-      const archive = archiver('zip', { zlib: { level: 9 } });
+      const archive = new ZipArchive({ zlib: { level: 9 } });
       archive.on('error', (err: any) => {
         logger.error({ err }, 'Archiver error');
         if (!res.headersSent) res.status(500).json({ error: err.message });
@@ -414,12 +415,24 @@ slaveRoutes.get('/download-vercel', async (req: Request, res: Response) => {
       main: 'api/index.js',
     }, null, 2);
 
-    const { default: archiver } = await import('archiver') as any;
-
+    let ZipArchiveV: any;
+    try {
+      const mod: any = await import('archiver');
+      ZipArchiveV = mod.ZipArchive ?? mod.default?.ZipArchive;
+      if (!ZipArchiveV) throw new Error('ZipArchive not found');
+    } catch (e: any) {
+      logger.error({ err: e }, 'Archiver import failed for vercel');
+      return res.status(500).json({ error: 'Zip oluşturulamadı: ' + e.message });
+    }
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="slave-${store.siteCode}-vercel.zip"`);
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchiveV({ zlib: { level: 9 } });
+    archive.on('error', (err: any) => {
+      logger.error({ err }, 'Archiver vercel error');
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+      else try { res.end(); } catch {}
+    });
     archive.pipe(res);
     archive.append(indexContent, { name: 'api/index.js' });
     archive.append(vercelJson, { name: 'vercel.json' });

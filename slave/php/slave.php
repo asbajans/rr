@@ -44,6 +44,10 @@ if ($cfg['cache_dir'] === '__CACHE_DIR__') {
 if (!is_dir($cfg['cache_dir'])) {
     @mkdir($cfg['cache_dir'], 0755, true);
 }
+// PHP 7.4 compat — str_* polyfills (PHP 8+)
+if (!function_exists('str_starts_with')) { function str_starts_with($haystack, $needle) { return $needle === '' || strpos($haystack, $needle) === 0; } }
+if (!function_exists('str_contains')) { function str_contains($haystack, $needle) { return $needle === '' || strpos($haystack, $needle) !== false; } }
+if (!function_exists('str_ends_with')) { function str_ends_with($haystack, $needle) { return $needle !== '' && $needle !== null ? substr($haystack, -strlen($needle)) === $needle : true; } }
 
 // --- Router ---
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
