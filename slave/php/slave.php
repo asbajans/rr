@@ -878,7 +878,7 @@ function switchMainImage(src, thumbEl) {
 function openImageModal(src) {
     const modal = document.createElement("div");
     modal.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/90";
-    modal.innerHTML = \'<button class="absolute top-4 right-4 text-white/70 hover:text-white text-2xl" onclick="this.parentElement.remove()">&times;</button><img src="\' + src + \'" class="max-h-[90vh] max-w-[90vw] object-contain">';
+    modal.innerHTML = "<button class=\"absolute top-4 right-4 text-white/70 hover:text-white text-2xl\" onclick=\"this.parentElement.remove()\">&times;</button><img src=\"" + src + "\" class=\"max-h-[90vh] max-w-[90vw] object-contain\">";
     modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
     document.body.appendChild(modal);
     document.body.style.overflow = "hidden";
