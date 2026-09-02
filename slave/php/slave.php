@@ -424,14 +424,28 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         exit;
     }
 
-    // Hero
-    echo '<section class="mx-auto max-w-6xl px-4 pt-8"><div class="rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">'
-        . '<h1 class="text-2xl font-bold tracking-tight">' . h($siteName) . '</h1>'
-        . '<p class="mt-2 max-w-2xl text-sm text-zinc-600">Ürünler doğrudan Rahatio API üzerinden senkronize edilir. Siparişler anında merkeze iletilir.</p>'
-        . '<div class="mt-4 flex flex-wrap items-center gap-3 text-xs">'
-        . '<span class="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">' . $total . ' ürün</span>'
-        . ($syncedAt ? '<span class="text-zinc-500">Son senk: ' . h(date('d.m.Y H:i', strtotime($syncedAt))) . '</span>' : '<span class="text-amber-600">Henüz senk edilmedi</span>')
-        . '</div></div></section>';
+    // Hero - Admin panel'den homepage ayarları (image/youtube, heading, subtitle, button)
+    $homepage = $store['homepage'] ?? null;
+    $heroHtml = '';
+    if (is_array($homepage) && !empty($homepage['enabled'])) {
+        $heroType = $homepage['type'] ?? 'image';
+        $heading = $homepage['heading'] ?? $siteName;
+        $subtitle = $homepage['subtitle'] ?? '';
+        $buttonText = $homepage['button_text'] ?? '';
+        $buttonUrl = $homepage['button_url'] ?? '';
+        $overlay = isset($homepage['overlay_opacity']) ? (float)$homepage['overlay_opacity'] : 0.4;
+        $minHeight = $homepage['min_height'] ?? 320;
+        $youtubeUrl = $homepage['youtube_url'] ?? '';
+        $imageUrl = $homepage['image_url'] ?? '';
+        if ($heroType === 'youtube' && $youtubeUrl) {
+            $heroHtml = '<section class="relative w-full overflow-hidden bg-zinc-900" style="min-height:' . (int)$minHeight . 'px"><div class="absolute inset-0 flex items-center justify-center"><iframe src="' . h($youtubeUrl) . '" class="h-full w-full" frameborder="0" allowfullscreen></iframe></div>' . (($heading || $buttonText) ? '<div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white" style="background:rgba(0,0,0,' . $overlay . ')"><h1 class="text-3xl font-bold sm:text-4xl">' . h($heading) . '</h1>' . ($subtitle ? '<p class="mt-3 max-w-2xl text-sm sm:text-base">' . h($subtitle) . '</p>' : '') . ($buttonText ? '<a href="' . h($buttonUrl) . '" class="mt-5 rounded-lg bg-white px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-100">' . h($buttonText) . '</a>' : '') . '</div>' : '') . '</section>';
+        } elseif ($imageUrl) {
+            $heroHtml = '<section class="relative w-full overflow-hidden bg-zinc-900" style="min-height:' . (int)$minHeight . 'px"><img src="' . h($imageUrl) . '" alt="' . h($heading) . '" class="absolute inset-0 h-full w-full object-cover">' . (($heading || $buttonText) ? '<div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white" style="background:rgba(0,0,0,' . $overlay . ')"><h1 class="text-3xl font-bold sm:text-4xl">' . h($heading) . '</h1>' . ($subtitle ? '<p class="mt-3 max-w-2xl text-sm sm:text-base">' . h($subtitle) . '</p>' : '') . ($buttonText ? '<a href="' . h($buttonUrl) . '" class="mt-5 rounded-lg bg-white px-5 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-100">' . h($buttonText) . '</a>' : '') . '</div>' : '') . '</section>';
+        } else {
+            $heroHtml = '<section class="mx-auto max-w-6xl px-4 pt-8"><div class="rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8"><h1 class="text-2xl font-bold tracking-tight">' . h($heading) . '</h1>' . ($subtitle ? '<p class="mt-2 max-w-2xl text-sm text-zinc-600">' . h($subtitle) . '</p>' : '') . ($buttonText ? '<a href="' . h($buttonUrl) . '" class="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">' . h($buttonText) . '</a>' : '') . '</div></section>';
+        }
+    }
+    echo $heroHtml;
 
     if ($total === 0) {
         echo '<section class="mx-auto max-w-6xl px-4 py-12"><div class="rounded-xl border border-dashed border-zinc-300 bg-white p-12 text-center"><p class="text-sm font-medium text-zinc-700">Henüz ürün yok</p><p class="mx-auto mt-2 max-w-md text-xs text-zinc-500">Yönetim panelinden ürün ekleyin ve mağazanızı yayınlayın. Ürünler otomatik olarak burada görünecektir.</p></div></section>';
