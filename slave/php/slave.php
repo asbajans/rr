@@ -320,6 +320,17 @@ function findProductById(array $products, string $id): ?array {
 }
 
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+function sanitizeHtml(string $html): string {
+    // tehlikeli etiketleri ve event handler'ları temizle, güvenli HTML'i bırak
+    $html = preg_replace('#<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>#is', '', $html) ?? $html;
+    $html = preg_replace('#<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>#is', '', $html) ?? $html;
+    $html = preg_replace('#<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>#is', '', $html) ?? $html;
+    $html = preg_replace('/\bon\w+\s*=\s*"[^"]*"/i', '', $html) ?? $html;
+    $html = preg_replace("/\bon\w+\s*=\s*'[^']*'/i", '', $html) ?? $html;
+    $html = preg_replace('/\bon\w+\s*=\s*[^\s>]+/i', '', $html) ?? $html;
+    $html = preg_replace('#javascript:#i', '', $html) ?? $html;
+    return $html;
+}
 function formatPrice($p): string {
     if ($p === null || $p === '' || $p === 0) return '—';
     $n = (float)$p;
@@ -491,7 +502,8 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     $syncedAt = $data['synced_at'] ?? null;
     $active = array_values(array_filter($products, fn($p) => ($p['product.status'] ?? $p['status'] ?? 1) == 1));
     
-    $total = count($active);
+    $total = $data['total'] ?? count($active);
+    $totalOnPage = count($active);
     $hasMore = ($data['page'] ?? 1) < ($data['totalPages'] ?? 1); // Backend'den gelen totalPages ile kontrol
     $siteName = $cfg['site_name'] ?: ($store['name'] ?? 'Mağazam');
     $storeCode = $cfg['store_code'] ?? '';
@@ -511,26 +523,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         . '<meta name="robots" content="index, follow">'
         . '<link rel="sitemap" type="application/xml" href="/sitemap.xml">'
         . '<script src="https://cdn.tailwindcss.com"></script>'
-        . '<style>
-            body{font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-            /* Sidebar Layout */
-            .sidebar-layout { display: flex; min-height: 100vh; }
-            .sidebar { width: 256px; flex-shrink: 0; border-right: 1px solid #e4e4e7; background: #fff; }
-            .sidebar-header { padding: 1rem; border-bottom: 1px solid #e4e4e7; font-weight: 600; }
-            .sidebar-nav { padding: 1rem; }
-            .sidebar-link { display: block; padding: 0.5rem 0.75rem; border-radius: 0.5rem; color: #3f3f46; text-decoration: none; transition: background 0.15s; }
-            .sidebar-link:hover { background: #f4f4f5; color: #18181b; }
-            .main-content { flex: 1; min-width: 0; }
-            .mobile-menu-btn { display: none; }
-            @media (max-width: 767px) {
-                .sidebar { position: fixed; top: 0; left: 0; height: 100vh; z-index: 50; transform: translateX(-100%); transition: transform 0.3s ease; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
-                .sidebar.open { transform: translateX(0); }
-                .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
-                .sidebar-overlay.open { display: block; }
-                .mobile-menu-btn { display: flex; }
-                .main-content { width: 100%; }
-            }
-        </style>'
+        . '<style>body{font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}</style>'
         . '<script type="application/ld+json">' . json_encode(['@context'=>'https://schema.org','@type'=>'Store','name'=>$siteName,'url'=>$canonical], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . '</script>'
         . '</head><body class="bg-zinc-50 text-zinc-900">';
 
@@ -546,92 +539,17 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     }
     echo '<style>' . $themeCss . ' .btn-primary { background-color: var(--primary); } .text-primary { color: var(--primary); }</style>';
 
-    // Header — Logo + Search + Menü + Language Switcher
+    // Header — eski düzene dönüş (https://rahatio.com.tr/stores/cikmayedekparca ile aynı)
     $menus = ensureMenusCache($cfg)['menus'] ?? [];
-    $searchQuery = $_GET['search'] ?? '';
     $headerMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'header');
-    $sidebarMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'sidebar');
-    $currentLang = $_GET['lang'] ?? 'tr';
-    $langOptions = [
-        'tr' => t('lang_tr'),
-        'en' => t('lang_en'),
-        'es' => t('lang_es'),
-        'ar' => t('lang_ar'),
-        'ru' => t('lang_ru'),
-    ];
-
     $headerLinks = implode(' · ', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="hover:underline">' . h($m['label'] ?? '') . '</a>', $headerMenus));
-    $sidebarLinks = implode('', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="block px-3 py-2 rounded-lg text-sm hover:bg-zinc-100">' . h($m['label'] ?? '') . '</a>', $sidebarMenus));
 
     echo '<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">'
         . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a><div class="hidden text-xs text-zinc-500 sm:block">'
-        . $headerLinks
+        . ($headerLinks ?: '<a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a>')
         . '</div></div></div>'
-        . '<div class="flex items-center gap-2">'
-        . '<form method="GET" action="/products" class="hidden flex-1 sm:block"><input type="text" name="search" placeholder="' . t('search_placeholder') . '" value="' . h($searchQuery) . '" class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs" autocomplete="off"><button type="submit" class="ml-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">' . t('search_button') . '</button></form>'
-        . '<div class="hidden sm:flex items-center gap-2 text-xs"><span>' . t('language_switcher') . '</span><select name="lang" onchange="this.form.submit()" class="rounded-lg border border-zinc-300 px-2 py-1">'
-        . implode('', array_map(fn($code, $label) => '<option value="' . $code . '"' . ($currentLang === $code ? ' selected' : '') . '>' . h($label) . '</option>', array_keys($langOptions), $langOptions))
-        . '</select></div>'
-        . '<a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a>'
-        // Mobile menu toggle
-        . '<button id="mobile-menu-btn" class="sm:hidden p-2 rounded-lg hover:bg-zinc-100" aria-label="Menu"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>'
+        . '<div class="flex items-center gap-2"><a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
         . '</div></header>';
-    
-    // Sidebar Layout Wrapper
-    echo '<div class="sidebar-layout">';
-    
-    // Desktop Sidebar (hidden on mobile)
-    if ($sidebarLinks) {
-        echo '<aside class="sidebar hidden lg:block" aria-label="Yan Menü">';
-        echo '<div class="sidebar-header">' . t('menu') . '</div>';
-        echo '<nav class="sidebar-nav">' . $sidebarLinks . '</nav>';
-        echo '</aside>';
-    }
-    
-    // Mobile Sidebar Overlay & Panel
-    if ($sidebarLinks) {
-        echo '<div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>';
-        echo '<aside id="mobile-sidebar" class="sidebar lg:hidden" aria-label="Mobil Menü" role="dialog">';
-        echo '<div class="sidebar-header flex justify-between items-center">';
-        echo '<span>' . t('menu') . '</span>';
-        echo '<button id="close-mobile-sidebar" class="p-2 rounded-lg hover:bg-zinc-100" aria-label="Kapat"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>';
-        echo '</div>';
-        echo '<nav class="sidebar-nav">' . $sidebarLinks . '</nav>';
-        echo '</aside>';
-    }
-    
-    // Main Content Area
-    echo '<main class="main-content">';
-    
-    // Mobile Menu Toggle Button (in header, already rendered)
-    // We'll add the button logic in JS
-    echo '<script>
-        // Mobile sidebar toggle
-        const mobileMenuBtn = document.getElementById("mobile-menu-btn");
-        const closeMobileSidebar = document.getElementById("close-mobile-sidebar");
-        const mobileSidebar = document.getElementById("mobile-sidebar");
-        const sidebarOverlay = document.getElementById("sidebar-overlay");
-        
-        function openMobileSidebar() {
-            mobileSidebar?.classList.add("open");
-            sidebarOverlay?.classList.add("open");
-            document.body.style.overflow = "hidden";
-        }
-        function closeMobileSidebarFn() {
-            mobileSidebar?.classList.remove("open");
-            sidebarOverlay?.classList.remove("open");
-            document.body.style.overflow = "";
-        }
-        
-        mobileMenuBtn?.addEventListener("click", openMobileSidebar);
-        closeMobileSidebar?.addEventListener("click", closeMobileSidebarFn);
-        sidebarOverlay?.addEventListener("click", closeMobileSidebarFn);
-        
-        // Close on escape key
-        document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape") closeMobileSidebarFn();
-        });
-    </script>';
 
     // Cart / Checkout / Account sayfaları — JS ile localStorage sepet + core API üzerinden sipariş
     if (in_array($currentUri, ['/cart','/checkout','/sepet'])) {
@@ -675,6 +593,11 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     }
     echo $heroHtml;
 
+    // Arama — frontend /stores/[siteCode] ile aynı düzen (merkezde, hero altı)
+    echo '<section class="mx-auto max-w-6xl px-4 pt-6"><form method="GET" action="/" class="relative"><span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">⌕</span><input name="search" value="' . h($searchQuery) . '" placeholder="' . h(t('search_placeholder')) . '" class="w-full rounded-xl border border-zinc-300 py-3 pl-11 pr-24 text-sm focus:border-zinc-900 focus:outline-none"><button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white">' . h(t('search_button')) . '</button></form>';
+    if ($searchQuery !== '') echo '<div class="mt-3 flex items-center gap-2 text-xs"><span class="text-zinc-500">Arama: <b>' . h($searchQuery) . '</b></span><a href="/" class="rounded-full bg-zinc-900 px-2.5 py-1 text-white hover:bg-zinc-800">Temizle ×</a></div>';
+    echo '<p class="mt-3 text-xs text-zinc-400">' . $total . ' ürün' . ($searchQuery !== '' ? ' (filtreli)' : '') . '</p></section>';
+
     if ($total === 0) {
         echo '<section class="mx-auto max-w-6xl px-4 py-12"><div class="rounded-xl border border-dashed border-zinc-300 bg-white p-12 text-center"><p class="text-sm font-medium text-zinc-700">Henüz ürün yok</p><p class="mx-auto mt-2 max-w-md text-xs text-zinc-500">Yönetim panelinden ürün ekleyin ve mağazanızı yayınlayın. Ürünler otomatik olarak burada görünecektir.</p></div></section>';
     } else {
@@ -687,7 +610,9 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
             $stock = $p['stock'] ?? $p['quantity'] ?? null;
             $img = $p['image'] ?? (is_array($p['images'] ?? null) ? ($p['images'][0] ?? null) : null);
             $desc = $p['description'] ?? '';
-            if (is_string($desc) && mb_strlen($desc) > 120) $desc = mb_substr($desc, 0, 120) . '…';
+            $desc = is_string($desc) ? trim(strip_tags($desc)) : '';
+            $desc = html_entity_decode($desc, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (mb_strlen($desc) > 120) $desc = mb_substr($desc, 0, 120) . '…';
             echo '<a href="/product/' . h((string)$id) . '" class="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition hover:shadow-md">'
                 . '<div class="aspect-[4/3] overflow-hidden bg-zinc-100">'
                 . ($img ? '<img src="' . h($img) . '" alt="' . h($label) . '" class="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy">' : '<div class="flex h-full w-full items-center justify-center text-xs text-zinc-400">Görsel yok</div>')
@@ -713,7 +638,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
             $queryParts = array_filter($queryParts, fn($part) => $part !== '' && !str_starts_with($part, 'page='));
             $newQuery = implode('&', $queryParts);
             $nextUrl = $basePath . ($newQuery !== '' ? '?' . $newQuery . '&page=' . $nextPage : '?page=' . $nextPage);
-            echo '<section class="mx-auto max-w-6xl px-4 py-8 text-center"><button id="load-more-btn" class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700">' . t('view_more_products') . ' →</button><div id="load-more-spinner" class="hidden mt-4 inline-flex items-center"><span class="loading loading-spinner loading-lg text-indigo-600"></span><span class="ml-2">Yükleniyor...</span></div></section>';
+            echo '<section class="mx-auto max-w-6xl px-4 py-8 text-center"><button id="load-more-btn" class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700">Daha fazla ürün yükle →</button><div id="load-more-spinner" class="hidden mt-4 inline-flex items-center"><span class="loading loading-spinner loading-lg text-indigo-600"></span><span class="ml-2">Yükleniyor...</span></div></section>';
             echo '<script>
                 let isLoading = false;
                 const loadMoreBtn = document.getElementById("load-more-btn");
@@ -765,9 +690,6 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         }
     }
     
-    // Close main content and sidebar layout
-    echo '</main></div>';
-
     // Footer
     $base = currentBaseUrl($cfg);
     echo '<footer class="mx-auto max-w-6xl px-4 pb-8"><div class="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500">'
@@ -849,7 +771,7 @@ function renderProductDetail(array $cfg, string $id): void {
         . '<h1 class="text-xl font-bold leading-tight">' . h($label) . '</h1>'
         . ($code ? '<div class="mt-1 text-xs text-zinc-500">Kod: ' . h($code) . ' · ID: ' . h((string)($p['product.id'] ?? $p['id'] ?? '')) . '</div>' : '')
         . '<div class="mt-4 flex items-baseline gap-3"><div class="text-2xl font-bold">' . h(formatPrice($price)) . '</div><span class="rounded-full px-2.5 py-1 text-xs font-medium ' . (($stock !== null && (int)$stock <= 0) ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700') . '">' . ($stock !== null ? h((string)$stock) . ' adet stok' : 'Stok bilgisi yok') . '</span></div>'
-        . ($desc ? '<div class="prose prose-sm mt-6 max-w-none text-sm leading-relaxed text-zinc-700">' . nl2br(h($desc)) . '</div>' : '<p class="mt-6 text-sm text-zinc-500">Açıklama yok.</p>')
+        . ($desc ? '<div class="prose prose-sm mt-6 max-w-none text-sm leading-relaxed text-zinc-700">' . sanitizeHtml($desc) . '</div>' : '<p class="mt-6 text-sm text-zinc-500">Açıklama yok.</p>')
         . '<div class="mt-6 flex flex-wrap gap-2">'
         . '<button data-id="' . h((string)($p['product.id'] ?? $p['id'] ?? $id)) . '" data-label="' . h($label) . '" data-price="' . h((string)$price) . '" onclick="addToCart(this.dataset.id, this.dataset.label, this.dataset.price)" class="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700">Sepete Ekle</button>'
         . '<a href="/" class="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-50">← Mağazaya dön</a>'
@@ -1050,7 +972,9 @@ class CoreClient
         $body = $data ? json_encode($data) : '';
         $timestamp = (string) time();
         $pathClean = ltrim($path, '/');
-        $payload = "$method\n$pathClean\n$timestamp\n$body";
+        // HMAC sadece path'i imzalar — query string dahil edilmez (server req.path query içermez)
+        $pathForSign = explode('?', $pathClean, 2)[0];
+        $payload = "$method\n$pathForSign\n$timestamp\n$body";
         $signature = hash_hmac('sha256', $payload, $this->hmacSecret);
         $ch = curl_init();
         curl_setopt_array($ch, [
