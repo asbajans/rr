@@ -40,6 +40,7 @@ import { customerRoutes } from './modules/customer/routes.js';
 import { adminCommercialRoutes } from './modules/customer/adminRoutes.js';
 import { notificationRoutes } from './modules/notification/routes.js';
 import { stockRoutes } from './modules/stocks/routes.js';
+import { metaWebhookRoutes } from './modules/webhook/metaWebhook.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -73,6 +74,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/commercial', adminCommercialRoutes);
   app.use('/api/admin/notifications', notificationRoutes);
   app.use('/api/admin/stocks', stockRoutes);
+  app.use('/api/webhooks', metaWebhookRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/ai', draftRoutes);
   app.use('/api/ai', publishRoutes);

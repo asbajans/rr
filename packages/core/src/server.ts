@@ -45,8 +45,10 @@ export const createApp = async (): Promise<Express> => {
   // Stripe webhooks need the raw body for signature verification — parse raw BEFORE express.json
   // SAAS (platform abonelik/kredi): POST /api/admin/webhook/stripe  -> store/routes.ts
   // Storefront (satıcı tahsilatı): POST /api/store/:siteCode/payments/webhook/stripe -> payment/webhookRoutes.ts
+  // Meta webhooks (Catalog/Page/Instagram) — X-Hub-Signature-256 verification uses raw body
   app.use('/api/admin/webhook/stripe', express.raw({ type: '*/*' }));
   app.use('/api/store/:siteCode/payments/webhook/stripe', express.raw({ type: '*/*' }));
+  app.use('/api/webhooks/meta', express.raw({ type: 'application/json' }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
