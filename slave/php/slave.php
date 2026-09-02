@@ -49,6 +49,145 @@ if (!function_exists('str_starts_with')) { function str_starts_with($haystack, $
 if (!function_exists('str_contains')) { function str_contains($haystack, $needle) { return $needle === '' || strpos($haystack, $needle) !== false; } }
 if (!function_exists('str_ends_with')) { function str_ends_with($haystack, $needle) { return $needle !== '' && $needle !== null ? substr($haystack, -strlen($needle)) === $needle : true; } }
 
+// Dil çevirileri
+function t(string $key): string {
+    static $translations = [
+        'tr' => [
+            'site_published_by' => 'Bu site Rahatio ile yayında',
+            'language_switcher' => 'Dil:',
+            'lang_tr' => 'Türkçe',
+            'lang_en' => 'English',
+            'lang_es' => 'Español',
+            'lang_ar' => 'العربية',
+            'lang_ru' => 'Русский',
+            'home' => 'Ana Sayfa',
+            'sitemap' => 'Sitemap',
+            'pages' => 'Sayfalar',
+            'blog' => 'Blog',
+            'cart' => 'Sepet',
+            'account' => 'Hesabım',
+            'search_placeholder' => 'Ara...',
+            'search_button' => 'Ara',
+            'out_of_stock' => 'Stokta Yok',
+            'in_stock' => 'Stokta Var',
+            'add_to_cart' => 'Sepete Ekle',
+            'view_detail' => 'Ürün Detayı',
+            'no_products' => 'Henüz ürün yok',
+            'no_products_desc' => 'Yönetim panelinden ürün ekleyin ve mağazanızı yayınlayın. Ürünler otomatik olarak burada görünecektir.',
+            'no_pages' => 'Sayfa yok',
+            'no_blog_posts' => 'Blog yazısı yok',
+            'powered_by' => '',
+        ],
+        'en' => [
+            'site_published_by' => 'Published by Rahatio',
+            'language_switcher' => 'Language:',
+            'lang_tr' => 'Turkish',
+            'lang_en' => 'English',
+            'lang_es' => 'Spanish',
+            'lang_ar' => 'Arabic',
+            'lang_ru' => 'Russian',
+            'home' => 'Home',
+            'sitemap' => 'Sitemap',
+            'pages' => 'Pages',
+            'blog' => 'Blog',
+            'cart' => 'Cart',
+            'account' => 'Account',
+            'search_placeholder' => 'Search...',
+            'search_button' => 'Search',
+            'out_of_stock' => 'Out of Stock',
+            'in_stock' => 'In Stock',
+            'add_to_cart' => 'Add to Cart',
+            'view_detail' => 'View Detail',
+            'no_products' => 'No products yet',
+            'no_products_desc' => 'Add products from admin panel and publish your store. Products will appear here automatically.',
+            'no_pages' => 'No pages',
+            'no_blog_posts' => 'No blog posts',
+            'powered_by' => '',
+        ],
+        'es' => [
+            'site_published_by' => 'Publicado por Rahatio',
+            'language_switcher' => 'Idioma:',
+            'lang_tr' => 'Turco',
+            'lang_en' => 'Inglés',
+            'lang_es' => 'Español',
+            'lang_ar' => 'Árabe',
+            'lang_ru' => 'Ruso',
+            'home' => 'Inicio',
+            'sitemap' => 'Mapa del sitio',
+            'pages' => 'Páginas',
+            'blog' => 'Blog',
+            'cart' => 'Carrito',
+            'account' => 'Cuenta',
+            'search_placeholder' => 'Buscar...',
+            'search_button' => 'Buscar',
+            'out_of_stock' => 'Agotado',
+            'in_stock' => 'En stock',
+            'add_to_cart' => 'Añadir al carrito',
+            'view_detail' => 'Ver detalle',
+            'no_products' => 'Aún no hay productos',
+            'no_products_desc' => 'Agregue productos desde el panel de administración y publique su tienda. Los productos aparecerán aquí automáticamente.',
+            'no_pages' => 'No hay páginas',
+            'no_blog_posts' => 'No hay publicaciones de blog',
+            'powered_by' => '',
+        ],
+        'ar' => [
+            'site_published_by' => 'منشور بواسطة Rahatio',
+            'language_switcher' => 'اللغة:',
+            'lang_tr' => 'التركية',
+            'lang_en' => 'الإنجليزية',
+            'lang_es' => 'الإسبانية',
+            'lang_ar' => 'العربية',
+            'lang_ru' => 'الروسية',
+            'home' => 'الصفحة الرئيسية',
+            'sitemap' => 'خريطة الموقع',
+            'pages' => 'الصفحات',
+            'blog' => 'المدونة',
+            'cart' => 'العربة',
+            'account' => 'الحساب',
+            'search_placeholder' => 'ابحث...',
+            'search_button' => 'ابحث',
+            'out_of_stock' => 'نفد المخزون',
+            'in_stock' => 'متوفر في المخزون',
+            'add_to_cart' => 'أضف إلى السلة',
+            'view_detail' => 'عرض التفاصيل',
+            'no_products' => 'لا توجد منتجات حتى الآن',
+            'no_products_desc' => 'أضف المنتجات من لوحة الإدارة وانشر متجرك. ستظهر المنتجات هنا تلقائيًا.',
+            'no_pages' => 'لا توجد صفحات',
+            'no_blog_posts' => 'لا توجد منشورات مدونة',
+            'powered_by' => '',
+        ],
+        'ru' => [
+            'site_published_by' => 'Опубликовано Rahatio',
+            'language_switcher' => 'Язык:',
+            'lang_tr' => 'Турецкий',
+            'lang_en' => 'Английский',
+            'lang_es' => 'Испанский',
+            'lang_ar' => 'Арабский',
+            'lang_ru' => 'Русский',
+            'home' => 'Домашняя страница',
+            'sitemap' => 'Карта сайта',
+            'pages' => 'Страницы',
+            'blog' => 'Блог',
+            'cart' => 'Корзина',
+            'account' => 'Аккаунт',
+            'search_placeholder' => 'Поиск...',
+            'search_button' => 'Поиск',
+            'out_of_stock' => 'Нет в наличии',
+            'in_stock' => 'В наличии',
+            'add_to_cart' => 'Добавить в корзину',
+            'view_detail' => 'Посмотреть детали',
+            'no_products' => 'Пока нет товаров',
+            'no_products_desc' => 'Добавьте товары из панели администратора и опубликуйте свой магазин. Товары будут автоматически появляться здесь.',
+            'no_pages' => 'Нет страниц',
+            'no_blog_posts' => 'Нет записей в блоге',
+            'powered_by' => '',
+        ],
+    ];
+    $lang = $_GET['lang'] ?? 'tr';
+    if (!isset($translations[$lang])) $lang = 'tr';
+    return $translations[$lang][$key] ?? $key;
+}
+
 // --- Router ---
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uri    = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -336,7 +475,8 @@ function renderBlogPost(array $cfg, string $slug): void {
 }
 
 function renderStorefront(array $cfg, string $currentUri = '/'): void {
-    $data = ensureProductsCache($cfg);
+    $page = max(1, intval($_GET['page'] ?? 1));
+    $data = ensureProductsCache($cfg, $page, 24);
     $storeData = ensureStoreCache($cfg);
     $store = $storeData['store'] ?? null;
     $products = $data['products'] ?? [];
@@ -357,6 +497,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     }
     
     $total = count($active);
+    $hasMore = count($products) >= 24; // Eğer exact sayfa doluysa daha fazla olabilir
     $siteName = $cfg['site_name'] ?: ($store['name'] ?? 'Mağazam');
     $storeCode = $cfg['store_code'] ?? '';
     $base = currentBaseUrl($cfg);
@@ -391,17 +532,28 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     }
     echo '<style>' . $themeCss . ' .btn-primary { background-color: var(--primary); } .text-primary { color: var(--primary); }</style>';
 
-    // Header — Logo + Search + Menü
+    // Header — Logo + Search + Menü + Language Switcher
     $menus = ensureMenusCache($cfg)['menus'] ?? [];
     $searchQuery = $_GET['search'] ?? '';
     $headerMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'header');
+    $currentLang = $_GET['lang'] ?? 'tr';
+    $langOptions = [
+        'tr' => t('lang_tr'),
+        'en' => t('lang_en'),
+        'es' => t('lang_es'),
+        'ar' => t('lang_ar'),
+        'ru' => t('lang_ru'),
+    ];
 
     echo '<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">'
         . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a><div class="hidden text-xs text-zinc-500 sm:block">'
         . implode(' · ', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="hover:underline">' . h($m['label'] ?? '') . '</a>', $headerMenus))
         . '</div></div></div>'
         . '<div class="flex items-center gap-2">'
-        . '<form method="GET" action="/products" class="hidden flex-1 sm:block"><input type="text" name="search" placeholder="Ara..." value="' . h($searchQuery) . '" class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs" autocomplete="off"><button type="submit" class="ml-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">Ara</button></form>'
+        . '<form method="GET" action="/products" class="hidden flex-1 sm:block"><input type="text" name="search" placeholder="' . t('search_placeholder') . '" value="' . h($searchQuery) . '" class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs" autocomplete="off"><button type="submit" class="ml-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">' . t('search_button') . '</button></form>'
+        . '<div class="hidden sm:flex items-center gap-2 text-xs"><span>' . t('language_switcher') . '</span><select name="lang" onchange="this.form.submit()" class="rounded-lg border border-zinc-300 px-2 py-1">'
+        . implode('', array_map(fn($code, $label) => '<option value="' . $code . '"' . ($currentLang === $code ? ' selected' : '') . '>' . h($label) . '</option>', array_keys($langOptions), $langOptions))
+        . '</select></div>'
         . '<a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
         . '</div></header>';
 
@@ -476,13 +628,72 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
                 . '</div></a>';
         }
         echo '</div></section>';
+        if ($hasMore) {
+            $nextPage = $page + 1;
+            $query = $_SERVER['QUERY_STRING'] ?? '';
+            $queryParts = explode('&', $query);
+            $queryParts = array_filter($queryParts, fn($part) => !str_starts_with($part, 'page='));
+            $newQuery = implode('&', $queryParts);
+            if ($newQuery !== '') $newQuery .= '&';
+            $newQuery .= 'page=' . $nextPage;
+            $nextUrl = ($_SERVER['REQUEST_URI'] ?? '/') . (str_contains($newQuery, '=') ? '&' : '?') . $newQuery;
+            echo '<section class="mx-auto max-w-6xl px-4 py-8 text-center"><button id="load-more-btn" class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700">' . t('view_more_products') . ' →</button><div id="load-more-spinner" class="hidden mt-4 inline-flex items-center"><span class="loading loading-spinner loading-lg text-indigo-600"></span><span class="ml-2">Yükleniyor...</span></div></section>';
+            echo '<script>
+                let isLoading = false;
+                const loadMoreBtn = document.getElementById("load-more-btn");
+                const loadMoreSpinner = document.getElementById("load-more-spinner");
+                
+                loadMoreBtn.addEventListener("click", async () => {
+                    if (isLoading) return;
+                    isLoading = true;
+                    loadMoreBtn.classList.add("hidden");
+                    loadMoreSpinner.classList.remove("hidden");
+                    
+                    try {
+                        const response = await fetch("' . h($nextUrl) . '");
+                        const html = await response.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, "text/html");
+                        const newProducts = doc.querySelectorAll(".grid.grid-cols-1.gap-4");
+                        if (newProducts.length > 0) {
+                            const container = document.querySelector(".grid.grid-cols-1.gap-4.sm\\:grid-cols-2.lg\\:grid-cols-3.xl\\:grid-cols-4");
+                            if (container) {
+                                container.innerHTML += newProducts[0].innerHTML;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Load more error:", e);
+                    } finally {
+                        isLoading = false;
+                        loadMoreBtn.classList.remove("hidden");
+                        loadMoreSpinner.classList.add("hidden");
+                    }
+                });
+                
+                // Infinite scroll on scroll
+                let ticking = false;
+                window.addEventListener("scroll", () => {
+                    if (!ticking) {
+                        window.requestAnimationFrame(() => {
+                            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
+                                if (!isLoading && loadMoreBtn.offsetParent !== null) {
+                                    loadMoreBtn.click();
+                                }
+                            }
+                            ticking = false;
+                        });
+                        ticking = true;
+                    }
+                });
+            </script>';
+        }
     }
 
     // Footer
     $base = currentBaseUrl($cfg);
     echo '<footer class="mx-auto max-w-6xl px-4 pb-8"><div class="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500">'
-        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">Ana Sayfa</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a> · <a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a></div>'
-        . '<div class="mt-2">Bu site <b>Rahatio</b> ile yayında</div>'
+        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">' . t('home') . '</a> · <a href="/sitemap.xml" class="hover:underline">' . t('sitemap') . '</a> · <a href="/pages" class="hover:underline">' . t('pages') . '</a> · <a href="/blog" class="hover:underline">' . t('blog') . '</a></div>'
+        . '<div class="mt-2">' . t('site_published_by') . '</div>'
         . '</div></footer>';
     echo '<script>try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");document.getElementById("cart-count").textContent=c.reduce((s,i)=>s+(i.qty||1),0)}catch(e){}</script>';
     if ($currentUri !== '/' ) {
