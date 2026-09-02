@@ -156,13 +156,34 @@ slaveRoutes.get('/products', slaveAuth, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const { Product } = await import('../../models/Product.model.js');
-    const products = await Product.findAll({
-      where: { storeId: store.id },
-      attributes: { exclude: ['marketplaceConfig', 'createdAt', 'updatedAt'] },
-      raw: true,
-    });
+    const { Op } = await import('sequelize');
+    const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10));
+    const perPage = Math.min(100, Math.max(1, parseInt(String(req.query.perPage ?? '24'), 10)));
+    const offset = (page - 1) * perPage;
+    const search = String(req.query.search ?? '').trim();
+
+    const where: any = { storeId: store.id };
+    if (search) {
+      where[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { sku: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const [products, total] = await Promise.all([
+      Product.findAll({
+        where,
+        attributes: { exclude: ['marketplaceConfig', 'createdAt', 'updatedAt'] },
+        raw: true,
+        limit: perPage,
+        offset: offset,
+        order: [['createdAt', 'DESC']],
+      }),
+      Product.count({ where }),
+    ]);
     const list = products.map(mapSlaveProduct);
-    res.json({ data: list, total: list.length, synced_at: new Date().toISOString() });
+    res.json({ data: list, total, page, perPage, totalPages: Math.ceil(total / perPage), synced_at: new Date().toISOString() });
   } catch (error: any) {
     logger.error('Slave products error:', error);
     res.status(500).json({ error: error.message });

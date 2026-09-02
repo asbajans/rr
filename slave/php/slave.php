@@ -77,6 +77,7 @@ function t(string $key): string {
             'no_pages' => 'Sayfa yok',
             'no_blog_posts' => 'Blog yazısı yok',
             'powered_by' => '',
+            'menu' => 'Menü',
         ],
         'en' => [
             'site_published_by' => 'Published by Rahatio',
@@ -103,6 +104,7 @@ function t(string $key): string {
             'no_pages' => 'No pages',
             'no_blog_posts' => 'No blog posts',
             'powered_by' => '',
+            'menu' => 'Menu',
         ],
         'es' => [
             'site_published_by' => 'Publicado por Rahatio',
@@ -129,6 +131,7 @@ function t(string $key): string {
             'no_pages' => 'No hay páginas',
             'no_blog_posts' => 'No hay publicaciones de blog',
             'powered_by' => '',
+            'menu' => 'Menú',
         ],
         'ar' => [
             'site_published_by' => 'منشور بواسطة Rahatio',
@@ -155,6 +158,7 @@ function t(string $key): string {
             'no_pages' => 'لا توجد صفحات',
             'no_blog_posts' => 'لا توجد منشورات مدونة',
             'powered_by' => '',
+            'menu' => 'القائمة',
         ],
         'ru' => [
             'site_published_by' => 'Опубликовано Rahatio',
@@ -181,6 +185,7 @@ function t(string $key): string {
             'no_pages' => 'Нет страниц',
             'no_blog_posts' => 'Нет записей в блоге',
             'powered_by' => '',
+            'menu' => 'Меню',
         ],
     ];
     $lang = $_GET['lang'] ?? 'tr';
@@ -274,8 +279,8 @@ try {
 //  STOREFRONT HELPERS
 // ============================================================
 
-function ensureProductsCache(array $cfg): array {
-    $cacheFile = $cfg['cache_dir'] . '/products.json';
+function ensureProductsCache(array $cfg, int $page = 1, int $perPage = 24, string $search = ''): array {
+    $cacheFile = $cfg['cache_dir'] . "/products_page_{$page}" . ($search ? "_search_" . md5($search) : "") . ".json";
     $needsSync = true;
     $data = null;
     if (is_file($cacheFile)) {
@@ -290,10 +295,12 @@ function ensureProductsCache(array $cfg): array {
     if ($needsSync) {
         try {
             $client = new CoreClient($cfg);
-            $resp = $client->get('/api/slave/products');
+            $url = '/api/slave/products?page=' . $page . '&perPage=' . $perPage;
+            if ($search) $url .= '&search=' . urlencode($search);
+            $resp = $client->get($url);
             $products = $resp['data'] ?? $resp ?? [];
             if (!is_array($products)) $products = [];
-            $data = ['synced_at' => date('c'), 'products' => $products];
+            $data = ['synced_at' => date('c'), 'products' => $products, 'page' => $page, 'perPage' => $perPage, 'totalPages' => $resp['totalPages'] ?? 1, 'total' => $resp['total'] ?? 0];
             @file_put_contents($cacheFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
         } catch (Throwable $e) {
             // Sync başarısızsa cache varsa onu kullan, yoksa boş (hata log'lanmaz)
@@ -476,28 +483,16 @@ function renderBlogPost(array $cfg, string $slug): void {
 
 function renderStorefront(array $cfg, string $currentUri = '/'): void {
     $page = max(1, intval($_GET['page'] ?? 1));
-    $data = ensureProductsCache($cfg, $page, 24);
+    $searchQuery = $_GET['search'] ?? '';
+    $data = ensureProductsCache($cfg, $page, 24, $searchQuery);
     $storeData = ensureStoreCache($cfg);
     $store = $storeData['store'] ?? null;
     $products = $data['products'] ?? [];
     $syncedAt = $data['synced_at'] ?? null;
     $active = array_values(array_filter($products, fn($p) => ($p['product.status'] ?? $p['status'] ?? 1) == 1));
     
-    // Arama filtresi
-    $searchQuery = $_GET['search'] ?? '';
-    if ($searchQuery) {
-        $searchLower = mb_strtolower(trim($searchQuery), 'UTF-8');
-        $active = array_filter($active, function($p) use ($searchLower) {
-            $label = mb_strtolower(($p['product.label'] ?? $p['title'] ?? ''), 'UTF-8');
-            $code = mb_strtolower(($p['product.code'] ?? $p['sku'] ?? ''), 'UTF-8');
-            $desc = mb_strtolower(($p['description'] ?? ''), 'UTF-8');
-            return str_contains($label, $searchLower) || str_contains($code, $searchLower) || str_contains($desc, $searchLower);
-        });
-        $active = array_values($active);
-    }
-    
     $total = count($active);
-    $hasMore = count($products) >= 24; // Eğer exact sayfa doluysa daha fazla olabilir
+    $hasMore = ($data['page'] ?? 1) < ($data['totalPages'] ?? 1); // Backend'den gelen totalPages ile kontrol
     $siteName = $cfg['site_name'] ?: ($store['name'] ?? 'Mağazam');
     $storeCode = $cfg['store_code'] ?? '';
     $base = currentBaseUrl($cfg);
@@ -516,7 +511,26 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         . '<meta name="robots" content="index, follow">'
         . '<link rel="sitemap" type="application/xml" href="/sitemap.xml">'
         . '<script src="https://cdn.tailwindcss.com"></script>'
-        . '<style>body{font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}</style>'
+        . '<style>
+            body{font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+            /* Sidebar Layout */
+            .sidebar-layout { display: flex; min-height: 100vh; }
+            .sidebar { width: 256px; flex-shrink: 0; border-right: 1px solid #e4e4e7; background: #fff; }
+            .sidebar-header { padding: 1rem; border-bottom: 1px solid #e4e4e7; font-weight: 600; }
+            .sidebar-nav { padding: 1rem; }
+            .sidebar-link { display: block; padding: 0.5rem 0.75rem; border-radius: 0.5rem; color: #3f3f46; text-decoration: none; transition: background 0.15s; }
+            .sidebar-link:hover { background: #f4f4f5; color: #18181b; }
+            .main-content { flex: 1; min-width: 0; }
+            .mobile-menu-btn { display: none; }
+            @media (max-width: 767px) {
+                .sidebar { position: fixed; top: 0; left: 0; height: 100vh; z-index: 50; transform: translateX(-100%); transition: transform 0.3s ease; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+                .sidebar.open { transform: translateX(0); }
+                .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
+                .sidebar-overlay.open { display: block; }
+                .mobile-menu-btn { display: flex; }
+                .main-content { width: 100%; }
+            }
+        </style>'
         . '<script type="application/ld+json">' . json_encode(['@context'=>'https://schema.org','@type'=>'Store','name'=>$siteName,'url'=>$canonical], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . '</script>'
         . '</head><body class="bg-zinc-50 text-zinc-900">';
 
@@ -536,6 +550,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     $menus = ensureMenusCache($cfg)['menus'] ?? [];
     $searchQuery = $_GET['search'] ?? '';
     $headerMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'header');
+    $sidebarMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'sidebar');
     $currentLang = $_GET['lang'] ?? 'tr';
     $langOptions = [
         'tr' => t('lang_tr'),
@@ -545,17 +560,78 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         'ru' => t('lang_ru'),
     ];
 
+    $headerLinks = implode(' · ', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="hover:underline">' . h($m['label'] ?? '') . '</a>', $headerMenus));
+    $sidebarLinks = implode('', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="block px-3 py-2 rounded-lg text-sm hover:bg-zinc-100">' . h($m['label'] ?? '') . '</a>', $sidebarMenus));
+
     echo '<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">'
         . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a><div class="hidden text-xs text-zinc-500 sm:block">'
-        . implode(' · ', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="hover:underline">' . h($m['label'] ?? '') . '</a>', $headerMenus))
+        . $headerLinks
         . '</div></div></div>'
         . '<div class="flex items-center gap-2">'
         . '<form method="GET" action="/products" class="hidden flex-1 sm:block"><input type="text" name="search" placeholder="' . t('search_placeholder') . '" value="' . h($searchQuery) . '" class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs" autocomplete="off"><button type="submit" class="ml-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">' . t('search_button') . '</button></form>'
         . '<div class="hidden sm:flex items-center gap-2 text-xs"><span>' . t('language_switcher') . '</span><select name="lang" onchange="this.form.submit()" class="rounded-lg border border-zinc-300 px-2 py-1">'
         . implode('', array_map(fn($code, $label) => '<option value="' . $code . '"' . ($currentLang === $code ? ' selected' : '') . '>' . h($label) . '</option>', array_keys($langOptions), $langOptions))
         . '</select></div>'
-        . '<a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
+        . '<a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a>'
+        // Mobile menu toggle
+        . '<button id="mobile-menu-btn" class="sm:hidden p-2 rounded-lg hover:bg-zinc-100" aria-label="Menu"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>'
         . '</div></header>';
+    
+    // Sidebar Layout Wrapper
+    echo '<div class="sidebar-layout">';
+    
+    // Desktop Sidebar (hidden on mobile)
+    if ($sidebarLinks) {
+        echo '<aside class="sidebar hidden lg:block" aria-label="Yan Menü">';
+        echo '<div class="sidebar-header">' . t('menu') . '</div>';
+        echo '<nav class="sidebar-nav">' . $sidebarLinks . '</nav>';
+        echo '</aside>';
+    }
+    
+    // Mobile Sidebar Overlay & Panel
+    if ($sidebarLinks) {
+        echo '<div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>';
+        echo '<aside id="mobile-sidebar" class="sidebar lg:hidden" aria-label="Mobil Menü" role="dialog">';
+        echo '<div class="sidebar-header flex justify-between items-center">';
+        echo '<span>' . t('menu') . '</span>';
+        echo '<button id="close-mobile-sidebar" class="p-2 rounded-lg hover:bg-zinc-100" aria-label="Kapat"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+        echo '</div>';
+        echo '<nav class="sidebar-nav">' . $sidebarLinks . '</nav>';
+        echo '</aside>';
+    }
+    
+    // Main Content Area
+    echo '<main class="main-content">';
+    
+    // Mobile Menu Toggle Button (in header, already rendered)
+    // We'll add the button logic in JS
+    echo '<script>
+        // Mobile sidebar toggle
+        const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+        const closeMobileSidebar = document.getElementById("close-mobile-sidebar");
+        const mobileSidebar = document.getElementById("mobile-sidebar");
+        const sidebarOverlay = document.getElementById("sidebar-overlay");
+        
+        function openMobileSidebar() {
+            mobileSidebar?.classList.add("open");
+            sidebarOverlay?.classList.add("open");
+            document.body.style.overflow = "hidden";
+        }
+        function closeMobileSidebarFn() {
+            mobileSidebar?.classList.remove("open");
+            sidebarOverlay?.classList.remove("open");
+            document.body.style.overflow = "";
+        }
+        
+        mobileMenuBtn?.addEventListener("click", openMobileSidebar);
+        closeMobileSidebar?.addEventListener("click", closeMobileSidebarFn);
+        sidebarOverlay?.addEventListener("click", closeMobileSidebarFn);
+        
+        // Close on escape key
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closeMobileSidebarFn();
+        });
+    </script>';
 
     // Cart / Checkout / Account sayfaları — JS ile localStorage sepet + core API üzerinden sipariş
     if (in_array($currentUri, ['/cart','/checkout','/sepet'])) {
@@ -630,13 +706,13 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         echo '</div></section>';
         if ($hasMore) {
             $nextPage = $page + 1;
+            // Build next URL properly
+            $basePath = '/products';
             $query = $_SERVER['QUERY_STRING'] ?? '';
             $queryParts = explode('&', $query);
-            $queryParts = array_filter($queryParts, fn($part) => !str_starts_with($part, 'page='));
+            $queryParts = array_filter($queryParts, fn($part) => $part !== '' && !str_starts_with($part, 'page='));
             $newQuery = implode('&', $queryParts);
-            if ($newQuery !== '') $newQuery .= '&';
-            $newQuery .= 'page=' . $nextPage;
-            $nextUrl = ($_SERVER['REQUEST_URI'] ?? '/') . (str_contains($newQuery, '=') ? '&' : '?') . $newQuery;
+            $nextUrl = $basePath . ($newQuery !== '' ? '?' . $newQuery . '&page=' . $nextPage : '?page=' . $nextPage);
             echo '<section class="mx-auto max-w-6xl px-4 py-8 text-center"><button id="load-more-btn" class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700">' . t('view_more_products') . ' →</button><div id="load-more-spinner" class="hidden mt-4 inline-flex items-center"><span class="loading loading-spinner loading-lg text-indigo-600"></span><span class="ml-2">Yükleniyor...</span></div></section>';
             echo '<script>
                 let isLoading = false;
@@ -650,7 +726,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
                     loadMoreSpinner.classList.remove("hidden");
                     
                     try {
-                        const response = await fetch("' . h($nextUrl) . '");
+                        const response = await fetch("' . $nextUrl . '");
                         const html = await response.text();
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, "text/html");
@@ -688,6 +764,9 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
             </script>';
         }
     }
+    
+    // Close main content and sidebar layout
+    echo '</main></div>';
 
     // Footer
     $base = currentBaseUrl($cfg);
@@ -750,11 +829,14 @@ function renderProductDetail(array $cfg, string $id): void {
     // Images
     echo '<div class="space-y-3">';
     if ($img) {
-        echo '<div class="overflow-hidden rounded-xl border border-zinc-200 bg-white"><img src="' . h($img) . '" alt="' . h($label) . '" class="aspect-[4/3] w-full object-cover"></div>';
+        echo '<div class="overflow-hidden rounded-xl border border-zinc-200 bg-white"><img id="main-product-image" src="' . h($img) . '" alt="' . h($label) . '" class="aspect-[4/3] w-full object-cover cursor-zoom-in" onclick="openImageModal(this.src)"></div>';
         if (count($images) > 1) {
             echo '<div class="grid grid-cols-4 gap-2">';
+            $idx = 0;
             foreach (array_slice($images, 0, 8) as $im) {
-                echo '<img src="' . h($im) . '" class="aspect-square rounded-lg border border-zinc-200 object-cover">';
+                $activeClass = ($idx === 0) ? 'ring-2 ring-indigo-500' : '';
+                echo '<img src="' . h($im) . '" class="aspect-square rounded-lg border border-zinc-200 object-cover cursor-pointer ' . $activeClass . '" onclick="switchMainImage(this.src, this)" loading="lazy">';
+                $idx++;
             }
             echo '</div>';
         }
@@ -778,6 +860,32 @@ function renderProductDetail(array $cfg, string $id): void {
     echo '<footer class="mx-auto max-w-6xl px-4 pb-8 text-center text-xs text-zinc-400"><a href="/sitemap.xml" class="underline">Sitemap</a></footer>';
     echo '<script>
 function addToCart(id,label,price){try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");var f=c.find(x=>String(x.id)===String(id));if(f)f.qty=(f.qty||1)+1;else c.push({id:id,label:label,price:price,qty:1});localStorage.setItem("rahatio_cart",JSON.stringify(c));var el=document.getElementById("cart-msg");if(el)el.classList.remove("hidden");var cnt=c.reduce((s,i)=>s+(i.qty||1),0);var cc=document.getElementById("cart-count");if(cc)cc.textContent=cnt;}catch(e){alert("Sepet hatası: "+e.message)}}
+
+// Image gallery switch
+function switchMainImage(src, thumbEl) {
+    const mainImg = document.getElementById("main-product-image");
+    if (mainImg && mainImg.src !== src) {
+        mainImg.src = src;
+    }
+    // Update active thumb ring
+    document.querySelectorAll(".grid.grid-cols-4 img").forEach(function(img) {
+        img.classList.remove("ring-2", "ring-indigo-500");
+    });
+    thumbEl?.classList.add("ring-2", "ring-indigo-500");
+}
+
+// Fullscreen image modal
+function openImageModal(src) {
+    const modal = document.createElement("div");
+    modal.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/90";
+    modal.innerHTML = \'<button class="absolute top-4 right-4 text-white/70 hover:text-white text-2xl" onclick="this.parentElement.remove()">&times;</button><img src="\' + src + \'" class="max-h-[90vh] max-w-[90vw] object-contain">';
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+    document.body.style.overflow = "hidden";
+    // ESC to close
+    const escHandler = function(e) { if (e.key === "Escape") { modal.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", escHandler); } };
+    document.addEventListener("keydown", escHandler);
+}
 </script>';
     echo '</body></html>';
     exit;
