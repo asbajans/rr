@@ -394,6 +394,88 @@ function ensurePagesCache(array $cfg): array {
     return is_file($cacheFile) ? (json_decode(@file_get_contents($cacheFile),true) ?? ['pages'=>[]]) : ['pages'=>[]];
 }
 
+function renderFooterHtml(array $cfg): string {
+    $menusData = ensureMenusCache($cfg);
+    $menus = $menusData['menus'] ?? [];
+    $footerMenus = array_values(array_filter($menus, fn($m) => ($m['location'] ?? '') === 'footer'));
+    $pagesData = ensurePagesCache($cfg);
+    $pages = $pagesData['pages'] ?? [];
+    $year = date('Y');
+    // published_by with Rahatio link
+    $published = t('site_published_by');
+    // "Rahatio" kelimesini linke çevir
+    $publishedHtml = str_replace('Rahatio', '<a href="https://rahatio.com.tr" target="_blank" rel="noopener" class="font-medium text-zinc-900 hover:underline">Rahatio</a>', h($published));
+    $html = '<footer class="border-t border-zinc-200 bg-white"><div class="mx-auto max-w-6xl px-4 py-10">';
+    if ($footerMenus) {
+        $html .= '<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">';
+        foreach ($footerMenus as $menu) {
+            $html .= '<div><h3 class="mb-3 text-sm font-semibold text-zinc-900">' . h($menu['name'] ?? '') . '</h3><ul class="space-y-2">';
+            $items = is_array($menu['items'] ?? null) ? $menu['items'] : [];
+            foreach ($items as $item) {
+                $label = $item['label'] ?? '';
+                $url = $item['url'] ?? '#';
+                // page_id varsa sayfa slugına çöz
+                if (!empty($item['page_id'])) {
+                    foreach ($pages as $pg) { if (($pg['id'] ?? null) == $item['page_id']) { $url = '/pages/' . ($pg['slug'] ?? ''); break; } }
+                }
+                $html .= '<li><a href="' . h($url) . '" class="text-sm text-zinc-500 hover:text-zinc-900">' . h($label) . '</a></li>';
+                if (!empty($item['children']) && is_array($item['children'])) {
+                    $html .= '<ul class="mt-1 space-y-1 pl-3">';
+                    foreach ($item['children'] as $ch) {
+                        $clabel = $ch['label'] ?? '';
+                        $curl = $ch['url'] ?? '#';
+                        if (!empty($ch['page_id'])) { foreach ($pages as $pg) { if (($pg['id'] ?? null) == $ch['page_id']) { $curl = '/pages/' . ($pg['slug'] ?? ''); break; } } }
+                        $html .= '<li><a href="' . h($curl) . '" class="text-sm text-zinc-400 hover:text-zinc-900">' . h($clabel) . '</a></li>';
+                    }
+                    $html .= '</ul>';
+                }
+            }
+            $html .= '</ul></div>';
+        }
+        $html .= '</div>';
+    } else if ($pages) {
+        // Fallback: sayfaları Kurumsal / Sözleşmeler olarak böl — /stores/[siteCode] ile aynı
+        $legalOrder = ['gizlilik-politikasi','kvkk-aydinlatma-metni','cerez-politikasi','kullanim-sartlari','mesafeli-satis-sozlesmesi','on-bilgilendirme-formu','teslimat-ve-kargo','iade-ve-degisim'];
+        usort($pages, function($a,$b) use ($legalOrder) {
+            $ia = array_search($a['slug'] ?? '', $legalOrder); $ib = array_search($b['slug'] ?? '', $legalOrder);
+            if ($ia === false && $ib === false) return strcmp($a['slug'] ?? '', $b['slug'] ?? '');
+            if ($ia === false) return 1; if ($ib === false) return -1; return $ia <=> $ib;
+        });
+        $titleOf = function($p) {
+            $t = $p['title'] ?? $p['slug'] ?? '';
+            if (is_array($t)) return $t['tr'] ?? $t['en'] ?? $p['slug'];
+            return (string)$t;
+        };
+        $html .= '<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">';
+        $html .= '<div><h3 class="mb-3 text-sm font-semibold text-zinc-900">Kurumsal</h3><ul class="space-y-2">';
+        foreach (array_slice($pages, 0, 4) as $p) { $html .= '<li><a href="/pages/' . h($p['slug']) . '" class="text-sm text-zinc-500 hover:text-zinc-900">' . h($titleOf($p)) . '</a></li>'; }
+        $html .= '</ul></div>';
+        $html .= '<div><h3 class="mb-3 text-sm font-semibold text-zinc-900">Sözleşmeler &amp; Kargo</h3><ul class="space-y-2">';
+        foreach (array_slice($pages, 4) as $p) { $html .= '<li><a href="/pages/' . h($p['slug']) . '" class="text-sm text-zinc-500 hover:text-zinc-900">' . h($titleOf($p)) . '</a></li>'; }
+        if (count($pages) <= 4) $html .= '<li class="text-xs text-zinc-400">Menüler &gt; Footer bölümünden sözleşmeleri düzenleyin.</li>';
+        $html .= '</ul></div>';
+        $html .= '<div class="sm:col-span-2"><h3 class="mb-3 text-sm font-semibold text-zinc-900">Mağaza Bilgisi</h3><p class="text-xs leading-relaxed text-zinc-500">Mesafeli satış, kargo ve iade koşullarının tümü yukarıdaki sözleşmelerde yer alır. Sipariş öncesi lütfen <em>Mesafeli Satış Sözleşmesi</em> ve <em>Ön Bilgilendirme Formu</em>nu okuyun.</p></div>';
+        $html .= '</div>';
+    }
+    $html .= '<div class="mt-8 flex flex-col items-center justify-between gap-2 border-t border-zinc-100 pt-6 text-xs text-zinc-500 sm:flex-row">';
+    $html .= '<p>© ' . $year . ' ' . $publishedHtml . '. Tüm hakları saklıdır.</p>';
+    $html .= '<p class="flex gap-3"><a href="/" class="hover:text-zinc-900">' . h(t('home')) . '</a><span class="text-zinc-300">·</span><a href="/pages" class="hover:text-zinc-900">' . h(t('pages')) . '</a><span class="text-zinc-300">·</span><a href="/blog" class="hover:text-zinc-900">' . h(t('blog')) . '</a></p>';
+    $html .= '</div></div></footer>';
+    return $html;
+}
+
+function renderWhatsAppButton(array $cfg): string {
+    $storeData = ensureStoreCache($cfg);
+    $store = $storeData['store'] ?? [];
+    $theme = $store['theme'] ?? [];
+    $num = $theme['whatsapp_number'] ?? $theme['whatsapp'] ?? $store['whatsapp_number'] ?? $store['whatsapp'] ?? '';
+    $num = preg_replace('/\s+/', '', (string)$num);
+    if (!$num) return '';
+    $digits = preg_replace('/[^0-9]/', '', $num);
+    if (!$digits) return '';
+    return '<a href="https://wa.me/' . h($digits) . '" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:scale-105"><svg viewBox="0 0 24 24" fill="currentColor" class="h-7 w-7"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>';
+}
+
 function renderSitemap(array $cfg): void {
     $base = currentBaseUrl($cfg);
     $data = ensureProductsCache($cfg);
@@ -601,7 +683,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     if ($total === 0) {
         echo '<section class="mx-auto max-w-6xl px-4 py-12"><div class="rounded-xl border border-dashed border-zinc-300 bg-white p-12 text-center"><p class="text-sm font-medium text-zinc-700">Henüz ürün yok</p><p class="mx-auto mt-2 max-w-md text-xs text-zinc-500">Yönetim panelinden ürün ekleyin ve mağazanızı yayınlayın. Ürünler otomatik olarak burada görünecektir.</p></div></section>';
     } else {
-        echo '<section class="mx-auto max-w-6xl px-4 py-8"><div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">';
+        echo '<section class="mx-auto max-w-6xl px-4 py-8"><div id="product-grid" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">';
         foreach ($active as $p) {
             $id = $p['product.id'] ?? $p['id'] ?? '';
             $label = $p['product.label'] ?? $p['label'] ?? $p['title'] ?? 'Ürün';
@@ -651,22 +733,26 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
                     loadMoreSpinner.classList.remove("hidden");
                     
                     try {
-                        const response = await fetch("' . $nextUrl . '");
+                        const response = await fetch("' . $nextUrl . '", { headers: { "Accept": "text/html" }});
                         const html = await response.text();
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, "text/html");
-                        const newProducts = doc.querySelectorAll(".grid.grid-cols-1.gap-4");
-                        if (newProducts.length > 0) {
-                            const container = document.querySelector(".grid.grid-cols-1.gap-4.sm\\:grid-cols-2.lg\\:grid-cols-3.xl\\:grid-cols-4");
-                            if (container) {
-                                container.innerHTML += newProducts[0].innerHTML;
-                            }
+                        const newGrid = doc.getElementById("product-grid");
+                        const container = document.getElementById("product-grid");
+                        if (newGrid && container) {
+                            container.insertAdjacentHTML("beforeend", newGrid.innerHTML);
+                        } else if (newGrid === null) {
+                            // no more products — hide button permanently
+                            loadMoreBtn.style.display = "none";
+                        }
+                        if (newGrid && newGrid.innerHTML.trim() === "") {
+                            loadMoreBtn.style.display = "none";
                         }
                     } catch (e) {
                         console.error("Load more error:", e);
                     } finally {
                         isLoading = false;
-                        loadMoreBtn.classList.remove("hidden");
+                        if (loadMoreBtn.style.display !== "none") loadMoreBtn.classList.remove("hidden");
                         loadMoreSpinner.classList.add("hidden");
                     }
                 });
@@ -690,13 +776,10 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         }
     }
     
-    // Footer
-    $base = currentBaseUrl($cfg);
-    echo '<footer class="mx-auto max-w-6xl px-4 pb-8"><div class="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500">'
-        . '<div class="flex flex-wrap gap-3"><a href="/" class="hover:underline">' . t('home') . '</a> · <a href="/sitemap.xml" class="hover:underline">' . t('sitemap') . '</a> · <a href="/pages" class="hover:underline">' . t('pages') . '</a> · <a href="/blog" class="hover:underline">' . t('blog') . '</a></div>'
-        . '<div class="mt-2">' . t('site_published_by') . '</div>'
-        . '</div></footer>';
-    echo '<script>try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");document.getElementById("cart-count").textContent=c.reduce((s,i)=>s+(i.qty||1),0)}catch(e){}</script>';
+    // Footer — https://rahatio.com.tr/stores/cikmayedekparca ile aynı (footer menüleri + Rahatio linkli)
+    echo renderFooterHtml($cfg);
+    echo renderWhatsAppButton($cfg);
+    echo '<script>try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");var el=document.getElementById("cart-count");if(el)el.textContent=c.reduce((s,i)=>s+(i.qty||1),0)}catch(e){}</script>';
     if ($currentUri !== '/' ) {
         echo '<script>console.log("slave storefront", ' . json_encode($currentUri) . ')</script>';
     }
@@ -779,7 +862,8 @@ function renderProductDetail(array $cfg, string $id): void {
         . '<p id="cart-msg" class="mt-3 hidden text-sm text-emerald-600">✓ Sepete eklendi — <a href="/cart" class="underline">Sepete git</a></p>'
         . '</div>';
     echo '</div></main>';
-    echo '<footer class="mx-auto max-w-6xl px-4 pb-8 text-center text-xs text-zinc-400"><a href="/sitemap.xml" class="underline">Sitemap</a></footer>';
+    echo renderFooterHtml($cfg);
+    echo renderWhatsAppButton($cfg);
     echo '<script>
 function addToCart(id,label,price){try{var c=JSON.parse(localStorage.getItem("rahatio_cart")||"[]");var f=c.find(x=>String(x.id)===String(id));if(f)f.qty=(f.qty||1)+1;else c.push({id:id,label:label,price:price,qty:1});localStorage.setItem("rahatio_cart",JSON.stringify(c));var el=document.getElementById("cart-msg");if(el)el.classList.remove("hidden");var cnt=c.reduce((s,i)=>s+(i.qty||1),0);var cc=document.getElementById("cart-count");if(cc)cc.textContent=cnt;}catch(e){alert("Sepet hatası: "+e.message)}}
 
