@@ -621,15 +621,34 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
     }
     echo '<style>' . $themeCss . ' .btn-primary { background-color: var(--primary); } .text-primary { color: var(--primary); }</style>';
 
-    // Header — eski düzene dönüş (https://rahatio.com.tr/stores/cikmayedekparca ile aynı)
+    // Header — frontend stores/layout.tsx StoreHeader + StoreMenuBar ile birebir
     $menus = ensureMenusCache($cfg)['menus'] ?? [];
-    $headerMenus = array_filter($menus, fn($m) => ($m['location'] ?? '') === 'header');
-    $headerLinks = implode(' · ', array_map(fn($m) => '<a href="' . h($m['url'] ?? '#') . '" class="hover:underline">' . h($m['label'] ?? '') . '</a>', $headerMenus));
+    $pagesForHeader = ensurePagesCache($cfg)['pages'] ?? [];
+    $headerMenus = array_values(array_filter($menus, fn($m) => ($m['location'] ?? '') === 'header'));
+    $headerItems = [];
+    foreach ($headerMenus as $hm) { foreach (($hm['items'] ?? []) as $it) { $headerItems[] = $it; } }
+    $headerLinksParts = [];
+    foreach ($headerItems as $item) {
+        $label = $item['label'] ?? '';
+        if ($label === '') continue;
+        $url = $item['url'] ?? '#';
+        if (!empty($item['page_id'])) {
+            foreach ($pagesForHeader as $pg) { if (($pg['id'] ?? null) == $item['page_id']) { $url = '/pages/' . ($pg['slug'] ?? ''); break; } }
+        } else if (!empty($item['categoryId'])) {
+            $url = '/?categoryId=' . urlencode((string)$item['categoryId']);
+        } else if (!empty($item['category_id'])) {
+            $url = '/?categoryId=' . urlencode((string)$item['category_id']);
+        }
+        $target = (!empty($item['target']) && $item['target'] === '_blank') ? ' target="_blank" rel="noopener"' : '';
+        $headerLinksParts[] = '<a href="' . h($url) . '"' . $target . ' class="hover:underline hover:text-zinc-900">' . h($label) . '</a>';
+        // children dropdown not rendered in slave header — flat as stores header mobile does
+    }
+    $headerLinks = implode(' · ', $headerLinksParts);
 
     echo '<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">'
-        . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a><div class="hidden text-xs text-zinc-500 sm:block">'
-        . ($headerLinks ?: '<a href="/pages" class="hover:underline">Sayfalar</a> · <a href="/blog" class="hover:underline">Blog</a> · <a href="/sitemap.xml" class="hover:underline">Sitemap</a>')
-        . '</div></div></div>'
+        . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a>'
+        . ($headerLinks ? '<div class="hidden text-xs text-zinc-500 sm:block">' . $headerLinks . '</div>' : '')
+        . '</div></div>'
         . '<div class="flex items-center gap-2"><a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
         . '</div></header>';
 
@@ -829,7 +848,29 @@ function renderProductDetail(array $cfg, string $id): void {
         . '<script src="https://cdn.tailwindcss.com"></script>'
         . '<script type="application/ld+json">' . json_encode(['@context'=>'https://schema.org','@type'=>'Product','name'=>$label,'description'=>$metaDesc,'sku'=>$code,'image'=>$img?:null,'offers'=>['@type'=>'Offer','price'=>$price,'priceCurrency'=>'TRY','availability'=>($stock!==null && (int)$stock>0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock')]], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . '</script>'
         . '</head><body class="bg-zinc-50 text-zinc-900">';
-    echo '<header class="border-b border-zinc-200 bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3"><a href="/" class="text-sm font-semibold text-zinc-900">← ' . h($siteName) . '</a><div class="flex items-center gap-2"><a href="/cart" class="text-xs text-zinc-500 hover:text-zinc-700">Sepet</a><a href="/" class="text-xs text-zinc-500 hover:text-zinc-700">Ana sayfa</a></div></div></header>';
+    // Header with menus — same as storefront so header menü her sayfada görünür
+    $menusDet = ensureMenusCache($cfg)['menus'] ?? [];
+    $pagesDet = ensurePagesCache($cfg)['pages'] ?? [];
+    $headerMenusDet = array_values(array_filter($menusDet, fn($m) => ($m['location'] ?? '') === 'header'));
+    $headerItemsDet = [];
+    foreach ($headerMenusDet as $hm) { foreach (($hm['items'] ?? []) as $it) { $headerItemsDet[] = $it; } }
+    $headerLinksDetParts = [];
+    foreach ($headerItemsDet as $item) {
+        $label = $item['label'] ?? ''; if ($label === '') continue;
+        $url = $item['url'] ?? '#';
+        if (!empty($item['page_id'])) { foreach ($pagesDet as $pg) { if (($pg['id'] ?? null) == $item['page_id']) { $url = '/pages/' . ($pg['slug'] ?? ''); break; } } }
+        else if (!empty($item['categoryId'])) { $url = '/?categoryId=' . urlencode((string)$item['categoryId']); }
+        else if (!empty($item['category_id'])) { $url = '/?categoryId=' . urlencode((string)$item['category_id']); }
+        $target = (!empty($item['target']) && $item['target'] === '_blank') ? ' target="_blank" rel="noopener"' : '';
+        $headerLinksDetParts[] = '<a href="' . h($url) . '"' . $target . ' class="hover:underline">' . h($label) . '</a>';
+    }
+    $headerLinksDet = implode(' · ', $headerLinksDetParts);
+    echo '<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">'
+        . '<div class="flex items-center gap-3"><a href="/" class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">' . h(mb_substr($siteName,0,1,'UTF-8')) . '</a><div><a href="/" class="text-sm font-semibold hover:text-indigo-600">' . h($siteName) . '</a>'
+        . ($headerLinksDet ? '<div class="hidden text-xs text-zinc-500 sm:block">' . $headerLinksDet . '</div>' : '')
+        . '</div></div>'
+        . '<div class="flex items-center gap-2"><a href="/cart" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">Sepet (<span id="cart-count">0</span>)</a><a href="/account" class="hidden text-xs text-zinc-500 hover:text-zinc-700 sm:inline">Hesabım</a></div>'
+        . '</div></header>';
     echo '<main class="mx-auto max-w-6xl px-4 py-8"><div class="grid gap-8 lg:grid-cols-2">';
     // Images
     echo '<div class="space-y-3">';
