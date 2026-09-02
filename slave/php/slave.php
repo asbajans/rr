@@ -731,44 +731,42 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
         }
         echo '</div></section>';
         if ($hasMore) {
-            $nextPage = $page + 1;
-            // Build next URL properly
-            $basePath = '/products';
-            $query = $_SERVER['QUERY_STRING'] ?? '';
-            $queryParts = explode('&', $query);
-            $queryParts = array_filter($queryParts, fn($part) => $part !== '' && !str_starts_with($part, 'page='));
-            $newQuery = implode('&', $queryParts);
-            $nextUrl = $basePath . ($newQuery !== '' ? '?' . $newQuery . '&page=' . $nextPage : '?page=' . $nextPage);
-            echo '<section class="mx-auto max-w-6xl px-4 py-8 text-center"><button id="load-more-btn" class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700">Daha fazla ürün yükle →</button><div id="load-more-spinner" class="hidden mt-4 inline-flex items-center"><span class="loading loading-spinner loading-lg text-indigo-600"></span><span class="ml-2">Yükleniyor...</span></div></section>';
+            $totalPages = $data['totalPages'] ?? 1;
+            echo '<section class="mx-auto max-w-6xl px-4 py-8 text-center"><button id="load-more-btn" class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700">Daha fazla ürün yükle →</button><div id="load-more-spinner" class="hidden mt-4 inline-flex items-center"><span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></span><span class="ml-2">Yükleniyor...</span></div></section>';
             echo '<script>
                 let isLoading = false;
+                let currentPage = ' . (int)$page . ';
+                const totalPages = ' . (int)$totalPages . ';
+                const searchQ = ' . json_encode($searchQuery, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . ';
                 const loadMoreBtn = document.getElementById("load-more-btn");
                 const loadMoreSpinner = document.getElementById("load-more-spinner");
                 
                 loadMoreBtn.addEventListener("click", async () => {
-                    if (isLoading) return;
+                    if (isLoading || currentPage >= totalPages) {
+                        if (currentPage >= totalPages) loadMoreBtn.style.display = "none";
+                        return;
+                    }
                     isLoading = true;
                     loadMoreBtn.classList.add("hidden");
                     loadMoreSpinner.classList.remove("hidden");
-                    
+                    currentPage++;
+                    const url = "/products?page=" + currentPage + (searchQ ? "&search=" + encodeURIComponent(searchQ) : "");
                     try {
-                        const response = await fetch("' . $nextUrl . '", { headers: { "Accept": "text/html" }});
+                        const response = await fetch(url, { headers: { "Accept": "text/html" }});
                         const html = await response.text();
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, "text/html");
                         const newGrid = doc.getElementById("product-grid");
                         const container = document.getElementById("product-grid");
-                        if (newGrid && container) {
+                        if (newGrid && container && newGrid.innerHTML.trim() !== "") {
                             container.insertAdjacentHTML("beforeend", newGrid.innerHTML);
-                        } else if (newGrid === null) {
-                            // no more products — hide button permanently
-                            loadMoreBtn.style.display = "none";
-                        }
-                        if (newGrid && newGrid.innerHTML.trim() === "") {
+                            if (currentPage >= totalPages) loadMoreBtn.style.display = "none";
+                        } else {
                             loadMoreBtn.style.display = "none";
                         }
                     } catch (e) {
                         console.error("Load more error:", e);
+                        currentPage--;
                     } finally {
                         isLoading = false;
                         if (loadMoreBtn.style.display !== "none") loadMoreBtn.classList.remove("hidden");
@@ -782,7 +780,7 @@ function renderStorefront(array $cfg, string $currentUri = '/'): void {
                     if (!ticking) {
                         window.requestAnimationFrame(() => {
                             if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200) {
-                                if (!isLoading && loadMoreBtn.offsetParent !== null) {
+                                if (!isLoading && loadMoreBtn && loadMoreBtn.offsetParent !== null && currentPage < totalPages) {
                                     loadMoreBtn.click();
                                 }
                             }
