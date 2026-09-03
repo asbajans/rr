@@ -327,17 +327,60 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     const trackingNumber = options.trackingNumber;
 
     const sellerBase = `https://apigw.trendyol.com/integration/sellers/${this.config.supplierId}`;
-    const headers = {
+    const basicHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': this.config.supplierId,
       'Authorization': `Basic ${Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64')}`,
     };
+    // Token / Entegrasyon Referans Kodu varsa ek header olarak gönder (bazı satıcılarda common-label için gerekebiliyor)
+    if (this.config.token) (basicHeaders as any)['x-trendyol-token'] = this.config.token;
+    if (this.config.integrationRefCode) (basicHeaders as any)['x-integration-reference-code'] = this.config.integrationRefCode;
+    if (this.config.cariId) (basicHeaders as any)['x-cari-id'] = this.config.cariId;
 
+    // V2 common-label: öncelikle kargo takip numarası ile dene (dokümana uygun)
+    // Yeni akış: POST /common-label/{cargoTrackingNumber} {format:ZPL} -> GET /common-label/{cargoTrackingNumber}
     if (trackingNumber) {
+      // 1) Yeni V2 GET
+      try {
+        const resp = await axios.get(`${sellerBase}/common-label/${encodeURIComponent(trackingNumber)}`, {
+          headers: basicHeaders,
+          timeout: 30000,
+        });
+        // V2 GET döner: { data: [{ label: "^XA..." }] } veya doğrudan ZPL
+        const data = resp.data?.data || resp.data;
+        if (Array.isArray(data) && data[0]?.label && typeof data[0].label === 'string' && data[0].label.includes('^XA')) {
+          return { labelZpl: data[0].label };
+        }
+        if (typeof data === 'string' && data.includes('^XA')) {
+          return { labelZpl: data };
+        }
+        // Bazı hesaplarda doğrudan labelUrl dönebilir
+        if (Array.isArray(data) && data[0]?.labelUrl) {
+          return { labelUrl: data[0].labelUrl, cargoCompany: '' };
+        }
+      } catch {}
+      // 2) V2 POST create + GET
+      try {
+        await axios.post(`${sellerBase}/common-label/${encodeURIComponent(trackingNumber)}`, { format: 'ZPL' }, { headers: basicHeaders, timeout: 30000 });
+        // Kısa bekleme sonrası tekrar GET
+        await new Promise(r => setTimeout(r, 1200));
+        const resp2 = await axios.get(`${sellerBase}/common-label/${encodeURIComponent(trackingNumber)}`, {
+          headers: basicHeaders,
+          timeout: 30000,
+        });
+        const data2 = resp2.data?.data || resp2.data;
+        if (Array.isArray(data2) && data2[0]?.label && typeof data2[0].label === 'string' && data2[0].label.includes('^XA')) {
+          return { labelZpl: data2[0].label };
+        }
+        if (typeof data2 === 'string' && data2.includes('^XA')) {
+          return { labelZpl: data2 };
+        }
+      } catch {}
+      // 3) Eski query endpoint fallback
       try {
         const response = await axios.get(`${sellerBase}/common-label/query`, {
           params: { id: trackingNumber },
-          headers,
+          headers: basicHeaders,
           timeout: 30000,
         });
         const labels = response.data?.data || [];
@@ -348,22 +391,41 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
     }
 
     if (packageId) {
+      // Önce kargo takip numarasını siparişten çözmeye çalış (trackingNumber yoksa packageId ile)
+      let resolvedTracking: string | null = null;
+      if (!trackingNumber) {
+        try {
+          const pkg = await this.getOrderByPackageId(packageId).catch(() => null);
+          resolvedTracking = pkg?.cargoTrackingNumber || pkg?.cargoTrackingNumberList?.[0] || pkg?.shipmentPackage?.cargoTrackingNumber || null;
+        } catch {}
+      }
+      if (resolvedTracking) {
+        const viaTracking = await this.getOrderLabel({ trackingNumber: resolvedTracking });
+        if (viaTracking) return viaTracking;
+      }
+      // Eski batch common-labels fallback (deprecated ama bazı hesaplarda hala çalışıyor)
       try {
-        const create = await axios.post(`${sellerBase}/common-labels`, { packageIds: [packageId] }, { headers, timeout: 30000 });
+        const create = await axios.post(`${sellerBase}/common-labels`, { packageIds: [packageId] }, { headers: basicHeaders, timeout: 30000 });
         const eccode = create.data?.eccode;
         if (eccode) {
           try {
-            const zplResp = await axios.get(`${sellerBase}/common-label/${eccode}`, { headers, timeout: 30000, responseType: 'text' });
+            const zplResp = await axios.get(`${sellerBase}/common-label/${eccode}`, { headers: basicHeaders, timeout: 30000, responseType: 'text' });
             if (typeof zplResp.data === 'string' && zplResp.data.includes('^XA')) {
               return { labelZpl: zplResp.data };
             }
+          } catch {}
+          // eccode aslında cargoTrackingNumber da olabilir — V2 GET ile tekrar dene
+          try {
+            const resp = await axios.get(`${sellerBase}/common-label/${encodeURIComponent(eccode)}`, { headers: basicHeaders, timeout: 30000 });
+            const data = resp.data?.data || resp.data;
+            if (Array.isArray(data) && data[0]?.label?.includes('^XA')) return { labelZpl: data[0].label };
           } catch {}
         }
       } catch (createErr: any) {
         const status = createErr?.response?.status;
         const body = JSON.stringify(createErr?.response?.data || '');
         if (status === 401 || status === 556 || body.includes('COMMON_LABEL_NOT_ALLOWED') || body.includes('UNAUTHORIZED')) {
-          return { reason: 'Etiket servisi bu hesap için Trendyol API yetkisi içermiyor. Etiketi Trendyol panelinden indirin.' };
+          return { reason: 'Etiket servisi bu hesap için Trendyol API yetkisi içermiyor veya kargo Trendyol Öder (TEX/Aras) kapsamında değil. Panelden manuel indirin. Yeni alanlar (Cari ID / Referans Kodu / Token) doluysa tekrar deneyin.' };
         }
       }
     }
