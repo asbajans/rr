@@ -436,17 +436,20 @@ export const createApp = async (): Promise<Express> => {
     const allPlans = await PlanForMigrate.findAll();
     for (const p of allPlans) {
       const mods: any = (p as any).modules || {};
+      let nextMods: any = null;
       if (mods.b2b && typeof mods.b2b === 'object' && !('b2b_request' in mods) && !('b2b_supply' in mods)) {
         const enabled = !!mods.b2b.enabled;
-        const next = { ...mods, b2b_request: { enabled }, b2b_supply: { enabled } };
-        await (p as any).update({ modules: next });
+        nextMods = { ...(nextMods || mods), b2b_request: { enabled }, b2b_supply: { enabled } };
       }
-      // Ensure Free has marketplace limit=1 if missing (fixes phantom unlimited)
-      if (p.name === 'Free') {
-        const m = (p as any).modules || {};
-        if (m.marketplace && m.marketplace.enabled && m.marketplace.limit == null) {
-          await (p as any).update({ modules: { ...m, marketplace: { ...m.marketplace, limit: 1 } } });
-        }
+      const targetMods = nextMods || mods;
+      // Ensure marketplace has explicit limit (fixes phantom unlimited where enabled but limit null)
+      if (targetMods.marketplace && targetMods.marketplace.enabled && targetMods.marketplace.limit == null) {
+        const fixed = { ...targetMods, marketplace: { ...targetMods.marketplace, limit: 1 } };
+        await (p as any).update({ modules: fixed });
+        continue;
+      }
+      if (nextMods) {
+        await (p as any).update({ modules: nextMods });
       }
     }
   } catch (e) {

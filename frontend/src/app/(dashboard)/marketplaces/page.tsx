@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import Link from 'next/link'
-import { ShoppingBag, Store, Globe, Box, Tag, RefreshCw, ChevronRight, ExternalLink } from 'lucide-react'
+import { ShoppingBag, Store, Globe, Box, Tag, RefreshCw, ChevronRight, ExternalLink, AlertTriangle } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
+import { useQuotaStatus } from '@/lib/quota'
 
 const MARKETPLACE_ICONS: Record<string, string> = {
   trendyol: 'Trendyol',
@@ -32,6 +33,7 @@ export default function MarketplacesPage() {
   const [integrations, setIntegrations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [brandCounts, setBrandCounts] = useState<Record<string, number>>({})
+  const { quota } = useQuotaStatus()
 
   useEffect(() => {
     setLoading(true)
@@ -50,10 +52,21 @@ export default function MarketplacesPage() {
 
   if (!user) return null
 
+  const mpQuota = (quota as any)?.marketplace
+  const activeCount = integrations.filter((i: any) => i.is_active).length
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-zinc-900">Pazaryerleri</h1>
-      <p className="mt-1 text-sm text-zinc-600">Tüm pazaryeri entegrasyonlarını yönetin.</p>
+      <p className="mt-1 text-sm text-zinc-600">Tüm pazaryeri entegrasyonlarını yönetin. {mpQuota?.limit ? `Aktif: ${activeCount}/${mpQuota.limit} (Kendi Siteniz dahil değil)` : ''}</p>
+      {mpQuota && mpQuota.severity !== 'ok' && mpQuota.limit > 0 && (
+        <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${mpQuota.severity === 'exhausted' ? 'border-red-300 bg-red-50 text-red-800' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+          <span className="inline-flex items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" /> {mpQuota.severity === 'exhausted' ? 'Pazaryeri limitiniz doldu' : 'Pazaryeri limitine yaklaşıyorsunuz'}</span>
+          <span className="ml-2 text-xs">{activeCount}/{mpQuota.limit} aktif entegrasyon. Yeni pazaryeri eklemek için planınızı yükseltin.</span>
+          <Link href="/billing?reason=product_limit#plans" className="ml-3 inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800">Planı Yükselt →</Link>
+          <p className="mt-1 text-xs opacity-80">Mağaza limiti ({quota?.product.limit ?? '?'}) ile karıştırılmamalı — mağaza limiti kaç mağaza açabileceğinizdir, pazaryeri limiti kaç dış pazaryeri bağlayabileceğinizdir.</p>
+        </div>
+      )}
 
       {loading && <div className="mt-8"><CardSkeleton count={4} /></div>}
 

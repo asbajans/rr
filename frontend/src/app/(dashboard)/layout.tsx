@@ -269,7 +269,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </header>
 
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-          {quota && (quota.product.severity !== 'ok' || quota.credits.severity !== 'ok') && (
+          {quota && (quota.product.severity !== 'ok' || quota.credits.severity !== 'ok' || (quota as any).marketplace?.severity !== 'ok') && (
             <div className="mb-4">
               <QuotaBanner quota={quota} />
             </div>

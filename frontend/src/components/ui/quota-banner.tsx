@@ -12,7 +12,7 @@ function severityClasses(sev: string) {
 
 export default function QuotaBanner({ quota, onDismiss }: { quota: QuotaStatus | null | undefined; onDismiss?: () => void }) {
   if (!quota) return null
-  const items: Array<{ key: string; kind: 'product' | 'credits'; severity: string; title: string; body: string; cta: { label: string; href: string } }> = []
+  const items: Array<{ key: string; kind: 'product' | 'credits' | 'marketplace'; severity: string; title: string; body: string; cta: { label: string; href: string } }> = []
 
   const p = quota.product
   if (p.severity !== 'ok') {
@@ -41,6 +41,38 @@ export default function QuotaBanner({ quota, onDismiss }: { quota: QuotaStatus |
         severity: p.severity,
         title: 'Ürün limitine yaklaşıyorsunuz',
         body: `%${p.percentUsed} dolu (${p.current}/${p.limit}). Planınızı gözden geçirin.`,
+        cta: { label: 'Planları Gör', href: '/billing?reason=product_limit#plans' },
+      })
+    }
+  }
+
+  const mp = (quota as any).marketplace as QuotaStatus['marketplace'] | undefined
+  if (mp && mp.severity !== 'ok' && mp.limit > 0) {
+    if (mp.severity === 'exhausted') {
+      items.push({
+        key: 'marketplace-exhausted',
+        kind: 'marketplace',
+        severity: mp.severity,
+        title: 'Pazaryeri limitiniz doldu',
+        body: `Yeni pazaryeri bağlayamazsınız (${mp.current}/${mp.limit}). Kendi Siteniz bu limite dahil değildir.`,
+        cta: { label: 'Planı Yükselt', href: '/billing?reason=product_limit#plans' },
+      })
+    } else if (mp.severity === 'critical') {
+      items.push({
+        key: 'marketplace-critical',
+        kind: 'marketplace',
+        severity: mp.severity,
+        title: 'Pazaryeri limitiniz dolmak üzere',
+        body: `%${mp.percentUsed} dolu (${mp.current}/${mp.limit}). Yakında yeni entegrasyon ekleyemezsiniz.`,
+        cta: { label: 'Planı Yükselt', href: '/billing?reason=product_limit#plans' },
+      })
+    } else {
+      items.push({
+        key: 'marketplace-warning',
+        kind: 'marketplace',
+        severity: mp.severity,
+        title: 'Pazaryeri limitine yaklaşıyorsunuz',
+        body: `%${mp.percentUsed} dolu (${mp.current}/${mp.limit}).`,
         cta: { label: 'Planları Gör', href: '/billing?reason=product_limit#plans' },
       })
     }
@@ -87,7 +119,7 @@ export default function QuotaBanner({ quota, onDismiss }: { quota: QuotaStatus |
   return (
     <div className="space-y-2">
       {items.map((it) => {
-        const Icon = it.kind === 'product' ? Package : Coins
+        const Icon = it.kind === 'product' ? Package : it.kind === 'marketplace' ? Package : Coins
         return (
           <div key={it.key} className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${severityClasses(it.severity)}`}>
             <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/80">
@@ -98,6 +130,7 @@ export default function QuotaBanner({ quota, onDismiss }: { quota: QuotaStatus |
               <p className="mt-0.5 text-xs leading-relaxed opacity-90">
                 {it.body}
                 {it.severity === 'exhausted' && it.kind === 'product' && ' Neden engellendi: plan kotası doldu.'}
+                {it.severity === 'exhausted' && it.kind === 'marketplace' && ' Neden engellendi: pazaryeri kotası doldu (mağaza limiti değil).'}
                 {it.severity === 'exhausted' && it.kind === 'credits' && ' Neden AI çalışmıyor: kredi bitti.'}
               </p>
             </div>

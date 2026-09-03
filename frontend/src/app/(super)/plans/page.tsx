@@ -111,6 +111,11 @@ export default function SuperPlansPage() {
     setSaving(true)
     setMessage('')
     try {
+      // Normalize marketplace limit: enabled but limit missing → 1 (aksi halde sınırsız gibi davranır)
+      const normalizedModules: Record<string, any> = { ...form.modules }
+      if (normalizedModules.marketplace?.enabled && normalizedModules.marketplace.limit == null) {
+        normalizedModules.marketplace = { ...normalizedModules.marketplace, limit: 1 }
+      }
       const data: any = {
         name: form.name,
         price: parseFloat(form.price),
@@ -119,7 +124,7 @@ export default function SuperPlansPage() {
         ai_credits: Math.round(parseInt(form.ai_credits || '0')),
         is_active: form.is_active,
         hosting: form.hosting,
-        modules: form.modules,
+        modules: normalizedModules,
         ai_scenario_models: form.ai_scenario_models,
       }
       if (form.slug) data.slug = form.slug

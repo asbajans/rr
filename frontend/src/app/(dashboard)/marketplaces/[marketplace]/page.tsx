@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import type { Brand } from '@/lib/types'
-import { RefreshCw, Tag, Download, Settings, ShoppingBag, Store, Package, ArrowLeft, ExternalLink, Globe } from 'lucide-react'
+import { RefreshCw, Tag, Download, Settings, ShoppingBag, Store, Package, ArrowLeft, ExternalLink, Globe, AlertTriangle } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
+import { useQuotaStatus } from '@/lib/quota'
 
 type TabKey = 'brands' | 'import' | 'categories' | 'config'
 
@@ -51,6 +52,7 @@ export default function MarketplaceDetailPage() {
   const [configForm, setConfigForm] = useState<Record<string, string>>({})
   const [savingConfig, setSavingConfig] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { quota } = useQuotaStatus()
 
   const load = useCallback(() => {
     setLoading(true)
@@ -168,8 +170,16 @@ export default function MarketplaceDetailPage() {
     }
   }
 
+  const mpQuota = (quota as any)?.marketplace
+  const isCurrentlyActive = !!integration?.is_active
+  const quotaBlocksActivation = mpQuota && mpQuota.severity === 'exhausted' && !isCurrentlyActive
+
   async function handleSaveConfig(e: React.FormEvent) {
     e.preventDefault()
+    if (quotaBlocksActivation) {
+      setMessage('Pazaryeri limitiniz doldu (aktif: ' + mpQuota.current + '/' + mpQuota.limit + '). Yeni pazaryeri ekleyemezsiniz. Kendi Siteniz bu limite dahil değildir. Planınızı yükseltin.')
+      return
+    }
     setSavingConfig(true)
     setMessage('')
     try {
@@ -177,7 +187,11 @@ export default function MarketplaceDetailPage() {
       setMessage('Ayarlar kaydedildi')
       load()
     } catch (err: any) {
-      setMessage(err.message || 'Kaydetme hatası')
+      if (err?.code === 'PLAN_MARKETPLACE_LIMIT') {
+        setMessage(err.message || 'Pazaryeri limitiniz doldu. Planınızı yükseltin. (Mağaza limiti ile karıştırılmamalı — mağaza limiti kaç mağaza açabileceğinizdir)')
+      } else {
+        setMessage(err.message || 'Kaydetme hatası')
+      }
     } finally {
       setSavingConfig(false)
     }
@@ -201,6 +215,15 @@ export default function MarketplaceDetailPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> Tüm Pazaryerleri
       </button>
 
+      {mpQuota && mpQuota.limit > 0 && (
+        <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${mpQuota.severity === 'exhausted' && !isCurrentlyActive ? 'border-red-300 bg-red-50 text-red-800' : mpQuota.severity !== 'ok' ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}`}>
+          <span className="font-medium">Pazaryeri kotası: {mpQuota.current}/{mpQuota.limit} aktif</span>
+          <span className="ml-2 text-xs opacity-80">Kendi Siteniz dahil değil. Mağaza limiti: {quota?.product.limit ?? '?'} ürün / {quota?.product.limit ? 'ayrı' : ''}</span>
+          {mpQuota.severity === 'exhausted' && !isCurrentlyActive && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white"><AlertTriangle className="h-3 w-3" /> Limit dolu — yeni pazaryeri ekleyemezsiniz</span>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 text-xs font-bold uppercase">

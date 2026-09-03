@@ -207,6 +207,7 @@ export type QuotaSeverity = 'ok' | 'warning' | 'critical' | 'exhausted'
 export type QuotaStatus = {
   product: { kind: 'product'; current: number; limit: number; percentUsed: number; remaining: number; severity: QuotaSeverity }
   credits: { kind: 'credits'; remaining: number; allowance: number; percentRemaining: number; percentUsed: number; severity: QuotaSeverity }
+  marketplace: { kind: 'marketplace'; current: number; limit: number; percentUsed: number; remaining: number; severity: QuotaSeverity }
   nextPlan?: { id: number; name: string; productLimit: number; aiCredits: number; price: number } | null
 }
 

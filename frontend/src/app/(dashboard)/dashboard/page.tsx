@@ -86,15 +86,17 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Quota summary (product + credits) */}
+          {/* Quota summary (product + credits + marketplace) */}
           {data?.quota && (() => {
-            const q = data.quota
+            const q: any = data.quota
             const p = q.product
             const c = q.credits
+            const mp = q.marketplace
             const pColor = p.severity === 'exhausted' ? 'text-red-600' : p.severity === 'critical' ? 'text-amber-600' : p.severity === 'warning' ? 'text-amber-600' : 'text-zinc-900'
             const cColor = c.severity === 'exhausted' ? 'text-red-600' : c.severity === 'critical' ? 'text-amber-600' : c.severity === 'warning' ? 'text-amber-600' : 'text-zinc-900'
+            const mpColor = mp?.severity === 'exhausted' ? 'text-red-600' : mp?.severity === 'critical' ? 'text-amber-600' : mp?.severity === 'warning' ? 'text-amber-600' : 'text-zinc-900'
             return (
-              <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2">
+              <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 <div className={`rounded-xl border p-4 ${p.severity === 'exhausted' ? 'border-red-200 bg-red-50' : p.severity !== 'ok' ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-white'}`}>
                   <p className="text-xs font-medium text-zinc-500">Ürün Kotası</p>
                   <p className={`mt-1 text-lg font-bold ${pColor}`}>{p.current} / {p.limit} <span className="text-xs font-normal text-zinc-500">(%{p.percentUsed})</span></p>
@@ -102,6 +104,20 @@ export default function DashboardPage() {
                     <div className={`h-full rounded-full ${p.severity === 'exhausted' ? 'bg-red-500' : p.severity === 'critical' ? 'bg-amber-500' : p.severity === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, p.percentUsed)}%` }} />
                   </div>
                   {p.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{p.severity === 'exhausted' ? 'Limit doldu — yeni ürün ekleyemezsiniz' : p.severity === 'critical' ? 'Limit dolmak üzere' : 'Limite yaklaşıyorsunuz'} · <a href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</a></p>}
+                </div>
+                <div className={`rounded-xl border p-4 ${mp && mp.limit > 0 ? (mp.severity === 'exhausted' ? 'border-red-200 bg-red-50' : mp.severity !== 'ok' ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-white') : 'border-zinc-200 bg-white'}`}>
+                  <p className="text-xs font-medium text-zinc-500">Pazaryeri Kotası <span className="font-normal normal-case"> (Kendi Siteniz hariç)</span></p>
+                  {mp && mp.limit > 0 ? (
+                    <>
+                      <p className={`mt-1 text-lg font-bold ${mpColor}`}>{mp.current} / {mp.limit} <span className="text-xs font-normal text-zinc-500">(%{mp.percentUsed})</span></p>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                        <div className={`h-full rounded-full ${mp.severity === 'exhausted' ? 'bg-red-500' : mp.severity === 'critical' ? 'bg-amber-500' : mp.severity === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, mp.percentUsed)}%` }} />
+                      </div>
+                      {mp.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{mp.severity === 'exhausted' ? 'Limit doldu — yeni pazaryeri ekleyemezsiniz' : 'Limite yaklaşıyorsunuz'} · <a href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</a></p>}
+                    </>
+                  ) : (
+                    <p className="mt-1 text-sm text-zinc-400">Pazaryeri modülü kapalı</p>
+                  )}
                 </div>
                 <div className={`rounded-xl border p-4 ${c.severity === 'exhausted' ? 'border-red-200 bg-red-50' : c.severity !== 'ok' ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-white'}`}>
                   <p className="text-xs font-medium text-zinc-500">AI Kredisi</p>

@@ -1,14 +1,15 @@
 import { User } from '../../models/User.model.js';
 import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
-import { getPlanForStore, countProductsForStore } from '../plan/access.js';
+import { getPlanForStore, countProductsForStore, getModuleLimit, isModuleEnabled } from '../plan/access.js';
+import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 import { createStoreNotification, sendPushToStore } from '../notification/service.js';
 import { StoreNotification } from '../../models/StoreNotification.model.js';
 import { logger } from '../../utils/logger.js';
 import { Op } from 'sequelize';
 
 export type QuotaSeverity = 'ok' | 'warning' | 'critical' | 'exhausted';
-export type QuotaKind = 'product' | 'credits';
+export type QuotaKind = 'product' | 'credits' | 'marketplace';
 
 export interface ProductQuotaStatus {
   kind: 'product';
@@ -28,9 +29,19 @@ export interface CreditsQuotaStatus {
   severity: QuotaSeverity;
 }
 
+export interface MarketplaceQuotaStatus {
+  kind: 'marketplace';
+  current: number;
+  limit: number;
+  percentUsed: number;
+  remaining: number;
+  severity: QuotaSeverity;
+}
+
 export interface QuotaStatusResponse {
   product: ProductQuotaStatus;
   credits: CreditsQuotaStatus;
+  marketplace: MarketplaceQuotaStatus;
   nextPlan?: { id: number; name: string; productLimit: number; aiCredits: number; price: number } | null;
 }
 
@@ -87,6 +98,26 @@ export async function getProductQuotaStatusDetailed(storeId: number): Promise<Pr
   };
 }
 
+export async function getMarketplaceQuotaStatusDetailed(storeId: number): Promise<MarketplaceQuotaStatus> {
+  const store = await Store.findByPk(storeId);
+  if (!store) return { kind: 'marketplace', current: 0, limit: 0, percentUsed: 0, remaining: 0, severity: 'ok' };
+  const plan = await getPlanForStore(store);
+  if (!plan || !isModuleEnabled(plan as any, 'marketplace' as any)) {
+    return { kind: 'marketplace', current: 0, limit: 0, percentUsed: 0, remaining: 0, severity: 'ok' };
+  }
+  let limit = getModuleLimit(plan as any, 'marketplace' as any);
+  if (limit == null) limit = 1;
+  if (limit <= 0) return { kind: 'marketplace', current: 0, limit: 0, percentUsed: 0, remaining: 0, severity: 'ok' };
+  const current = await MarketplaceIntegration.count({ where: { storeId, isActive: true } });
+  const percentUsed = Math.round((current / limit) * 100);
+  const remaining = Math.max(0, limit - current);
+  let severity: QuotaSeverity = 'ok';
+  if (remaining <= 0 || percentUsed >= 100) severity = 'exhausted';
+  else if (percentUsed >= 90) severity = 'critical';
+  else if (percentUsed >= 80) severity = 'warning';
+  return { kind: 'marketplace', current, limit, percentUsed, remaining, severity };
+}
+
 export async function getCreditsQuotaStatusDetailed(userId: number, storeId: number): Promise<CreditsQuotaStatus> {
   const [user, store] = await Promise.all([User.findByPk(userId), Store.findByPk(storeId)]);
   const remaining = Math.max(0, Number(user?.aiCredits ?? 0));
@@ -118,9 +149,10 @@ export async function getCreditsQuotaStatusDetailed(userId: number, storeId: num
 }
 
 export async function getQuotaStatus(userId: number, storeId: number): Promise<QuotaStatusResponse> {
-  const [product, credits] = await Promise.all([
+  const [product, credits, marketplace] = await Promise.all([
     getProductQuotaStatusDetailed(storeId),
     getCreditsQuotaStatusDetailed(userId, storeId),
+    getMarketplaceQuotaStatusDetailed(storeId),
   ]);
   let nextPlan = null;
   try {
@@ -147,7 +179,7 @@ export async function getQuotaStatus(userId: number, storeId: number): Promise<Q
       }
     }
   } catch { /* ignore */ }
-  return { product, credits, nextPlan };
+  return { product, credits, marketplace, nextPlan };
 }
 
 // ---- Notification throttle + creation ----
@@ -165,7 +197,28 @@ async function shouldCreateNotification(storeId: number, kind: QuotaKind, severi
   return !recent;
 }
 
-function quotaNotificationContent(kind: QuotaKind, severity: QuotaSeverity, product: ProductQuotaStatus, credits: CreditsQuotaStatus) {
+function quotaNotificationContent(kind: QuotaKind, severity: QuotaSeverity, product: ProductQuotaStatus, credits: CreditsQuotaStatus, marketplace?: MarketplaceQuotaStatus) {
+  if (kind === 'marketplace' && marketplace) {
+    if (severity === 'exhausted') {
+      return {
+        title: 'Pazaryeri limitiniz doldu',
+        body: `Pazaryeri entegrasyon limitiniz doldu (${marketplace.current}/${marketplace.limit}). Yeni pazaryeri bağlayamazsınız. Kendi Siteniz bu limite dahil değildir.`,
+        data: { kind, severity, current: marketplace.current, limit: marketplace.limit, percentUsed: marketplace.percentUsed, cta: 'upgrade_plan' },
+      };
+    }
+    if (severity === 'critical') {
+      return {
+        title: 'Pazaryeri limitiniz dolmak üzere',
+        body: `Pazaryeri limitinizin %${marketplace.percentUsed}’ini doldurdunuz (${marketplace.current}/${marketplace.limit}).`,
+        data: { kind, severity, current: marketplace.current, limit: marketplace.limit, percentUsed: marketplace.percentUsed, cta: 'upgrade_plan' },
+      };
+    }
+    return {
+      title: 'Pazaryeri limitine yaklaşıyorsunuz',
+      body: `Pazaryeri limitinizin %${marketplace.percentUsed}’ini doldurdunuz (${marketplace.current}/${marketplace.limit}).`,
+      data: { kind, severity, current: marketplace.current, limit: marketplace.limit, percentUsed: marketplace.percentUsed, cta: 'upgrade_plan' },
+    };
+  }
   if (kind === 'product') {
     if (severity === 'exhausted') {
       return {
@@ -212,6 +265,7 @@ function quotaNotificationContent(kind: QuotaKind, severity: QuotaSeverity, prod
 export async function checkAndNotifyQuota(storeId: number, userId?: number | null): Promise<void> {
   try {
     const product = await getProductQuotaStatusDetailed(storeId);
+    const marketplace = await getMarketplaceQuotaStatusDetailed(storeId);
     let credits: CreditsQuotaStatus | null = null;
     if (userId) {
       credits = await getCreditsQuotaStatusDetailed(userId, storeId);
@@ -233,6 +287,13 @@ export async function checkAndNotifyQuota(storeId: number, userId?: number | nul
       const notif = await createStoreNotification({ storeId, userId: userId || null, type: `quota_credits_${credits.severity}`, title: content.title, body: content.body, data: content.data as any });
       if (notif) await sendPushToStore(storeId, content.title, content.body, { ...content.data } as any);
       logger.info({ storeId, severity: credits.severity }, 'Quota credits notification created');
+    }
+    // Marketplace notifications
+    if (marketplace.severity !== 'ok' && await shouldCreateNotification(storeId, 'marketplace', marketplace.severity)) {
+      const content = quotaNotificationContent('marketplace', marketplace.severity, product, credits || { remaining: 0, allowance: 0, percentRemaining: 0, percentUsed: 100, kind: 'credits', severity: 'ok' } as any, marketplace);
+      const notif = await createStoreNotification({ storeId, userId: userId || null, type: `quota_marketplace_${marketplace.severity}`, title: content.title, body: content.body, data: content.data as any });
+      if (notif) await sendPushToStore(storeId, content.title, content.body, { ...content.data } as any);
+      logger.info({ storeId, severity: marketplace.severity }, 'Quota marketplace notification created');
     }
   } catch (err) {
     logger.warn({ err, storeId }, 'checkAndNotifyQuota failed (non-fatal)');
