@@ -39,7 +39,8 @@ const navGroups = [
       { href: '/products', labelKey: 'products', icon: Package },
       { href: '/products/merge', labelKey: 'merge', icon: GitMerge },
       { href: '/categories', labelKey: 'categories', icon: FolderTree },
-      { href: '/brands', labelKey: 'brands', icon: Building2 },
+      // brands artık global katalogdan geliyor; satıcı kendi özel markasını ürün formundaki marka seçiciden veya entegrasyon ayarlarından ekleyebilir
+      // { href: '/brands', labelKey: 'brands', icon: Building2 },
       { href: '/variations', labelKey: 'variations', icon: FolderKanban },
       { href: '/stocks', labelKey: 'stocks', icon: Boxes },
       { href: '/feeds', labelKey: 'feeds', icon: Rss },

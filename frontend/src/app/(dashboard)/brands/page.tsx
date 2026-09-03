@@ -35,6 +35,7 @@ function mapBrand(raw: any): Brand {
 export default function BrandsPage() {
   const [tab, setTab] = useState<TabKey>('all')
   const [brands, setBrands] = useState<Brand[]>([])
+  const isSellerView = true // seller nav'dan gizlendi, direkt erişimde bilgilendirme göster
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -116,10 +117,13 @@ export default function BrandsPage() {
 
   return (
     <div>
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <strong>Not:</strong> Pazaryeri markaları artık <strong>global katalog</strong>dan otomatik geliyor. Satıcıların manuel marka indirmesine gerek yok — entegrasyonu aktif olan ilk satıcının verisiyle sistem global tabloyu günde bir doldurur, tüm satıcılar oradan okur. Kendi özel markanızı eklemek isterseniz aşağıdaki “Marka Ekle” ile <em>manuel</em> kayıt oluşturabilirsiniz (per-store custom, global’e yazılmaz).
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Markalar</h1>
-          <p className="mt-1 text-sm text-zinc-600">Pazaryeri markalarını yönetin veya senkronize edin.</p>
+          <h1 className="text-2xl font-bold text-zinc-900">Markalar (Özel)</h1>
+          <p className="mt-1 text-sm text-zinc-600">Global pazaryeri markaları ürün formunda otomatik listelenir; burası sadece kendi özel markalarınız içindir.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
