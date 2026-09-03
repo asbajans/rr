@@ -640,6 +640,92 @@ export const startServer = async (): Promise<void> => {
   }, 24 * 60 * 60 * 1000);
   metaTokenTimer.unref?.();
 
+  // Global marketplace catalog sync — daily at 03:00 local, plus on boot if empty
+  const runGlobalCatalogSync = async () => {
+    try {
+      const { syncAllGlobalCatalogs } = await import('./marketplace/globalCatalog.js');
+      const result = await syncAllGlobalCatalogs();
+      logger.info({ result }, 'Global catalog daily sync completed');
+    } catch (err) {
+      logger.error({ err }, 'Global catalog sync failed');
+    }
+  };
+  // On boot, if global tables empty, populate from live (or backfill)
+  setTimeout(async () => {
+    try {
+      const { MarketplaceGlobalCategory, MarketplaceGlobalBrand } = await import('./models/MarketplaceGlobalCatalog.model.js');
+      const catCount = await (MarketplaceGlobalCategory as any).count();
+      const brandCount = await (MarketplaceGlobalBrand as any).count();
+      if (catCount === 0 && brandCount === 0) {
+        logger.info('Global catalog empty on boot — attempting backfill from per-store data');
+        // Backfill from per-store distinct categories/brands (security: dedup, no storeId leak)
+        try {
+          const { Category } = await import('./models/Category.model.js');
+          const { Brand } = await import('./models/Brand.model.js');
+          const { Op } = await import('sequelize');
+          // Distinct per-store marketplace categories
+          const rows: any[] = await (Category as any).findAll({
+            where: { source: { [Op.ne]: null as any } },
+            attributes: ['source', 'marketplaceCategoryId', 'name', 'parentId', 'createdAt'],
+            raw: true,
+          });
+          const seenCats = new Map<string, any>();
+          for (const r of rows) {
+            const key = `${r.source}:${r.marketplaceCategoryId}`;
+            if (!seenCats.has(key)) seenCats.set(key, r);
+          }
+          for (const [, v] of seenCats) {
+            try {
+              await (MarketplaceGlobalCategory as any).findOrCreate({
+                where: { marketplace: v.source, marketplaceCategoryId: String(v.marketplaceCategoryId) },
+                defaults: {
+                  marketplace: v.source,
+                  marketplaceCategoryId: String(v.marketplaceCategoryId),
+                  name: typeof v.name === 'object' ? (v.name.tr || v.name.en || String(v.name)) : String(v.name || ''),
+                  parentId: v.parentId ? String(v.parentId) : null,
+                  level: 0,
+                  path: typeof v.name === 'object' ? (v.name.tr || '') : String(v.name || ''),
+                  sourceStoreId: null,
+                } as any,
+              });
+            } catch {}
+          }
+          const brandRows: any[] = await (Brand as any).findAll({
+            where: { marketplace: { [Op.ne]: null as any } },
+            attributes: ['marketplace', 'marketplaceBrandId', 'name'],
+            raw: true,
+          });
+          const seenBrands = new Map<string, any>();
+          for (const r of brandRows) {
+            const key = `${r.marketplace}:${r.marketplaceBrandId || r.name}`;
+            if (!seenBrands.has(key)) seenBrands.set(key, r);
+          }
+          for (const [, v] of seenBrands) {
+            try {
+              await (MarketplaceGlobalBrand as any).findOrCreate({
+                where: { marketplace: v.marketplace, marketplaceBrandId: String(v.marketplaceBrandId || v.name) },
+                defaults: {
+                  marketplace: v.marketplace,
+                  marketplaceBrandId: String(v.marketplaceBrandId || v.name),
+                  name: String(v.name),
+                  sourceStoreId: null,
+                } as any,
+              });
+            } catch {}
+          }
+          logger.info({ cats: seenCats.size, brands: seenBrands.size }, 'Global catalog backfilled from per-store data');
+        } catch (e: any) {
+          logger.warn({ err: e.message }, 'Global catalog backfill failed');
+        }
+      }
+      // Then try live sync (uses fallback chain over active integrations)
+      await runGlobalCatalogSync();
+    } catch {}
+  }, 30 * 1000);
+  // Daily 24h interval
+  const globalCatalogTimer = setInterval(runGlobalCatalogSync, 24 * 60 * 60 * 1000);
+  globalCatalogTimer.unref?.();
+
   // Start BullMQ workers
   logger.info('Starting marketplace workers...');
   try {

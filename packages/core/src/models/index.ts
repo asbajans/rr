@@ -22,3 +22,4 @@ export { StoreMenu } from './Menu.model.js';
 export { Brand } from './Brand.model.js';
 export { AiProductSession } from './AiProductSession.model.js';
 export { AiProductDraft } from './AiProductDraft.model.js';
+export { MarketplaceGlobalCategory, MarketplaceGlobalBrand, MarketplaceGlobalCategoryAttribute } from './MarketplaceGlobalCatalog.model.js';

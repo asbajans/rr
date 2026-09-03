@@ -93,7 +93,53 @@ function buildCategoryTree(rows: any[]): any[] {
 categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { flat, isActive, source } = req.query;
+    const { flat, isActive, source } = req.query as any;
+
+    // Global marketplace catalog: if source is a marketplace and store has active integration, serve from global table
+    if (source && typeof source === 'string' && ['trendyol','hepsiburada','pazarama','n11','amazon','etsy','facebook','instagram'].includes(source)) {
+      const hasIntegration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: source, isActive: true } });
+      if (hasIntegration) {
+        const { MarketplaceGlobalCategory } = await import('../../models/MarketplaceGlobalCatalog.model.js');
+        const whereG: any = { marketplace: source };
+        // isActive filter maps to global always active; ignore
+        const rows = await (MarketplaceGlobalCategory as any).findAll({ where: whereG, order: [['level','ASC'], ['name','ASC']] });
+        // Transform global rows to Category-like shape for backward compat
+        const mapped = rows.map((r: any) => ({
+          id: r.marketplaceCategoryId,
+          storeId: null,
+          parentId: r.parentId,
+          slug: `${source}-${r.marketplaceCategoryId}`,
+          name: { tr: r.name, en: r.name },
+          translations: {},
+          icon: null,
+          sortOrder: 0,
+          isActive: true,
+          source,
+          marketplaceCategoryId: r.marketplaceCategoryId,
+          aiAttributes: null,
+          level: r.level,
+          path: r.path,
+          raw: r.raw,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }));
+        if (flat === 'true') {
+          res.json({ categories: mapped, source: 'global' });
+          return;
+        }
+        // Build tree from global
+        const map = new Map<string, any>();
+        const roots: any[] = [];
+        for (const r of mapped) map.set(String(r.marketplaceCategoryId), { ...r, children: [] });
+        for (const r of mapped) {
+          const pid = r.parentId ? String(r.parentId) : null;
+          if (pid && map.has(pid)) map.get(pid).children.push(map.get(String(r.marketplaceCategoryId)));
+          else roots.push(map.get(String(r.marketplaceCategoryId)));
+        }
+        res.json({ categories: roots, source: 'global' });
+        return;
+      }
+    }
 
     const where: any = { storeId: store.id };
     if (isActive !== undefined) where.isActive = isActive === 'true';
@@ -121,7 +167,41 @@ categoryRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: 
 categoryRoutes.get('/tree', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { source } = req.query;
+    const { source } = req.query as any;
+
+    if (source && typeof source === 'string' && ['trendyol','hepsiburada','pazarama','n11','amazon','etsy','facebook','instagram'].includes(source)) {
+      const hasIntegration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: source, isActive: true } });
+      if (hasIntegration) {
+        const { MarketplaceGlobalCategory } = await import('../../models/MarketplaceGlobalCatalog.model.js');
+        const rows = await (MarketplaceGlobalCategory as any).findAll({ where: { marketplace: source }, order: [['level','ASC'], ['name','ASC']] });
+        const mapped = rows.map((r: any) => ({
+          id: r.marketplaceCategoryId,
+          storeId: null,
+          parentId: r.parentId,
+          slug: `${source}-${r.marketplaceCategoryId}`,
+          name: { tr: r.name, en: r.name },
+          translations: {},
+          icon: null,
+          sortOrder: 0,
+          isActive: true,
+          source,
+          marketplaceCategoryId: r.marketplaceCategoryId,
+          level: r.level,
+          path: r.path,
+          children: [] as any[],
+        }));
+        const map = new Map<string, any>();
+        const roots: any[] = [];
+        for (const r of mapped) map.set(String(r.marketplaceCategoryId), { ...r, children: [] });
+        for (const r of mapped) {
+          const pid = r.parentId ? String(r.parentId) : null;
+          if (pid && map.has(pid)) map.get(pid).children.push(map.get(String(r.marketplaceCategoryId)));
+          else roots.push(map.get(String(r.marketplaceCategoryId)));
+        }
+        res.json({ categories: roots.filter((r: any) => r.parentId == null), source: 'global' });
+        return;
+      }
+    }
 
     const where: any = { storeId: store.id, isActive: true };
     if (source !== undefined && source !== '') {

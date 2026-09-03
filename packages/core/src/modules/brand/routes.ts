@@ -23,7 +23,49 @@ const validate = (req: Request, res: Response, next: Function) => {
 brandRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { marketplace, search } = req.query;
+    const { marketplace, search } = req.query as any;
+
+    // If marketplace is specified and store has active integration for it, serve from global catalog + custom per-store brands
+    if (marketplace && typeof marketplace === 'string' && ['trendyol','hepsiburada','pazarama','n11','amazon','etsy'].includes(marketplace)) {
+      const hasIntegration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace, isActive: true } });
+      if (hasIntegration) {
+        const { getGlobalBrands } = await import('../../marketplace/globalCatalog.js');
+        const globalBrands = await getGlobalBrands(marketplace as any, { search: search as string | undefined, limit: 2000 });
+        const custom = await Brand.findAll({ where: { storeId: store.id, marketplace } as any, order: [['name','ASC']] });
+        const seen = new Set<string>(globalBrands.map((b: any) => String(b.name).toLowerCase()));
+        const merged: any[] = globalBrands.map((b: any) => ({
+          id: b.id,
+          name: b.name,
+          marketplace: b.marketplace,
+          marketplaceBrandId: b.marketplaceBrandId,
+          isActive: true,
+          storeId: null,
+          source: 'global',
+        }));
+        for (const c of custom) {
+          const lower = String((c as any).name).toLowerCase();
+          if (seen.has(lower)) continue;
+          if (globalBrands.some((g: any) => String(g.marketplaceBrandId) === String((c as any).marketplaceBrandId))) continue;
+          merged.push({
+            id: (c as any).id,
+            name: (c as any).name,
+            marketplace: (c as any).marketplace,
+            marketplaceBrandId: (c as any).marketplaceBrandId,
+            isActive: (c as any).isActive,
+            storeId: store.id,
+            source: 'custom',
+          });
+        }
+        let filtered = merged;
+        if (search) {
+          const s = String(search).toLowerCase();
+          filtered = merged.filter((b) => String(b.name).toLowerCase().includes(s));
+        }
+        filtered.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        res.json({ brands: filtered });
+        return;
+      }
+    }
 
     const where: any = { storeId: store.id };
     if (marketplace) where.marketplace = marketplace;
@@ -143,6 +185,21 @@ brandRoutes.post('/sync', authMiddleware, requireRole('owner', 'admin'), require
       return res.status(404).json({ error: `No active ${marketplace} integration found` });
     }
 
+    // New global flow: sync to global table using any active integration (fallback chain)
+    try {
+      const { syncGlobalBrands } = await import('../../marketplace/globalCatalog.js');
+      const result = await syncGlobalBrands(marketplace as any);
+      // Also return global brands for immediate UI feedback
+      const { getGlobalBrands } = await import('../../marketplace/globalCatalog.js');
+      const all = await getGlobalBrands(marketplace as any);
+      logger.info(`Global brands synced for ${marketplace}: ${result.synced} via store ${result.sourceStoreId}`);
+      res.json({ brands: all.map((b: any) => ({ id: b.marketplaceBrandId, name: b.name })), imported: result.synced, total: all.length, source: 'global' });
+      return;
+    } catch (e) {
+      logger.warn({ err: e }, 'Global brand sync failed, falling back to per-store');
+    }
+
+    // Fallback legacy per-store sync (kept for resilience)
     const client = createMarketplaceClient(marketplace, integration.config);
 
     let brands: { id: number | string; name: string }[] = [];
@@ -199,7 +256,7 @@ brandRoutes.post('/sync', authMiddleware, requireRole('owner', 'admin'), require
     }
 
     logger.info(`Brands synced from ${marketplace}: ${imported} new, ${brands.length} total`);
-    res.json({ brands, imported, total: brandNamesFromDb.size || brands.length });
+    res.json({ brands, imported, total: brandNamesFromDb.size || brands.length, source: 'per-store' });
   } catch (error) {
     logger.error({ err: error }, 'Sync brands error:');
     res.status(500).json({ error: 'Internal server error' });

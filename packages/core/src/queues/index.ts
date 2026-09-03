@@ -288,12 +288,14 @@ export async function createImportWorker() {
       const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
       const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
 
-      // Sync marketplace categories into local categories table for FK compliance
+      // Sync marketplace categories: per-store for FK + global for shared catalog (non-blocking)
       const categoryIdMap = new Map<string, number>();
       try {
         const { syncMarketplaceCategories } = await import('../marketplace/categorySync.js');
         const map = await syncMarketplaceCategories(marketplace, storeId, () => client.getCategories());
         for (const [k, v] of map) categoryIdMap.set(k, v);
+        // Also ensure global catalog is populated (fallback chain)
+        import('../marketplace/globalCatalog.js').then(m => m.syncGlobalCategories(marketplace as any).catch(() => undefined));
       } catch (e) {
         logger.warn({ err: e }, 'Category sync failed, proceeding without category mapping');
       }

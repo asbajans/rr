@@ -56,6 +56,33 @@ marketplaceRoutes.get('/marketplace-trees', authMiddleware, requireStore, async 
     const trees: Record<string, any[]> = {};
     for (const integration of integrations) {
       const mp = integration.marketplace;
+      // Prefer global catalog (daily synced, shared) — fallback to live per-integration if global empty
+      try {
+        const { getGlobalCategories } = await import('../../marketplace/globalCatalog.js');
+        const globalCats = await getGlobalCategories(mp as any);
+        if (globalCats.length > 0) {
+          const byParent = new Map<string, any[]>();
+          for (const g of globalCats as any[]) {
+            const pid = String(g.parentId ?? '0');
+            if (!byParent.has(pid)) byParent.set(pid, []);
+            byParent.get(pid)!.push(g);
+          }
+          const build = (parentId: string): any[] => {
+            return (byParent.get(parentId) || []).map((r: any) => ({
+              id: r.marketplaceCategoryId,
+              marketplace_category_id: r.marketplaceCategoryId,
+              name: r.name,
+              parent_id: r.parentId,
+              parentId: r.parentId,
+              level: r.level,
+              path: r.path,
+              children: build(String(r.marketplaceCategoryId)),
+            }));
+          };
+          trees[mp] = build('0');
+          continue;
+        }
+      } catch {}
       try {
         const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
         const config = getMarketplaceConfig(mp as any, integration);
@@ -228,6 +255,7 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
       }
     }
 
+    let finalIntegration: any = integration;
     if (integration) {
       await integration.update({
         isActive: isActive !== undefined ? isActive : integration.isActive,
@@ -236,8 +264,9 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
         etsyShippingProfileId: etsyShippingProfileId || integration.etsyShippingProfileId,
         lastSyncAt: new Date(),
       });
+      finalIntegration = integration;
     } else {
-      const newIntegration = await MarketplaceIntegration.create({
+      finalIntegration = await MarketplaceIntegration.create({
         storeId: store.id,
         marketplace,
         isActive: isActive !== undefined ? isActive : true,
@@ -245,11 +274,28 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
         etsyCategoryId: etsyCategoryId || null,
         etsyShippingProfileId: etsyShippingProfileId || null,
       });
-      return res.status(201).json({ integration: newIntegration });
+      // For new integration creation, return early after triggering global sync
+      if (finalIntegration.isActive) {
+        // Non-blocking: ensure global catalog populated via any active integration (fallback chain)
+        import('../../marketplace/globalCatalog.js').then(m => {
+          m.ensureGlobalCatalogFor(marketplace as any).catch(() => undefined);
+          // also trigger full sync in background
+          m.syncGlobalCategories(marketplace as any).catch(() => undefined);
+          m.syncGlobalBrands(marketplace as any).catch(() => undefined);
+        });
+      }
+      return res.status(201).json({ integration: finalIntegration });
+    }
+
+    // If activation happened, ensure global catalog is populated (non-blocking)
+    if (willActivate && !currentlyActive && finalIntegration?.isActive) {
+      import('../../marketplace/globalCatalog.js').then(m => {
+        m.ensureGlobalCatalogFor(marketplace as any).catch(() => undefined);
+      });
     }
 
     logger.info(`Integration updated: ${marketplace} for store ${store.id}`);
-    res.json({ integration });
+    res.json({ integration: finalIntegration });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update integration error');
     res.status(500).json({ error: 'Internal server error' });
@@ -429,12 +475,52 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
       return res.status(400).json({ error: `${marketplace} integration not configured or inactive` });
     }
 
+    // Try global cache first (daily sync, non-blocking fallback)
+    try {
+      const { getGlobalCategories } = await import('../../marketplace/globalCatalog.js');
+      const globalCats = await getGlobalCategories(marketplace as any);
+      if (globalCats.length > 0) {
+        // Return live-like tree: transform global rows to client-expected shape (with children)
+        const byParent = new Map<string, any[]>();
+        for (const g of globalCats as any[]) {
+          const pid = String(g.parentId ?? '0');
+          if (!byParent.has(pid)) byParent.set(pid, []);
+          byParent.get(pid)!.push(g);
+        }
+        const build = (parentId: string): any[] => {
+          return (byParent.get(parentId) || []).map((r: any) => ({
+            id: r.marketplaceCategoryId,
+            marketplace_category_id: r.marketplaceCategoryId,
+            name: r.name,
+            parent_id: r.parentId,
+            parentId: r.parentId,
+            level: r.level,
+            path: r.path,
+            children: build(String(r.marketplaceCategoryId)),
+          }));
+        };
+        const tree = build('0');
+        // If tree empty fallback to live fetch below
+        if (tree.length > 0) {
+          // Trigger background refresh if stale (>24h)
+          const oldest = globalCats.reduce((min: any, c: any) => Math.min(min, new Date((c as any).updatedAt).getTime()), Date.now());
+          if (Date.now() - oldest > 24 * 60 * 60 * 1000) {
+            import('../../marketplace/globalCatalog.js').then(m => m.syncGlobalCategories(marketplace as any).catch(() => undefined));
+          }
+          res.json({ categories: tree, source: 'global' });
+          return;
+        }
+      }
+    } catch { /* fall through to live */ }
+
     const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
     const config = getMarketplaceConfig(marketplace as any, integration);
     const client = createMarketplaceClient(marketplace as any, config);
     const categories = await client.getCategories();
 
-    // Auto-sync into local categories table
+    // Auto-sync into global table (non-blocking, uses fallback chain)
+    import('../../marketplace/globalCatalog.js').then(m => m.syncGlobalCategories(marketplace as any).catch(() => undefined));
+    // Legacy per-store sync kept for rollback period (will be cleaned up)
     try {
       const { syncMarketplaceCategories } = await import('../../marketplace/categorySync.js');
       await syncMarketplaceCategories(marketplace, store.id, () => Promise.resolve(categories));
@@ -442,7 +528,7 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
       logger.warn({ err: syncErr, marketplace }, 'Category sync failed (non-fatal)');
     }
 
-    res.json({ categories });
+    res.json({ categories, source: 'live' });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get marketplace categories error');
     res.status(500).json({ error: 'Internal server error' });
@@ -465,17 +551,39 @@ marketplaceRoutes.get('/:marketplace/categories/:categoryId/attributes', authMid
       return res.status(400).json({ error: `${marketplace} integration not configured or inactive` });
     }
 
+    // 1) Global cache (daily)
+    try {
+      const { getGlobalCategoryAttributes } = await import('../../marketplace/globalCatalog.js');
+      const cached = await getGlobalCategoryAttributes(marketplace as any, String(categoryId));
+      const isFresh = cached && (Date.now() - new Date((cached as any).updatedAt).getTime() < 24 * 60 * 60 * 1000);
+      if (cached && isFresh) {
+        res.json({ attributes: (cached as any).attributes, source: 'global', cached: true });
+        return;
+      }
+    } catch { /* ignore */ }
+
     const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
     const config = getMarketplaceConfig(marketplace as any, integration);
     const client = createMarketplaceClient(marketplace as any, config);
 
     if (typeof client.getCategoryAttributes !== 'function') {
+      // Fallback to global stale if exists
+      try {
+        const { getGlobalCategoryAttributes: getG } = await import('../../marketplace/globalCatalog.js');
+        const stale = await getG(marketplace as any, String(categoryId));
+        if (stale) {
+          res.json({ attributes: (stale as any).attributes, source: 'global', cached: true, stale: true });
+          return;
+        }
+      } catch {}
       return res.status(400).json({ error: `${marketplace} does not support category attributes` });
     }
 
-    const attributes = await client.getCategoryAttributes(Number(categoryId));
+    const attributes = await (client as any).getCategoryAttributes(Number(categoryId) || categoryId);
     logger.info({ marketplace, categoryId, count: attributes?.length, sample: attributes?.[0] }, 'Category attributes fetched');
-    res.json({ attributes });
+    // Cache to global (non-blocking, uses fallback chain internally)
+    import('../../marketplace/globalCatalog.js').then(m => m.syncGlobalCategoryAttributes(marketplace as any, String(categoryId)).catch(() => undefined));
+    res.json({ attributes, source: 'live' });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Get category attributes error');
     res.status(500).json({ error: 'Internal server error' });
