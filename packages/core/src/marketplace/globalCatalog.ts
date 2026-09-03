@@ -111,16 +111,88 @@ export async function syncGlobalCategories(marketplace: MarketplaceType): Promis
 }
 
 export async function syncGlobalBrands(marketplace: MarketplaceType): Promise<{ synced: number; sourceStoreId: number | null }> {
+  // Try live API first (with fallback chain)
   const fetched = await tryWithActiveIntegrations(marketplace, async (client) => {
     if (typeof (client as any).getBrands !== 'function') throw new Error('getBrands not supported');
+    // For Trendyol, loop through paginated brands to get all (size 1000 may not cover all)
+    if (marketplace === 'trendyol' && typeof (client as any).getBrands === 'function') {
+      const all: any[] = [];
+      let page = 0;
+      while (page < 20) {
+        try {
+          // Trendyol API: /brands supports size & page? Try with page param
+          const data = await (client as any).request?.({ method: 'GET', url: '/brands', params: { name: '', size: 1000, page } }).then((r: any) => r.data).catch(() => null);
+          if (data) {
+            const items = data?.brands || data?.content || [];
+            if (!Array.isArray(items) || items.length === 0) break;
+            all.push(...items);
+            if (items.length < 1000) break;
+            page++;
+            continue;
+          }
+        } catch {}
+        // Fallback to single getBrands call
+        const single = await (client as any).getBrands();
+        if (Array.isArray(single)) all.push(...single);
+        break;
+      }
+      if (all.length > 0) return all;
+      return await (client as any).getBrands();
+    }
     return await (client as any).getBrands();
   });
-  if (!fetched) {
-    logger.warn({ marketplace }, 'No active integration succeeded for global brand sync');
-    return { synced: 0, sourceStoreId: null };
+
+  let rawList: any[] = [];
+  let sourceStoreId: number | null = fetched?.sourceStoreId ?? null;
+
+  if (fetched && Array.isArray(fetched.result) && fetched.result.length > 0) {
+    rawList = fetched.result as any[];
+  } else {
+    // Fallback: per-store distinct brands (covers N11 where API returns [] and also Trendyol pagination miss)
+    logger.info({ marketplace }, 'Global brand live fetch empty, falling back to per-store distinct brands');
+    try {
+      const { Brand } = await import('../models/Brand.model.js');
+      const { Product } = await import('../models/Product.model.js');
+      const { Op } = await import('sequelize');
+      const perStoreBrands: any[] = await (Brand as any).findAll({
+        where: { marketplace, marketplaceBrandId: { [Op.ne]: null as any } } as any,
+        attributes: ['marketplaceBrandId', 'name'],
+        raw: true,
+      });
+      const seen = new Map<string, any>();
+      for (const r of perStoreBrands) {
+        const key = String(r.marketplaceBrandId || r.name);
+        if (!seen.has(key)) seen.set(key, { id: r.marketplaceBrandId || r.name, name: r.name });
+      }
+      // Also from product marketplaceConfig
+      const products: any[] = await (Product as any).findAll({
+        attributes: ['marketplaceConfig'],
+        raw: true,
+      });
+      for (const p of products) {
+        const mc = (p as any)?.marketplaceConfig?.[marketplace];
+        if (mc?.brand) {
+          const name = String(mc.brand).trim();
+          const bid = String(mc.brand_id || mc.brandId || name);
+          if (name && !seen.has(bid)) seen.set(bid, { id: bid, name });
+        }
+      }
+      rawList = Array.from(seen.values());
+      if (rawList.length > 0) {
+        logger.info({ marketplace, count: rawList.length }, 'Global brand fallback from per-store data');
+        // sourceStoreId stays as fetched source or null
+      } else if (!fetched) {
+        logger.warn({ marketplace }, 'No active integration and no per-store brands for global brand sync');
+        return { synced: 0, sourceStoreId: null };
+      } else {
+        return { synced: 0, sourceStoreId };
+      }
+    } catch (err: any) {
+      logger.warn({ err: err.message, marketplace }, 'Per-store brand fallback failed');
+      if (!fetched) return { synced: 0, sourceStoreId: null };
+      return { synced: 0, sourceStoreId };
+    }
   }
-  const rawList = fetched.result as any[];
-  if (!Array.isArray(rawList) || rawList.length === 0) return { synced: 0, sourceStoreId: fetched.sourceStoreId };
 
   let synced = 0;
   for (const b of rawList) {
@@ -130,18 +202,18 @@ export async function syncGlobalBrands(marketplace: MarketplaceType): Promise<{ 
     try {
       const [row, created] = await MarketplaceGlobalBrand.findOrCreate({
         where: { marketplace, marketplaceBrandId: bid },
-        defaults: { marketplace, marketplaceBrandId: bid, name, sourceStoreId: fetched.sourceStoreId } as any,
+        defaults: { marketplace, marketplaceBrandId: bid, name, sourceStoreId } as any,
       });
       if (!created && row.name !== name) {
-        await row.update({ name, sourceStoreId: fetched.sourceStoreId } as any);
+        await row.update({ name, sourceStoreId } as any);
       }
       synced++;
     } catch (err: any) {
       logger.warn({ err: err.message, marketplace, brandId: bid }, 'Failed to upsert global brand');
     }
   }
-  logger.info({ marketplace, synced, sourceStoreId: fetched.sourceStoreId }, 'Global brands synced');
-  return { synced, sourceStoreId: fetched.sourceStoreId };
+  logger.info({ marketplace, synced, sourceStoreId }, 'Global brands synced');
+  return { synced, sourceStoreId };
 }
 
 export async function syncGlobalCategoryAttributes(marketplace: MarketplaceType, marketplaceCategoryId: string): Promise<{ synced: boolean; sourceStoreId: number | null }> {
