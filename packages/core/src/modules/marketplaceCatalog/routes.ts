@@ -123,8 +123,9 @@ marketplaceCatalogRoutes.get('/:marketplace/brands', authMiddleware, requireStor
       const s = search.toLowerCase();
       filtered = merged.filter((b) => String(b.name).toLowerCase().includes(s));
     }
+    const total = filtered.length;
     if (limit) filtered = filtered.slice(0, limit);
-    res.json({ brands: filtered, total: filtered.length, global: globalBrands.length, custom: custom.length });
+    res.json({ brands: filtered, total, global: globalBrands.length, custom: custom.length });
   } catch (error) {
     logger.error({ err: error }, 'Global brands error');
     res.status(500).json({ error: 'Internal server error' });
