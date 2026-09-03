@@ -238,6 +238,22 @@ export const createApp = async (): Promise<Express> => {
     // Column may already be nullable.
   }
 
+  // Fix pre-existing global catalog indexes that were created with auto-generated truncated names.
+  // The previous model used @Unique + composite indexes without explicit names, causing duplicate-index
+  // errors on restart. Drop the legacy indexes/constraints if they exist so the new named indexes can be created.
+  try {
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_categories_marketplace_marketplace_category_id"`);
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_categories_marketplace_marketplace_category_"`);
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_categories_marketplaceCategoryId_unique"`);
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_brands_marketplace_marketplace_brand_id"`);
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_category_attributes_marketplace_marketplace_category_id"`);
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_categories_marketplaceCategoryId"`);
+    await sequelize.query(`DROP INDEX IF EXISTS "marketplace_global_categories_marketplaceCategoryId_unique"`);
+    await sequelize.query(`ALTER TABLE "marketplace_global_categories" DROP CONSTRAINT IF EXISTS "marketplace_global_categories_marketplaceCategoryId_key"`);
+    await sequelize.query(`ALTER TABLE "marketplace_global_categories" DROP CONSTRAINT IF EXISTS "marketplace_global_categories_marketplaceCategoryId_unique"`);
+    await sequelize.query(`ALTER TABLE "marketplace_global_brands" DROP CONSTRAINT IF EXISTS "marketplace_global_brands_marketplaceBrandId_key"`);
+  } catch {}
+
   await sequelize.sync({ alter: false });
 
   // Idempotent index creation. On existing databases the model sync above already
