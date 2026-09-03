@@ -184,13 +184,40 @@ export class TrendyolClient extends BaseMarketplaceClient implements Marketplace
   }
 
   async getBrands(search?: string): Promise<{ id: number; name: string }[]> {
-    try {
-      const path = `/brands`;
-      const data = await this.request<any>({ method: 'GET', url: path, params: { name: search || '', size: 1000 } });
-      return data?.brands || data?.content || [];
-    } catch {
-      return [];
+    // Trendyol brand API is paginated (page/size, min 1000 per page). Fetch all pages.
+    // When search is provided, Trendyol's /brands/by-name is more efficient, but we keep list for full sync.
+    if (search) {
+      try {
+        const data = await this.request<any>({ method: 'GET', url: `/brands/by-name`, params: { name: search } });
+        const arr = Array.isArray(data) ? data : data?.brands || data?.content || [];
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        // fallback to list search
+        try {
+          const data = await this.request<any>({ method: 'GET', url: `/brands`, params: { name: search, size: 1000, page: 0 } });
+          return data?.brands || data?.content || [];
+        } catch { return []; }
+      }
     }
+    const all: { id: number; name: string }[] = [];
+    let page = 0;
+    while (page < 100) {
+      try {
+        const data = await this.request<any>({ method: 'GET', url: `/brands`, params: { name: '', size: 1000, page } });
+        const items = data?.brands || data?.content || [];
+        if (!Array.isArray(items) || items.length === 0) break;
+        all.push(...items);
+        const totalPages = data?.totalPages;
+        const totalElements = data?.totalElements;
+        if (typeof totalPages === 'number' && page + 1 >= totalPages) break;
+        if (typeof totalElements === 'number' && all.length >= totalElements) break;
+        if (items.length < 1000) break;
+        page++;
+      } catch {
+        break;
+      }
+    }
+    return all;
   }
 
   async getOrders(params: { startDate?: string; endDate?: string; page?: number; size?: number; status?: string; orderByField?: string; orderByDirection?: string } = {}): Promise<any[]> {

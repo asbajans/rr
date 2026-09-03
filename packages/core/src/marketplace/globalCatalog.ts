@@ -111,34 +111,9 @@ export async function syncGlobalCategories(marketplace: MarketplaceType): Promis
 }
 
 export async function syncGlobalBrands(marketplace: MarketplaceType): Promise<{ synced: number; sourceStoreId: number | null }> {
-  // Try live API first (with fallback chain)
+  // Try live API first (with fallback chain) — Trendyol client's getBrands now paginates internally
   const fetched = await tryWithActiveIntegrations(marketplace, async (client) => {
     if (typeof (client as any).getBrands !== 'function') throw new Error('getBrands not supported');
-    // For Trendyol, loop through paginated brands to get all (size 1000 may not cover all)
-    if (marketplace === 'trendyol' && typeof (client as any).getBrands === 'function') {
-      const all: any[] = [];
-      let page = 0;
-      while (page < 20) {
-        try {
-          // Trendyol API: /brands supports size & page? Try with page param
-          const data = await (client as any).request?.({ method: 'GET', url: '/brands', params: { name: '', size: 1000, page } }).then((r: any) => r.data).catch(() => null);
-          if (data) {
-            const items = data?.brands || data?.content || [];
-            if (!Array.isArray(items) || items.length === 0) break;
-            all.push(...items);
-            if (items.length < 1000) break;
-            page++;
-            continue;
-          }
-        } catch {}
-        // Fallback to single getBrands call
-        const single = await (client as any).getBrands();
-        if (Array.isArray(single)) all.push(...single);
-        break;
-      }
-      if (all.length > 0) return all;
-      return await (client as any).getBrands();
-    }
     return await (client as any).getBrands();
   });
 
