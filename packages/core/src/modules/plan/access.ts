@@ -4,9 +4,11 @@ import { Store } from '../../models/Store.model.js';
 import { Product } from '../../models/Product.model.js';
 import { MarketplaceIntegration } from '../../models/MarketplaceIntegration.model.js';
 
-export const MODULE_DEFINITIONS: Record<string, { label: string }> = {
-  b2b: { label: 'B2B / Beatby' },
-  marketplace: { label: 'Pazaryeri Entegrasyonu' },
+export const MODULE_DEFINITIONS: Record<string, { label: string; description?: string }> = {
+  b2b: { label: 'B2B / Beatby (Eski - uyumluluk)', description: 'Geriye dönük uyumluluk için. Yeni planlarda b2b_request / b2b_supply kullanın.' },
+  b2b_request: { label: 'B2B Talep Etme (Ürün İsteme)', description: 'B2B keşfet, talep oluşturma ve klonlama. Diğer satıcıların B2B’ye açtığı ürünleri talep edebilir.' },
+  b2b_supply: { label: 'B2B Tedarik Etme (Ürün Gönderme)', description: 'Kendi ürünlerini B2B’ye açma. Onaylı tedarikçi başvurusu gerekir.' },
+  marketplace: { label: 'Pazaryeri Entegrasyonu', description: 'Trendyol, Hepsiburada, Pazarama, N11, Amazon, Etsy gibi dış pazaryerleri. Kendi Siteniz bu limite dahil değildir.' },
   ai_product_create: { label: 'AI Ürün Oluşturma' },
   ai_image_generate: { label: 'AI Görsel Üretme' },
   xml_feed: { label: 'XML Feed' },
@@ -56,9 +58,22 @@ export function isModuleEnabled(plan: Plan | null, key: ModuleKey): boolean {
   // If plan has no modules object at all, treat as fully open (legacy plans / default open)
   if (!plan || !plan.modules || Object.keys(plan.modules as object).length === 0) return true;
   const mod = getModuleSettings(plan, key);
+  if (mod) return mod.enabled;
+  // Legacy fallback: old plans only have 'b2b' key → treat as both request/supply
+  if ((key === 'b2b_request' || key === 'b2b_supply') && plan.modules) {
+    const legacy = getModuleSettings(plan, 'b2b' as ModuleKey);
+    if (legacy) return legacy.enabled;
+  }
   // Selected-modules-only: unlisted modules are disabled only when plan explicitly lists some modules
-  if (!mod) return false;
-  return mod.enabled;
+  return false;
+}
+
+export function isB2BRequestEnabled(plan: Plan | null): boolean {
+  return isModuleEnabled(plan, 'b2b_request' as ModuleKey) || isModuleEnabled(plan, 'b2b' as ModuleKey);
+}
+
+export function isB2BSupplyEnabled(plan: Plan | null): boolean {
+  return isModuleEnabled(plan, 'b2b_supply' as ModuleKey) || isModuleEnabled(plan, 'b2b' as ModuleKey);
 }
 
 export function getModuleLimit(plan: Plan | null, key: ModuleKey): number | null {
@@ -119,9 +134,24 @@ export async function assertProductQuota(store: Store): Promise<{ ok: true } | {
 export async function assertMarketplaceQuota(store: Store): Promise<{ ok: true } | { ok: false; limit: number; current: number }> {
   const plan = await getPlanForStore(store);
   if (!plan) return { ok: true };
-  const limit = getModuleLimit(plan, 'marketplace');
-  if (!limit || limit <= 0) return { ok: true }; // limit unset → allow
+  // Marketplace modülü kapalıysa limit kontrolü yapma — requireModule zaten engeller
+  if (!isModuleEnabled(plan, 'marketplace')) return { ok: true };
+  let limit = getModuleLimit(plan, 'marketplace');
+  // Limit tanımlı değilse varsayılan 1 kabul et (UI ile tutarlılık, aksi halde sınırsız gibi davranır)
+  if (limit == null) limit = 1;
+  if (limit <= 0) return { ok: true }; // 0 = sınırsız gibi (özel durum)
+  // Kendi Sitem (storefront) bu sayıya dahil değildir — sadece dış pazaryeri entegrasyonları sayılır
   const current = await MarketplaceIntegration.count({ where: { storeId: store.id, isActive: true } });
   if (current >= limit) return { ok: false, limit, current };
+  return { ok: true };
+}
+
+export async function assertSupplierApproved(store: Store): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { Supplier } = await import('../../models/Supplier.model.js');
+  const supplier = await Supplier.findOne({ where: { storeId: store.id } });
+  if (!supplier) return { ok: false, reason: 'SUPPLIER_NOT_APPLIED' };
+  if (supplier.applicationStatus !== 'approved' || supplier.contractStatus !== 'active') {
+    return { ok: false, reason: supplier.applicationStatus === 'rejected' ? 'SUPPLIER_REJECTED' : 'SUPPLIER_NOT_APPROVED' };
+  }
   return { ok: true };
 }

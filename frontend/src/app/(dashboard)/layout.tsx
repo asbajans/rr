@@ -91,22 +91,27 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { quota } = useQuotaStatus({ poll: true, intervalMs: 60000 })
-  const [gate, setGate] = useState<null | { type: 'product' | 'credits'; current?: number; limit?: number; remaining?: number; allowance?: number; required?: number }>(null)
+  const [gate, setGate] = useState<null | { type: 'product' | 'credits' | 'marketplace' | 'supplier'; current?: number; limit?: number; remaining?: number; allowance?: number; required?: number; message?: string }>(null)
 
-  // Global 402/403 -> gate modal (covers product limit + credits exhausted everywhere)
+  // Global 402/403 -> gate modal (covers product limit + credits + marketplace + supplier)
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as any
       if (!detail) return
       if (detail.code === 'PLAN_PRODUCT_LIMIT') {
-        setGate({ type: 'product', current: detail.data?.current ?? quota?.product.current, limit: detail.data?.limit ?? quota?.product.limit })
+        setGate({ type: 'product', current: detail.data?.current ?? quota?.product.current, limit: detail.data?.limit ?? quota?.product.limit, message: detail.data?.message })
       } else if (detail.code === 'INSUFFICIENT_CREDITS') {
         setGate({
           type: 'credits',
           remaining: detail.data?.credits ?? quota?.credits.remaining,
           allowance: quota?.credits.allowance,
           required: detail.data?.required,
+          message: detail.data?.message,
         })
+      } else if (detail.code === 'PLAN_MARKETPLACE_LIMIT') {
+        setGate({ type: 'marketplace', current: detail.data?.current, limit: detail.data?.limit, message: detail.data?.message })
+      } else if (detail.code === 'SUPPLIER_NOT_APPROVED' || detail.code === 'PLAN_MODULE_DISABLED') {
+        setGate({ type: 'supplier', message: detail.data?.message || detail.data?.error })
       }
     }
     window.addEventListener('quota-gate', handler as EventListener)
@@ -125,7 +130,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const nav = navGroups.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
-      if (item.href === '/b2b' || item.href === '/b2b/requests') return can('b2b')
+      if (item.href === '/b2b' || item.href === '/b2b/requests') return can('b2b_request') || can('b2b') || can('b2b_supply')
       if (item.href === '/blog') return can('blog')
       if (item.href === '/meta-settings' && !(user as any)?.is_admin && (user as any)?.role !== 'superadmin') return false
       return true
@@ -279,6 +284,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           remaining={gate?.remaining}
           allowance={gate?.allowance}
           required={gate?.required}
+          message={gate?.message}
           onClose={() => setGate(null)}
         />
       </div>

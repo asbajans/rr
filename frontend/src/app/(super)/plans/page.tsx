@@ -9,7 +9,9 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 const MODULE_LABELS: Record<string, string> = {
   ai_product_create: 'AI Ürün Oluşturma',
   ai_image_generate: 'AI Görsel Üretme',
-  b2b: 'B2B / Beatby',
+  b2b_request: 'B2B Talep Etme (Ürün İsteme)',
+  b2b_supply: 'B2B Tedarik Etme (Ürün Gönderme)',
+  b2b: 'B2B / Beatby (Eski)',
   marketplace: 'Pazaryeri Entegrasyonu',
   xml_feed: 'XML Feed',
   variations: 'Varyasyonlar',
@@ -18,6 +20,22 @@ const MODULE_LABELS: Record<string, string> = {
   custom_domain: 'Özel Domain',
   shipping: 'Kargo Yönetimi',
   static_pages: 'Statik Sayfalar',
+}
+
+const MODULE_DESCRIPTIONS: Record<string, string> = {
+  ai_product_create: 'AI ile ürün açıklaması ve görsel analizi',
+  ai_image_generate: 'AI ile görsel düzenleme/üretme',
+  b2b_request: 'Diğer satıcıların B2B’ye açtığı ürünleri keşfet, talep et ve klonla',
+  b2b_supply: 'Kendi ürünlerini B2B’ye açma — tedarikçi başvurusu onaylı olmalı',
+  b2b: 'Eski birleşik B2B anahtarı (geriye dönük uyumluluk)',
+  marketplace: 'Dış pazaryerleri (Trendyol, N11, HB, Pazarama, Amazon, Etsy). Kendi Siteniz bu limite dahil DEĞİLDİR.',
+  xml_feed: 'Harici feed ile toplu ürün içe aktarma',
+  variations: 'Ürün varyantları',
+  blog: 'Blog modülü',
+  blog_generation: 'AI ile blog yazısı üretme',
+  custom_domain: 'Özel domain bağlama',
+  shipping: 'Kargo yönetimi',
+  static_pages: 'Statik sayfalar',
 }
 
 interface PlanForm {
@@ -135,13 +153,22 @@ export default function SuperPlansPage() {
   }
 
   function toggleModule(key: string) {
-    setForm(prev => ({
-      ...prev,
-      modules: {
-        ...prev.modules,
-        [key]: { ...prev.modules[key], enabled: !(prev.modules[key]?.enabled ?? false) },
-      },
-    }))
+    setForm(prev => {
+      const currently = prev.modules[key]?.enabled ?? false
+      const nextEnabled = !currently
+      const patch: Record<string, any> = { enabled: nextEnabled }
+      // Marketplace varsayılan limit 1 olmalı, yoksa sınırsız gibi davranır
+      if (nextEnabled && key === 'marketplace' && prev.modules[key]?.limit == null) patch.limit = 1
+      // AI credit cost default
+      if (nextEnabled && ['ai_product_create','ai_image_generate','blog_generation'].includes(key) && prev.modules[key]?.credit_cost == null) patch.credit_cost = 1
+      return {
+        ...prev,
+        modules: {
+          ...prev.modules,
+          [key]: { ...prev.modules[key], ...patch },
+        },
+      }
+    })
   }
 
   function setModuleCredit(key: string, credit_cost: number) {
@@ -189,8 +216,8 @@ export default function SuperPlansPage() {
               <p className="mt-3 text-2xl font-bold text-white">{(plan.price ?? 0).toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">₺/ay</span></p>
               <div className="mt-3 space-y-1 text-xs text-zinc-400">
                 <p>Yayınlama: <span className="text-zinc-300">{HOSTING_LABELS[plan.hosting] ?? plan.hosting}</span></p>
-                <p>AI Kredisi: {plan.ai_credits === -1 ? 'Sınırsız' : (plan.ai_credits ?? 0).toLocaleString('tr-TR')}</p>
-                <p>Ürün Limiti: {plan.product_limit === -1 ? 'Sınırsız' : (plan.product_limit ?? 0).toLocaleString('tr-TR')}</p>
+                <p>AI Kredisi: {(plan.ai_credits ?? 0).toLocaleString('tr-TR')}</p>
+                <p>Ürün Limiti: {(plan.product_limit ?? 0).toLocaleString('tr-TR')} · Mağaza Limiti: {(plan.store_limit ?? 1).toLocaleString('tr-TR')}</p>
                 {plan.modules && Object.entries(plan.modules).filter(([, v]) => v.enabled).map(([k]) => (
                   <p key={k} className="text-green-400">✓ {MODULE_LABELS[k] || k}{'credit_cost' in (plan.modules?.[k] || {}) ? ` (${(plan.modules?.[k] as any)?.credit_cost} kredi)` : ''}</p>
                 ))}
@@ -248,14 +275,16 @@ export default function SuperPlansPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400">Ürün Limiti (-1 = sınırsız)</label>
-                  <input type="number" value={form.product_limit} onChange={e => setForm({ ...form, product_limit: e.target.value })}
+                  <label className="block text-xs font-medium text-zinc-400">Ürün Limiti</label>
+                  <input type="number" min="0" value={form.product_limit} onChange={e => setForm({ ...form, product_limit: e.target.value })}
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                  <p className="mt-1 text-xs text-zinc-500">Bu planla kaç ürün oluşturulabilir.</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-400">Mağaza Limiti</label>
                   <input type="number" min="1" value={form.store_limit} onChange={e => setForm({ ...form, store_limit: e.target.value })}
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                  <p className="mt-1 text-xs text-zinc-500">Aynı hesapla kaç mağaza açılabilir (multi-store, şu an tek mağaza aktif; ileride geçerli).</p>
                 </div>
               </div>
 
@@ -318,31 +347,37 @@ export default function SuperPlansPage() {
               {/* Modules */}
               <div>
                 <label className="block text-sm font-medium text-zinc-400">Modüller</label>
+                <p className="mt-1 text-xs text-zinc-500">Mağaza Limiti = kaç mağaza açılabilir. Pazaryeri Limiti = kaç dış pazaryeri entegrasyonu bağlanabilir (Kendi Siteniz dahil değil).</p>
                 <div className="mt-2 space-y-2">
-                  {Object.entries(MODULE_LABELS).map(([key, label]) => {
+                  {Object.entries(MODULE_LABELS).filter(([k]) => k !== 'b2b').map(([key, label]) => {
                     const mod = form.modules[key] || { enabled: false }
+                    const isLegacy = key === 'b2b'
                     return (
-                      <div key={key} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2">
-                        <label className="flex items-center gap-2 text-sm text-zinc-300">
-                          <input type="checkbox" checked={mod.enabled} onChange={() => toggleModule(key)}
-                            className="rounded border-zinc-600 bg-zinc-800" />
-                          {label}
-                        </label>
-                        {key === 'ai_product_create' || key === 'ai_image_generate' || key === 'blog_generation' ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-zinc-500">Kredi:</span>
-                            <input type="number" min="0" value={mod.credit_cost ?? 1}
-                              onChange={e => setModuleCredit(key, parseInt(e.target.value) || 0)}
-                              className="w-16 rounded border border-zinc-600 bg-zinc-700 px-2 py-1 text-xs text-white" />
-                          </div>
-                        ) : key === 'marketplace' ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-zinc-500">Limit:</span>
-                            <input type="number" min="0" value={mod.limit ?? 1}
-                              onChange={e => setForm(prev => ({ ...prev, modules: { ...prev.modules, [key]: { ...prev.modules[key], enabled: true, limit: parseInt(e.target.value) || 0 } } }))}
-                              className="w-16 rounded border border-zinc-600 bg-zinc-700 px-2 py-1 text-xs text-white" />
-                          </div>
-                        ) : null}
+                      <div key={key} className={`flex flex-col gap-1 rounded-lg border px-3 py-2 ${isLegacy ? 'border-amber-800 bg-amber-950/30' : 'border-zinc-700 bg-zinc-800'}`}>
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 text-sm text-zinc-300">
+                            <input type="checkbox" checked={mod.enabled} onChange={() => toggleModule(key)}
+                              className="rounded border-zinc-600 bg-zinc-800" />
+                            {label}
+                          </label>
+                          {key === 'ai_product_create' || key === 'ai_image_generate' || key === 'blog_generation' ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-zinc-500">Kredi:</span>
+                              <input type="number" min="0" value={mod.credit_cost ?? 1}
+                                onChange={e => setModuleCredit(key, parseInt(e.target.value) || 0)}
+                                className="w-16 rounded border border-zinc-600 bg-zinc-700 px-2 py-1 text-xs text-white" />
+                            </div>
+                          ) : key === 'marketplace' ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-zinc-500">Limit:</span>
+                              <input type="number" min="1" value={mod.limit ?? 1}
+                                onChange={e => setForm(prev => ({ ...prev, modules: { ...prev.modules, [key]: { ...prev.modules[key], enabled: true, limit: Math.max(1, parseInt(e.target.value) || 1) } } }))}
+                                className="w-16 rounded border border-zinc-600 bg-zinc-700 px-2 py-1 text-xs text-white" />
+                            </div>
+                          ) : null}
+                        </div>
+                        {MODULE_DESCRIPTIONS[key] && <p className="ml-6 text-xs text-zinc-500">{MODULE_DESCRIPTIONS[key]}</p>}
+                        {key === 'b2b_supply' && mod.enabled && <p className="ml-6 text-xs text-amber-400">Not: Ürün gönderebilmek için tedarikçi başvurusunun onaylı olması gerekir.</p>}
                       </div>
                     )
                   })}

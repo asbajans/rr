@@ -268,7 +268,7 @@ class ApiClient {
       err.data = error
       err.status = res.status
       // Global gate: exhausted limits -> centralized modal via custom event (layout listens)
-      if (typeof window !== 'undefined' && (error.error === 'PLAN_PRODUCT_LIMIT' || error.error === 'INSUFFICIENT_CREDITS')) {
+      if (typeof window !== 'undefined' && (error.error === 'PLAN_PRODUCT_LIMIT' || error.error === 'INSUFFICIENT_CREDITS' || error.error === 'PLAN_MARKETPLACE_LIMIT' || error.error === 'SUPPLIER_NOT_APPROVED')) {
         try {
           window.dispatchEvent(new CustomEvent('quota-gate', { detail: { code: error.error, data: error } }))
         } catch { /* ignore */ }

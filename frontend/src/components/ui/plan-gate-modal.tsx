@@ -2,7 +2,7 @@
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Coins, Package, ArrowUpRight, X } from 'lucide-react'
 
-type GateType = 'product' | 'credits'
+type GateType = 'product' | 'credits' | 'marketplace' | 'supplier'
 
 export default function PlanGateModal({
   open,
@@ -12,6 +12,7 @@ export default function PlanGateModal({
   remaining,
   allowance,
   required,
+  message,
   onClose,
 }: {
   open: boolean
@@ -21,14 +22,18 @@ export default function PlanGateModal({
   remaining?: number
   allowance?: number
   required?: number
+  message?: string
   onClose: () => void
 }) {
   const router = useRouter()
   if (!open) return null
 
   const isProduct = type === 'product'
-  const title = isProduct ? 'Ürün Limitiniz Doldu' : 'AI Krediniz Yetersiz'
-  const Icon = isProduct ? Package : Coins
+  const isCredits = type === 'credits'
+  const isMarketplace = type === 'marketplace'
+  const isSupplier = type === 'supplier'
+  const title = isProduct ? 'Ürün Limitiniz Doldu' : isCredits ? 'AI Krediniz Yetersiz' : isMarketplace ? 'Pazaryeri Limitiniz Doldu' : 'B2B Yetkiniz Yok'
+  const Icon = isProduct ? Package : isCredits ? Coins : isMarketplace ? Package : AlertTriangle
 
   const productDesc =
     current !== undefined && limit !== undefined
@@ -41,6 +46,13 @@ export default function PlanGateModal({
       : required
         ? `Bu işlem için ${required} kredi gerekiyor ancak yeterli krediniz yok.`
         : 'AI krediniz yetersiz. Devam etmek için kredi almanız veya üst pakete geçmeniz gerekiyor.'
+
+  const marketplaceDesc =
+    current !== undefined && limit !== undefined
+      ? `Pazaryeri entegrasyon limitiniz doldu (${current}/${limit}). Yeni pazaryeri bağlayamazsınız. Kendi Siteniz bu limite dahil değildir.`
+      : message || 'Pazaryeri entegrasyon limitiniz doldu. Daha fazla pazaryeri ekleyemezsiniz.'
+
+  const supplierDesc = message || 'B2B ürün gönderebilmek için tedarikçi başvurunuzun onaylanması gerekiyor. Başvuru yapın ve onay bekleyin.'
 
   const goBilling = (reason: string) => {
     onClose()
@@ -59,9 +71,12 @@ export default function PlanGateModal({
           </span>
           <div className="flex-1">
             <h3 className="text-base font-semibold text-zinc-900">{title}</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">{isProduct ? productDesc : creditsDesc}</p>
-            {!isProduct && required !== undefined && (
+            <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">{isProduct ? productDesc : isCredits ? creditsDesc : isMarketplace ? marketplaceDesc : supplierDesc}</p>
+            {isCredits && required !== undefined && (
               <p className="mt-2 text-xs text-zinc-500">Gereken: {required} kredi · Kalan: {remaining ?? 0}</p>
+            )}
+            {(isMarketplace || isSupplier) && current !== undefined && limit !== undefined && (
+              <p className="mt-2 text-xs text-zinc-500">{current}/{limit} — plan limitiniz</p>
             )}
           </div>
         </div>
@@ -69,12 +84,16 @@ export default function PlanGateModal({
         <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
           <span className="inline-flex items-center gap-1.5 font-medium">
             <AlertTriangle className="h-3.5 w-3.5" />
-            {isProduct ? 'Neden engellendi?' : 'Neden AI çalışmıyor?'}
+            {isProduct ? 'Neden engellendi?' : isCredits ? 'Neden AI çalışmıyor?' : isMarketplace ? 'Neden bağlanamıyor?' : 'Neden gönderilemiyor?'}
           </span>
           <span className="ml-1">
             {isProduct
               ? 'Planınızın ürün kotası dolduğu için ekleme engellendi.'
-              : 'AI krediniz bittiği için tüm AI özellikleri durdu.'}
+              : isCredits
+                ? 'AI krediniz bittiği için tüm AI özellikleri durdu.'
+                : isMarketplace
+                  ? 'Planınızın pazaryeri kotası dolduğu için yeni entegrasyon eklenemedi. Mağaza limiti ile karıştırılmamalı — mağaza limiti kaç mağaza açabileceğinizdir.'
+                  : 'Tedarikçi başvurunuz onaylanmadan B2B’ye ürün gönderemezsiniz; ancak B2B’den talep edebilirsiniz (planınız buna izin veriyorsa).'}
           </span>
         </div>
 
@@ -89,7 +108,7 @@ export default function PlanGateModal({
             >
               Planları Gör <ArrowUpRight className="h-4 w-4" />
             </button>
-          ) : (
+          ) : isCredits ? (
             <>
               <button
                 onClick={() => goBilling('credits')}
@@ -104,8 +123,24 @@ export default function PlanGateModal({
                 Üst Pakete Geç <ArrowUpRight className="h-4 w-4" />
               </button>
             </>
+          ) : isMarketplace ? (
+            <button
+              onClick={() => goBilling('product_limit')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              Planı Yükselt <ArrowUpRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              onClick={() => { onClose(); router.push('/supplier') }}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+            >
+              Tedarikçi Başvurusu <ArrowUpRight className="h-4 w-4" />
+            </button>
           )}
         </div>
+
+
       </div>
     </div>
   )

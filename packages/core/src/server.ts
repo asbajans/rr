@@ -425,12 +425,30 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if plans table/modules column not ready
   }
 
-  // Product policy: the default Free plan must not include the B2B module.
-  // This keeps the seed data honest for existing installs too.
+  // Product policy: the default Free plan must not include B2B modules.
+  // Also migrate legacy single 'b2b' key into split request/supply pair for clarity.
   try {
     await sequelize.query(
       `UPDATE plans SET modules = jsonb_set(modules, '{b2b}', '{"enabled": false}'::jsonb, true) WHERE name = 'Free'`
     );
+    // If a plan still has legacy b2b key, expand to both new keys (unless already present)
+    const { Plan: PlanForMigrate } = await import('./models/Plan.model.js');
+    const allPlans = await PlanForMigrate.findAll();
+    for (const p of allPlans) {
+      const mods: any = (p as any).modules || {};
+      if (mods.b2b && typeof mods.b2b === 'object' && !('b2b_request' in mods) && !('b2b_supply' in mods)) {
+        const enabled = !!mods.b2b.enabled;
+        const next = { ...mods, b2b_request: { enabled }, b2b_supply: { enabled } };
+        await (p as any).update({ modules: next });
+      }
+      // Ensure Free has marketplace limit=1 if missing (fixes phantom unlimited)
+      if (p.name === 'Free') {
+        const m = (p as any).modules || {};
+        if (m.marketplace && m.marketplace.enabled && m.marketplace.limit == null) {
+          await (p as any).update({ modules: { ...m, marketplace: { ...m.marketplace, limit: 1 } } });
+        }
+      }
+    }
   } catch (e) {
     // Ignore if plans table not ready
   }

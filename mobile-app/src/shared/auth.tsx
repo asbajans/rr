@@ -96,15 +96,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const can = useCallback((moduleKey: string): boolean => {
     const modules = store?.plan?.modules as Record<string, unknown> | null | undefined
-    // If plan has no modules config at all, treat as open (legacy / default-enabled)
     if (!modules || Object.keys(modules).length === 0) return true
     const mod = (modules as Record<string, unknown>)[moduleKey]
-    if (mod === undefined || mod === null) return false
-    if (typeof mod === 'boolean') return mod
-    return (mod as { enabled?: boolean }).enabled === true
+    if (mod !== undefined && mod !== null) {
+      if (typeof mod === 'boolean') return mod
+      return (mod as { enabled?: boolean }).enabled === true
+    }
+    if ((moduleKey === 'b2b_request' || moduleKey === 'b2b_supply') && modules) {
+      const legacy = (modules as Record<string, unknown>)['b2b']
+      if (legacy !== undefined && legacy !== null) {
+        if (typeof legacy === 'boolean') return legacy
+        return (legacy as { enabled?: boolean }).enabled === true
+      }
+    }
+    return false
   }, [store])
 
-  const productLimit = store?.plan?.product_limit ?? -1
+  const productLimit = store?.plan?.product_limit ?? 0
 
   return (
     <AuthContext.Provider value={{ user, store, token, loading, login, register, googleLogin, logout, refreshMe, can, productLimit }}>

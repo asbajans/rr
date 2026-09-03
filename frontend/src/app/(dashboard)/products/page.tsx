@@ -373,12 +373,26 @@ on_sale: !!md.on_sale,
         await api.createAdminProduct({ ...(payload as any), code: finalCode })
       } else {
         await api.updateAdminProduct(product.id, payload)
-        await api.updateB2bSettings({
-          product_id: product.id,
-          is_b2b_enabled: !!product.b2b_enabled,
-          b2b_discount: product.b2b_discount ?? null,
-          b2b_price: product.b2b_price ?? null,
-        })
+        // B2B supply requires both module and approved supplier — skip if not enabled to avoid PLAN_MODULE_DISABLED on free plans
+        if (can('b2b_supply') || can('b2b')) {
+          try {
+            await api.updateB2bSettings({
+              product_id: product.id,
+              is_b2b_enabled: !!product.b2b_enabled,
+              b2b_discount: product.b2b_discount ?? null,
+              b2b_price: product.b2b_price ?? null,
+            })
+          } catch (b2bErr: any) {
+            // SUPPLIER_NOT_APPROVED should not block product save — show as soft error
+            if (b2bErr?.code === 'SUPPLIER_NOT_APPROVED' || b2bErr?.data?.error === 'SUPPLIER_NOT_APPROVED') {
+              setError('Ürün kaydedildi ancak B2B: ' + (b2bErr.message || 'Tedarikçi başvurunuz onaylanmadan B2B’ye ürün açamazsınız.'))
+            } else if (b2bErr?.code === 'PLAN_MODULE_DISABLED') {
+              // ignore — module disabled
+            } else {
+              throw b2bErr
+            }
+          }
+        }
       }
       setModalOpen(false)
       setCreating(false)
@@ -388,6 +402,9 @@ on_sale: !!md.on_sale,
       }
     } catch (e: any) {
       if (e?.code === 'PLAN_PRODUCT_LIMIT') { setPlanGate({ type: 'product', current: e.data?.current, limit: e.data?.limit }); return }
+      if (e?.code === 'PLAN_MARKETPLACE_LIMIT') { setError(e.data?.message || e.message || 'Pazaryeri entegrasyon limitiniz doldu. Planınızı yükseltin.'); return }
+      if (e?.code === 'SUPPLIER_NOT_APPROVED') { setError(e.message || 'B2B ürün gönderebilmek için tedarikçi başvurunuzun onaylanması gerekiyor.'); return }
+      if (e?.code === 'PLAN_MODULE_DISABLED') { setError(e.message || 'Bu modül planınızda kapalı.'); return }
       if (e?.code === 'INSUFFICIENT_CREDITS') { setPlanGate({ type: 'credits', required: e.data?.required }); return }
       setError(e.message)
     }
