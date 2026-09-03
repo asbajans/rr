@@ -392,9 +392,10 @@ export default function MarketplaceDetailPage() {
                 <div key={key}>
                   <label className="block text-xs font-medium text-zinc-700">{label as string}</label>
                   <input
-                    type={key.includes('secret') || key === 'password' ? 'password' : 'text'}
+                    type={key.includes('secret') || key === 'password' || key === 'token' ? 'password' : 'text'}
                     value={configForm[key] || ''}
                     onChange={e => setConfigForm({ ...configForm, [key]: e.target.value })}
+                    placeholder={key === 'cariId' || key === 'integrationRefCode' || key === 'token' ? 'Opsiyonel' : ''}
                     className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-zinc-900 focus:outline-none"
                   />
                 </div>

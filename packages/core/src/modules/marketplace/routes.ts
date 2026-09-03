@@ -224,6 +224,7 @@ marketplaceRoutes.get('/:marketplace', authMiddleware, requireStore, [
     delete safeConfig.userAccessToken;
     delete safeConfig.pageAccessToken;
     delete safeConfig.appSecret;
+    delete safeConfig.token;
 
     res.json({ integration: { ...integration.toJSON(), config: safeConfig }, marketplace });
   } catch (error: unknown) {
@@ -257,9 +258,19 @@ marketplaceRoutes.put('/:marketplace', authMiddleware, requireRole('owner', 'adm
 
     let finalIntegration: any = integration;
     if (integration) {
+      // For secrets, keep existing if new value is empty string (user didn't re-enter)
+      const mergedConfig: any = { ...(integration.config as any || {}) };
+      if (config && typeof config === 'object') {
+        for (const [k, v] of Object.entries(config as Record<string, any>)) {
+          if (typeof v === 'string' && v.trim() === '' && typeof (integration.config as any)?.[k] === 'string' && (integration.config as any)[k]) {
+            continue; // keep existing secret
+          }
+          mergedConfig[k] = v;
+        }
+      }
       await integration.update({
         isActive: isActive !== undefined ? isActive : integration.isActive,
-        config: { ...integration.config, ...config },
+        config: mergedConfig,
         etsyCategoryId: etsyCategoryId || integration.etsyCategoryId,
         etsyShippingProfileId: etsyShippingProfileId || integration.etsyShippingProfileId,
         lastSyncAt: new Date(),

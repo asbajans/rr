@@ -114,7 +114,7 @@ const MARKETPLACE_LABELS: Record<string, string> = {
 }
 
 const MARKETPLACE_FIELDS: Record<string, Record<string, string>> = {
-  trendyol: { apiKey: 'API Anahtarı', apiSecret: 'API Secret', supplierId: 'Tedarikçi ID' },
+  trendyol: { supplierId: 'Tedarikçi ID (Satıcı ID)', apiKey: 'API Anahtarı', apiSecret: 'API Secret', cariId: 'Cari ID (opsiyonel)', integrationRefCode: 'Entegrasyon Referans Kodu (opsiyonel)', token: 'Token (opsiyonel)' },
   hepsiburada: { username: 'Kullanıcı Adı', password: 'Şifre', merchantId: 'Mağaza ID' },
   pazarama: { clientId: 'Client ID', clientSecret: 'Client Secret', apiKey: 'API Anahtar' },
   n11: { appKey: 'App Key', appSecret: 'App Secret' },

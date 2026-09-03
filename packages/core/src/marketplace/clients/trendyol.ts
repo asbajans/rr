@@ -5,6 +5,10 @@ export interface TrendyolConfig {
   apiKey: string;
   apiSecret: string;
   supplierId: string;
+  // Panelde görünen ek alanlar — entegrasyonda opsiyonel, ileride kargo/fatura servislerinde kullanılabilir
+  cariId?: string;
+  integrationRefCode?: string;
+  token?: string;
 }
 
 interface TrendyolProduct {

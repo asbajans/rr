@@ -51,6 +51,9 @@ export function getMarketplaceConfig(marketplace: MarketplaceType, integration: 
         apiKey: baseConfig.apiKey || process.env.TRENDYOL_API_KEY,
         apiSecret: baseConfig.apiSecret || process.env.TRENDYOL_API_SECRET,
         supplierId: baseConfig.supplierId || process.env.TRENDYOL_SUPPLIER_ID,
+        cariId: baseConfig.cariId || baseConfig.saticiId || undefined,
+        integrationRefCode: baseConfig.integrationRefCode || baseConfig.entegrasyonReferansKodu || undefined,
+        token: baseConfig.token || undefined,
       };
     case 'hepsiburada':
       return {
