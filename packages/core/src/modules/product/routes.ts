@@ -199,6 +199,12 @@ productRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireSt
       }
     }
 
+    // Non-blocking quota check: warn when product limit approaching/exhausted
+    try {
+      const { checkAndNotifyQuota } = await import('../quota/service.js');
+      checkAndNotifyQuota(store.id, user.id).catch(() => undefined);
+    } catch { /* ignore */ }
+
     res.status(201).json({ product });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create product error');
@@ -310,6 +316,12 @@ productRoutes.delete('/:id', authMiddleware, requireRole('owner', 'admin'), requ
 
     await product.destroy();
     logger.info(`Product deleted: ${req.params.id} (store: ${store.id})`);
+    // Re-evaluate quota after deletion (may downgrade severity, no notif but keeps status fresh)
+    try {
+      const { checkAndNotifyQuota } = await import('../quota/service.js');
+      const user = (req as any).user;
+      checkAndNotifyQuota(store.id, user?.id).catch(() => undefined);
+    } catch { /* ignore */ }
     res.json({ success: true });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Delete product error');

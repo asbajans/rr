@@ -241,6 +241,10 @@ class ApiClient {
     return this.put<{ success: boolean; message: string }>(`/api/admin/users/${userId}/password`, { newPassword })
   }
 
+  async getQuotaStatus() {
+    return this.get<import('./types').QuotaStatus>('/api/admin/quota/status')
+  }
+
   // Dashboard
   async getDashboard() {
     const r = await this.get<any>('/api/admin/dashboard')
@@ -258,6 +262,7 @@ class ApiClient {
         : null,
       plan: r.plan || null,
       subscription: r.subscription || null,
+      quota: r.quota || null,
       stats: {
         total_products: r.totalProducts ?? 0,
         active_products: r.activeProducts ?? 0,

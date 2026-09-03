@@ -98,8 +98,9 @@ export async function getProductQuotaStatus(storeId: number): Promise<{ ok: bool
   if (!store) return { ok: true, limit: null, current: 0 };
   const plan = await getPlanForStore(store);
   if (!plan) return { ok: true, limit: null, current: 0 };
-  const limit = Number((plan as any).productLimit ?? plan.productLimit ?? 0);
-  if (limit < 0) return { ok: true, limit, current: 0 };
+  const raw = Number((plan as any).productLimit ?? plan.productLimit ?? 0);
+  // Unlimited (-1) removed: treat <=0 as 0 limit (misconfigured → exhausted if any product exists)
+  const limit = Number.isFinite(raw) && raw > 0 ? raw : 0;
   const current = await countProductsForStore(storeId);
   if (current >= limit) return { ok: false, limit, current };
   return { ok: true, limit, current };
@@ -108,8 +109,8 @@ export async function getProductQuotaStatus(storeId: number): Promise<{ ok: bool
 export async function assertProductQuota(store: Store): Promise<{ ok: true } | { ok: false; limit: number; current: number }> {
   const plan = await getPlanForStore(store);
   if (!plan) return { ok: true };
-  const limit = Number((plan as any).productLimit ?? plan.productLimit ?? 0);
-  if (limit < 0) return { ok: true };
+  const raw = Number((plan as any).productLimit ?? plan.productLimit ?? 0);
+  const limit = Number.isFinite(raw) && raw > 0 ? raw : 0;
   const current = await countProductsForStore(store.id);
   if (current >= limit) return { ok: false, limit, current };
   return { ok: true };

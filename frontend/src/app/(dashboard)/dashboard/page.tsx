@@ -86,6 +86,35 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Quota summary (product + credits) */}
+          {data?.quota && (() => {
+            const q = data.quota
+            const p = q.product
+            const c = q.credits
+            const pColor = p.severity === 'exhausted' ? 'text-red-600' : p.severity === 'critical' ? 'text-amber-600' : p.severity === 'warning' ? 'text-amber-600' : 'text-zinc-900'
+            const cColor = c.severity === 'exhausted' ? 'text-red-600' : c.severity === 'critical' ? 'text-amber-600' : c.severity === 'warning' ? 'text-amber-600' : 'text-zinc-900'
+            return (
+              <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2">
+                <div className={`rounded-xl border p-4 ${p.severity === 'exhausted' ? 'border-red-200 bg-red-50' : p.severity !== 'ok' ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-white'}`}>
+                  <p className="text-xs font-medium text-zinc-500">Ürün Kotası</p>
+                  <p className={`mt-1 text-lg font-bold ${pColor}`}>{p.current} / {p.limit} <span className="text-xs font-normal text-zinc-500">(%{p.percentUsed})</span></p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                    <div className={`h-full rounded-full ${p.severity === 'exhausted' ? 'bg-red-500' : p.severity === 'critical' ? 'bg-amber-500' : p.severity === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, p.percentUsed)}%` }} />
+                  </div>
+                  {p.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{p.severity === 'exhausted' ? 'Limit doldu — yeni ürün ekleyemezsiniz' : p.severity === 'critical' ? 'Limit dolmak üzere' : 'Limite yaklaşıyorsunuz'} · <a href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</a></p>}
+                </div>
+                <div className={`rounded-xl border p-4 ${c.severity === 'exhausted' ? 'border-red-200 bg-red-50' : c.severity !== 'ok' ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-white'}`}>
+                  <p className="text-xs font-medium text-zinc-500">AI Kredisi</p>
+                  <p className={`mt-1 text-lg font-bold ${cColor}`}>{c.remaining} / {c.allowance} <span className="text-xs font-normal text-zinc-500">(%{c.percentRemaining} kalan)</span></p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                    <div className={`h-full rounded-full ${c.severity === 'exhausted' ? 'bg-red-500' : c.severity === 'critical' ? 'bg-amber-500' : c.severity === 'warning' ? 'bg-amber-400' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, 100 - c.percentRemaining)}%` }} />
+                  </div>
+                  {c.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{c.severity === 'exhausted' ? 'Kredi bitti — AI durdu' : c.severity === 'critical' ? 'Kredi kritik' : 'Kredi azalıyor'} · <a href="/billing?reason=credits#credits" className="text-indigo-600 hover:underline">Kredi al</a></p>}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-sm">

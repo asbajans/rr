@@ -289,6 +289,12 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
       { status: response.status }
     );
 
+    // Quota warning after credit deduction
+    try {
+      const { checkAndNotifyQuota } = await import('../quota/service.js');
+      checkAndNotifyQuota(store.id, user.id).catch(() => undefined);
+    } catch { /* ignore */ }
+
     res.json(response.data);
   } catch (error: any) {
     logger.error(
@@ -364,6 +370,10 @@ async function proxyImageGen(req: Request, res: Response, path: string, opts: { 
         { path, bodyKeys: Object.keys(req.body) },
         { status: response.status }
       );
+      try {
+        const { checkAndNotifyQuota } = await import('../quota/service.js');
+        checkAndNotifyQuota(store.id, user.id).catch(() => undefined);
+      } catch { /* ignore */ }
     }
 
     res.status(response.status).json(response.data);

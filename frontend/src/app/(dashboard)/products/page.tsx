@@ -806,20 +806,32 @@ on_sale: !!md.on_sale,
           <p className="text-sm text-gray-500 mt-1">
             {total} ürün bulundu · {activeCount} satışta · Sayfa {page} / {lastPage}
           </p>
-          {productLimit >= 0 && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 w-48 rounded-full bg-gray-200 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${total >= productLimit ? 'bg-red-500' : total / productLimit > 0.8 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                  style={{ width: `${Math.min(100, (total / Math.max(1, productLimit)) * 100)}%` }}
-                />
+          {productLimit > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-48 rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${total >= productLimit ? 'bg-red-500' : total / productLimit > 0.9 ? 'bg-amber-500' : total / productLimit > 0.8 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.min(100, (total / Math.max(1, productLimit)) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-500">{total} / {productLimit} ürün</span>
+                {total >= productLimit ? (
+                  <button onClick={() => setPlanGate({ type: 'product', current: total, limit: productLimit })}
+                    className="text-xs font-medium text-indigo-600 hover:underline">
+                    Planını Yükselt
+                  </button>
+                ) : total / productLimit > 0.8 ? (
+                  <a href="/billing?reason=product_limit#plans" className="text-xs font-medium text-amber-600 hover:underline">
+                    {total / productLimit > 0.9 ? 'Limit dolmak üzere' : 'Limite yaklaşıyorsunuz'} — Planı yükselt
+                  </a>
+                ) : null}
               </div>
-              <span className="text-xs text-gray-500">{total} / {productLimit} ürün</span>
               {total >= productLimit && (
-                <button onClick={() => setPlanGate({ type: 'product', current: total, limit: productLimit })}
-                  className="text-xs font-medium text-indigo-600 hover:underline">
-                  Planını Yükselt
-                </button>
+                <p className="text-xs text-red-600">Ürün limitiniz dolduğu için yeni ürün ekleyemezsiniz. Neden: plan kotası doldu.</p>
+              )}
+              {total < productLimit && total / productLimit > 0.8 && (
+                <p className="text-xs text-amber-600">Ürün limitinizin %{Math.round((total / productLimit) * 100)}’i dolu. Yakında ekleme engellenecek.</p>
               )}
             </div>
           )}

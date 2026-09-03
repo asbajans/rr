@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { Bell, CheckCheck, ShoppingCart, Sparkles, Truck, X } from 'lucide-react'
+import { Bell, CheckCheck, ShoppingCart, Sparkles, Truck, X, AlertTriangle, Coins, Package } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import type { StoreNotification } from '@/lib/types'
 
@@ -10,6 +10,12 @@ const NOTIF_ICONS: Record<string, typeof ShoppingCart> = {
   new_order: ShoppingCart,
   order_status: Truck,
   system: Sparkles,
+  quota_product_warning: Package,
+  quota_product_critical: AlertTriangle,
+  quota_product_exhausted: AlertTriangle,
+  quota_credits_warning: Coins,
+  quota_credits_critical: Coins,
+  quota_credits_exhausted: Coins,
 }
 
 function timeAgo(iso?: string) {
@@ -102,12 +108,15 @@ export default function NotificationBell() {
               <p className="px-3 py-8 text-center text-sm text-zinc-400">Bildirim yok</p>
             ) : (
               notifications.map(n => {
-                const Icon = NOTIF_ICONS[n.type] || Sparkles
+                const Icon = (NOTIF_ICONS[n.type] || (String(n.type).startsWith('quota_') ? AlertTriangle : Sparkles)) as any
                 const orderId = n.data?.orderId
+                const isQuota = String(n.type).startsWith('quota_')
+                const quotaCta = (n.data as any)?.cta
+                const quotaHref = quotaCta === 'buy_credits' ? '/billing?reason=credits#credits' : quotaCta === 'upgrade_plan' ? '/billing?reason=product_limit#plans' : null
                 return (
                   <div key={n.id} onClick={() => markRead(n)}
-                    className={`flex gap-3 border-b border-zinc-50 px-3 py-2.5 ${n.readAt ? '' : 'bg-indigo-50/50'}`}>
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500">
+                    className={`flex gap-3 border-b border-zinc-50 px-3 py-2.5 ${n.readAt ? '' : isQuota ? 'bg-amber-50/60' : 'bg-indigo-50/50'}`}>
+                    <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${isQuota ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-500'}`}>
                       <Icon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -117,6 +126,11 @@ export default function NotificationBell() {
                       {orderId && (
                         <Link href={`/orders/${orderId}`} className="mt-1 inline-block text-xs font-medium text-indigo-600 hover:underline">
                           Siparişi aç
+                        </Link>
+                      )}
+                      {isQuota && quotaHref && (
+                        <Link href={quotaHref} className="mt-1 inline-block text-xs font-medium text-amber-700 hover:underline">
+                          {quotaCta === 'buy_credits' ? 'Kredi al' : 'Planı yükselt'} →
                         </Link>
                       )}
                     </div>

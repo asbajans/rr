@@ -245,6 +245,10 @@ blogRoutes.post('/generate', authMiddleware, requireRole('owner', 'admin'), requ
       { path: '/ai/blog', bodyKeys: Object.keys(req.body) },
       { status: response.status }
     );
+    try {
+      const { checkAndNotifyQuota } = await import('../quota/service.js');
+      checkAndNotifyQuota(store.id, user.id).catch(() => undefined);
+    } catch { /* ignore */ }
 
     res.json(response.data);
   } catch (error: any) {

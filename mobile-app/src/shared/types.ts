@@ -146,6 +146,13 @@ export type Brand = {
   isActive?: boolean
 }
 
+export type QuotaSeverity = 'ok' | 'warning' | 'critical' | 'exhausted'
+export type QuotaStatus = {
+  product: { kind: 'product'; current: number; limit: number; percentUsed: number; remaining: number; severity: QuotaSeverity }
+  credits: { kind: 'credits'; remaining: number; allowance: number; percentRemaining: number; percentUsed: number; severity: QuotaSeverity }
+  nextPlan?: { id: number; name: string; productLimit: number; aiCredits: number; price: number } | null
+}
+
 export type DashboardData = {
   user: User | null
   store: Store | null
@@ -168,6 +175,7 @@ export type DashboardData = {
     active_integrations: number
     low_stock_count: number
   }
+  quota?: QuotaStatus | null
   orderStatusCounts?: Record<string, number>
 }
 

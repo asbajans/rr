@@ -21,7 +21,8 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
 
-  const planLimit = store?.plan?.product_limit ?? -1
+  const planLimit = store?.plan?.product_limit ?? 0
+  const quota = data?.quota || null
 
   async function load() {
     try {
@@ -76,12 +77,43 @@ export default function DashboardScreen() {
         <Text style={styles.langHint}>{t('selectLanguage')}: {LOCALES.find((l) => l.code === locale)?.label}</Text>
       </TouchableOpacity>
 
+      {quota && (quota.product.severity !== 'ok' || quota.credits.severity !== 'ok') && (
+        <View style={styles.quotaBox}>
+          {quota.product.severity !== 'ok' && (
+            <View style={[styles.quotaCard, quota.product.severity === 'exhausted' ? styles.quotaRed : styles.quotaAmber]}>
+              <Ionicons name={quota.product.severity === 'exhausted' ? 'alert-circle' : 'warning-outline'} size={18} color={quota.product.severity === 'exhausted' ? '#dc2626' : '#d97706'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.quotaTitle, quota.product.severity === 'exhausted' ? { color: '#dc2626' } : { color: '#92400e' }]}>
+                  {quota.product.severity === 'exhausted' ? 'Ürün limitiniz doldu' : quota.product.severity === 'critical' ? 'Ürün limitiniz dolmak üzere' : 'Ürün limitine yaklaşıyorsunuz'}
+                </Text>
+                <Text style={styles.quotaBody}>{quota.product.current}/{quota.product.limit} (%{quota.product.percentUsed} dolu){quota.product.severity === 'exhausted' ? ' — Yeni ürün ekleyemezsiniz. Neden: plan kotası doldu.' : ' — Yakında ekleme engellenecek.'}</Text>
+              </View>
+            </View>
+          )}
+          {quota.credits.severity !== 'ok' && (
+            <View style={[styles.quotaCard, quota.credits.severity === 'exhausted' ? styles.quotaRed : styles.quotaAmber]}>
+              <Ionicons name="sparkles-outline" size={18} color={quota.credits.severity === 'exhausted' ? '#dc2626' : '#d97706'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.quotaTitle, quota.credits.severity === 'exhausted' ? { color: '#dc2626' } : { color: '#92400e' }]}>
+                  {quota.credits.severity === 'exhausted' ? 'AI krediniz bitti' : quota.credits.severity === 'critical' ? 'AI krediniz kritik' : 'AI krediniz azalıyor'}
+                </Text>
+                <Text style={styles.quotaBody}>{quota.credits.remaining}/{quota.credits.allowance} kalan (%{quota.credits.percentRemaining} kalan){quota.credits.severity === 'exhausted' ? ' — AI durdu. Kredi alın veya üst pakete geçin.' : ''}</Text>
+              </View>
+            </View>
+          )}
+          <TouchableOpacity style={styles.quotaCta} onPress={() => router.push('/(tabs)/settings')}>
+            <Text style={styles.quotaCtaText}>{quota.product.severity === 'exhausted' ? 'Planı Yükselt' : quota.credits.severity === 'exhausted' ? 'Kredi Al / Planı Yükselt' : 'Planı Gör'} →</Text>
+          </TouchableOpacity>
+          {quota.nextPlan && <Text style={styles.quotaHint}>Öneri: {quota.nextPlan.name} — {quota.nextPlan.productLimit} ürün / {quota.nextPlan.aiCredits} kredi · {quota.nextPlan.price} ₺/ay</Text>}
+        </View>
+      )}
+
       <TouchableOpacity style={styles.planCard} onPress={() => router.push('/(tabs)/billing')}>
         <View style={styles.planLeft}>
           <Text style={styles.planLabel}>{t('currentPlan')}</Text>
           <Text style={styles.planName}>{data?.plan ? data.plan.name : t('planFree')}</Text>
           <Text style={styles.planCredits}>{t('remainingCredits')}: {data?.stats.ai_credits ?? 0}</Text>
-          {planLimit >= 0 && (
+          {planLimit > 0 && (
             <Text style={styles.planCredits}>
               {t('productsLimit')}: {data?.stats.total_products ?? 0}/{planLimit}
             </Text>
@@ -194,6 +226,15 @@ const styles = StyleSheet.create({
   langItemActive: { backgroundColor: '#e8f5e9' },
   langItemText: { fontSize: 16, fontWeight: '600' },
   langItemTextActive: { color: '#059669' },
+  quotaBox: { marginHorizontal: 20, marginTop: 12, gap: 8 },
+  quotaCard: { flexDirection: 'row', gap: 10, borderRadius: 12, padding: 12, borderWidth: 1, alignItems: 'flex-start' },
+  quotaAmber: { backgroundColor: '#fffbeb', borderColor: '#fcd34d' },
+  quotaRed: { backgroundColor: '#fef2f2', borderColor: '#fca5a5' },
+  quotaTitle: { fontSize: 13, fontWeight: '700' },
+  quotaBody: { fontSize: 12, color: '#57534e', marginTop: 2, lineHeight: 16 },
+  quotaCta: { backgroundColor: '#000', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
+  quotaCtaText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  quotaHint: { fontSize: 11, color: '#78716c', marginTop: 4 },
   modalClose: { marginTop: 12, alignItems: 'center', paddingVertical: 12 },
   modalCloseText: { fontSize: 16, color: '#666', fontWeight: '600' },
 })

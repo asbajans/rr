@@ -338,12 +338,12 @@ export default function AiScreen() {
       refreshMe()
       loadDrafts()
     } catch (err: any) {
-      if (err?.code === 'INSUFFICIENT_CREDITS') {
+      if (err?.code === 'INSUFFICIENT_CREDITS' || err?.status === 402) {
         refreshMe()
-        Alert.alert(t('error'), t('insufficientCredits'))
-      } else if (err?.status === 402) {
-        refreshMe()
-        Alert.alert(t('error'), t('insufficientCredits'))
+        Alert.alert(t('error'), `${t('insufficientCredits')}\n\nNeden: AI krediniz bitti. Kredi alın veya üst pakete geçin.`, [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('upgradePlan') || 'Planı Gör', onPress: () => router.push('/(tabs)/settings') },
+        ])
       } else {
         setError(err.message || t('aiSessionFailed'))
       }
@@ -564,7 +564,10 @@ export default function AiScreen() {
       setTimeout(() => resetFlow(), 2000)
     } catch (err: any) {
       if (err?.code === 'PLAN_PRODUCT_LIMIT') {
-        Alert.alert(t('error'), t('productLimitReached'))
+        Alert.alert(t('error'), `${t('productLimitReached')}\n\nNeden: ürün limitiniz doldu. Planınızı yükseltin.`, [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('upgradePlan') || 'Planı Gör', onPress: () => router.push('/(tabs)/settings') },
+        ])
       } else if ((err as any)?.code === 'DRAFT_CHANNEL_VALIDATION_FAILED') {
         setValidation((err as any)?.data?.results || [])
         setError(t('aiChannelMissingFields'))

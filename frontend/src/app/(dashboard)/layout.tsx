@@ -14,6 +14,10 @@ import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import NotificationBell from '@/components/ui/notification-bell'
+import QuotaBanner from '@/components/ui/quota-banner'
+import PlanGateModal from '@/components/ui/plan-gate-modal'
+import { useQuotaStatus } from '@/lib/quota'
+import { api } from '@/lib/api-client'
 
 const navGroups = [
   {
@@ -86,6 +90,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { quota } = useQuotaStatus({ poll: true, intervalMs: 60000 })
+  const [gate, setGate] = useState<null | { type: 'product' | 'credits'; current?: number; limit?: number; remaining?: number; allowance?: number; required?: number }>(null)
+
+  // Global 402/403 -> gate modal (covers product limit + credits exhausted everywhere)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as any
+      if (!detail) return
+      if (detail.code === 'PLAN_PRODUCT_LIMIT') {
+        setGate({ type: 'product', current: detail.data?.current ?? quota?.product.current, limit: detail.data?.limit ?? quota?.product.limit })
+      } else if (detail.code === 'INSUFFICIENT_CREDITS') {
+        setGate({
+          type: 'credits',
+          remaining: detail.data?.credits ?? quota?.credits.remaining,
+          allowance: quota?.credits.allowance,
+          required: detail.data?.required,
+        })
+      }
+    }
+    window.addEventListener('quota-gate', handler as EventListener)
+    return () => window.removeEventListener('quota-gate', handler as EventListener)
+  }, [quota])
+
+  // Also patch api-client to emit event for backward compat pages that throw
+  useEffect(() => {
+    const orig = (api as any)._quotaPatched
+    if (orig) return
+    const prevRequest = (api as any).request?.bind(api)
+    // lightweight monkey-patch via fetch wrapper is not needed; we just listen to thrown errors in pages
+    ;(api as any)._quotaPatched = true
+  }, [])
 
   const nav = navGroups.map((group) => ({
     ...group,
@@ -229,8 +264,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </header>
 
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          {quota && (quota.product.severity !== 'ok' || quota.credits.severity !== 'ok') && (
+            <div className="mb-4">
+              <QuotaBanner quota={quota} />
+            </div>
+          )}
           {children}
         </main>
+        <PlanGateModal
+          open={!!gate}
+          type={gate?.type || 'product'}
+          current={gate?.current}
+          limit={gate?.limit}
+          remaining={gate?.remaining}
+          allowance={gate?.allowance}
+          required={gate?.required}
+          onClose={() => setGate(null)}
+        />
       </div>
     </div>
   )

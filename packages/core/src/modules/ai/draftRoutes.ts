@@ -233,6 +233,10 @@ export async function analyzeAndCreateSession(
       { path: '/ai/agentic-listing', bodyKeys: Object.keys(input) },
       { status: response.status }
     );
+    try {
+      const { checkAndNotifyQuota } = await import('../quota/service.js');
+      checkAndNotifyQuota(store.id, user.id).catch(() => undefined);
+    } catch { /* ignore */ }
 
     return { session, draft };
   } catch (error: any) {

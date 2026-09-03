@@ -435,6 +435,15 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if plans table not ready
   }
 
+  // Unlimited plan removal: any plan with productLimit or aiCredits = -1 → normalize to finite defaults.
+  // Prevents silent infinite quotas now that unlimited is not supported.
+  try {
+    await sequelize.query(`UPDATE plans SET "productLimit" = 5000 WHERE "productLimit" = -1`);
+    await sequelize.query(`UPDATE plans SET "aiCredits" = 2000 WHERE "aiCredits" = -1`);
+  } catch (e) {
+    // Ignore if columns not ready
+  }
+
   // Google OAuth columns (safe migration)
   try {
     await sequelize.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "googleId" VARCHAR(255)`);

@@ -55,6 +55,7 @@ export default function BillingPage() {
   const [buying, setBuying] = useState(false)
   const [message, setMessage] = useState('')
   const [packs, setPacks] = useState<{ credits: number; price: number; popular?: boolean; label?: string }[]>(FALLBACK_PACKS)
+  const [reason, setReason] = useState<string | null>(null)
 
   const loadBilling = useCallback(async () => {
     const [sub, pl] = await Promise.all([api.getSubscription(), api.getPlans()])
@@ -76,9 +77,19 @@ export default function BillingPage() {
   }, [])
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const r = params.get('reason')
+    if (r) setReason(r)
     Promise.all([loadBilling(), loadCredits()])
       .catch(() => setMessage(t('loadFailed')))
       .finally(() => setLoading(false))
+    // Auto-scroll to highlighted section when reason present
+    setTimeout(() => {
+      const hash = window.location.hash
+      if (hash) document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      else if (r === 'credits') document.getElementById('credits')?.scrollIntoView({ behavior: 'smooth' })
+      else if (r === 'product_limit') document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' })
+    }, 400)
   }, [loadBilling, loadCredits])
 
   async function handleSelectPlan(plan: Plan) {
@@ -149,6 +160,16 @@ export default function BillingPage() {
       <h1 className="text-2xl font-bold text-zinc-900">{t('billingTitle')}</h1>
       <p className="mt-1 text-sm text-zinc-600">{t('billingSubtitle')}</p>
 
+      {reason === 'product_limit' && (
+        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="font-semibold">Ürün limitiniz doldu.</span> Yeni ürün ekleyemezsiniz çünkü plan kotanız dolu. Aşağıdan üst pakete geçerek limitinizi artırabilirsiniz.
+        </div>
+      )}
+      {reason === 'credits' && (
+        <div className="mt-4 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+          <span className="font-semibold">AI krediniz bitti.</span> AI ile ürün oluşturma ve görsel üretimi durdu. Aşağıdan kredi paketi alın veya üst pakete geçin.
+        </div>
+      )}
       {message && (
         <div className="mt-4 rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700">{message}</div>
       )}
@@ -200,7 +221,7 @@ export default function BillingPage() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-100 pt-4 text-sm sm:grid-cols-4">
-                <div><span className="text-zinc-500">{t('product')}:</span> {currentPlan.product_limit < 0 ? t('unlimited') : currentPlan.product_limit}</div>
+                <div><span className="text-zinc-500">{t('product')}:</span> {currentPlan.product_limit}</div>
                 <div><span className="text-zinc-500">{t('store')}:</span> {currentPlan.store_limit}</div>
                 <div><span className="text-zinc-500">{t('aiCredits')}:</span> {currentPlan.ai_credits}/ay</div>
                 <div className="flex items-center gap-1">
@@ -221,7 +242,7 @@ export default function BillingPage() {
             </div>
           )}
 
-          <div className="mt-8">
+          <div id="plans" className={`mt-8 rounded-xl p-1 ${reason === 'product_limit' ? 'ring-2 ring-amber-400 bg-amber-50/50' : ''}`}>
             <h2 className="text-lg font-semibold text-zinc-900">{t('availablePlans')}</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {plans.filter(p => p.is_active).map((plan) => (
@@ -240,7 +261,7 @@ export default function BillingPage() {
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">{plan.description}</p>
                   <ul className="mt-4 space-y-2 text-sm text-zinc-600">
-                    <li>✓ {plan.product_limit < 0 ? t('unlimited') : plan.product_limit} {t('productsCount')}</li>
+                    <li>✓ {plan.product_limit} {t('productsCount')}</li>
                     <li>✓ {plan.store_limit} {t('storesCount')}</li>
                     <li>✓ {plan.ai_credits} {t('aiCreditsPerMonth')}</li>
                     {enabledModules(plan).map(m => (
@@ -263,7 +284,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <div className="mt-8">
+          <div id="credits" className={`mt-8 rounded-xl p-1 ${reason === 'credits' ? 'ring-2 ring-indigo-400 bg-indigo-50/50' : ''}`}>
             <h2 className="text-lg font-semibold text-zinc-900">{t('buyCreditsTitle')}</h2>
             <p className="mt-1 text-xs text-zinc-500">Süperadmin tarafından yönetilir — fiyatlar anlık güncellenir.</p>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">

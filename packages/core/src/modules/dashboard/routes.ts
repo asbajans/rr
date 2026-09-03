@@ -87,6 +87,13 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
       // Plan/subscription tables may not exist yet
     }
 
+    // Quota status for banners (non-fatal)
+    let quota: any = null;
+    try {
+      const { getQuotaStatus } = await import('../quota/service.js');
+      quota = await getQuotaStatus(Number(user.id), Number(store.id));
+    } catch { /* ignore */ }
+
     res.json({
       store: {
         id: store.id,
@@ -106,6 +113,7 @@ dashboardRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
       recentOrders,
       lowStockProducts,
       currentCredits: user.aiCredits,
+      quota,
       plan: plan ? {
         id: plan.id,
         name: plan.name,

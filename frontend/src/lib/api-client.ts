@@ -267,6 +267,12 @@ class ApiClient {
       err.code = error.error
       err.data = error
       err.status = res.status
+      // Global gate: exhausted limits -> centralized modal via custom event (layout listens)
+      if (typeof window !== 'undefined' && (error.error === 'PLAN_PRODUCT_LIMIT' || error.error === 'INSUFFICIENT_CREDITS')) {
+        try {
+          window.dispatchEvent(new CustomEvent('quota-gate', { detail: { code: error.error, data: error } }))
+        } catch { /* ignore */ }
+      }
       throw err
     }
 
@@ -368,9 +374,14 @@ class ApiClient {
         active_integrations: r.activeIntegrations ?? 0,
         low_stock_count: r.lowStockCount ?? 0,
       },
+      quota: r.quota || null,
       plan: r.plan || null,
       subscription: r.subscription || null,
     }))
+  }
+
+  getQuotaStatus() {
+    return this.get<import('./types').QuotaStatus>('/api/admin/quota/status')
   }
 
   // Store / Plan / Subscription

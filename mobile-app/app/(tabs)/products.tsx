@@ -224,17 +224,37 @@ export default function ProductsScreen() {
     }
   }
 
+  const productQuotaWarn = productLimit > 0 && total / productLimit > 0.8
+  const productQuotaExhausted = productLimit > 0 && total >= productLimit
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>{t('products')}</Text>
           <Text style={styles.subtitle}>{total} {t('totalProducts')} · {products.filter((x) => x.status === 1).length} {t('onSale')}</Text>
+          {productLimit > 0 && (
+            <Text style={[styles.quotaHint, productQuotaExhausted ? { color: '#dc2626' } : productQuotaWarn ? { color: '#d97706' } : { color: '#666' }]}>
+              {total}/{productLimit} ürün{productQuotaExhausted ? ' — Limit doldu: yeni ürün ekleyemezsiniz' : productQuotaWarn ? ` — %${Math.round((total / productLimit) * 100)} dolu` : ''}
+            </Text>
+          )}
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={onAddProduct}>
           <Text style={styles.addBtnText}>+ {t('addProduct')}</Text>
         </TouchableOpacity>
       </View>
+      {productQuotaExhausted && (
+        <View style={styles.quotaBannerRed}>
+          <Text style={styles.quotaBannerText}>Ürün limitiniz doldu — yeni ürün ekleyemezsiniz. Neden: plan kotası doldu.</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}><Text style={styles.quotaBannerLink}>Planı Yükselt →</Text></TouchableOpacity>
+        </View>
+      )}
+      {productQuotaWarn && !productQuotaExhausted && (
+        <View style={styles.quotaBannerAmber}>
+          <Text style={styles.quotaBannerText}>Ürün limitinizin %{Math.round((total / productLimit) * 100)}’i dolu — yakında ekleme engellenecek.</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}><Text style={styles.quotaBannerLink}>Planı Gör →</Text></TouchableOpacity>
+        </View>
+      )}
 
       {b2bEnabled && (
         <View style={styles.b2bTabs}>
@@ -521,6 +541,7 @@ function ProductModal({
   onSaved: () => void
   t: (k: string) => string
 }) {
+  const router = useRouter()
   const [p, setP] = useState(product)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -620,8 +641,11 @@ function ProductModal({
       if (p.description.trim()) payload.description = p.description.trim()
 
       if (creating) {
-        if (productLimit >= 0 && productCount >= productLimit) {
-          Alert.alert(t('error'), t('productLimitReached'))
+        if (productLimit > 0 && productCount >= productLimit) {
+          Alert.alert(t('error'), `${t('productLimitReached')}\n\nNeden: ürün limitiniz doldu. Planınızı yükseltin.`, [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('upgradePlan') || 'Planı Gör', onPress: () => { onClose(); router.push('/(tabs)/settings') } },
+          ])
           setSaving(false)
           return
         }
@@ -641,7 +665,15 @@ function ProductModal({
       onSaved()
     } catch (e: any) {
       if (e?.code === 'PLAN_PRODUCT_LIMIT' || /product limit|ürün limit/i.test(e?.message || '')) {
-        Alert.alert(t('error'), t('productLimitReached'))
+        Alert.alert(t('error'), `${t('productLimitReached')}\n\nNeden: ürün limitiniz doldu. Planınızı yükseltin.`, [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('upgradePlan') || 'Planı Gör', onPress: () => { onClose(); router.push('/(tabs)/settings') } },
+        ])
+      } else if (e?.code === 'INSUFFICIENT_CREDITS') {
+        Alert.alert(t('error'), `${t('insufficientCredits')}\n\nNeden: AI krediniz bitti.`, [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('upgradePlan') || 'Planı Gör', onPress: () => { onClose(); router.push('/(tabs)/settings') } },
+        ])
       } else {
         Alert.alert(t('error'), e.message)
       }
@@ -952,6 +984,11 @@ const styles = StyleSheet.create({
   b2bTabTextActive: { color: '#fff' },
   cloneNote: { backgroundColor: '#fff8e1', borderWidth: 1, borderColor: '#ffe082', borderRadius: 8, padding: 10, marginBottom: 8 },
   cloneNoteText: { fontSize: 12, color: '#8d6e00' },
+  quotaHint: { fontSize: 11, color: '#666', marginTop: 2 },
+  quotaBannerRed: { marginHorizontal: 16, marginBottom: 8, backgroundColor: '#fef2f2', borderColor: '#fca5a5', borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  quotaBannerAmber: { marginHorizontal: 16, marginBottom: 8, backgroundColor: '#fffbeb', borderColor: '#fcd34d', borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  quotaBannerText: { fontSize: 12, color: '#57534e', flex: 1, lineHeight: 16 },
+  quotaBannerLink: { fontSize: 12, color: '#000', fontWeight: '700' },
   disabledInput: { backgroundColor: '#eee', color: '#999' },
   bulkModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   bulkModal: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
