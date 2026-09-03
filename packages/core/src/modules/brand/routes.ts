@@ -30,7 +30,7 @@ brandRoutes.get('/', authMiddleware, requireStore, async (req: Request, res: Res
       const hasIntegration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace, isActive: true } });
       if (hasIntegration) {
         const { getGlobalBrands } = await import('../../marketplace/globalCatalog.js');
-        const globalBrands = await getGlobalBrands(marketplace as any, { search: search as string | undefined, limit: 2000 });
+        const globalBrands = await getGlobalBrands(marketplace as any, { search: search as string | undefined });
         const custom = await Brand.findAll({ where: { storeId: store.id, marketplace } as any, order: [['name','ASC']] });
         const seen = new Set<string>(globalBrands.map((b: any) => String(b.name).toLowerCase()));
         const merged: any[] = globalBrands.map((b: any) => ({

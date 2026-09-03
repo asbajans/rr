@@ -81,7 +81,8 @@ marketplaceCatalogRoutes.get('/:marketplace/brands', authMiddleware, requireStor
     const search = req.query.search as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
-    const globalBrands = await getGlobalBrands(mp, { search, limit: limit || 2000 });
+    // Fetch all global brands (no limit) for correct total; limit is applied after merge
+    const globalBrands = await getGlobalBrands(mp, { search });
 
     // Also include per-store custom brands (where storeId == current store, marketplace == mp)
     // These are custom brands created manually by seller (marketplaceBrandId may be null or custom)
