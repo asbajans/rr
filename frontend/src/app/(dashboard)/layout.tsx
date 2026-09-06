@@ -9,6 +9,7 @@ import {
   MapPin, Truck, FileText, Camera, Palette, MenuIcon,
   FolderTree, Tag, ChevronLeft, ChevronRight, X, Building2, GitMerge,
   Coins, Wand2, Newspaper, Users, Mail, Boxes, Megaphone, Rocket,
+  LifeBuoy, Star,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { I18nProvider, useI18n, LanguageSwitcher } from '@/lib/i18n'
@@ -78,6 +79,8 @@ const navGroups = [
     items: [
       { href: '/credits', labelKey: 'credits', icon: Coins },
       { href: '/billing', labelKey: 'plan', icon: CreditCard },
+      { href: '/reviews', labelKey: 'reviews', icon: Star },
+      { href: '/support', labelKey: 'support', icon: LifeBuoy },
       { href: '/settings', labelKey: 'settings', icon: Settings },
       { href: '/meta-settings', labelKey: 'metaSettings', icon: Settings },
     ],

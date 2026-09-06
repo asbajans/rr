@@ -174,6 +174,13 @@ export default function StoreLayout({ children }: { children: ReactNode }) {
   const [published, setPublished] = useState(true)
 
   useEffect(() => { captureAttribution() }, [])
+  useEffect(() => {
+    if (!siteCode) return
+    try {
+      const { trackStore } = require('@/lib/analytics')
+      trackStore(siteCode, 'page_view')
+    } catch {}
+  }, [siteCode])
 
   useEffect(() => {
     if (!siteCode) return

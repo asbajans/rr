@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ComponentType } from 'react'
+import { useState, useEffect, type ComponentType } from 'react'
 import Link from 'next/link'
 import {
   Sparkles,
@@ -472,6 +472,9 @@ function Footer({ t }: { t: LandingContent }) {
 export function LandingPage({ initialPlans }: { initialPlans: Plan[] | null }) {
   const [lang, setLang] = useState<Lang>('en')
   const t = LANDING_CONTENT[lang]
+  useEffect(() => {
+    try { const { trackPlatform } = require('@/lib/analytics'); trackPlatform({ path: '/' }) } catch {}
+  }, [])
 
   return (
     <div className="landing min-h-screen bg-background">

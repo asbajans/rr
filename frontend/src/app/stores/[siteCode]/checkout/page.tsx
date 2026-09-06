@@ -123,6 +123,7 @@ export default function CheckoutPage() {
   async function handleSubmit() {
     setProcessing(true)
     setError('')
+    try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'checkout_started') } catch {}
 
     const selectedAddr = selectedAddressId
       ? addresses.find(a => a.id === selectedAddressId)
@@ -173,6 +174,7 @@ export default function CheckoutPage() {
       if (res.totals) setServerTotals(res.totals)
       setStep('done')
       clearCart()
+      try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'purchase', { metadata: { orderId: res.orderId, revenue: res.totals?.totalAmount } }) } catch {}
 
       if (res.requiresPaymentGateway && res.orderToken) {
         sessionStorage.setItem(

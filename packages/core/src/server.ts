@@ -632,6 +632,17 @@ export const startServer = async (): Promise<void> => {
   }, 30 * 60 * 1000);
   lowStockTimer.unref?.();
 
+  // Analytics retention: delete events older than 90 days, daily
+  const analyticsCleanupTimer = setInterval(async () => {
+    try {
+      const { StoreAnalyticsEvent } = await import('./models/StoreAnalyticsEvent.model.js');
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const deleted = await StoreAnalyticsEvent.destroy({ where: { createdAt: { [require('sequelize').Op.lt]: cutoff } } as any });
+      if (deleted > 0) logger.info({ deleted }, 'Analytics old events cleaned');
+    } catch (err) { logger.error({ err }, 'Analytics cleanup failed'); }
+  }, 24 * 60 * 60 * 1000);
+  analyticsCleanupTimer.unref?.();
+
   // Meta long-lived token refresh — daily check, refresh if expires within 7 days (TechProvider)
   const metaTokenTimer = setInterval(async () => {
     try {

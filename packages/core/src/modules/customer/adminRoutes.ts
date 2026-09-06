@@ -32,8 +32,48 @@ adminCommercialRoutes.post('/coupons', async (req, res) => { const store = (req 
 adminCommercialRoutes.put('/coupons/:id', async (req, res) => { const store = (req as any).store; const c = await Coupon.findOne({ where: { id: req.params.id, storeId: store.id } }); if (!c) return res.status(404).json({ error: 'COUPON_NOT_FOUND' }); const allowed = ['campaignId', 'discountType', 'discountValue', 'minimumAmount', 'maxDiscount', 'usageLimit', 'startsAt', 'endsAt', 'isActive']; const patch: any = {}; for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key]; await c.update(patch); res.json({ coupon: c }); });
 adminCommercialRoutes.delete('/coupons/:id', async (req, res) => { const store = (req as any).store; const c = await Coupon.findOne({ where: { id: req.params.id, storeId: store.id } }); if (!c) return res.status(404).json({ error: 'COUPON_NOT_FOUND' }); await c.destroy(); res.json({ ok: true }); });
 
-adminCommercialRoutes.get('/reviews', async (req, res) => { const store = (req as any).store; res.json({ reviews: await CustomerReview.findAll({ where: { storeId: store.id }, order: [['createdAt', 'DESC']] }) }); });
+adminCommercialRoutes.get('/reviews', async (req, res) => {
+  const store = (req as any).store;
+  const where: any = { storeId: store.id };
+  if (req.query.status && ['pending','approved','rejected'].includes(String(req.query.status))) where.status = String(req.query.status);
+  if (req.query.productId) where.productId = parseInt(String(req.query.productId));
+  if (req.query.search) {
+    const s = String(req.query.search).trim();
+    where[Op.or] = [{ title: { [Op.iLike]: `%${s}%` } }, { body: { [Op.iLike]: `%${s}%` } }];
+  }
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+  const offset = (page - 1) * limit;
+  const { count, rows } = await CustomerReview.findAndCountAll({
+    where, order: [['createdAt', 'DESC']], limit, offset,
+    include: [
+      { model: (await import('../../models/Customer.model.js')).Customer as any, as: 'customer', attributes: ['id','name','email'] } as any,
+      { model: (await import('../../models/Product.model.js')).Product as any, as: 'product', attributes: ['id','title','sku','images'] } as any,
+    ].filter(Boolean) as any,
+  }).catch(async () => ({ count: await CustomerReview.count({ where }), rows: await CustomerReview.findAll({ where, order: [['createdAt','DESC']], limit, offset }) } as any));
+  // fallback without include if association missing, then enrich manually
+  let reviews: any[] = rows as any[];
+  if (rows.length && !(rows[0] as any).customer) {
+    try {
+      const { Customer } = await import('../../models/Customer.model.js');
+      const { Product } = await import('../../models/Product.model.js');
+      const cIds = [...new Set(reviews.map(r=>r.customerId))];
+      const pIds = [...new Set(reviews.map(r=>r.productId))];
+      const [customers, products] = await Promise.all([
+        Customer.findAll({ where: { id: cIds as any }, attributes: ['id','name','email'] }),
+        Product.findAll({ where: { id: pIds as any }, attributes: ['id','title','sku','images'] }),
+      ]);
+      const cMap = new Map(customers.map(c=>[(c as any).id, c]));
+      const pMap = new Map(products.map(p=>[(p as any).id, p]));
+      reviews = reviews.map(r=>({ ...r.toJSON(), customer: cMap.get((r as any).customerId) || null, product: pMap.get((r as any).productId) || null }));
+    } catch {}
+  } else {
+    reviews = reviews.map((r:any)=>r.toJSON ? r.toJSON() : r);
+  }
+  res.json({ reviews, total: count, page, limit });
+});
 adminCommercialRoutes.patch('/reviews/:id', async (req, res) => { const store = (req as any).store; const review = await CustomerReview.findOne({ where: { id: req.params.id, storeId: store.id } }); if (!review) return res.status(404).json({ error: 'REVIEW_NOT_FOUND' }); if (!['pending', 'approved', 'rejected'].includes(req.body?.status)) return res.status(400).json({ error: 'INVALID_REVIEW_STATUS' }); await review.update({ status: req.body.status }); res.json({ review }); });
+adminCommercialRoutes.delete('/reviews/:id', async (req, res) => { const store = (req as any).store; const review = await CustomerReview.findOne({ where: { id: req.params.id, storeId: store.id } }); if (!review) return res.status(404).json({ error: 'REVIEW_NOT_FOUND' }); await review.destroy(); res.json({ ok: true }); });
 
 // Customer management
 adminCommercialRoutes.get('/customers', async (req, res) => {

@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth'
 import { CardSkeleton } from '@/components/ui/skeleton'
-import { Megaphone, Share2, Camera, Check, ExternalLink, Sparkles, ShoppingBag, MessageCircle, Mail, TrendingUp, Users, BarChart3, MessageSquare, Trash2, Reply } from 'lucide-react'
+import { Megaphone, Share2, Camera, Check, ExternalLink, Sparkles, ShoppingBag, MessageCircle, Mail, TrendingUp, Users, BarChart3, MessageSquare, Trash2, Reply, Globe } from 'lucide-react'
 import { FlaskConical } from 'lucide-react'
+import SiteStatsPanel from '@/components/marketing/SiteStatsPanel'
 
 type ProductLite = { id: number; title: string; sku: string; images: string[]; priceTRY: number }
 
@@ -254,6 +255,7 @@ export default function MarketingPage() {
   // Section tabs — Test Alanı sadece superadmin
   const allSections = [
     { key: 'publish', label: 'Paylaşım', icon: <Megaphone className="h-4 w-4" /> },
+    { key: 'siteStats', label: 'Site İstatistiği', icon: <Globe className="h-4 w-4" /> },
     { key: 'comments', label: 'Yorum Yönet', icon: <MessageCircle className="h-4 w-4" /> },
     { key: 'messages', label: 'Mesajlar', icon: <Mail className="h-4 w-4" /> },
     { key: 'ads', label: 'Reklamlar', icon: <TrendingUp className="h-4 w-4" /> },
@@ -479,6 +481,8 @@ export default function MarketingPage() {
           </div>
         </div>
       )}
+
+      {activeSection === 'siteStats' && <SiteStatsPanel />}
 
       {/* Test area — sadece superadmin (Meta Ayarları'ndaki inline test asıl yer) */}
       {isSuperAdmin && activeSection === 'test' && (

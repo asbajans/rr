@@ -1,4 +1,4 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt, AllowNull, Default, ForeignKey, Index } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt, AllowNull, Default, ForeignKey, Index, BelongsTo } from 'sequelize-typescript';
 import { Store } from './Store.model.js';
 import { Customer } from './Customer.model.js';
 import { Product } from './Product.model.js';
@@ -17,4 +17,9 @@ export class CustomerReview extends Model {
   @Default('pending') @Column(DataType.STRING(20)) declare status: 'pending' | 'approved' | 'rejected';
   @CreatedAt @Column(DataType.DATE) declare createdAt: Date;
   @UpdatedAt @Column(DataType.DATE) declare updatedAt: Date;
+
+  @BelongsTo(() => Store) declare store: Store;
+  @BelongsTo(() => Customer) declare customer: Customer;
+  @BelongsTo(() => Product) declare product: Product;
+  @BelongsTo(() => DropshippingOrder) declare order: DropshippingOrder;
 }

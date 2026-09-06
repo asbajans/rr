@@ -2227,6 +2227,69 @@ class ApiClient {
     return this.post<{ success: boolean; created: number }>('/api/admin/stocks/check')
   }
 
+  // Support tickets (seller)
+  createSupportTicket(data: { category: 'bug'|'support'|'feedback'; subject: string; message: string; screenshots?: string[] }) {
+    return this.post<{ ticket: any }>('/api/admin/support/tickets', data)
+  }
+  getSupportTickets(params?: { page?: number; limit?: number; status?: string; category?: string; search?: string }) {
+    return this.get<{ tickets: any[]; total: number; page: number; limit: number; totalPages: number }>('/api/admin/support/tickets', { params })
+  }
+  getSupportTicket(code: string) {
+    return this.get<{ ticket: any }>(`/api/admin/support/tickets/${encodeURIComponent(code)}`)
+  }
+  replySupportTicket(code: string, body: string, attachments?: string[]) {
+    return this.post<{ message: any }>(`/api/admin/support/tickets/${encodeURIComponent(code)}/messages`, { body, attachments })
+  }
+  closeSupportTicket(code: string) {
+    return this.post<{ ticket: any }>(`/api/admin/support/tickets/${encodeURIComponent(code)}/close`)
+  }
+  // Superadmin support
+  getSuperSupportTickets(params?: { page?: number; limit?: number; status?: string; category?: string; storeId?: number; search?: string }) {
+    return this.get<{ tickets: any[]; total: number; page: number; limit: number; totalPages: number }>('/api/admin/super/support/tickets', { params })
+  }
+  getSuperSupportTicket(code: string) {
+    return this.get<{ ticket: any }>(`/api/admin/super/support/tickets/${encodeURIComponent(code)}`)
+  }
+  updateSuperSupportTicket(code: string, data: { status?: string; priority?: string; assignedTo?: number|null }) {
+    return this.patch<{ ticket: any }>(`/api/admin/super/support/tickets/${encodeURIComponent(code)}`, data)
+  }
+  replySuperSupportTicket(code: string, body: string, attachments?: string[]) {
+    return this.post<{ message: any }>(`/api/admin/super/support/tickets/${encodeURIComponent(code)}/messages`, { body, attachments })
+  }
+
+  // Analytics (seller store)
+  getSellerAnalytics(params?: { from?: string; to?: string; days?: number }) {
+    return this.get<{ kpi: any; series: any[]; topProducts: any[]; sources: any[]; from: string; to: string }>('/api/admin/analytics/overview', { params })
+  }
+  trackStoreEvent(siteCode: string, data: { eventType: string; path?: string; productId?: number; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; visitorId?: string; metadata?: any }) {
+    return this.post<{ ok: boolean }>(`/api/store/${encodeURIComponent(siteCode)}/track`, data)
+  }
+  trackPlatform(data: { path?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string }) {
+    // fire-and-forget, ignore response
+    try { fetch(`${API_BASE}/api/analytics/platform/track`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true } as any) } catch {}
+    return Promise.resolve({ ok: true } as any)
+  }
+  getSaasAnalytics(params?: { from?: string; to?: string; days?: number }) {
+    return this.get<any>('/api/admin/saas/saas/overview', { params })
+  }
+
+  // Reviews (seller)
+  getReviews(params?: { status?: string; productId?: number; search?: string; page?: number; limit?: number }) {
+    return this.get<{ reviews: any[]; total: number; page: number; limit: number }>('/api/admin/commercial/reviews', { params })
+  }
+  updateReviewStatus(id: number, status: 'pending'|'approved'|'rejected') {
+    return this.patch<{ review: any }>(`/api/admin/commercial/reviews/${id}`, { status })
+  }
+  deleteReview(id: number) {
+    return this.delete<{ ok: boolean }>(`/api/admin/commercial/reviews/${id}`)
+  }
+  getProductReviews(siteCode: string, productId: string|number) {
+    return this.get<{ reviews: any[] }>(`/api/store/${encodeURIComponent(siteCode)}/products/${encodeURIComponent(String(productId))}/reviews`)
+  }
+  createCustomerReview(siteCode: string, data: { productId: number; rating: number; title?: string; body?: string; orderId?: number }) {
+    return this.post<{ review: any }>(`/api/store/${encodeURIComponent(siteCode)}/customer/reviews`, data, { customerAuth: true })
+  }
+
   private download(path: string) {
     const url = new URL(`${API_BASE}${path}`)
     if (this.token) {

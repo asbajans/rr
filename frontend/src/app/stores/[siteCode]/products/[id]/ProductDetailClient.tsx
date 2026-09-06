@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag, Share2, Copy, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag, Share2, Copy, MessageCircle, Star } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import { storeBase } from '@/lib/store-path'
@@ -39,6 +39,15 @@ export default function ProductDetailClient({
   const [zoomImage, setZoomImage] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [reviews, setReviews] = useState<any[]>([])
+  const [avgRating, setAvgRating] = useState(0)
+  const [rating, setRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
+  const [reviewTitle, setReviewTitle] = useState('')
+  const [reviewBody, setReviewBody] = useState('')
+  const [reviewSending, setReviewSending] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+  const [reviewSuccess, setReviewSuccess] = useState('')
 
   useEffect(() => {
     if (initialProduct) return
@@ -61,6 +70,19 @@ export default function ProductDetailClient({
       })
       .catch(() => {})
       .finally(() => setLoadingRecs(false))
+  }, [product, siteCode])
+
+  useEffect(() => {
+    if (!product || !siteCode) return
+    const pid = (product as any)['product.id']
+    if (!pid) return
+    api.getProductReviews(siteCode, pid).then(r=> {
+      const list = r.reviews || []
+      setReviews(list)
+      if (list.length) setAvgRating(list.reduce((s:number, x:any)=>s+Number(x.rating||0),0)/list.length)
+      else setAvgRating(0)
+    }).catch(()=>{})
+    try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'product_view', { productId: Number(pid) }) } catch {}
   }, [product, siteCode])
 
   // Client-side title/meta as fallback (server generateMetadata covers crawlers; this keeps the tab title live on client nav)
@@ -158,6 +180,7 @@ export default function ProductDetailClient({
       image: allImages[0] ?? undefined,
       quantity,
     })
+    try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
   }
@@ -312,12 +335,74 @@ export default function ProductDetailClient({
                 image: allImages[0] ?? undefined,
                 quantity,
               })
+              try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
               router.push(`${storeBase(siteCode)}/cart`)
             }}
             className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             Hemen Al
           </button>
+        </div>
+      </div>
+
+      {/* Reviews */}
+      <div className="mt-12 rounded-xl border border-zinc-200 bg-white p-5">
+        <div className="flex items-center gap-2">
+          <Star className="h-5 w-5 text-amber-400" />
+          <h2 className="text-lg font-semibold text-zinc-900">Yorumlar</h2>
+          {reviews.length>0 && <span className="text-sm text-zinc-500">({reviews.length} yorum · {avgRating.toFixed(1)} / 5)</span>}
+        </div>
+        {reviews.length>0 ? (
+          <div className="mt-4 space-y-3">
+            {reviews.map((rv:any)=>(
+              <div key={rv.id} className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex">{[1,2,3,4,5].map(n=><Star key={n} className={`h-4 w-4 ${n<=rv.rating?'fill-amber-400 text-amber-400':'text-zinc-300'}`} />)}</span>
+                  <span className="text-sm font-medium text-zinc-900">{rv.title || ''}</span>
+                  <span className="text-xs text-zinc-500 ml-auto">{new Date(rv.createdAt).toLocaleDateString('tr-TR')}</span>
+                </div>
+                {rv.body && <p className="mt-1 text-sm text-zinc-700 whitespace-pre-wrap">{rv.body}</p>}
+              </div>
+            ))}
+          </div>
+        ) : <p className="mt-3 text-sm text-zinc-500">Henüz yorum yok. İlk yorumu sen yap!</p>}
+
+        <div className="mt-6 rounded-lg border border-zinc-200 p-4">
+          <h3 className="text-sm font-semibold text-zinc-900">Yorum Yaz</h3>
+          <p className="text-xs text-zinc-500">Yorum yapmak için giriş yapmalısın.</p>
+          <div className="mt-2 flex gap-1">
+            {[1,2,3,4,5].map(n=>(
+              <button key={n} onMouseEnter={()=>setHoverRating(n)} onMouseLeave={()=>setHoverRating(0)} onClick={()=>setRating(n)} className="p-1">
+                <Star className={`h-6 w-6 ${(hoverRating||rating)>=n ? 'fill-amber-400 text-amber-400' : 'text-zinc-300'}`} />
+              </button>
+            ))}
+            <span className="ml-2 text-sm text-zinc-600">{rating? `${rating} / 5` : ''}</span>
+          </div>
+          <input value={reviewTitle} onChange={e=>setReviewTitle(e.target.value)} placeholder="Başlık (opsiyonel)" className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" maxLength={160} />
+          <textarea value={reviewBody} onChange={e=>setReviewBody(e.target.value)} placeholder="Deneyimini paylaş..." rows={3} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" maxLength={2000} />
+          {reviewError && <p className="mt-2 text-sm text-red-600">{reviewError}</p>}
+          {reviewSuccess && <p className="mt-2 text-sm text-green-600">{reviewSuccess}</p>}
+          <button
+            onClick={async ()=>{
+              setReviewError(''); setReviewSuccess('')
+              if (!rating) { setReviewError('Lütfen puan seçin'); return }
+              const token = typeof window!=='undefined'? localStorage.getItem('customer_auth_token') : null
+              if (!token) { setReviewError('Yorum yapmak için lütfen giriş yapın.'); return }
+              setReviewSending(true)
+              try {
+                const pid = Number((product as any)['product.id'])
+                await api.createCustomerReview(siteCode, { productId: pid, rating, title: reviewTitle || undefined, body: reviewBody || undefined })
+                setReviewSuccess('Yorumunuz alındı, onay sonrası görünecek.')
+                setRating(0); setReviewTitle(''); setReviewBody('')
+              } catch(e:any){ setReviewError(e.message || 'Gönderilemedi') }
+              finally { setReviewSending(false)}
+            }}
+            disabled={reviewSending}
+            className="mt-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {reviewSending? 'Gönderiliyor...' : 'Yorumu Gönder'}
+          </button>
+          <Link href={`${storeBase(siteCode)}/account`} className="mt-2 inline-block text-xs text-indigo-600 hover:text-indigo-700">Hesabım — Giriş Yap / Kayıt Ol</Link>
         </div>
       </div>
 

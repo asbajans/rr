@@ -43,6 +43,8 @@ import { stockRoutes } from './modules/stocks/routes.js';
 import { metaWebhookRoutes } from './modules/webhook/metaWebhook.js';
 import { quotaRoutes } from './modules/quota/routes.js';
 import { marketplaceCatalogRoutes } from './modules/marketplaceCatalog/routes.js';
+import { sellerSupportRoutes, superSupportRoutes } from './modules/support/routes.js';
+import { sellerAnalyticsRoutes, saasAnalyticsRoutes, analyticsPublicRoutes, saasBeaconRoutes } from './modules/analytics/routes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -78,6 +80,10 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/quota', quotaRoutes);
   app.use('/api/admin/marketplace-catalog', marketplaceCatalogRoutes);
   app.use('/api/admin/stocks', stockRoutes);
+  app.use('/api/admin/support', sellerSupportRoutes);
+  app.use('/api/admin/super/support', superSupportRoutes);
+  app.use('/api/admin/analytics', sellerAnalyticsRoutes);
+  app.use('/api/admin/saas', saasAnalyticsRoutes);
   app.use('/api/webhooks', metaWebhookRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/ai', draftRoutes);
@@ -90,4 +96,6 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/store', publicAddressRoutes);
   app.use('/api/store', paymentWebhookRoutes);
   app.use('/api/store', customerRoutes);
+  app.use('/api/store', analyticsPublicRoutes);
+  app.use('/api/analytics', saasBeaconRoutes);
 };
