@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Minus, Sparkles, ZoomIn, Tag, Share2, Copy, MessageCir
 import { api } from '@/lib/api-client'
 import { useCart } from '@/lib/cart'
 import { storeBase } from '@/lib/store-path'
+import { trackStore } from '@/lib/analytics'
 import type { StoreProduct } from '@/lib/types'
 
 function sanitizeHtml(html: string): string {
@@ -82,7 +83,7 @@ export default function ProductDetailClient({
       if (list.length) setAvgRating(list.reduce((s:number, x:any)=>s+Number(x.rating||0),0)/list.length)
       else setAvgRating(0)
     }).catch(()=>{})
-    try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'product_view', { productId: Number(pid) }) } catch {}
+    try { trackStore(siteCode, 'product_view', { productId: Number(pid) }) } catch {}
   }, [product, siteCode])
 
   // Client-side title/meta as fallback (server generateMetadata covers crawlers; this keeps the tab title live on client nav)
@@ -180,7 +181,7 @@ export default function ProductDetailClient({
       image: allImages[0] ?? undefined,
       quantity,
     })
-    try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
+    try { trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
   }
@@ -335,7 +336,7 @@ export default function ProductDetailClient({
                 image: allImages[0] ?? undefined,
                 quantity,
               })
-              try { const { trackStore } = require('@/lib/analytics'); trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
+              try { trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
               router.push(`${storeBase(siteCode)}/cart`)
             }}
             className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"

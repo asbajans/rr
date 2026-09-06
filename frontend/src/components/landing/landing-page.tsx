@@ -23,6 +23,7 @@ import { LANDING_CONTENT, LANDING_LANGS, type Lang, type LandingContent } from '
 import type { Plan } from '@/lib/types'
 import { LandingAiDemo } from '@/components/landing/landing-ai-demo'
 import { LandingMarquee } from '@/components/landing/landing-marquee'
+import { trackPlatform } from '@/lib/analytics'
 
 type IconProps = { className?: string }
 const ICONS: Record<string, ComponentType<IconProps>> = {
@@ -473,7 +474,7 @@ export function LandingPage({ initialPlans }: { initialPlans: Plan[] | null }) {
   const [lang, setLang] = useState<Lang>('en')
   const t = LANDING_CONTENT[lang]
   useEffect(() => {
-    try { const { trackPlatform } = require('@/lib/analytics'); trackPlatform({ path: '/' }) } catch {}
+    try { trackPlatform({ path: '/' }) } catch {}
   }, [])
 
   return (

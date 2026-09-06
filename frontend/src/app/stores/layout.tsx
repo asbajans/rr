@@ -13,6 +13,7 @@ import StoreThemeInjector from '@/components/store/StoreTheme'
 import { StoreMenuBar, StoreFooterMenus } from '@/components/store/StoreMenuBar'
 import { api } from '@/lib/api-client'
 import { storeBase } from '@/lib/store-path'
+import { trackStore } from '@/lib/analytics'
 import type { StoreMenu, StoreMenuItem } from '@/lib/types'
 
 function itemUrl(item: StoreMenuItem, siteCode: string, pageSlugs: Map<number, string>): string {
@@ -177,7 +178,6 @@ export default function StoreLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!siteCode) return
     try {
-      const { trackStore } = require('@/lib/analytics')
       trackStore(siteCode, 'page_view')
     } catch {}
   }, [siteCode])
