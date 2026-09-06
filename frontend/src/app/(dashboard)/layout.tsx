@@ -92,15 +92,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { quota } = useQuotaStatus({ poll: true, intervalMs: 60000 })
-  const [gate, setGate] = useState<null | { type: 'product' | 'credits' | 'marketplace' | 'supplier'; current?: number; limit?: number; remaining?: number; allowance?: number; required?: number; message?: string }>(null)
+  const [gate, setGate] = useState<null | { type: 'product' | 'credits' | 'marketplace' | 'supplier' | 'module'; current?: number; limit?: number; remaining?: number; allowance?: number; required?: number; message?: string; module?: string }>(null)
 
-  // Global 402/403 -> gate modal (covers product limit + credits + marketplace + supplier)
+  // Global 402/403 -> gate modal (covers product/credits/marketplace/supplier/module)
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as any
       if (!detail) return
       if (detail.code === 'PLAN_PRODUCT_LIMIT') {
-        setGate({ type: 'product', current: detail.data?.current ?? quota?.product.current, limit: detail.data?.limit ?? quota?.product.limit, message: detail.data?.message })
+        setGate({ type: 'product', current: detail.data?.current ?? quota?.product.current, limit: detail.data?.limit ?? quota?.product.limit, message: detail.data?.message } as any)
       } else if (detail.code === 'INSUFFICIENT_CREDITS') {
         setGate({
           type: 'credits',
@@ -108,11 +108,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           allowance: quota?.credits.allowance,
           required: detail.data?.required,
           message: detail.data?.message,
-        })
+        } as any)
       } else if (detail.code === 'PLAN_MARKETPLACE_LIMIT') {
-        setGate({ type: 'marketplace', current: detail.data?.current, limit: detail.data?.limit, message: detail.data?.message })
-      } else if (detail.code === 'SUPPLIER_NOT_APPROVED' || detail.code === 'PLAN_MODULE_DISABLED') {
-        setGate({ type: 'supplier', message: detail.data?.message || detail.data?.error })
+        setGate({ type: 'marketplace', current: detail.data?.current, limit: detail.data?.limit, message: detail.data?.message } as any)
+      } else if (detail.code === 'SUPPLIER_NOT_APPROVED') {
+        setGate({ type: 'supplier', message: detail.data?.message || detail.data?.error } as any)
+      } else if (detail.code === 'PLAN_MODULE_DISABLED') {
+        const mod = detail.data?.module || detail.data?.data?.module || detail.data?.error
+        // b2b_supply without approval is supplier gate, others are generic module gate
+        const isSupplierModule = mod === 'b2b_supply' || String(detail.data?.message || '').includes('Tedarikçi')
+        if (isSupplierModule) {
+          setGate({ type: 'supplier', message: detail.data?.message || detail.data?.error } as any)
+        } else {
+          setGate({ type: 'module', module: mod, message: detail.data?.message || detail.data?.error } as any)
+        }
       }
     }
     window.addEventListener('quota-gate', handler as EventListener)
@@ -286,6 +295,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           allowance={gate?.allowance}
           required={gate?.required}
           message={gate?.message}
+          module={(gate as any)?.module}
           onClose={() => setGate(null)}
         />
       </div>

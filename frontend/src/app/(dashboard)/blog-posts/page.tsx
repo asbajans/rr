@@ -7,6 +7,7 @@ import type { BlogPost } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Newspaper, Plus, Pencil, Trash2, Search, Sparkles, X } from 'lucide-react'
 import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
+import PlanGateModal from '@/components/ui/plan-gate-modal'
 
 type FormState = {
   id: number | null
@@ -34,7 +35,9 @@ function slugify(v: string) {
 
 export default function BlogPage() {
   const { user } = useAuth()
+  const { can } = useAuth()
   const [posts, setPosts] = useState<BlogPost[]>([])
+  const [gate, setGate] = useState<null | { type: 'module'; module: string; message?: string }>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -73,6 +76,10 @@ export default function BlogPage() {
   if (!user) return null
 
   function openNew() {
+    if (!can('blog')) {
+      setGate({ type: 'module', module: 'blog', message: 'Blog modülü planınızda kapalı' })
+      return
+    }
     setForm({ ...defaultForm, published_at: new Date().toISOString().slice(0, 10) })
     setGenTopic(''); setGenProductId(''); setGenNotes(''); setGenKeywords(''); setGenMode('topic')
     setShowForm(true)
@@ -97,6 +104,10 @@ export default function BlogPage() {
   }
 
   async function save() {
+    if (!can('blog')) {
+      setGate({ type: 'module', module: 'blog', message: 'Blog modülü planınızda kapalı' })
+      return
+    }
     if (!form.title.trim()) { setMessage('Başlık gereklidir'); return }
     setSaving(true)
     setMessage('')
@@ -125,6 +136,10 @@ export default function BlogPage() {
       setShowForm(false)
       load(page, search)
     } catch (e: any) {
+      if (e?.code === 'PLAN_MODULE_DISABLED' || e?.data?.error === 'PLAN_MODULE_DISABLED') {
+        setGate({ type: 'module', module: e?.data?.module || 'blog', message: e.message })
+        return
+      }
       setMessage(e.message || 'Kaydetme hatası')
     } finally {
       setSaving(false)
@@ -142,6 +157,10 @@ export default function BlogPage() {
   }
 
   async function generate() {
+    if (!can('blog_generation') && !can('blog')) {
+      setGate({ type: 'module', module: 'blog_generation', message: 'AI Blog Üretimi modülü planınızda kapalı' })
+      return
+    }
     if (genMode === 'topic' && !genTopic.trim()) { setMessage('Üretim için bir konu girin'); return }
     if (genMode === 'product' && !genProductId) { setMessage('Üretim için bir ürün seçin'); return }
     setGenerating(true)
@@ -165,6 +184,15 @@ export default function BlogPage() {
       }))
       setMessage('AI taslağı oluşturuldu — inceleyip kaydedin')
     } catch (e: any) {
+      if (e?.code === 'PLAN_MODULE_DISABLED' || e?.data?.error === 'PLAN_MODULE_DISABLED') {
+        setGate({ type: 'module', module: e?.data?.module || 'blog_generation', message: e.message })
+        return
+      }
+      if (e?.code === 'INSUFFICIENT_CREDITS') {
+        // let global quota gate handle, also show local message
+        setMessage(e.message || 'AI krediniz yetersiz')
+        return
+      }
       setMessage(e.message || 'AI üretimi başarısız')
     } finally {
       setGenerating(false)
@@ -182,12 +210,18 @@ export default function BlogPage() {
 
   return (
     <div className="card p-6">
+      {!can('blog') && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Blog modülü kapalı.</strong> Yeni yazı ekleyemezsiniz. Paketinizi yükseltin.
+          <button onClick={() => setGate({ type: 'module', module: 'blog', message: 'Blog modülü planınızda kapalı' })} className="ml-3 rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800">Paketi Yükselt →</button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-white">Blog</h1>
           <p className="text-sm text-zinc-400">Mağaza blog yazılarını yönetin, AI ile SEO uyumlu yazı üretin.</p>
         </div>
-        <Button onClick={openNew}><Plus className="mr-2 h-4 w-4" /> Yeni Yazı</Button>
+        <Button onClick={openNew} disabled={!can('blog')} title={!can('blog') ? 'Blog modülü planınızda kapalı' : ''} className={!can('blog') ? 'opacity-50' : ''}><Plus className="mr-2 h-4 w-4" /> Yeni Yazı</Button>
       </div>
 
       {message && <p className="mt-3 text-sm text-amber-400">{message}</p>}
@@ -380,12 +414,13 @@ export default function BlogPage() {
             </div>
 
             <div className="mt-6 flex gap-2">
-              <Button onClick={save} disabled={saving} className="flex-1">{saving ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+              <Button onClick={save} disabled={saving || !can('blog')} title={!can('blog') ? 'Blog modülü kapalı' : ''} className="flex-1">{saving ? 'Kaydediliyor...' : 'Kaydet'}</Button>
               <Button variant="outline" onClick={() => setShowForm(false)}>Vazgeç</Button>
             </div>
           </div>
         </div>
       )}
+      <PlanGateModal open={!!gate} type={gate?.type as any} module={gate?.module} message={gate?.message} onClose={() => setGate(null)} />
     </div>
   )
 }
