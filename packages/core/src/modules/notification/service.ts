@@ -43,6 +43,7 @@ export async function getFcmTokensForStore(storeId: number): Promise<string[]> {
 
 /**
  * Sends a FCM multicast (legacy HTTP API) to every active user of a store.
+ * Includes coin sound for new orders (Android channel `orders` + iOS sound).
  * No-op when FCM_SERVER_KEY is not configured. Never throws.
  */
 export async function sendPushToStore(storeId: number, title: string, body: string, data: Record<string, any> = {}): Promise<void> {
@@ -54,6 +55,9 @@ export async function sendPushToStore(storeId: number, title: string, body: stri
   const tokens = await getFcmTokensForStore(storeId);
   if (tokens.length === 0) return;
 
+  const isOrder = String(data?.type || '').includes('order') || title.toLowerCase().includes('sipariş') || title.toLowerCase().includes('siparis');
+  const sound = isOrder ? 'coin' : 'default';
+
   try {
     const resp = await fetch('https://fcm.googleapis.com/fcm/send', {
       method: 'POST',
@@ -63,13 +67,32 @@ export async function sendPushToStore(storeId: number, title: string, body: stri
       },
       body: JSON.stringify({
         registration_ids: tokens,
-        notification: { title, body },
-        data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+        notification: { title, body, sound, android_channel_id: isOrder ? 'orders' : 'default' },
+        data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK', sound },
         priority: 'high',
+        android: {
+          priority: 'high',
+          notification: {
+            sound,
+            channel_id: isOrder ? 'orders' : 'default',
+            visibility: 'public',
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: isOrder ? 'coin.wav' : 'default',
+              badge: 1,
+            },
+          },
+        },
       }),
     });
     if (!resp.ok) {
-      logger.warn({ status: resp.status, storeId }, 'FCM push returned non-200');
+      const txt = await resp.text().catch(() => '');
+      logger.warn({ status: resp.status, storeId, body: txt.slice(0, 500) }, 'FCM push returned non-200');
+    } else {
+      logger.info({ storeId, title, sound }, 'FCM push sent');
     }
   } catch (err) {
     logger.warn({ err, storeId }, 'FCM push failed (non-fatal)');

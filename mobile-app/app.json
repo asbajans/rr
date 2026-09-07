@@ -2,7 +2,7 @@
   "expo": {
     "name": "Rahatio",
     "slug": "rahatio",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "scheme": "rahatio",
     "userInterfaceStyle": "automatic",
@@ -19,11 +19,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rahatio.mobile",
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "package": "com.rahatio.mobile",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#F7F7F7"
@@ -42,7 +42,12 @@
         }
       ],
       "expo-asset",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "sounds": ["./assets/sounds/coin.wav"]
+        }
+      ]
     ],
     "extra": {
       "router": {

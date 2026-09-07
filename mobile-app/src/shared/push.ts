@@ -16,9 +16,21 @@ export async function getFcmToken(): Promise<string | null> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Bildirimler',
-      importance: Notifications.AndroidImportance.MAX,
+      importance: Notifications.AndroidImportance.DEFAULT,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#FF231F7C',
+      sound: 'default',
+    })
+    // High-priority channel for orders — coin sound (bozuk para sesi)
+    await Notifications.setNotificationChannelAsync('orders', {
+      name: 'Siparişler',
+      description: 'Yeni sipariş geldiğinde bozuk para sesiyle bildirim',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#10B981',
+      sound: 'coin.wav',
+      enableVibrate: true,
+      showBadge: true,
     })
   }
 

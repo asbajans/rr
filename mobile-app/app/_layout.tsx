@@ -10,8 +10,8 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
   }),
 })
 
@@ -19,8 +19,24 @@ function RootLayout() {
   const { loading } = useAuth()
 
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener(() => {})
-    return () => sub.remove()
+    // Foreground: system already shows banner with sound via handler.
+    // Also trigger haptic via vibration pattern on orders channel.
+    const sub = Notifications.addNotificationReceivedListener((event) => {
+      const type = (event.request.content.data as any)?.type
+      if (String(type).includes('order')) {
+        // Android channel 'orders' already plays coin.wav; iOS uses coin.wav via APNS
+      }
+    })
+    const subResponse = Notifications.addNotificationResponseReceivedListener((resp) => {
+      const data = resp.notification.request.content.data as any
+      if (data?.orderId) {
+        // deep-link handled by tabs; no-op here
+      }
+    })
+    return () => {
+      sub.remove()
+      subResponse.remove()
+    }
   }, [])
 
   if (loading) {

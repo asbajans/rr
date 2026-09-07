@@ -65,6 +65,10 @@ class ApiClient {
     return this.token
   }
 
+  getApiBase() {
+    return API_BASE
+  }
+
   private async request<T>(path: string, options: FetchOptions = {}): Promise<T> {
     const { params, ...fetchOptions } = options
     const urlParts = [`${API_BASE}${path}`]

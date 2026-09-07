@@ -325,6 +325,18 @@ export async function createCheckoutOrder(
       }
     }
 
+    // In-app + push notification with coin sound for store owner (fire-and-forget)
+    try {
+      const { notifyStore } = await import('../notification/service.js');
+      notifyStore({
+        storeId: store.id,
+        type: 'new_order',
+        title: `Yeni sipariş`,
+        body: `#${orderNumber} — ${totals.totalAmount.toLocaleString('tr-TR')} ₺`,
+        data: { marketplace: 'storefront', orderId: Number(order.id), orderNumber, amount: totals.totalAmount, type: 'new_order' },
+      }).catch(() => {});
+    } catch {}
+
     logger.info(
       `Checkout: order ${order.id} (${orderNumber}), method=${payment_method}, total=${totals.totalAmount} ${store.currency || 'TRY'}`
     );

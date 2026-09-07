@@ -35,12 +35,32 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<StoreNotification[]>([])
   const [unread, setUnread] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
+  const prevUnread = useRef(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const playCoin = () => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio('/sounds/coin.wav')
+        audioRef.current.volume = 0.85
+      }
+      audioRef.current.currentTime = 0
+      audioRef.current.play().catch(() => {})
+    } catch {}
+  }
 
   const load = async () => {
     try {
       const [list, count] = await Promise.all([api.getNotifications(20, 0), api.getUnreadCount()])
+      const newUnread = count.unreadCount
+      // New order → bozuk para sesi (only when unread increases and has new_order)
+      if (newUnread > prevUnread.current) {
+        const hasNewOrder = list.notifications.some((n: StoreNotification) => !n.readAt && String(n.type).includes('order'))
+        if (hasNewOrder) playCoin()
+      }
+      prevUnread.current = newUnread
       setNotifications(list.notifications)
-      setUnread(count.unreadCount)
+      setUnread(newUnread)
     } catch {
       /* auth not ready */
     }

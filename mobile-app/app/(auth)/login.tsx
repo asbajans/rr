@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { Link } from 'expo-router'
-import * as WebBrowser from 'expo-web-browser'
-import * as Google from 'expo-auth-session/providers/google'
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin'
 import { useAuth } from '../../src/shared/auth'
 import { useI18n, LOCALES } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
-
-WebBrowser.maybeCompleteAuthSession()
 
 type GoogleConfig = {
   enabled: boolean
@@ -27,8 +24,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false)
   const [googleConfig, setGoogleConfig] = useState<GoogleConfig | null>(null)
   const [googleLoading, setGoogleLoading] = useState(false)
-
   const [googleError, setGoogleError] = useState<string | null>(null)
+  const [googleReady, setGoogleReady] = useState(false)
 
   useEffect(() => {
     console.log('[google] fetching /api/auth/google/config')
@@ -36,7 +33,24 @@ export default function LoginScreen() {
       .getGoogleConfig()
       .then((cfg) => {
         console.log('[google] config', cfg)
-        setGoogleConfig(cfg as GoogleConfig)
+        const gc = cfg as GoogleConfig
+        setGoogleConfig(gc)
+        const webId = gc.webClientId || gc.expoClientId || gc.clientId
+        if (gc.enabled && webId) {
+          try {
+            GoogleSignin.configure({
+              webClientId: webId,
+              offlineAccess: false,
+            })
+            setGoogleReady(true)
+            console.log('[google] GoogleSignin configured with webClientId', webId)
+          } catch (e: any) {
+            console.warn('[google] configure failed', e?.message || e)
+            setGoogleError(e?.message || 'configure failed')
+          }
+        } else {
+          console.warn('[google] not enabled or missing webClientId')
+        }
       })
       .catch((e: any) => {
         console.warn('[google] config fetch failed', e?.message || e)
@@ -44,56 +58,6 @@ export default function LoginScreen() {
         setGoogleConfig({ enabled: false, clientId: null, clientIds: [], webClientId: null, androidClientId: null, iosClientId: null, expoClientId: null })
       })
   }, [])
-
-  const googleAuthConfig = useMemo(() => {
-    if (!googleConfig?.enabled) {
-      // dummy to keep hook from throwing invariant; prompt is blocked by enabled check
-      return { clientId: '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com' } as any
-    }
-    const cfg: Record<string, string> = {}
-    // Platform-specific IDs — Google provider picks iosClientId / androidClientId / webClientId via Platform.select
-    if (googleConfig.iosClientId) cfg.iosClientId = googleConfig.iosClientId
-    if (googleConfig.androidClientId) cfg.androidClientId = googleConfig.androidClientId
-    // webClientId is used on web + as fallback via expoClientId; also for Expo Go proxy
-    const webId = googleConfig.webClientId || googleConfig.expoClientId || googleConfig.clientId
-    if (webId) cfg.webClientId = webId
-    // generic fallback — ensures at least one clientId is present for invariant check
-    const fallbackId = googleConfig.clientId || googleConfig.webClientId || googleConfig.expoClientId
-    if (fallbackId) cfg.clientId = fallbackId
-    // If still none (e.g. only android/ios configured), use whichever exists as clientId fallback
-    if (!cfg.clientId) {
-      cfg.clientId = cfg.webClientId || cfg.androidClientId || cfg.iosClientId || '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com'
-    }
-    return cfg as any
-  }, [googleConfig])
-
-  // useAuthRequest handles native PKCE code exchange → authentication.idToken / accessToken
-  // On web it would use Token flow, on native Code flow. This matches backend verification (id_token or access_token).
-  const [googleRequest, googleResponse, googlePrompt] = Google.useAuthRequest(googleAuthConfig)
-
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      // After code exchange (native) authentication is populated; on implicit flow params contains id_token
-      const auth: any = (googleResponse as any).authentication
-      const params: any = (googleResponse as any).params
-      const idToken: string = auth?.idToken || params?.id_token || ''
-      const accessToken: string = auth?.accessToken || params?.access_token || ''
-      if (idToken || accessToken) {
-        setGoogleLoading(true)
-        googleLogin(idToken || '', accessToken || undefined)
-          .catch((e: any) => Alert.alert(t('login'), e.message || 'Google ile giriş başarısız'))
-          .finally(() => setGoogleLoading(false))
-      } else {
-        Alert.alert(t('error'), 'Google token alınamadı. Lütfen tekrar deneyin.')
-      }
-    } else if (googleResponse?.type === 'error') {
-      const err: any = googleResponse as any
-      const msg = err?.error?.message || err?.params?.error_description || 'Google ile giriş başarısız'
-      Alert.alert(t('error'), msg)
-    } else if ((googleResponse as any)?.type === 'dismiss') {
-      // user closed browser — no alert needed
-    }
-  }, [googleResponse, googleLogin, t])
 
   async function handleLogin() {
     if (!email || !password) {
@@ -111,23 +75,42 @@ export default function LoginScreen() {
   }
 
   async function handleGoogle() {
-    const hasAnyId = !!(googleConfig?.clientId || googleConfig?.webClientId || googleConfig?.androidClientId || googleConfig?.iosClientId)
-    if (!googleConfig?.enabled || !hasAnyId) {
+    const hasWebId = !!(googleConfig?.webClientId || googleConfig?.clientId || googleConfig?.expoClientId)
+    if (!googleConfig?.enabled || !hasWebId) {
       Alert.alert(t('error'), 'Google ile giriş şu anda yapılandırılmadı')
       return
     }
-    if (!googleRequest) {
-      Alert.alert(t('error'), 'Google isteği hazırlanıyor, lütfen tekrar deneyin')
+    if (!googleReady) {
+      Alert.alert(t('error'), 'Google hazırlanıyor, lütfen tekrar deneyin')
       return
     }
+    setGoogleLoading(true)
     try {
-      await googlePrompt()
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+      await GoogleSignin.signOut().catch(() => {})
+      const res = await GoogleSignin.signIn()
+      const idToken = (res as any).idToken || (res as any).data?.idToken
+      if (!idToken) {
+        throw new Error('Google idToken alınamadı')
+      }
+      console.log('[google] signIn success, idToken length', idToken.length)
+      await googleLogin(idToken)
     } catch (e: any) {
-      Alert.alert(t('error'), e.message || 'Google penceresi açılamadı')
+      console.warn('[google] signIn error', e)
+      if (e?.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled
+      } else if (e?.code === statusCodes.IN_PROGRESS) {
+        Alert.alert(t('error'), 'Google işlemi devam ediyor')
+      } else if (e?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert(t('error'), 'Google Play Services bulunamadı / güncelleyin')
+      } else {
+        Alert.alert(t('error'), e?.message || 'Google ile giriş başarısız')
+      }
+    } finally {
+      setGoogleLoading(false)
     }
   }
 
-  const googleReady = !!googleRequest && !googleLoading
   const showGoogle = googleConfig === null ? null : !!googleConfig.enabled
 
   return (
@@ -181,6 +164,7 @@ export default function LoginScreen() {
               <ActivityIndicator color="#4285F4" size="small" />
               <Text style={[styles.googleBtnText, { marginLeft: 8 }]}>Google yükleniyor…</Text>
             </View>
+            {__DEV__ && <Text style={styles.googleHint}>API: {(api as any).getApiBase?.() || ''}</Text>}
           </>
         ) : showGoogle ? (
           <>
@@ -189,7 +173,7 @@ export default function LoginScreen() {
               <Text style={styles.dividerText}>veya</Text>
               <View style={styles.dividerLine} />
             </View>
-            <TouchableOpacity style={[styles.googleBtn, !googleReady && styles.googleBtnDisabled]} onPress={handleGoogle} disabled={!googleReady}>
+            <TouchableOpacity style={[styles.googleBtn, !googleReady && styles.googleBtnDisabled]} onPress={handleGoogle} disabled={!googleReady || googleLoading}>
               {googleLoading ? (
                 <ActivityIndicator color="#4285F4" />
               ) : (
@@ -199,11 +183,9 @@ export default function LoginScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            {!googleRequest && (
-              <Text style={styles.googleHint}>Google hazırlanıyor…</Text>
-            )}
+            {!googleReady && <Text style={styles.googleHint}>Google hazırlanıyor…</Text>}
           </>
-        ) : __DEV__ && googleError ? (
+        ) : (
           <>
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
@@ -213,9 +195,11 @@ export default function LoginScreen() {
             <View style={[styles.googleBtn, styles.googleBtnDisabled]}>
               <Text style={styles.googleBtnText}>Google kapalı</Text>
             </View>
-            <Text style={styles.googleHint}>Hata: {googleError} — API_BASE kontrol edin</Text>
+            <Text style={styles.googleHint}>
+              {googleError ? `Hata: ${googleError}` : `enabled=false — GOOGLE_* env eksik?`} {__DEV__ ? `API: ${(api as any).getApiBase?.() || ''}` : ''}
+            </Text>
           </>
-        ) : null}
+        )}
 
         <Link href="/(auth)/register" style={styles.link}>
           <Text style={styles.linkText}>{t('noAccount')}</Text>
