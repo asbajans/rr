@@ -48,6 +48,7 @@
       "router": {
         "origin": false
       },
+      "apiUrl": "https://api.rahatio.com.tr",
       "eas": {
         "projectId": "6bb13aed-b1f2-482f-9327-86b5eb6c6315"
       }

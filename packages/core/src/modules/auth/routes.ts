@@ -451,12 +451,29 @@ router.post('/delete-my-account', authMiddleware, [
 
 /**
  * GET /api/auth/google/config
- * Public — returns Google OAuth client ID for frontend (GIS).
+ * Public — returns Google OAuth client IDs for frontend (GIS) + mobile (expo-auth-session).
+ * Mobile needs platform-specific IDs: Android/iOS/Web may differ.
  */
 router.get('/google/config', async (_req: Request, res: Response) => {
-  const clientId = config.google?.clientId || '';
-  const clientIds: string[] = (config.google as any)?.clientIds || (clientId ? [clientId] : []);
-  res.json({ enabled: !!clientId, clientId: clientId || null, clientIds });
+  const g: any = config.google || {};
+  const clientId = g.clientId || '';
+  const clientIds: string[] = g.clientIds || (clientId ? [clientId] : []);
+  // Fallback chain keeps backwards compat: frontend uses clientId, mobile can use platform-specific
+  const webClientId = g.webClientId || clientId || null;
+  const androidClientId = g.androidClientId || null;
+  const iosClientId = g.iosClientId || null;
+  const expoClientId = g.expoClientId || webClientId;
+  // enabled if ANY id present — web or mobile may have only platform ID
+  const enabled = !!(clientId || webClientId || androidClientId || iosClientId || clientIds.length);
+  res.json({
+    enabled,
+    clientId: clientId || webClientId || null,
+    clientIds,
+    webClientId,
+    androidClientId,
+    iosClientId,
+    expoClientId,
+  });
 });
 
 /**

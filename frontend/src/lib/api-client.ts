@@ -340,7 +340,15 @@ class ApiClient {
   }
 
   getGoogleConfig() {
-    return this.get<{ enabled: boolean; clientId: string | null; clientIds: string[] }>('/api/auth/google/config')
+    return this.get<{
+      enabled: boolean
+      clientId: string | null
+      clientIds: string[]
+      webClientId?: string | null
+      androidClientId?: string | null
+      iosClientId?: string | null
+      expoClientId?: string | null
+    }>('/api/auth/google/config')
   }
 
   googleLogin(idToken: string, accessToken?: string) {

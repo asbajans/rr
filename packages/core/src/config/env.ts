@@ -74,6 +74,10 @@ export const config = {
 
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_WEB_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    webClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || '',
+    iosClientId: process.env.GOOGLE_IOS_CLIENT_ID || '',
+    expoClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
     clientIds: (() => {
       const parts: string[] = [];
       const push = (v?: string) => {

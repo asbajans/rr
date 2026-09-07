@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { Link } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
@@ -9,6 +9,16 @@ import { api } from '../../src/shared/api-client'
 
 WebBrowser.maybeCompleteAuthSession()
 
+type GoogleConfig = {
+  enabled: boolean
+  clientId: string | null
+  clientIds: string[]
+  webClientId: string | null
+  androidClientId: string | null
+  iosClientId: string | null
+  expoClientId: string | null
+}
+
 export default function RegisterScreen() {
   const { register, googleLogin } = useAuth()
   const { t, locale, setLocale } = useI18n()
@@ -17,29 +27,63 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [googleConfig, setGoogleConfig] = useState<{ enabled: boolean; clientId: string | null } | null>(null)
+  const [googleConfig, setGoogleConfig] = useState<GoogleConfig | null>(null)
   const [googleLoading, setGoogleLoading] = useState(false)
 
+  const [googleError, setGoogleError] = useState<string | null>(null)
+
   useEffect(() => {
-    api.getGoogleConfig().then(setGoogleConfig).catch(() => setGoogleConfig({ enabled: false, clientId: null }))
+    console.log('[google] fetching /api/auth/google/config')
+    api
+      .getGoogleConfig()
+      .then((cfg) => {
+        console.log('[google] config', cfg)
+        setGoogleConfig(cfg as GoogleConfig)
+      })
+      .catch((e: any) => {
+        console.warn('[google] config fetch failed', e?.message || e)
+        setGoogleError(e?.message || 'fetch failed')
+        setGoogleConfig({ enabled: false, clientId: null, clientIds: [], webClientId: null, androidClientId: null, iosClientId: null, expoClientId: null })
+      })
   }, [])
 
-  const [googleRequest, googleResponse, googlePrompt] = Google.useIdTokenAuthRequest(
-    googleConfig?.clientId ? { clientId: googleConfig.clientId } : undefined as any
-  )
+  const googleAuthConfig = useMemo(() => {
+    if (!googleConfig?.enabled) {
+      return { clientId: '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com' } as any
+    }
+    const cfg: Record<string, string> = {}
+    if (googleConfig.iosClientId) cfg.iosClientId = googleConfig.iosClientId
+    if (googleConfig.androidClientId) cfg.androidClientId = googleConfig.androidClientId
+    const webId = googleConfig.webClientId || googleConfig.expoClientId || googleConfig.clientId
+    if (webId) cfg.webClientId = webId
+    const fallbackId = googleConfig.clientId || googleConfig.webClientId || googleConfig.expoClientId
+    if (fallbackId) cfg.clientId = fallbackId
+    if (!cfg.clientId) {
+      cfg.clientId = cfg.webClientId || cfg.androidClientId || cfg.iosClientId || '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com'
+    }
+    return cfg as any
+  }, [googleConfig])
+
+  const [googleRequest, googleResponse, googlePrompt] = Google.useAuthRequest(googleAuthConfig)
 
   useEffect(() => {
     if (googleResponse?.type === 'success') {
-      const idToken = (googleResponse as any).params?.id_token || (googleResponse as any).authentication?.idToken
-      const accessToken = (googleResponse as any).authentication?.accessToken
+      const auth: any = (googleResponse as any).authentication
+      const params: any = (googleResponse as any).params
+      const idToken: string = auth?.idToken || params?.id_token || ''
+      const accessToken: string = auth?.accessToken || params?.access_token || ''
       if (idToken || accessToken) {
         setGoogleLoading(true)
-        googleLogin(idToken || '', accessToken)
+        googleLogin(idToken || '', accessToken || undefined)
           .catch((e: any) => Alert.alert(t('register'), e.message || 'Google ile kayıt başarısız'))
           .finally(() => setGoogleLoading(false))
+      } else {
+        Alert.alert(t('error'), 'Google token alınamadı. Lütfen tekrar deneyin.')
       }
     } else if (googleResponse?.type === 'error') {
-      Alert.alert(t('error'), (googleResponse as any).error?.message || 'Google ile kayıt başarısız')
+      const err: any = googleResponse as any
+      const msg = err?.error?.message || err?.params?.error_description || 'Google ile kayıt başarısız'
+      Alert.alert(t('error'), msg)
     }
   }, [googleResponse, googleLogin, t])
 
@@ -59,7 +103,8 @@ export default function RegisterScreen() {
   }
 
   async function handleGoogle() {
-    if (!googleConfig?.enabled || !googleConfig?.clientId) {
+    const hasAnyId = !!(googleConfig?.clientId || googleConfig?.webClientId || googleConfig?.androidClientId || googleConfig?.iosClientId)
+    if (!googleConfig?.enabled || !hasAnyId) {
       Alert.alert(t('error'), 'Google ile kayıt şu anda yapılandırılmadı')
       return
     }
@@ -67,8 +112,15 @@ export default function RegisterScreen() {
       Alert.alert(t('error'), 'Google isteği hazırlanıyor')
       return
     }
-    try { await googlePrompt() } catch (e: any) { Alert.alert(t('error'), e.message) }
+    try {
+      await googlePrompt()
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message || 'Google penceresi açılamadı')
+    }
   }
+
+  const googleReady = !!googleRequest && !googleLoading
+  const showGoogle = googleConfig === null ? null : !!googleConfig.enabled
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -97,18 +149,50 @@ export default function RegisterScreen() {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('register')}</Text>}
         </TouchableOpacity>
 
-        {googleConfig?.enabled && (
+        {showGoogle === null ? (
           <>
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>veya</Text>
               <View style={styles.dividerLine} />
             </View>
-            <TouchableOpacity style={styles.googleBtn} onPress={handleGoogle} disabled={googleLoading || !googleRequest}>
-              {googleLoading ? <ActivityIndicator color="#4285F4" /> : <Text style={styles.googleBtnText}>Google ile Kaydol</Text>}
-            </TouchableOpacity>
+            <View style={[styles.googleBtn, styles.googleBtnDisabled]}>
+              <ActivityIndicator color="#4285F4" size="small" />
+              <Text style={[styles.googleBtnText, { marginLeft: 8 }]}>Google yükleniyor…</Text>
+            </View>
           </>
-        )}
+        ) : showGoogle ? (
+          <>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>veya</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            <TouchableOpacity style={[styles.googleBtn, !googleReady && styles.googleBtnDisabled]} onPress={handleGoogle} disabled={!googleReady}>
+              {googleLoading ? (
+                <ActivityIndicator color="#4285F4" />
+              ) : (
+                <View style={styles.googleBtnInner}>
+                  <Text style={styles.googleIcon}>G</Text>
+                  <Text style={styles.googleBtnText}>Google ile Kaydol</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {!googleRequest && <Text style={styles.googleHint}>Google hazırlanıyor…</Text>}
+          </>
+        ) : __DEV__ && googleError ? (
+          <>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>veya</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            <View style={[styles.googleBtn, styles.googleBtnDisabled]}>
+              <Text style={styles.googleBtnText}>Google kapalı</Text>
+            </View>
+            <Text style={styles.googleHint}>Hata: {googleError} — API_BASE kontrol edin</Text>
+          </>
+        ) : null}
 
         <Link href="/(auth)/login" style={styles.link}>
           <Text style={styles.linkText}>{t('alreadyHaveAccount')}</Text>
@@ -142,7 +226,11 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: '#e5e5e5' },
   dividerText: { fontSize: 12, color: '#999' },
   googleBtn: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#fff' },
+  googleBtnDisabled: { opacity: 0.6 },
+  googleBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  googleIcon: { color: '#4285F4', fontSize: 16, fontWeight: '700', width: 18, textAlign: 'center' },
   googleBtnText: { color: '#333', fontSize: 15, fontWeight: '600' },
+  googleHint: { marginTop: 8, textAlign: 'center', fontSize: 11, color: '#999' },
   link: { marginTop: 24, alignItems: 'center' },
   linkText: { color: '#666', fontSize: 14 },
 })

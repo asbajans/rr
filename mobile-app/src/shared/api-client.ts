@@ -4,8 +4,27 @@ import { cacheDirectory, downloadAsync } from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import type { AuthResponse, MeResponse, User, DashboardData, PaginatedResponse, Store, Product, Order, ApiKey, CreatedApiKey, Plan, StoreFrontData, StoreProduct, Subscription, ProductDetail, DropshippingOrder, MarketplaceData, MarketplaceEntry, MarketplaceCategory, Category, Brand, MarketplaceSyncEntry, ProductB2bSetting, B2bProductItem, B2bRequest, AiProductSession, AiProductDraft, AiChannelValidationResult, AiSessionStatusResponse, AiCategory } from './types'
 
-const API_BASE = 'https://api.rahatio.com.tr'
+import Constants from 'expo-constants'
+
+function resolveApiBase(): string {
+  // Allow local override via Expo extra / env (EXPO_PUBLIC_API_URL). Falls back to production.
+  const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>
+  const fromExtra = (extra.apiUrl as string) || (extra.EXPO_PUBLIC_API_URL as string) || ''
+  // @ts-ignore - EXPO_PUBLIC_ is inlined at build time if set
+  const fromEnv = (typeof process !== 'undefined' ? (process.env as any)?.EXPO_PUBLIC_API_URL : '') as string
+  const raw = (fromEnv || fromExtra || '').trim()
+  if (raw) return raw.replace(/\/+$/, '')
+  return 'https://api.rahatio.com.tr'
+}
+
+const API_BASE = resolveApiBase()
 const TOKEN_KEY = 'auth_token'
+
+// Debug: log resolved base once in dev
+if (__DEV__) {
+  // eslint-disable-next-line no-console
+  console.log('[api] API_BASE =', API_BASE)
+}
 
 type FetchOptions = {
   method?: string
@@ -226,7 +245,15 @@ class ApiClient {
   }
 
   getGoogleConfig() {
-    return this.get<{ enabled: boolean; clientId: string | null; clientIds: string[] }>('/api/auth/google/config')
+    return this.get<{
+      enabled: boolean
+      clientId: string | null
+      clientIds: string[]
+      webClientId: string | null
+      androidClientId: string | null
+      iosClientId: string | null
+      expoClientId: string | null
+    }>('/api/auth/google/config')
   }
 
   googleLogin(idToken: string, accessToken?: string) {
