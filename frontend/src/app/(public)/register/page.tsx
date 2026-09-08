@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { I18nProvider, LanguageSwitcher } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { GoogleSignInButton } from '@/components/GoogleSignInButton'
+import { trackSignup } from '@/lib/analytics'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -22,6 +23,7 @@ export default function RegisterPage() {
     setError('')
     try {
       const user = await register(name, email, password, storeName || undefined)
+      try { trackSignup({ method: 'email', source: 'register' }) } catch {}
       router.push(user.is_admin ? '/stores' : '/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Kayıt başarısız')

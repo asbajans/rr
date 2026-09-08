@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n'
 import { api } from '@/lib/api-client'
 import type { Plan, Subscription } from '@/lib/types'
 import { Coins, ShoppingCart, ArrowUp, ArrowDown } from 'lucide-react'
+import { trackPlatform, trackPurchase } from '@/lib/analytics'
 
 const FALLBACK_PACKS = [
   { credits: 50, price: 50 },
@@ -96,11 +97,14 @@ export default function BillingPage() {
     if (plan.id === currentPlan?.id) return
     setActionLoading(true)
     setMessage('')
+    try { trackPlatform({ path: '/billing', eventType: 'checkout_started', metadata: { planId: plan.id, planName: plan.name, price: plan.price } }) } catch {}
     try {
       const res = await api.createCheckoutSession(plan.id, window.location.href, window.location.href)
       if (res.url) {
         window.location.href = res.url
       } else {
+        // free plan -> immediate activation counts as purchase
+        try { trackPurchase({ value: Number(plan.price || 0), currency: plan.currency || 'TRY', transactionId: `plan_${plan.id}`, source: 'billing_plan_free' }) } catch {}
         await loadBilling()
       }
     } catch (err: unknown) {
@@ -141,6 +145,7 @@ export default function BillingPage() {
   async function buyCredits(credits: number) {
     setBuying(true)
     setMessage('')
+    try { trackPlatform({ path: '/billing/credits', eventType: 'checkout_started', metadata: { credits } }) } catch {}
     try {
       const res = await api.buyCredits(credits)
       if (res.url) {

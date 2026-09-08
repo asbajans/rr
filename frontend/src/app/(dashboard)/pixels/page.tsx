@@ -30,6 +30,16 @@ const PIXEL_PLATFORMS: PixelPlatform[] = [
     fields: [{ key: 'container_id', label: 'Kapsayıcı ID', placeholder: 'GTM-XXXXXXX' }],
   },
   {
+    key: 'google_ads',
+    label: 'Google Ads',
+    icon: <Hash className="h-5 w-5" />,
+    description: 'Google Ads dönüşüm etiketi (AW-...) ile kampanya dönüşümlerini takip et.',
+    fields: [
+      { key: 'conversion_id', label: 'Dönüşüm ID', placeholder: 'AW-XXXXXXXXX' },
+      { key: 'conversion_label', label: 'Etiket (opsiyonel)', placeholder: 'XXXXXXXXXXXXXXX' },
+    ],
+  },
+  {
     key: 'google_merchant_center',
     label: 'Google Merchant Center',
     icon: <ShoppingBag className="h-5 w-5" />,
@@ -38,10 +48,13 @@ const PIXEL_PLATFORMS: PixelPlatform[] = [
   },
   {
     key: 'facebook_pixel',
-    label: 'Facebook Pixel',
+    label: 'Facebook / Meta Pixel',
     icon: <Globe className="h-5 w-5" />,
-    description: 'Facebook Pixel ID\'si ile dönüşüm takibi ve reklam optimizasyonu.',
-    fields: [{ key: 'pixel_id', label: 'Pixel ID', placeholder: '1234567890' }],
+    description: 'Meta Pixel ID\'si ile dönüşüm takibi ve reklam optimizasyonu. Domain doğrulama dahil.',
+    fields: [
+      { key: 'pixel_id', label: 'Pixel ID', placeholder: '1234567890' },
+      { key: 'domain_verification', label: 'Domain Doğrulama Kodu (opsiyonel)', placeholder: 'facebook-domain-verification' },
+    ],
   },
   {
     key: 'instagram',
@@ -140,7 +153,7 @@ export default function PixelsPage() {
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Piksel & Takip Kodları</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Google Analytics, Facebook Pixel, TikTok ve diğer takip kodlarını mağazana ekle.
+            Google Analytics, Tag Manager, Google Ads, Meta Pixel, TikTok ve diğer takip kodlarını mağazana ekle.
           </p>
         </div>
         <button

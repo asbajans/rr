@@ -9,6 +9,7 @@ import { Plan } from '../../models/Plan.model.js';
 import { User } from '../../models/User.model.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { Product } from '../../models/Product.model.js';
+import { Setting } from '../../models/Setting.model.js';
 import { sequelize } from '../../config/database.js';
 import { authMiddleware, requireRole, requireStore } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
@@ -42,7 +43,7 @@ export const analyticsPublicRoutes: Router = Router();
 analyticsPublicRoutes.post(
   '/:siteCode/track',
   [
-    body('eventType').isIn(['page_view', 'product_view', 'add_to_cart', 'checkout_started', 'purchase', 'search']),
+    body('eventType').isIn(['page_view', 'product_view', 'add_to_cart', 'checkout_started', 'purchase', 'search', 'signup', 'lead', 'whatsapp_click']),
     body('path').optional().isString().isLength({ max: 500 }),
     body('productId').optional().isInt({ min: 1 }),
     body('referrer').optional().isString().isLength({ max: 500 }),
@@ -104,9 +105,21 @@ analyticsPublicRoutes.post(
 
 // POST /api/analytics/platform/track  (SaaS landing beacon, no auth, storeId null)
 export const saasBeaconRoutes: Router = Router();
+// Public SaaS pixels (no auth) — landing / marketing injector fetches enabled pixels
+saasBeaconRoutes.get('/platform/pixels', async (_req: Request, res: Response) => {
+  try {
+    const row = await Setting.findByPk('saas_pixels');
+    const pixels = (row?.value as any) || {};
+    res.json({ pixels });
+  } catch (e) {
+    logger.error({ err: e }, 'Public SaaS pixels fetch error');
+    res.json({ pixels: {} });
+  }
+});
 saasBeaconRoutes.post(
   '/platform/track',
   [
+    body('eventType').optional().isIn(['platform_view', 'whatsapp_click', 'cta_click', 'signup', 'purchase', 'lead', 'checkout_started', 'search']),
     body('path').optional().isString().isLength({ max: 500 }),
     body('referrer').optional().isString().isLength({ max: 500 }),
     body('utmSource').optional().isString().isLength({ max: 100 }),
@@ -116,18 +129,22 @@ saasBeaconRoutes.post(
     body('utmCampaign').optional().isString().isLength({ max: 100 }),
     body('utm_campaign').optional().isString().isLength({ max: 100 }),
     body('sessionId').optional().isString().isLength({ max: 64 }),
+    body('metadata').optional().isObject(),
   ],
   async (req: Request, res: Response) => {
     try {
       const ua = String(req.headers['user-agent'] || '');
       if (ua && isBot(ua)) return res.json({ ok: true, skipped: 'bot' });
       const b: any = req.body || {};
+      const rawType = b.eventType ? String(b.eventType) : 'platform_view';
+      const allowed = new Set(['platform_view', 'whatsapp_click', 'cta_click', 'signup', 'purchase', 'lead', 'checkout_started', 'search']);
+      const eventType = allowed.has(rawType) ? rawType : 'platform_view';
       const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
       await StoreAnalyticsEvent.create({
         storeId: null,
         sessionId: b.sessionId ? String(b.sessionId).slice(0, 64) : null,
         visitorId: null,
-        eventType: 'platform_view',
+        eventType,
         path: b.path ? String(b.path).slice(0, 500) : '/',
         productId: null,
         referrer: b.referrer ? String(b.referrer).slice(0, 500) : null,
@@ -137,7 +154,7 @@ saasBeaconRoutes.post(
         device: detectDevice(ua),
         ipHash: ip ? hashIp(ip) : null,
         userAgent: ua ? ua.slice(0, 500) : null,
-        metadata: null,
+        metadata: b.metadata || null,
       } as any);
       res.json({ ok: true });
     } catch (e) {
@@ -173,7 +190,7 @@ sellerAnalyticsRoutes.get(
       }
       const baseWhere: any = { storeId: store.id, createdAt: { [Op.gte]: from, [Op.lte]: to } };
 
-      const [totalPageViews, totalProductViews, totalAddToCart, totalPurchases, uniqueVisitors, revenueAgg] = await Promise.all([
+      const [totalPageViews, totalProductViews, totalAddToCart, totalPurchases, uniqueVisitors, revenueAgg, totalSignups] = await Promise.all([
         StoreAnalyticsEvent.count({ where: { ...baseWhere, eventType: 'page_view' } }),
         StoreAnalyticsEvent.count({ where: { ...baseWhere, eventType: 'product_view' } }),
         StoreAnalyticsEvent.count({ where: { ...baseWhere, eventType: 'add_to_cart' } }),
@@ -184,6 +201,7 @@ sellerAnalyticsRoutes.get(
           attributes: [[fn('COALESCE', fn('SUM', col('totalAmount')), 0), 'total'], [fn('COUNT', col('id')), 'cnt']],
           raw: true,
         } as any).then((r: any) => ({ total: parseFloat(r[0]?.total || 0), cnt: parseInt(r[0]?.cnt || 0) })),
+        StoreAnalyticsEvent.count({ where: { ...baseWhere, eventType: 'signup' } }),
       ]);
 
       // Daily series (last N days)
@@ -197,14 +215,14 @@ sellerAnalyticsRoutes.get(
       const dayMap = new Map<string, any>();
       for (const r of daily) {
         const d = String((r as any).d).slice(0, 10);
-        if (!dayMap.has(d)) dayMap.set(d, { date: d, page_view: 0, product_view: 0, add_to_cart: 0, purchase: 0 });
+        if (!dayMap.has(d)) dayMap.set(d, { date: d, page_view: 0, product_view: 0, add_to_cart: 0, purchase: 0, signup: 0 });
         dayMap.get(d)[(r as any).eventType] = Number((r as any).c);
       }
       // fill missing days
       const series: any[] = [];
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         const k = d.toISOString().slice(0, 10);
-        series.push(dayMap.get(k) || { date: k, page_view: 0, product_view: 0, add_to_cart: 0, purchase: 0 });
+        series.push(dayMap.get(k) || { date: k, page_view: 0, product_view: 0, add_to_cart: 0, purchase: 0, signup: 0 });
       }
 
       // Top products by product_view
@@ -243,6 +261,7 @@ sellerAnalyticsRoutes.get(
           productViews: totalProductViews,
           addToCarts: totalAddToCart,
           purchases: totalPurchases,
+          signups: totalSignups,
           uniqueVisitors,
           revenue: revenueAgg.total,
           orderCount: revenueAgg.cnt,
@@ -286,10 +305,16 @@ saasAnalyticsRoutes.get(
       }
 
       const platformWhere: any = { storeId: null, eventType: 'platform_view', createdAt: { [Op.gte]: from, [Op.lte]: to } };
+      const whatsappWhere: any = { storeId: null, eventType: 'whatsapp_click', createdAt: { [Op.gte]: from, [Op.lte]: to } };
+      const signupEventWhere: any = { storeId: null, eventType: 'signup', createdAt: { [Op.gte]: from, [Op.lte]: to } };
+      const purchaseEventWhere: any = { storeId: null, eventType: 'purchase', createdAt: { [Op.gte]: from, [Op.lte]: to } };
 
-      const [platformViews, platformUnique, totalUsers, newUsers, totalStores, newStores] = await Promise.all([
+      const [platformViews, platformUnique, whatsappClicks, signupEvents, purchaseEvents, totalUsers, newUsers, totalStores, newStores] = await Promise.all([
         StoreAnalyticsEvent.count({ where: platformWhere }),
         StoreAnalyticsEvent.count({ where: platformWhere, distinct: true, col: 'sessionId' }),
+        StoreAnalyticsEvent.count({ where: whatsappWhere }),
+        StoreAnalyticsEvent.count({ where: signupEventWhere }),
+        StoreAnalyticsEvent.count({ where: purchaseEventWhere }),
         User.count({}),
         User.count({ where: { createdAt: { [Op.gte]: from, [Op.lte]: to } } }),
         Store.count({}),
@@ -361,6 +386,47 @@ saasAnalyticsRoutes.get(
         const k = d.toISOString().slice(0, 10);
         platformSeries.push({ date: k, views: pDayMap.get(k) || 0 });
       }
+      // Daily whatsapp clicks
+      const whatsappDaily: any[] = await sequelize.query(
+        `SELECT date_trunc('day', "createdAt")::date as d, COUNT(*)::int as c
+         FROM store_analytics_events
+         WHERE "storeId" IS NULL AND "eventType"='whatsapp_click' AND "createdAt" BETWEEN :from AND :to
+         GROUP BY d ORDER BY d ASC`,
+        { replacements: { from, to }, type: QueryTypes.SELECT },
+      );
+      const wDayMap = new Map<string, number>();
+      for (const r of whatsappDaily) wDayMap.set(String((r as any).d).slice(0, 10), Number((r as any).c));
+      const whatsappSeries: any[] = [];
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        const k = d.toISOString().slice(0, 10);
+        whatsappSeries.push({ date: k, clicks: wDayMap.get(k) || 0 });
+      }
+      // Daily signup / purchase (platform conversions)
+      const signupDaily: any[] = await sequelize.query(
+        `SELECT date_trunc('day', "createdAt")::date as d, COUNT(*)::int as c
+         FROM store_analytics_events
+         WHERE "storeId" IS NULL AND "eventType"='signup' AND "createdAt" BETWEEN :from AND :to
+         GROUP BY d ORDER BY d ASC`,
+        { replacements: { from, to }, type: QueryTypes.SELECT },
+      );
+      const purchaseDaily: any[] = await sequelize.query(
+        `SELECT date_trunc('day', "createdAt")::date as d, COUNT(*)::int as c
+         FROM store_analytics_events
+         WHERE "storeId" IS NULL AND "eventType"='purchase' AND "createdAt" BETWEEN :from AND :to
+         GROUP BY d ORDER BY d ASC`,
+        { replacements: { from, to }, type: QueryTypes.SELECT },
+      );
+      const sDayMap = new Map<string, number>();
+      for (const r of signupDaily) sDayMap.set(String((r as any).d).slice(0, 10), Number((r as any).c));
+      const puDayMap = new Map<string, number>();
+      for (const r of purchaseDaily) puDayMap.set(String((r as any).d).slice(0, 10), Number((r as any).c));
+      const signupSeries: any[] = [];
+      const purchaseSeries: any[] = [];
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        const k = d.toISOString().slice(0, 10);
+        signupSeries.push({ date: k, count: sDayMap.get(k) || 0 });
+        purchaseSeries.push({ date: k, count: puDayMap.get(k) || 0 });
+      }
 
       // Daily new users/stores series
       const userDaily: any[] = await sequelize.query(
@@ -390,7 +456,7 @@ saasAnalyticsRoutes.get(
       );
 
       res.json({
-        platform: { views: platformViews, uniqueVisitors: platformUnique, sources: platformSources, series: platformSeries },
+        platform: { views: platformViews, uniqueVisitors: platformUnique, whatsappClicks, signupEvents, purchaseEvents, sources: platformSources, series: platformSeries, whatsappSeries, signupSeries, purchaseSeries },
         users: { total: totalUsers, new: newUsers },
         stores: { total: totalStores, new: newStores },
         subscriptions: { total: totalSubs, active: activeSubs, trialing: trialSubs, canceled: canceledSubs, churn: churnCount, expiringSoon, revenueEstimate, planBreakdown, topStores },
@@ -400,6 +466,69 @@ saasAnalyticsRoutes.get(
       });
     } catch (e) {
       logger.error({ err: e }, 'SaaS analytics overview error');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// SaaS / Platform marketing pixels (superadmin — yönetilen landing takibi)
+// Stored in settings table as key='saas_pixels' (JSONB). Same shape as store pixels but global.
+const PLATFORM_PIXEL_PLATFORMS = [
+  'google_analytics',
+  'google_tag_manager',
+  'google_ads',
+  'facebook_pixel',
+  'tiktok_pixel',
+  'custom_head',
+  'custom_body',
+];
+
+function cleanPlatformPixels(incoming: any): Record<string, any> {
+  const clean: Record<string, any> = {};
+  for (const platform of PLATFORM_PIXEL_PLATFORMS) {
+    const p = incoming[platform];
+    if (p && typeof p === 'object') {
+      clean[platform] = {
+        enabled: !!p.enabled,
+        ...(p.measurement_id ? { measurement_id: String(p.measurement_id) } : {}),
+        ...(p.container_id ? { container_id: String(p.container_id) } : {}),
+        ...(p.pixel_id ? { pixel_id: String(p.pixel_id) } : {}),
+        ...(p.conversion_id ? { conversion_id: String(p.conversion_id) } : {}),
+        ...(p.conversion_label ? { conversion_label: String(p.conversion_label) } : {}),
+        ...(p.merchant_id ? { merchant_id: String(p.merchant_id) } : {}),
+        ...(p.business_account_id ? { business_account_id: String(p.business_account_id) } : {}),
+        ...(p.domain_verification ? { domain_verification: String(p.domain_verification) } : {}),
+        ...(p.code ? { code: String(p.code) } : {}),
+      };
+    }
+  }
+  return clean;
+}
+
+saasAnalyticsRoutes.get('/pixels', async (_req: Request, res: Response) => {
+  try {
+    const row = await Setting.findByPk('saas_pixels');
+    const pixels = (row?.value as any) || {};
+    res.json({ pixels });
+  } catch (error) {
+    logger.error({ err: error }, 'Get SaaS pixels error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+saasAnalyticsRoutes.put(
+  '/pixels',
+  [body('pixels').isObject()],
+  validate,
+  async (req: Request, res: Response) => {
+    try {
+      const incoming = (req.body as any).pixels || {};
+      const clean = cleanPlatformPixels(incoming);
+      await Setting.upsert({ key: 'saas_pixels', value: clean } as any);
+      logger.info(`SaaS pixels updated by ${(req as any).user?.email}`);
+      res.json({ pixels: clean });
+    } catch (error) {
+      logger.error({ err: error }, 'Update SaaS pixels error');
       res.status(500).json({ error: 'Internal server error' });
     }
   },

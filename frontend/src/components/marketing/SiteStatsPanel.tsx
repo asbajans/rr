@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
-import { BarChart3, Eye, ShoppingCart, MousePointer, TrendingUp, Users } from 'lucide-react'
+import { BarChart3, Eye, ShoppingCart, MousePointer, TrendingUp, Users, UserPlus } from 'lucide-react'
 
 export default function SiteStatsPanel() {
   const [days, setDays] = useState(30)
@@ -49,10 +49,25 @@ export default function SiteStatsPanel() {
           <p className="text-xs text-zinc-500 flex items-center gap-1"><MousePointer className="h-3 w-3" /> Sepete Ekle</p>
           <p className="text-xl font-bold text-zinc-900">{k.addToCarts.toLocaleString('tr-TR')}</p>
         </div>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
+          <p className="text-xs text-emerald-700 flex items-center gap-1"><UserPlus className="h-3 w-3" /> Üye / Kayıt</p>
+          <p className="text-xl font-bold text-zinc-900">{(k.signups ?? 0).toLocaleString('tr-TR')}</p>
+          <p className="text-xs text-zinc-500">kayıt · son {days} gün</p>
+        </div>
+      </div>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
           <p className="text-xs text-zinc-500 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Satış / Ciro</p>
           <p className="text-xl font-bold text-zinc-900">{k.purchases} / {Number(k.revenue).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</p>
-          <p className="text-xs text-zinc-500">Dönüşüm %{k.conversion}</p>
+          <p className="text-xs text-zinc-500">Dönüşüm %{k.conversion} · Sipariş {k.orderCount}</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 col-span-1">
+          <p className="text-xs text-zinc-500">Sepet → Satış</p>
+          <p className="text-lg font-bold text-zinc-900">{k.addToCarts > 0 ? ((k.purchases / k.addToCarts) * 100).toFixed(1) : '0.0'}%</p>
+          <p className="text-xs text-zinc-500">dönüşüm</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-3 col-span-2 flex items-center">
+          <p className="text-xs text-zinc-600">Tüm dönüşümler <span className="font-medium text-zinc-900">GA / GTM / Meta / TikTok / Google Ads</span> üzerinden de izlenir. Mağaza Piksel & Takip ayarlarınızı kontrol edin.</p>
         </div>
       </div>
 
@@ -64,14 +79,15 @@ export default function SiteStatsPanel() {
               {data.series.slice(-30).map((d:any)=>(
                 <div key={d.date} className="w-10 text-center">
                   <div className="flex flex-col-reverse gap-0.5 h-24 justify-start items-center">
-                    <div className="w-6 bg-indigo-600 rounded-t" style={{ height: `${Math.min(80, (d.page_view/ Math.max(1, Math.max(...data.series.map((x:any)=>x.page_view))))*80)}px` }} title={`Ziyaret ${d.page_view}`} />
-                    <div className="w-6 bg-emerald-500 rounded-t" style={{ height: `${Math.min(80, (d.purchase/ Math.max(1, Math.max(...data.series.map((x:any)=>x.purchase))))*80)}px` }} title={`Satış ${d.purchase}`} />
+                    <div className="w-5 bg-indigo-600 rounded-t" style={{ height: `${Math.min(70, (d.page_view/ Math.max(1, Math.max(...data.series.map((x:any)=>x.page_view))))*70)}px` }} title={`Ziyaret ${d.page_view}`} />
+                    <div className="w-5 bg-amber-500 rounded-t" style={{ height: `${Math.min(60, ((d.signup||0)/ Math.max(1, Math.max(...data.series.map((x:any)=>x.signup||0))))*50)}px` }} title={`Kayıt ${(d.signup||0)}`} />
+                    <div className="w-5 bg-emerald-500 rounded-t" style={{ height: `${Math.min(70, (d.purchase/ Math.max(1, Math.max(...data.series.map((x:any)=>x.purchase))))*70)}px` }} title={`Satış ${d.purchase}`} />
                   </div>
                   <p className="text-[9px] text-zinc-500 mt-1">{d.date.slice(5)}</p>
                 </div>
               ))}
             </div>
-            <p className="text-[11px] text-zinc-500 mt-1"><span className="inline-block h-2 w-2 bg-indigo-600 rounded mr-1" />Ziyaret <span className="inline-block h-2 w-2 bg-emerald-500 rounded ml-2 mr-1" />Satış</p>
+            <p className="text-[11px] text-zinc-500 mt-1"><span className="inline-block h-2 w-2 bg-indigo-600 rounded mr-1" />Ziyaret <span className="inline-block h-2 w-2 bg-amber-500 rounded ml-2 mr-1" />Kayıt <span className="inline-block h-2 w-2 bg-emerald-500 rounded ml-2 mr-1" />Satış</p>
           </div>
         </div>
       )}

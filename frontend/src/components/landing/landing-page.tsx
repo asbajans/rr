@@ -24,6 +24,8 @@ import type { Plan } from '@/lib/types'
 import { LandingAiDemo } from '@/components/landing/landing-ai-demo'
 import { LandingMarquee } from '@/components/landing/landing-marquee'
 import { trackPlatform } from '@/lib/analytics'
+import { SaasPixelInjector } from '@/components/landing/saas-pixel-injector'
+import { WhatsappButton } from '@/components/landing/whatsapp-button'
 
 type IconProps = { className?: string }
 const ICONS: Record<string, ComponentType<IconProps>> = {
@@ -479,6 +481,7 @@ export function LandingPage({ initialPlans }: { initialPlans: Plan[] | null }) {
 
   return (
     <div className="landing min-h-screen bg-background">
+      <SaasPixelInjector />
       <Header t={t} lang={lang} setLang={setLang} />
       <main>
         <Hero t={t} />
@@ -491,6 +494,7 @@ export function LandingPage({ initialPlans }: { initialPlans: Plan[] | null }) {
         <FinalCta t={t} />
       </main>
       <Footer t={t} />
+      <WhatsappButton />
     </div>
   )
 }

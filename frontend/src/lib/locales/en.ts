@@ -133,6 +133,7 @@
   reviewRejected: 'Rejected',
   superSupport: 'Support Tickets',
   superAnalytics: 'SaaS Analytics',
+  superMarketing: 'Marketing & Tracking',
   superReviews: 'Review Moderation',
   siteStats: 'Site Statistics',
   siteStatsSubtitle: 'Store traffic, conversion and source analysis.',

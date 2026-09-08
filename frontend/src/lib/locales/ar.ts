@@ -124,6 +124,7 @@
   reviewRejected: 'Ù…Ø±ÙÙˆØ¶',
   superSupport: 'Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ø¯Ø¹Ù…',
   superAnalytics: 'ØªØ­Ù„ÙŠÙ„Ø§Øª SaaS',
+  superMarketing: 'Marketing & Tracking',
   superReviews: 'Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØªØ¹Ù„ÙŠÙ‚Ø§Øª',
   siteStats: 'Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª Ø§Ù„Ù…ÙˆÙ‚Ø¹',
   siteStatsSubtitle: 'Ø­Ø±ÙƒØ© Ø§Ù„Ù…ØªØ¬Ø± ÙˆØ§Ù„ØªØ­ÙˆÙŠÙ„',

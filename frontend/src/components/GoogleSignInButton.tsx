@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
+import { trackSignup } from '@/lib/analytics'
 
 declare global {
   interface Window {
@@ -85,6 +86,7 @@ export function GoogleSignInButton({ mode = 'login' }: { mode?: 'login' | 'regis
       setLoading(true)
       try {
         const user = await googleLogin(response.credential)
+        try { if (mode === 'register') trackSignup({ method: 'google', source: 'google_gsi' }) } catch {}
         router.push(user.is_admin ? '/stores' : '/dashboard')
       } catch (err: any) {
         setError(err?.message || 'Google ile giriş başarısız')
@@ -117,6 +119,7 @@ export function GoogleSignInButton({ mode = 'login' }: { mode?: 'login' | 'regis
           const accessToken = resp.access_token as string
           try {
             const user = await googleLogin('', accessToken)
+            try { if (mode === 'register') trackSignup({ method: 'google', source: 'google_oauth2' }) } catch {}
             router.push(user.is_admin ? '/stores' : '/dashboard')
           } catch (e: any) {
             setError(e?.message || 'Google ile giriş başarısız')

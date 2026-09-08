@@ -13,6 +13,7 @@ import { Coupon } from '../../models/Coupon.model.js';
 import { Campaign } from '../../models/Campaign.model.js';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { Product } from '../../models/Product.model.js';
+import { StoreAnalyticsEvent } from '../../models/StoreAnalyticsEvent.model.js';
 import { optionalCustomer, requireCustomer, signCustomerToken } from './middleware.js';
 
 export const customerRoutes: Router = Router();
@@ -33,6 +34,17 @@ customerRoutes.post('/:siteCode/customer/register', async (req, res) => {
   if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 8 || name.length < 2) return res.status(400).json({ error: 'INVALID_CUSTOMER_DATA' });
   if (await Customer.findOne({ where: { storeId: store.id, email } })) return res.status(409).json({ error: 'CUSTOMER_EMAIL_EXISTS' });
   const customer = await Customer.create({ storeId: store.id, email, name, phone: req.body.phone ? String(req.body.phone).trim() : null, passwordHash: await bcrypt.hash(password, 12) });
+  try {
+    await StoreAnalyticsEvent.create({
+      storeId: store.id, sessionId: null, visitorId: null,
+      eventType: 'signup' as any,
+      path: `/store/${store.siteCode}/account`,
+      productId: null, referrer: (req.headers.referer as string) || null,
+      utmSource: (req.query as any)?.utm_source || null, utmMedium: null, utmCampaign: null,
+      device: null, ipHash: null, userAgent: String(req.headers['user-agent'] || '').slice(0,500) || null,
+      metadata: { customerId: customer.id, email, name },
+    } as any);
+  } catch {}
   res.status(201).json({ customer: publicCustomer(customer), accessToken: signCustomerToken(customer) });
 });
 

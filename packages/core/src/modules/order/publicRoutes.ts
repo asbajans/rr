@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { DropshippingOrder } from '../../models/DropshippingOrder.model.js';
 import { Store } from '../../models/Store.model.js';
 import { StorePaymentMethod } from '../../models/ContentModels.js';
+import { StoreAnalyticsEvent } from '../../models/StoreAnalyticsEvent.model.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 import { resolveCustomer } from '../customer/middleware.js';
@@ -62,6 +63,20 @@ publicOrderRoutes.post('/:siteCode/checkout', [
     }
 
     const result = await createCheckoutOrder(store, payload, customer?.id || null);
+    // Server-side purchase conversion for store analytics (seller dashboard + pixel parity)
+    try {
+      await StoreAnalyticsEvent.create({
+        storeId: store.id, sessionId: null, visitorId: null,
+        eventType: 'purchase' as any,
+        path: `/store/${store.siteCode}/checkout`,
+        productId: null, referrer: (req.headers.referer as string) || null,
+        utmSource: (req.body as any)?.attribution?.utm_source || (req.body as any)?.utmSource || null,
+        utmMedium: (req.body as any)?.attribution?.utm_medium || null,
+        utmCampaign: (req.body as any)?.attribution?.utm_campaign || null,
+        device: null, ipHash: null, userAgent: String(req.headers['user-agent'] || '').slice(0,500) || null,
+        metadata: { orderId: result.order.id, orderNumber: result.order.orderNumber, totalAmount: result.totals?.totalAmount, currency: result.order.currency, paymentMethod: payload.payment_method },
+      } as any);
+    } catch {}
 
     res.status(201).json({
       orderId: result.order.id,

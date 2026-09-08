@@ -20,7 +20,11 @@ export type AnalyticsEventType =
   | 'checkout_started'
   | 'purchase'
   | 'search'
-  | 'platform_view';
+  | 'platform_view'
+  | 'whatsapp_click'
+  | 'signup'
+  | 'lead'
+  | 'cta_click';
 
 @Table({
   tableName: 'store_analytics_events',

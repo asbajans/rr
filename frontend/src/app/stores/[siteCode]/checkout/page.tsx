@@ -8,7 +8,7 @@ import { storeBase } from '@/lib/store-path'
 import type { CustomerAddress } from '@/lib/types'
 import { ArrowLeft, Check, Plus } from 'lucide-react'
 import { getAttribution } from '@/lib/attribution'
-import { trackStore } from '@/lib/analytics'
+import { trackStore, trackPurchase } from '@/lib/analytics'
 
 type Step = 'info' | 'payment' | 'review' | 'done'
 
@@ -175,7 +175,10 @@ export default function CheckoutPage() {
       if (res.totals) setServerTotals(res.totals)
       setStep('done')
       clearCart()
-      try { trackStore(siteCode, 'purchase', { metadata: { orderId: res.orderId, revenue: res.totals?.totalAmount } }) } catch {}
+      try {
+        trackStore(siteCode, 'purchase', { metadata: { orderId: res.orderId, revenue: res.totals?.totalAmount } })
+        trackPurchase({ value: Number(res.totals?.totalAmount || totalPrice), currency: 'TRY', transactionId: String(res.orderId), siteCode, source: 'storefront_checkout' })
+      } catch {}
 
       if (res.requiresPaymentGateway && res.orderToken) {
         sessionStorage.setItem(

@@ -134,6 +134,7 @@
   reviewRejected: 'Reddedildi',
   superSupport: 'Destek Talepleri',
   superAnalytics: 'SaaS Analitik',
+  superMarketing: 'Pazarlama & Takip',
   superReviews: 'Yorum Moderasyon',
   siteStats: 'Site İstatistiği',
   siteStatsSubtitle: 'Mağaza trafiği, dönüşüm ve kaynak analizi.',

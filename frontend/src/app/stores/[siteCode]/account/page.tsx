@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { api } from '@/lib/api-client'
+import { trackSignup } from '@/lib/analytics'
 
 export default function StoreCustomerAccountPage() {
   const { siteCode } = useParams<{ siteCode: string }>()
@@ -23,6 +24,7 @@ export default function StoreCustomerAccountPage() {
       const result = register ? await api.customerRegister(siteCode, { email, password, name }) : await api.customerLogin(siteCode, { email, password })
       api.setCustomerToken(result.accessToken); setCustomer(result.customer); setOrders([])
       api.customerOrders(siteCode).then((r) => setOrders(r.orders || []))
+      if (register) try { trackSignup({ method: 'email', source: 'store_customer', siteCode }) } catch {}
     } catch (err: any) { setError(err.message || 'İşlem başarısız') }
   }
 

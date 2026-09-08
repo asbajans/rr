@@ -18,6 +18,7 @@ const validate = (req: Request, res: Response, next: Function) => {
 const PIXEL_PLATFORMS = [
   'google_analytics',
   'google_tag_manager',
+  'google_ads',
   'google_merchant_center',
   'facebook_pixel',
   'instagram',
@@ -53,8 +54,11 @@ router.put('/', authMiddleware, requireRole('owner', 'admin'), requireStore, [
           ...(p.measurement_id ? { measurement_id: String(p.measurement_id) } : {}),
           ...(p.container_id ? { container_id: String(p.container_id) } : {}),
           ...(p.pixel_id ? { pixel_id: String(p.pixel_id) } : {}),
+          ...(p.conversion_id ? { conversion_id: String(p.conversion_id) } : {}),
+          ...(p.conversion_label ? { conversion_label: String(p.conversion_label) } : {}),
           ...(p.merchant_id ? { merchant_id: String(p.merchant_id) } : {}),
           ...(p.business_account_id ? { business_account_id: String(p.business_account_id) } : {}),
+          ...(p.domain_verification ? { domain_verification: String(p.domain_verification) } : {}),
           ...(p.code ? { code: String(p.code) } : {}),
         };
       }

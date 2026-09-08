@@ -2281,6 +2281,18 @@ class ApiClient {
     return this.get<any>('/api/admin/saas/saas/overview', { params })
   }
 
+  getSaasPixels() {
+    return this.get<{ pixels: Record<string, any> }>('/api/admin/saas/pixels').then(r => r.pixels)
+  }
+
+  updateSaasPixels(pixels: Record<string, any>) {
+    return this.put<{ pixels: Record<string, any> }>('/api/admin/saas/pixels', { pixels }).then(r => r.pixels)
+  }
+
+  getPlatformPixels() {
+    return this.get<{ pixels: Record<string, any> }>('/api/analytics/platform/pixels').then(r => r.pixels)
+  }
+
   // Reviews (seller)
   getReviews(params?: { status?: string; productId?: number; search?: string; page?: number; limit?: number }) {
     return this.get<{ reviews: any[]; total: number; page: number; limit: number }>('/api/admin/commercial/reviews', { params })

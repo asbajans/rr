@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api-client'
-import { BarChart3, Eye, Users, Store, CreditCard, TrendingUp, AlertTriangle, Calendar } from 'lucide-react'
+import { BarChart3, Eye, Users, Store, CreditCard, TrendingUp, AlertTriangle, Calendar, MessageCircle, UserPlus, ShoppingBag } from 'lucide-react'
 
 export default function SaasAnalyticsPage() {
   const [days, setDays] = useState(30)
@@ -49,6 +49,11 @@ export default function SaasAnalyticsPage() {
           <p className="text-2xl font-bold text-white">{p.views.toLocaleString('tr-TR')}</p>
           <p className="text-xs text-zinc-500">{p.uniqueVisitors.toLocaleString('tr-TR')} tekil</p>
         </div>
+        <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/20 p-4">
+          <p className="text-xs text-emerald-300 flex items-center gap-1"><MessageCircle className="h-3 w-3" /> WhatsApp Tıklaması</p>
+          <p className="text-2xl font-bold text-white">{(p.whatsappClicks ?? 0).toLocaleString('tr-TR')}</p>
+          <p className="text-xs text-zinc-500">+15054415616 · son {days} gün</p>
+        </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <p className="text-xs text-zinc-400 flex items-center gap-1"><Users className="h-3 w-3" /> Kullanıcı</p>
           <p className="text-xl font-bold text-white">{u.total.toLocaleString('tr-TR')}</p>
@@ -59,11 +64,41 @@ export default function SaasAnalyticsPage() {
           <p className="text-xl font-bold text-white">{st.total.toLocaleString('tr-TR')}</p>
           <p className="text-xs text-emerald-400">+{st.new} son {days} gün</p>
         </div>
+      </div>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <p className="text-xs text-zinc-400 flex items-center gap-1"><CreditCard className="h-3 w-3" /> Aktif Paket</p>
           <p className="text-xl font-bold text-white">{sub.active} / {sub.total}</p>
           <p className="text-xs text-zinc-500">Trial {sub.trialing} · İptal {sub.canceled}</p>
         </div>
+        <div className="rounded-xl border border-amber-900/30 bg-amber-950/20 p-4">
+          <p className="text-xs text-amber-300 flex items-center gap-1"><UserPlus className="h-3 w-3" /> Üye Olma (Signup)</p>
+          <p className="text-2xl font-bold text-white">{(p.signupEvents ?? 0).toLocaleString('tr-TR')}</p>
+          <p className="text-xs text-zinc-500">{(p.signupEvents ?? 0) > 0 ? ((p.signupEvents / Math.max(1, p.views) * 100).toFixed(2) + '%') : '—'} dönüşüm · DB +{u.new}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/20 p-4">
+          <p className="text-xs text-emerald-300 flex items-center gap-1"><ShoppingBag className="h-3 w-3" /> Satın Alma (Purchase)</p>
+          <p className="text-2xl font-bold text-white">{(p.purchaseEvents ?? 0).toLocaleString('tr-TR')}</p>
+          <p className="text-xs text-zinc-500">{(p.purchaseEvents ?? 0) > 0 ? ((p.purchaseEvents / Math.max(1, p.views) * 100).toFixed(2) + '%') : '—'} dönüşüm</p>
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+          <p className="text-xs text-zinc-400">WhatsApp Dönüşüm</p>
+          <p className="text-lg font-bold text-white">{p.views > 0 ? (( (p.whatsappClicks ?? 0) / p.views * 100).toFixed(2)) : '0.00'}%</p>
+          <p className="text-xs text-zinc-500">tıklama / ziyaret</p>
+        </div>
+      </div>
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-white">Dönüşüm Hunisi (Platform)</h3>
+          <span className="text-xs text-zinc-500">Ziyaret → WhatsApp → Üye → Satın Alma</span>
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+          <div className="rounded-lg bg-zinc-800 p-3"><p className="text-xs text-zinc-400">Ziyaret</p><p className="text-lg font-bold text-white">{p.views.toLocaleString('tr-TR')}</p><p className="text-[11px] text-zinc-500">100%</p></div>
+          <div className="rounded-lg bg-emerald-950/30 border border-emerald-900/30 p-3"><p className="text-xs text-emerald-300">WhatsApp</p><p className="text-lg font-bold text-white">{(p.whatsappClicks ?? 0).toLocaleString('tr-TR')}</p><p className="text-[11px] text-zinc-500">{p.views>0?((p.whatsappClicks??0)/p.views*100).toFixed(1):'0'}%</p></div>
+          <div className="rounded-lg bg-amber-950/20 border border-amber-900/30 p-3"><p className="text-xs text-amber-300">Üye</p><p className="text-lg font-bold text-white">{(p.signupEvents ?? 0).toLocaleString('tr-TR')}</p><p className="text-[11px] text-zinc-500">{p.views>0?((p.signupEvents??0)/p.views*100).toFixed(1):'0'}%</p></div>
+          <div className="rounded-lg bg-indigo-950/30 border border-indigo-900/30 p-3"><p className="text-xs text-indigo-300">Satın Alma</p><p className="text-lg font-bold text-white">{(p.purchaseEvents ?? 0).toLocaleString('tr-TR')}</p><p className="text-[11px] text-zinc-500">{p.views>0?((p.purchaseEvents??0)/p.views*100).toFixed(1):'0'}%</p></div>
+        </div>
+        <p className="mt-2 text-[11px] text-zinc-500">Tüm adımlar GA4 / GTM (dataLayer) / Meta Pixel / TikTok Pixel / Google Ads üzerinden de tetiklenir. Pazarlama etiketlerini yönet → <a href="/super/marketing" className="text-indigo-400 hover:underline">Pazarlama & Takip</a></p>
       </div>
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
@@ -109,18 +144,30 @@ export default function SaasAnalyticsPage() {
       </div>
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-        <h3 className="text-sm font-semibold text-white mb-2">Günlük Platform Ziyareti</h3>
+        <h3 className="text-sm font-semibold text-white mb-2">Günlük Platform Ziyareti & Dönüşümler</h3>
         <div className="overflow-x-auto">
           <div className="flex gap-1 min-w-max">
-            {p.series?.slice(-30).map((d:any)=>(
-              <div key={d.date} className="w-10 text-center">
-                <div className="flex justify-center items-end h-20">
-                  <div className="w-6 bg-indigo-500 rounded-t" style={{ height: `${Math.min(80, (d.views/ Math.max(1, Math.max(...p.series.map((x:any)=>x.views))))*80)}px` }} title={`${d.views}`} />
+            {p.series?.slice(-30).map((d:any)=>{
+              const w = p.whatsappSeries?.find((x:any)=>x.date===d.date)
+              const s = p.signupSeries?.find((x:any)=>x.date===d.date)
+              const pu = p.purchaseSeries?.find((x:any)=>x.date===d.date)
+              const wClicks = w?.clicks ?? 0
+              const sCount = s?.count ?? 0
+              const puCount = pu?.count ?? 0
+              return (
+                <div key={d.date} className="w-12 text-center">
+                  <div className="flex justify-center items-end h-20 gap-0.5">
+                    <div className="w-2.5 bg-indigo-500 rounded-t" style={{ height: `${Math.min(80, (d.views/ Math.max(1, Math.max(...p.series.map((x:any)=>x.views))))*80)}px` }} title={`Ziyaret ${d.views}`} />
+                    <div className="w-2.5 bg-emerald-500 rounded-t" style={{ height: `${Math.min(80, (wClicks/ Math.max(1, Math.max(...(p.whatsappSeries||[]).map((x:any)=>x.clicks),1)))*60)}px` }} title={`WhatsApp ${wClicks}`} />
+                    <div className="w-2.5 bg-amber-500 rounded-t" style={{ height: `${Math.min(80, (sCount/ Math.max(1, Math.max(...(p.signupSeries||[]).map((x:any)=>x.count),1)))*60)}px` }} title={`Üye ${sCount}`} />
+                    <div className="w-2.5 bg-sky-500 rounded-t" style={{ height: `${Math.min(80, (puCount/ Math.max(1, Math.max(...(p.purchaseSeries||[]).map((x:any)=>x.count),1)))*60)}px` }} title={`Satış ${puCount}`} />
+                  </div>
+                  <p className="text-[9px] text-zinc-500 mt-1">{d.date.slice(5)}</p>
                 </div>
-                <p className="text-[9px] text-zinc-500 mt-1">{d.date.slice(5)}</p>
-              </div>
-            ))}
+              )
+            })}
           </div>
+          <p className="text-[11px] text-zinc-500 mt-2"><span className="inline-block h-2 w-2 bg-indigo-500 rounded mr-1" />Ziyaret <span className="inline-block h-2 w-2 bg-emerald-500 rounded ml-2 mr-1" />WhatsApp <span className="inline-block h-2 w-2 bg-amber-500 rounded ml-2 mr-1" />Üye <span className="inline-block h-2 w-2 bg-sky-500 rounded ml-2 mr-1" />Satın Alma</p>
         </div>
       </div>
 

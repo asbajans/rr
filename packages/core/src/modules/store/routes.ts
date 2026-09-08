@@ -7,6 +7,7 @@ import { Subscription } from '../../models/Subscription.model.js';
 import { User } from '../../models/User.model.js';
 import { ApiKey } from '../../models/ApiKey.model.js';
 import { CreditLog } from '../../models/CreditLog.model.js';
+import { StoreAnalyticsEvent } from '../../models/StoreAnalyticsEvent.model.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { authMiddleware, requireRole, requireStore, generateApiKey } from '../auth/middleware.js';
@@ -408,6 +409,19 @@ if (stripe) {
                   amount: credits, balanceBefore: before, balanceAfter: after,
                 } as any);
                 logger.info(`Credit grant: store ${storeId} +${credits} (session ${session.id})`);
+                // purchase conversion (credits)
+                try {
+                  const amount = (session as any).amount_total ? (session as any).amount_total / 100 : null;
+                  const currency = (session as any).currency ? String((session as any).currency).toUpperCase() : 'TRY';
+                  await StoreAnalyticsEvent.create({
+                    storeId: null, sessionId: null, visitorId: null,
+                    eventType: 'purchase' as any,
+                    path: '/billing/credits', productId: null,
+                    referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
+                    device: null, ipHash: null, userAgent: null,
+                    metadata: { type: 'credit_purchase', credits, amount, currency, storeId: parseInt(storeId), sessionId: session.id },
+                  } as any);
+                } catch {}
               }
             }
           } else {
@@ -423,6 +437,20 @@ if (stripe) {
               }
               await Store.update({ planId: parseInt(planId) }, { where: { id: parseInt(storeId) } });
               logger.info(`Plan activated: store ${storeId} -> plan ${planId} (session ${session.id}, sub ${subId})`);
+              // purchase conversion (subscription)
+              try {
+                const plan = await Plan.findByPk(parseInt(planId));
+                const amount = plan ? Number(plan.price) : null;
+                const currency = plan ? String(plan.currency || 'TRY') : 'TRY';
+                await StoreAnalyticsEvent.create({
+                  storeId: null, sessionId: null, visitorId: null,
+                  eventType: 'purchase' as any,
+                  path: '/billing', productId: null,
+                  referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
+                  device: null, ipHash: null, userAgent: null,
+                  metadata: { type: 'subscription', planId: parseInt(planId), planName: plan?.name, amount, currency, storeId: parseInt(storeId), sessionId: session.id },
+                } as any);
+              } catch {}
             }
           }
           break;

@@ -8,6 +8,7 @@ import { Store } from '../../models/Store.model.js';
 import { Plan } from '../../models/Plan.model.js';
 import { ApiKey } from '../../models/ApiKey.model.js';
 import { Subscription } from '../../models/Subscription.model.js';
+import { StoreAnalyticsEvent } from '../../models/StoreAnalyticsEvent.model.js';
 import { serializePlan } from '../planSerializer.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
@@ -146,6 +147,19 @@ router.post('/register', [
     const refreshToken = generateRefreshToken(user, store);
 
     logger.info(`New store registered: ${store.siteCode} (${store.id})`);
+    // Server-side conversion event for SaaS signup (mirrors frontend gtag/fbq; superadmin analytics)
+    try {
+      await StoreAnalyticsEvent.create({
+        storeId: null, sessionId: null, visitorId: null,
+        eventType: 'signup' as any,
+        path: '/register', referrer: (req.headers.referer as string) || null,
+        utmSource: (req.body as any)?.utm_source || (req.query as any)?.utm_source || null,
+        utmMedium: (req.body as any)?.utm_medium || (req.query as any)?.utm_medium || null,
+        utmCampaign: (req.body as any)?.utm_campaign || (req.query as any)?.utm_campaign || null,
+        device: null, ipHash: null, userAgent: String(req.headers['user-agent'] || '').slice(0, 500) || null,
+        metadata: { method: 'email', email, storeId: store.id, siteCode: store.siteCode },
+      } as any);
+    } catch {}
 
     res.status(201).json({
       token,
@@ -631,6 +645,18 @@ router.post('/google', [
       } as any);
 
       logger.info(`New Google store registered: ${store.siteCode} (${store.id}) via ${email}`);
+      try {
+        await StoreAnalyticsEvent.create({
+          storeId: null, sessionId: null, visitorId: null,
+          eventType: 'signup' as any,
+          path: '/auth/google', referrer: (req.headers.referer as string) || null,
+          utmSource: (req.body as any)?.utm_source || (req.query as any)?.utm_source || null,
+          utmMedium: (req.body as any)?.utm_medium || null,
+          utmCampaign: (req.body as any)?.utm_campaign || null,
+          device: null, ipHash: null, userAgent: String(req.headers['user-agent'] || '').slice(0, 500) || null,
+          metadata: { method: 'google', email, storeId: store.id, siteCode: store.siteCode },
+        } as any);
+      } catch {}
     }
 
     // Ensure we have fresh store with plan

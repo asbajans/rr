@@ -124,6 +124,7 @@
   reviewRejected: 'Rechazado',
   superSupport: 'Tickets Soporte',
   superAnalytics: 'Analítica SaaS',
+  superMarketing: 'Marketing & Tracking',
   superReviews: 'Moderación',
   siteStats: 'Estadística Sitio',
   siteStatsSubtitle: 'Tráfico y conversión',
