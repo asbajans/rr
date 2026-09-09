@@ -116,10 +116,10 @@ export default function BillingPage() {
     }
   }
 
-  async function handleValidateCoupon(plan: Plan) {
+  async function handleValidateCoupon(plan?: Plan) {
     if (!couponCode.trim()) { setCouponValid(null); return }
     try {
-      const r = await api.validateSaasCoupon(couponCode.trim(), plan.id, billingInterval)
+      const r = await api.validateSaasCoupon(couponCode.trim(), plan?.id as any, billingInterval)
       setCouponValid(r)
       if (!r.valid) setMessage(r.error || 'Kod geçersiz')
       else setMessage(`Kod geçerli: ${r.discount} TRY indirim — yeni fiyat ${r.finalPrice} TRY`)

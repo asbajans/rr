@@ -175,21 +175,29 @@ saasCouponRoutes.get('/:id/redemptions', superAdminOnly, [param('id').isInt()], 
   res.json({ redemptions: rows });
 });
 
-// validate endpoint for owner (optional - superadmin can test)
+// validate endpoint for owner — planId optional for generic preview
 saasCouponRoutes.post('/validate', [
   body('code').isString(),
-  body('planId').isInt(),
+  body('planId').optional().isInt(),
   body('interval').optional().isIn(['month','year']),
 ], validate, async (req: Request, res: Response)=>{
   try {
     const code = normalizeCode(req.body.code);
-    const plan = await Plan.findByPk(req.body.planId);
-    if (!plan) return res.status(404).json({ error:'Plan not found' });
     const coupon = await SaasCoupon.findOne({ where:{ code, isActive:true } });
     if (!coupon) return res.status(400).json({ valid:false, error:'Kod bulunamadı' });
-    const now = new Date();
-    if ((coupon as any).startsAt && new Date((coupon as any).startsAt) > now) return res.json({ valid:false, error:'Kod henüz aktif değil' });
-    if ((coupon as any).endsAt && new Date((coupon as any).endsAt) < now) return res.json({ valid:false, error:'Kod süresi dolmuş' });
+    // if planId not provided → generic check (active, dates, usageLimit)
+    if (!req.body.planId) {
+      const now = new Date();
+      if ((coupon as any).startsAt && new Date((coupon as any).startsAt) > now) return res.json({ valid:false, error:'Kod henüz aktif değil' });
+      if ((coupon as any).endsAt && new Date((coupon as any).endsAt) < now) return res.json({ valid:false, error:'Kod süresi dolmuş' });
+      if ((coupon as any).usageLimit != null && Number((coupon as any).usedCount) >= Number((coupon as any).usageLimit)) return res.json({ valid:false, error:'Kullanım limiti doldu' });
+      return res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount }, basePrice:null, discount:null, finalPrice:null });
+    }
+    const plan = await Plan.findByPk(req.body.planId);
+    if (!plan) return res.status(404).json({ error:'Plan not found' });
+    const now2 = new Date();
+    if ((coupon as any).startsAt && new Date((coupon as any).startsAt) > now2) return res.json({ valid:false, error:'Kod henüz aktif değil' });
+    if ((coupon as any).endsAt && new Date((coupon as any).endsAt) < now2) return res.json({ valid:false, error:'Kod süresi dolmuş' });
     if ((coupon as any).usageLimit != null && Number((coupon as any).usedCount) >= Number((coupon as any).usageLimit)) return res.json({ valid:false, error:'Kullanım limiti doldu' });
     const planIds = (coupon as any).applicablePlanIds as number[] | null;
     if (planIds && !planIds.includes(Number(plan.id))) return res.json({ valid:false, error:'Bu plan için geçerli değil' });

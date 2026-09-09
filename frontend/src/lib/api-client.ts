@@ -433,7 +433,7 @@ class ApiClient {
     return this.post<{ url: string; billingInterval?: string; discountAmount?: number; basePrice?: number; finalPrice?: number }>('/api/admin/subscription/checkout', body)
   }
 
-  validateSaasCoupon(code: string, planId: number, interval?: string) {
+  validateSaasCoupon(code: string, planId?: number, interval?: string) {
     return this.post<any>(`/api/admin/saas/coupons/validate`, { code, planId, interval })
   }
 
