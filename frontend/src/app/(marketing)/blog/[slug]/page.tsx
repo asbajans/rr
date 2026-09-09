@@ -14,8 +14,9 @@ async function fetchPost(slug: string) {
   } catch { return null }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const post = await fetchPost(params.slug)
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const post = await fetchPost(slug)
   if (!post) return {}
   const seo = post.seo || {}
   const title = seo.metaTitle || post.title
@@ -41,8 +42,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   }
 }
 
-export default async function BlogDetailPage({ params }: { params: { slug: string } }) {
-  const post = await fetchPost(params.slug)
+export default async function BlogDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const post = await fetchPost(slug)
   if (!post) notFound()
 
   const seo = post.seo || {}
