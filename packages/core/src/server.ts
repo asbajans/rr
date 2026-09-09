@@ -261,6 +261,34 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE "marketplace_global_brands" DROP CONSTRAINT IF EXISTS "marketplace_global_brands_marketplaceBrandId_key"`);
   } catch {}
 
+  // Blog scheduling / SEO / CTA / viewCount (Faz A) — MUST run before sequelize.sync because model defines indexes on status/scheduledAt/viewCount
+  try {
+    await sequelize.query(`DO $$ BEGIN CREATE TYPE enum_blog_posts_status AS ENUM('draft','scheduled','published','archived'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+  } catch {}
+  try {
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'draft'`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "scheduledAt" TIMESTAMP`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "viewCount" INTEGER DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "ctaTitle" TEXT`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "ctaSubtitle" TEXT`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "ctaUrl" VARCHAR(500)`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS seo JSONB`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "bulkJobId" VARCHAR(100)`);
+    // backfill
+    await sequelize.query(`UPDATE blog_posts SET status = CASE WHEN "isActive" = true AND "publishedAt" <= NOW() THEN 'published' WHEN "isActive" = true AND "publishedAt" > NOW() THEN 'scheduled' ELSE 'draft' END WHERE status IS NULL OR (status = 'draft' AND "isActive" IS NOT NULL AND status IS DISTINCT FROM 'draft')`);
+  } catch (e) {
+    // ignore if table not yet created
+  }
+  // SaaS coupons + yearly pricing (Faz B) — also before sync
+  try {
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "yearlyPrice" DECIMAL(10,2)`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "yearlyDiscountPercent" INTEGER`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "stripeYearlyPriceId" VARCHAR(100)`);
+    await sequelize.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS "billingInterval" VARCHAR(20) DEFAULT 'month'`);
+    await sequelize.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS "appliedCouponCode" VARCHAR(80)`);
+    await sequelize.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS "appliedDiscountAmount" DECIMAL(15,2) DEFAULT 0`);
+  } catch {}
+
   await sequelize.sync({ alter: false });
 
   // Idempotent index creation. On existing databases the model sync above already
