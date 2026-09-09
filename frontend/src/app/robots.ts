@@ -28,15 +28,64 @@ const AI_CRAWLERS = [
 
 export default function robots(): MetadataRoute.Robots {
   const sitemap = `${PLATFORM_ORIGIN}/sitemap.xml`
+  // Panel + superadmin private paths — must not be indexed. Public storefronts (/stores/[siteCode]) stay allowed via Allow.
+  const privatePaths = [
+    '/api/',
+    '/_next/',
+    '/admin',
+    '/dashboard',
+    '/settings',
+    '/settings/',
+    '/billing',
+    '/blog-posts',
+    '/products',
+    '/products/',
+    '/categories',
+    '/brands',
+    '/variations',
+    '/stocks',
+    '/feeds',
+    '/orders',
+    '/customers',
+    '/b2b',
+    '/b2b/',
+    '/marketplaces',
+    '/marketplaces/',
+    '/integrations',
+    '/site-builder',
+    '/site-publish',
+    '/pages',
+    '/menus',
+    '/pixels',
+    '/payment',
+    '/locations',
+    '/shipping',
+    '/ai',
+    '/ai/',
+    '/credits',
+    '/support',
+    '/supplier',
+    '/supplier/',
+    '/super',
+    '/super/',
+    '/plans',
+    '/saas-coupons',
+    '/blogs', // superadmin /blogs (platform blog admin), public is /blog singular
+    '/credit-packs',
+    '/users',
+    '/stores$', // block exact /stores (superadmin list) but allow /stores/[siteCode] via Allow
+    '/stores?', // block /stores?* query variants
+  ]
   const rules: MetadataRoute.Robots['rules'] = [
     {
       userAgent: '*',
-      allow: '/',
-      disallow: ['/api/', '/_next/', '/admin', '/dashboard', '/settings'],
+      allow: ['/', '/stores/', '/blog/', '/blog', '/pricing', '/features', '/sitemap.xml', '/llms.txt'],
+      disallow: privatePaths,
     },
   ]
   for (const bot of AI_CRAWLERS) {
-    rules.push({ userAgent: bot, allow: '/' })
+    // AI crawlers: same disallow for private, but explicitly allow public
+    rules.push({ userAgent: bot, allow: ['/', '/stores/', '/blog/', '/sitemap.xml', '/llms.txt'], disallow: privatePaths })
   }
   return {
     rules,

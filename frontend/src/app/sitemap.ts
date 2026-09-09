@@ -58,14 +58,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       data?.stores ?? data?.data ?? []
 
     const entries: MetadataRoute.Sitemap = [...staticPages]
-    // platform blogs
+    const seen = new Set<string>()
+    const addEntry = (e: MetadataRoute.Sitemap[number]) => {
+      if (!seen.has(e.url)) { seen.add(e.url); entries.push(e) }
+    }
+    // platform blogs (fallback + ensures even if sitemap endpoint lacks them)
     try {
       const br = await fetch(`${API_BASE}/api/store/platform/blogs?limit=100`, { next: { revalidate: 3600 } })
       if (br.ok) {
         const bd:any = await br.json().catch(()=>null)
         const posts:any[] = bd?.posts ?? []
         for (const p of posts) {
-          entries.push({ url: `${PLATFORM_ORIGIN}/blog/${p.slug}`, lastModified: p.updatedAt ? new Date(p.updatedAt) : (p.publishedAt ? new Date(p.publishedAt) : now), changeFrequency: 'weekly', priority: 0.7 })
+          addEntry({ url: `${PLATFORM_ORIGIN}/blog/${p.slug}`, lastModified: p.updatedAt ? new Date(p.updatedAt) : (p.publishedAt ? new Date(p.publishedAt) : now), changeFrequency: 'weekly', priority: 0.75 })
         }
       }
     } catch {}
@@ -75,22 +79,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (!code) continue
       const domain = s.domain ?? (s as any).siteUrl ?? null
       const lm = s.updatedAt ? new Date(s.updatedAt) : now
-      entries.push({
-        url: storePath(code, domain, ''),
-        lastModified: lm,
-        changeFrequency: 'daily',
-        priority: 0.8,
-      })
+      // platform store itself is not a storefront — skip its /stores/platform URL
+      if (code !== 'platform') {
+        addEntry({
+          url: storePath(code, domain, ''),
+          lastModified: lm,
+          changeFrequency: 'daily',
+          priority: 0.8,
+        })
+      }
 
       const prods: Array<{ id: number; slug?: string | null; updatedAt?: string }> =
         (s as any).products ?? []
       for (const p of prods.slice(0, 200)) {
         const slug = p.slug ? String(p.slug) : String(p.id)
-        entries.push({
+        addEntry({
           url: storePath(code, domain, `products/${slug}`),
           lastModified: p.updatedAt ? new Date(p.updatedAt) : lm,
           changeFrequency: 'weekly',
           priority: 0.6,
+        })
+      }
+
+      const blogs: Array<{ slug: string; updatedAt?: string; publishedAt?: string }> =
+        (s as any).blogs ?? []
+      for (const b of blogs.slice(0, 100)) {
+        if (!b.slug) continue
+        // platform blogs live at /blog/:slug, not /stores/platform/blog/:slug
+        const blogUrl =
+          code === 'platform'
+            ? `${PLATFORM_ORIGIN}/blog/${b.slug}`
+            : storePath(code, domain, `blog/${b.slug}`)
+        addEntry({
+          url: blogUrl,
+          lastModified: b.updatedAt ? new Date(b.updatedAt) : (b.publishedAt ? new Date(b.publishedAt) : lm),
+          changeFrequency: 'weekly',
+          priority: code === 'platform' ? 0.75 : 0.65,
         })
       }
     }

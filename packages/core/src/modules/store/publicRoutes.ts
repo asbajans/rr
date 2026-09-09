@@ -65,6 +65,7 @@ publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
 
     const storeIds = stores.map((s) => (s as any).id as number);
     const productsByStore = new Map<number, Array<{ id: number; slug: string | null; updatedAt: Date }>>();
+    const blogsByStore = new Map<number, Array<{ slug: string; updatedAt: Date; publishedAt: Date }>>();
     if (storeIds.length) {
       const products = await Product.findAll({
         where: {
@@ -86,6 +87,20 @@ publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
         if (arr.length < 200) arr.push({ id: (p as any).id, slug: (p as any).slug ?? null, updatedAt: (p as any).updatedAt });
         productsByStore.set(sid, arr);
       }
+
+      // Published blogs per store (for sitemap + AI crawlers)
+      const blogs = await BlogPost.findAll({
+        where: { storeId: { [Op.in]: storeIds }, status: 'published' },
+        attributes: ['storeId', 'slug', 'updatedAt', 'publishedAt'],
+        order: [['publishedAt', 'DESC']],
+        limit: 5000,
+      });
+      for (const b of blogs) {
+        const sid = (b as any).storeId as number;
+        const arr = blogsByStore.get(sid) ?? [];
+        if (arr.length < 100) arr.push({ slug: (b as any).slug, updatedAt: (b as any).updatedAt, publishedAt: (b as any).publishedAt });
+        blogsByStore.set(sid, arr);
+      }
     }
 
     res.json({
@@ -95,6 +110,7 @@ publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
         siteUrl: (s as any).siteUrl ?? null,
         updatedAt: (s as any).updatedAt,
         products: productsByStore.get((s as any).id) ?? [],
+        blogs: blogsByStore.get((s as any).id) ?? [],
       })),
     });
   } catch (error) {
