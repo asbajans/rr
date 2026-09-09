@@ -26,6 +26,9 @@ function storePath(siteCode: string, domain: string | null | undefined, p: strin
   return `${PLATFORM_ORIGIN}/stores/${siteCode}${suffix}`
 }
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
   const staticPages: MetadataRoute.Sitemap = [
@@ -49,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Published stores — try platform sitemap endpoint, fall back to empty
     const res = await fetch(`${API_BASE}/api/store/sitemap`, {
       signal: controller.signal,
-      next: { revalidate: 3600 },
+      cache: 'no-store',
     })
     clearTimeout(t)
     if (!res.ok) return staticPages
@@ -64,7 +67,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
     // platform blogs (fallback + ensures even if sitemap endpoint lacks them)
     try {
-      const br = await fetch(`${API_BASE}/api/store/platform/blogs?limit=100`, { next: { revalidate: 3600 } })
+      const br = await fetch(`${API_BASE}/api/store/platform/blogs?limit=100`, { cache: 'no-store' })
       if (br.ok) {
         const bd:any = await br.json().catch(()=>null)
         const posts:any[] = bd?.posts ?? []
