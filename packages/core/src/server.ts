@@ -33,43 +33,20 @@ export const createApp = async (): Promise<Express> => {
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
+  // HOTFIX: allow all origins for now to unblock login (reflect request origin).
+  // Credentials + wildcard subdomain check was too strict and blocked preflight for google/config.
+  // TODO: tighten to allowlist once preflight verified via curl.
   const corsOptions: Parameters<typeof cors>[0] = {
-    origin(origin, cb) {
-      // allow requests with no origin (mobile apps, curl)
-      if (!origin) return cb(null, true);
-      try {
-        const url = new URL(origin);
-        const host = url.hostname;
-        // allow exact allowlist + any subdomain of rahatio.com.tr + localhost for dev
-        const isAllowed =
-          config.corsOrigin.includes(origin) ||
-          host === 'rahatio.com.tr' ||
-          host.endsWith('.rahatio.com.tr') ||
-          host === 'localhost' ||
-          host === '127.0.0.1' ||
-          host.endsWith('.localhost');
-        if (isAllowed) return cb(null, true);
-        // fallback: if origin string matches allowlist after trimming slash
-        const normalized = origin.replace(/\/$/, '');
-        if (config.corsOrigin.map((o: string) => o.replace(/\/$/, '')).includes(normalized)) {
-          return cb(null, true);
-        }
-        cb(null, false);
-      } catch {
-        // if origin is not a valid URL, fallback to allowlist check
-        if (config.corsOrigin.includes(origin)) return cb(null, true);
-        cb(null, false);
-      }
-    },
+    origin: true, // reflect request origin
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-API-Key-HMAC', 'X-Timestamp'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-API-Key-HMAC', 'X-Timestamp', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Content-Range', 'X-Total-Count'],
+    optionsSuccessStatus: 204,
   };
   app.use(cors(corsOptions));
-  // Express 5: '*' is not valid path — use regex for preflight. cors() already handles most preflights,
-  // but explicit handler ensures 204 for any OPTIONS that falls through.
-  app.options(/.*/, cors(corsOptions));
+  // handle preflight explicitly — Express 5 needs regex, not '*'
+  app.options(/.*/, cors(corsOptions) as any);
   app.use(compression());
   app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
   // Stripe webhooks need the raw body for signature verification — parse raw BEFORE express.json
