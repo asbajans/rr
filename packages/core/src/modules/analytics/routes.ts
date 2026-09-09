@@ -43,7 +43,7 @@ export const analyticsPublicRoutes: Router = Router();
 analyticsPublicRoutes.post(
   '/:siteCode/track',
   [
-    body('eventType').isIn(['page_view', 'product_view', 'add_to_cart', 'checkout_started', 'purchase', 'search', 'signup', 'lead', 'whatsapp_click']),
+    body('eventType').isIn(['page_view', 'product_view', 'add_to_cart', 'checkout_started', 'purchase', 'search', 'signup', 'lead', 'whatsapp_click', 'blog_view', 'cta_click']),
     body('path').optional().isString().isLength({ max: 500 }),
     body('productId').optional().isInt({ min: 1 }),
     body('referrer').optional().isString().isLength({ max: 500 }),
@@ -119,7 +119,7 @@ saasBeaconRoutes.get('/platform/pixels', async (_req: Request, res: Response) =>
 saasBeaconRoutes.post(
   '/platform/track',
   [
-    body('eventType').optional().isIn(['platform_view', 'whatsapp_click', 'cta_click', 'signup', 'purchase', 'lead', 'checkout_started', 'search']),
+    body('eventType').optional().isIn(['platform_view', 'whatsapp_click', 'cta_click', 'signup', 'purchase', 'lead', 'checkout_started', 'search', 'blog_view']),
     body('path').optional().isString().isLength({ max: 500 }),
     body('referrer').optional().isString().isLength({ max: 500 }),
     body('utmSource').optional().isString().isLength({ max: 100 }),
@@ -137,7 +137,7 @@ saasBeaconRoutes.post(
       if (ua && isBot(ua)) return res.json({ ok: true, skipped: 'bot' });
       const b: any = req.body || {};
       const rawType = b.eventType ? String(b.eventType) : 'platform_view';
-      const allowed = new Set(['platform_view', 'whatsapp_click', 'cta_click', 'signup', 'purchase', 'lead', 'checkout_started', 'search']);
+      const allowed = new Set(['platform_view', 'whatsapp_click', 'cta_click', 'signup', 'purchase', 'lead', 'checkout_started', 'search', 'blog_view']);
       const eventType = allowed.has(rawType) ? rawType : 'platform_view';
       const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
       await StoreAnalyticsEvent.create({

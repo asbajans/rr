@@ -214,10 +214,12 @@ export async function createCheckoutOrder(
     let discountAmount = 0;
     let coupon: Coupon | null = null;
     if (coupon_code) {
-      coupon = await Coupon.findOne({ where: { storeId: store.id, code: coupon_code.toUpperCase(), isActive: true }, transaction });
+      coupon = await Coupon.findOne({ where: { storeId: store.id, code: coupon_code.toUpperCase(), isActive: true }, transaction, lock: transaction.LOCK.UPDATE });
       const now = new Date();
-      if (!coupon || (coupon.startsAt && coupon.startsAt > now) || (coupon.endsAt && coupon.endsAt < now) || (coupon.usageLimit != null && coupon.usedCount >= coupon.usageLimit) || pricedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) < Number(coupon?.minimumAmount || 0)) throw new CheckoutError(400, 'Coupon is invalid or expired');
-      discountAmount = coupon.discountType === 'percent' ? pricedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) * Number(coupon.discountValue) / 100 : Number(coupon.discountValue);
+      const subtotalForCoupon = pricedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+      if (!coupon || (coupon.startsAt && coupon.startsAt > now) || (coupon.endsAt && coupon.endsAt < now) || (coupon.usageLimit != null && Number(coupon.usedCount) >= Number(coupon.usageLimit)) || subtotalForCoupon < Number(coupon?.minimumAmount || 0)) throw new CheckoutError(400, 'Coupon is invalid or expired');
+      if (coupon.discountType === 'percent' && (Number(coupon.discountValue) <= 0 || Number(coupon.discountValue) > 100)) throw new CheckoutError(400, 'Invalid coupon discount value');
+      discountAmount = coupon.discountType === 'percent' ? subtotalForCoupon * Number(coupon.discountValue) / 100 : Number(coupon.discountValue);
       if (coupon.maxDiscount != null) discountAmount = Math.min(discountAmount, Number(coupon.maxDiscount));
     }
     const totals = calculateTotals(pricedItems, store, discountAmount);

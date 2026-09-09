@@ -27,10 +27,16 @@ export async function deductCredits(userId: number, storeId: number, amount: num
   const CreditLog = (await import('../../models/CreditLog.model.js')).CreditLog;
 
   await sequelize.transaction(async (transaction) => {
-    const user = await User.findByPk(userId, { transaction });
+    const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     if (!user) return;
 
-    const balanceBefore = user.aiCredits;
+    const balanceBefore = Number(user.aiCredits ?? 0);
+    if (balanceBefore < amount) {
+      const err: any = new Error('Insufficient credits');
+      err.status = 402;
+      err.code = 'INSUFFICIENT_CREDITS';
+      throw err;
+    }
     const balanceAfter = balanceBefore - amount;
 
     await CreditLog.create({
@@ -281,7 +287,19 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
       if (!ok) return;
     }
 
-    await deductCredits(user.id, store.id, credits, scenarioCode, 'ai');
+    try {
+      await deductCredits(user.id, store.id, credits, scenarioCode, 'ai');
+    } catch (deductErr: any) {
+      if (deductErr?.status === 402 || deductErr?.code === 'INSUFFICIENT_CREDITS') {
+        return res.status(402).json({
+          error: 'INSUFFICIENT_CREDITS',
+          credits: 0,
+          required: credits,
+          message: 'AI krediniz yetersiz (eşzamanlı işlem nedeniyle). Lütfen tekrar deneyin veya kredi satın alın.',
+        });
+      }
+      throw deductErr;
+    }
     await logAiUsage(
       user.id, store.id, scenarioCode,
       provider?.id || null, model?.id || null, credits,
@@ -297,6 +315,15 @@ async function proxyToAiService(req: Request, res: Response, path: string, scena
 
     res.json(response.data);
   } catch (error: any) {
+    // handle race-condition 402 from deductCredits that bubbled
+    if (error?.status === 402 || error?.code === 'INSUFFICIENT_CREDITS') {
+      return res.status(402).json({
+        error: 'INSUFFICIENT_CREDITS',
+        credits: 0,
+        required: credits,
+        message: 'AI krediniz yetersiz. Kredi satın alın veya üst pakete geçin.',
+      });
+    }
     logger.error(
       { scenarioCode, path, message: error?.message, code: error?.code, status: error?.response?.status },
       'AI proxy error'
@@ -363,7 +390,19 @@ async function proxyImageGen(req: Request, res: Response, path: string, opts: { 
 
     // Billed on acceptance (202): the generation runs async on ComfyUI.
     if (response.status >= 200 && response.status < 300) {
-      await deductCredits(user.id, store.id, credits, 'ai_image_generate', 'ai');
+      try {
+        await deductCredits(user.id, store.id, credits, 'ai_image_generate', 'ai');
+      } catch (deductErr: any) {
+        if (deductErr?.status === 402 || deductErr?.code === 'INSUFFICIENT_CREDITS') {
+          return res.status(402).json({
+            error: 'INSUFFICIENT_CREDITS',
+            credits: 0,
+            required: credits,
+            message: 'AI krediniz yetersiz (eşzamanlı işlem nedeniyle).',
+          });
+        }
+        throw deductErr;
+      }
       await logAiUsage(
         user.id, store.id, 'ai_image_generate',
         provider?.id || null, model?.id || null, credits,
@@ -378,6 +417,14 @@ async function proxyImageGen(req: Request, res: Response, path: string, opts: { 
 
     res.status(response.status).json(response.data);
   } catch (error: any) {
+    if (error?.status === 402 || error?.code === 'INSUFFICIENT_CREDITS') {
+      return res.status(402).json({
+        error: 'INSUFFICIENT_CREDITS',
+        credits: 0,
+        required: credits,
+        message: 'AI krediniz yetersiz.',
+      });
+    }
     logger.error(
       { path, message: error?.message, code: error?.code, status: error?.response?.status },
       'AI image proxy error'

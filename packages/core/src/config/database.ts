@@ -40,12 +40,13 @@ import { StoreNotification } from '../models/StoreNotification.model.js';
 import { MarketplaceGlobalCategory, MarketplaceGlobalBrand, MarketplaceGlobalCategoryAttribute } from '../models/MarketplaceGlobalCatalog.model.js';
 import { SupportTicket, SupportTicketMessage } from '../models/SupportTicket.model.js';
 import { StoreAnalyticsEvent } from '../models/StoreAnalyticsEvent.model.js';
+import { SaasCoupon, SaasCouponRedemption } from '../models/SaasCoupon.model.js';
 
 export const sequelize = new Sequelize(config.database.url, {
   dialect: 'postgres',
   logging: config.env === 'development' ? (msg) => console.log(msg) : false,
   pool: config.database.pool,
-  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement, SupplierRating, SiteDeployment, Customer, CustomerFavorite, Campaign, Coupon, CustomerReview, NotificationTemplate, CustomerNotification, CustomerConsent, BlogPost, StoreNotification, MarketplaceGlobalCategory, MarketplaceGlobalBrand, MarketplaceGlobalCategoryAttribute, SupportTicket, SupportTicketMessage, StoreAnalyticsEvent],
+  models: [Store, User, Plan, Subscription, Category, MarketplaceCategoryMapping, Product, ProductVariant, ProductMarketplaceListing, MarketplaceIntegration, ProductB2bSetting, B2BRequest, B2BListedProduct, IntegrationLog, DropshippingOrder, OrderStatusHistory, ApiKey, CreditLog, Setting, AiProvider, AiModel, AiScenario, AiProviderRateLimit, AiUsageLog, Page, StoreLocation, StorePaymentMethod, ExternalFeed, FeedSyncLog, Variation, VariationOption, StoreMenu, Brand, AiProductSession, AiProductDraft, CustomerAddress, Supplier, SupplierSettlement, SupplierRating, SiteDeployment, Customer, CustomerFavorite, Campaign, Coupon, CustomerReview, NotificationTemplate, CustomerNotification, CustomerConsent, BlogPost, StoreNotification, MarketplaceGlobalCategory, MarketplaceGlobalBrand, MarketplaceGlobalCategoryAttribute, SupportTicket, SupportTicketMessage, StoreAnalyticsEvent, SaasCoupon, SaasCouponRedemption],
   define: {
     timestamps: true,
     underscored: false,

@@ -17,6 +17,9 @@ export class Subscription extends Model {
   @AllowNull(true) @Column(DataType.DATE) declare trialEndsAt: Date;
   @AllowNull(false) @Column(DataType.DATE) declare currentPeriodEnd: Date;
   @AllowNull(true) @Column(DataType.DATE) declare canceledAt: Date;
+  @AllowNull(true) @Default('month') @Column(DataType.STRING(20)) declare billingInterval: string;
+  @AllowNull(true) @Column(DataType.STRING(80)) declare appliedCouponCode: string | null;
+  @AllowNull(true) @Column(DataType.DECIMAL(15, 2)) declare appliedDiscountAmount: number | null;
 
   @CreatedAt @Column(DataType.DATE) declare createdAt: Date;
   @UpdatedAt @Column(DataType.DATE) declare updatedAt: Date;

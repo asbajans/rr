@@ -57,6 +57,9 @@ export default function BillingPage() {
   const [message, setMessage] = useState('')
   const [packs, setPacks] = useState<{ credits: number; price: number; popular?: boolean; label?: string }[]>(FALLBACK_PACKS)
   const [reason, setReason] = useState<string | null>(null)
+  const [billingInterval, setBillingInterval] = useState<'month'|'year'>('month')
+  const [couponCode, setCouponCode] = useState('')
+  const [couponValid, setCouponValid] = useState<any>(null)
 
   const loadBilling = useCallback(async () => {
     const [sub, pl] = await Promise.all([api.getSubscription(), api.getPlans()])
@@ -97,13 +100,12 @@ export default function BillingPage() {
     if (plan.id === currentPlan?.id) return
     setActionLoading(true)
     setMessage('')
-    try { trackPlatform({ path: '/billing', eventType: 'checkout_started', metadata: { planId: plan.id, planName: plan.name, price: plan.price } }) } catch {}
+    try { trackPlatform({ path: '/billing', eventType: 'checkout_started', metadata: { planId: plan.id, planName: plan.name, price: plan.price, interval: billingInterval, couponCode } }) } catch {}
     try {
-      const res = await api.createCheckoutSession(plan.id, window.location.href, window.location.href)
+      const res = await api.createCheckoutSession(plan.id, window.location.href, window.location.href, { interval: billingInterval, couponCode: couponCode.trim() || undefined })
       if (res.url) {
         window.location.href = res.url
       } else {
-        // free plan -> immediate activation counts as purchase
         try { trackPurchase({ value: Number(plan.price || 0), currency: plan.currency || 'TRY', transactionId: `plan_${plan.id}`, source: 'billing_plan_free' }) } catch {}
         await loadBilling()
       }
@@ -112,6 +114,16 @@ export default function BillingPage() {
     } finally {
       setActionLoading(false)
     }
+  }
+
+  async function handleValidateCoupon(plan: Plan) {
+    if (!couponCode.trim()) { setCouponValid(null); return }
+    try {
+      const r = await api.validateSaasCoupon(couponCode.trim(), plan.id, billingInterval)
+      setCouponValid(r)
+      if (!r.valid) setMessage(r.error || 'Kod geçersiz')
+      else setMessage(`Kod geçerli: ${r.discount} TRY indirim — yeni fiyat ${r.finalPrice} TRY`)
+    } catch (e:any){ setMessage(e.message||'Doğrulama hatası') }
   }
 
   async function handlePortal() {
@@ -248,7 +260,23 @@ export default function BillingPage() {
           )}
 
           <div id="plans" className={`mt-8 rounded-xl p-1 ${reason === 'product_limit' ? 'ring-2 ring-amber-400 bg-amber-50/50' : ''}`}>
-            <h2 className="text-lg font-semibold text-zinc-900">{t('availablePlans')}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-zinc-900">{t('availablePlans')}</h2>
+              <div className="flex items-center gap-2">
+                <button onClick={()=> setBillingInterval('month')} className={`rounded-full px-4 py-1.5 text-sm font-medium ${billingInterval==='month'?'bg-zinc-900 text-white':'border border-zinc-300'}`}>Aylık</button>
+                <button onClick={()=> setBillingInterval('year')} className={`rounded-full px-4 py-1.5 text-sm font-medium ${billingInterval==='year'?'bg-zinc-900 text-white':'border border-zinc-300'}`}>Yıllık</button>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <input value={couponCode} onChange={e=> setCouponCode(e.target.value)} placeholder="İndirim kodu (varsa)" className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+              <button onClick={()=> handleValidateCoupon(plans[0])} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm">Doğrula</button>
+            </div>
+            {couponValid && (
+              <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${couponValid.valid?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>
+                {couponValid.valid ? `✓ ${couponValid.discount} TRY indirim — ${couponValid.finalPrice} TRY` : `✗ ${couponValid.error}`}
+                {couponValid.valid && <span className="ml-2 text-[10px]">(ilk ay/fatura için geçerli, sonraki ay tam fiyat)</span>}
+              </div>
+            )}
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {plans.filter(p => p.is_active).map((plan) => (
                 <div
@@ -261,9 +289,20 @@ export default function BillingPage() {
                 >
                   <h3 className="font-semibold text-zinc-900">{plan.name}</h3>
                   <p className="mt-1 text-2xl font-bold text-zinc-900">
-                    {plan.price > 0 ? `${plan.price} ${plan.currency}` : t('free')}
-                    {plan.price > 0 && <span className="text-sm font-normal text-zinc-500">{t('perMonth')}</span>}
+                    {(() => {
+                      const yearly = (plan as any).yearly_price != null ? Number((plan as any).yearly_price) : ((plan as any).yearly_discount_percent != null ? Math.round(Number(plan.price)*12*(1-Number((plan as any).yearly_discount_percent)/100)) : null)
+                      const price = billingInterval==='year' ? yearly : plan.price
+                      if (!price || price<=0) return t('free')
+                      return `${price} ${plan.currency}`
+                    })()}
+                    {(() => {
+                      const yearly = (plan as any).yearly_price != null ? Number((plan as any).yearly_price) : ((plan as any).yearly_discount_percent != null ? Math.round(Number(plan.price)*12*(1-Number((plan as any).yearly_discount_percent)/100)) : null)
+                      const price = billingInterval==='year' ? yearly : plan.price
+                      if (!price || price<=0) return null
+                      return <span className="text-sm font-normal text-zinc-500">{billingInterval==='year' ? '/yıl' : t('perMonth')}</span>
+                    })()}
                   </p>
+                  {billingInterval==='year' && (plan as any).yearly_discount_percent ? <p className="text-xs font-medium text-emerald-600">%{(plan as any).yearly_discount_percent} indirim</p> : null}
                   <p className="mt-2 text-xs text-zinc-500">{plan.description}</p>
                   <ul className="mt-4 space-y-2 text-sm text-zinc-600">
                     <li>✓ {plan.product_limit} {t('productsCount')}</li>

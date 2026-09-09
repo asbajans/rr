@@ -58,6 +58,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       data?.stores ?? data?.data ?? []
 
     const entries: MetadataRoute.Sitemap = [...staticPages]
+    // platform blogs
+    try {
+      const br = await fetch(`${API_BASE}/api/store/platform/blogs?limit=100`, { next: { revalidate: 3600 } })
+      if (br.ok) {
+        const bd:any = await br.json().catch(()=>null)
+        const posts:any[] = bd?.posts ?? []
+        for (const p of posts) {
+          entries.push({ url: `${PLATFORM_ORIGIN}/blog/${p.slug}`, lastModified: p.updatedAt ? new Date(p.updatedAt) : (p.publishedAt ? new Date(p.publishedAt) : now), changeFrequency: 'weekly', priority: 0.7 })
+        }
+      }
+    } catch {}
+
     for (const s of stores.slice(0, 500)) {
       const code = s.siteCode ?? s.site_code ?? ''
       if (!code) continue

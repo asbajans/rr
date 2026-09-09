@@ -48,6 +48,9 @@ export interface PlanPublic {
   ai_scenario_models: Record<string, number | null> | null;
   hosting: string;
   is_active: boolean;
+  yearly_price: number | null;
+  yearly_discount_percent: number | null;
+  stripe_yearly_price_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +71,9 @@ export function serializePlan(plan: Plan): PlanPublic {
     ai_scenario_models: p.aiScenarioModels ?? p.ai_scenario_models ?? null,
     hosting: p.hosting ?? 'rahatio',
     is_active: p.isActive ?? p.is_active ?? true,
+    yearly_price: p.yearlyPrice != null ? Number(p.yearlyPrice) : null,
+    yearly_discount_percent: p.yearlyDiscountPercent != null ? Number(p.yearlyDiscountPercent) : null,
+    stripe_yearly_price_id: p.stripeYearlyPriceId ?? p.stripe_yearly_price_id ?? null,
     created_at: p.createdAt ? new Date(p.createdAt).toISOString() : '',
     updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : '',
   };

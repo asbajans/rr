@@ -126,6 +126,9 @@ export type Plan = {
   hosting: string
   ai_scenario_models?: Record<string, number> | null
   is_active: boolean
+  yearly_price?: number | null
+  yearly_discount_percent?: number | null
+  stripe_yearly_price_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -702,6 +705,13 @@ export type BlogPost = {
   product_id: number | null
   is_active: boolean
   published_at: string | null
+  scheduled_at?: string | null
+  status?: 'draft'|'scheduled'|'published'|'archived'
+  view_count?: number
+  cta_title?: string | null
+  cta_subtitle?: string | null
+  cta_url?: string | null
+  seo?: { metaTitle?: string; metaDescription?: string; keywords?: string[]; readingTime?: number; faq?: {q:string;a:string}[] } | null
   created_at: string
   updated_at: string
 }

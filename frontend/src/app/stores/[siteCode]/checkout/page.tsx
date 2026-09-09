@@ -261,8 +261,9 @@ export default function CheckoutPage() {
             </p>
             <div className="mt-4 rounded-lg bg-amber-50 p-4 text-left text-sm text-amber-800">
               <p className="font-medium">Ödeme bekleniyor</p>
-              <p className="mt-1">Sipariş takip kodunuzu saklayın:</p>
-              <p className="mt-1 font-mono text-xs break-all">{orderToken}</p>
+              <p className="mt-1">Sipariş takip kodunuzu saklayın (gizli):</p>
+              <p className="mt-1 font-mono text-xs break-all">{orderToken ? `${orderToken.slice(0,8)}••••••••${orderToken.slice(-4)}` : ''}</p>
+              <button onClick={()=> navigator.clipboard?.writeText(orderToken)} className="mt-2 text-xs font-medium text-amber-700 underline">Kopyala</button>
             </div>
             {initiatingPayment && (
               <p className="mt-4 text-sm text-zinc-600">Ödeme sayfasına yönlendiriliyorsunuz...</p>

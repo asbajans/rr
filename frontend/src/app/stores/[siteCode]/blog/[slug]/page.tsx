@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { storeBase } from '@/lib/store-path'
 import type { BlogPost } from '@/lib/types'
+import { BlogViewTracker } from '@/components/blog/tracker'
 
 export default function StoreBlogPostPage() {
   const { siteCode, slug } = useParams<{ siteCode: string; slug: string }>()
@@ -81,6 +82,7 @@ export default function StoreBlogPostPage() {
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <BlogViewTracker slug={String(slug)} siteCode={String(siteCode)} blogPostId={post.id} />
       <Link href={`${storeBase(siteCode)}/blog`} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
         <ArrowLeft className="h-4 w-4" /> Blog
       </Link>

@@ -45,6 +45,8 @@ import { quotaRoutes } from './modules/quota/routes.js';
 import { marketplaceCatalogRoutes } from './modules/marketplaceCatalog/routes.js';
 import { sellerSupportRoutes, superSupportRoutes } from './modules/support/routes.js';
 import { sellerAnalyticsRoutes, saasAnalyticsRoutes, analyticsPublicRoutes, saasBeaconRoutes } from './modules/analytics/routes.js';
+import { saasCouponRoutes } from './modules/saasCoupon/routes.js';
+import { platformBlogRoutes } from './modules/platformBlog/routes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -84,6 +86,8 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/super/support', superSupportRoutes);
   app.use('/api/admin/analytics', sellerAnalyticsRoutes);
   app.use('/api/admin/saas', saasAnalyticsRoutes);
+  app.use('/api/admin/saas/coupons', saasCouponRoutes);
+  app.use('/api/admin/saas/blogs', platformBlogRoutes);
   app.use('/api/webhooks', metaWebhookRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/ai', draftRoutes);

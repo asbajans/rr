@@ -87,6 +87,18 @@ export class Plan extends Model {
   @Column(DataType.STRING(20))
   declare hosting: string;
 
+  @AllowNull(true)
+  @Column(DataType.DECIMAL(10, 2))
+  declare yearlyPrice: number | null;
+
+  @AllowNull(true)
+  @Column(DataType.INTEGER)
+  declare yearlyDiscountPercent: number | null;
+
+  @AllowNull(true)
+  @Column(DataType.STRING(100))
+  declare stripeYearlyPriceId: string | null;
+
   @CreatedAt
   @Column(DataType.DATE)
   declare createdAt: Date;

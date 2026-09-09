@@ -155,6 +155,14 @@ function mapBlog(p: any): any {
     product_id: p.productId ?? p.product_id,
     is_active: p.isActive ?? p.is_active,
     published_at: p.publishedAt ?? p.published_at,
+    scheduled_at: p.scheduledAt ?? p.scheduled_at,
+    status: p.status ?? (p.isActive ? 'published' : 'draft'),
+    view_count: p.viewCount ?? p.view_count ?? 0,
+    cta_title: p.ctaTitle ?? p.cta_title,
+    cta_subtitle: p.ctaSubtitle ?? p.cta_subtitle,
+    cta_url: p.ctaUrl ?? p.cta_url,
+    seo: p.seo ?? null,
+    bulk_job_id: p.bulkJobId ?? p.bulk_job_id,
     created_at: p.createdAt ?? p.created_at,
     updated_at: p.updatedAt ?? p.updated_at,
   }
@@ -418,9 +426,31 @@ class ApiClient {
     return this.post<import('./types').Subscription>('/api/admin/plan/change', { planId })
   }
 
-  createCheckoutSession(planId: number, successUrl: string, cancelUrl: string) {
-    return this.post<{ url: string }>('/api/admin/subscription/checkout', { planId, successUrl, cancelUrl })
+  createCheckoutSession(planId: number, successUrl?: string, cancelUrl?: string, opts?: { interval?: 'month'|'year'; couponCode?: string }) {
+    const body:any = { planId, successUrl, cancelUrl }
+    if (opts?.interval) body.interval = opts.interval
+    if (opts?.couponCode) body.couponCode = opts.couponCode
+    return this.post<{ url: string; billingInterval?: string; discountAmount?: number; basePrice?: number; finalPrice?: number }>('/api/admin/subscription/checkout', body)
   }
+
+  validateSaasCoupon(code: string, planId: number, interval?: string) {
+    return this.post<any>(`/api/admin/saas/coupons/validate`, { code, planId, interval })
+  }
+
+  // Superadmin SaaS coupons
+  getSaasCoupons(filters?: { page?: number; limit?: number; search?: string; isActive?: boolean }) {
+    return this.get<any>(`/api/admin/saas/coupons`, { params: filters as any })
+  }
+  getSaasCoupon(id: number) { return this.get<any>(`/api/admin/saas/coupons/${id}`) }
+  createSaasCoupon(data: any) { return this.post<any>(`/api/admin/saas/coupons`, data) }
+  updateSaasCoupon(id: number, data: any) { return this.put<any>(`/api/admin/saas/coupons/${id}`, data) }
+  deleteSaasCoupon(id: number) { return this.delete<any>(`/api/admin/saas/coupons/${id}`) }
+  // Superadmin platform blogs (landing)
+  getSaasBlogs(filters?: any) { return this.get<any>(`/api/admin/saas/blogs`, { params: filters }) }
+  getSaasBlog(id:number){ return this.get<any>(`/api/admin/saas/blogs/${id}`).then(r=> r.post ?? r) }
+  createSaasBlog(data:any){ return this.post<any>(`/api/admin/saas/blogs`, data) }
+  updateSaasBlog(id:number,data:any){ return this.put<any>(`/api/admin/saas/blogs/${id}`, data) }
+  deleteSaasBlog(id:number){ return this.delete<any>(`/api/admin/saas/blogs/${id}`) }
 
   createPortalSession(returnUrl: string) {
     return this.post<{ url: string }>('/api/admin/subscription/portal', { returnUrl })
@@ -1515,9 +1545,9 @@ class ApiClient {
   }
 
   // Blog
-  async getBlogs(filters?: { page?: number; limit?: number; search?: string }) {
-    const r = await this.get<{ posts: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/admin/blogs`, { params: filters })
-    return { data: (r.posts || []).map(mapBlog), total: r.pagination.total, current_page: r.pagination.page, last_page: r.pagination.totalPages }
+  async getBlogs(filters?: { page?: number; limit?: number; search?: string; status?: string }) {
+    const r = await this.get<{ posts: any[]; pagination: any; summary?: any }>(`/api/admin/blogs`, { params: filters })
+    return { data: (r.posts || []).map(mapBlog), total: r.pagination?.total ?? (r.posts||[]).length, current_page: r.pagination?.page ?? 1, last_page: r.pagination?.totalPages ?? 1, summary: (r as any).summary ?? null }
   }
 
   getBlog(id: number) {
@@ -1525,19 +1555,22 @@ class ApiClient {
   }
 
   createBlog(data: Record<string, any>) {
-    const body = { ...data, isActive: data.is_active, is_active: undefined, publishedAt: data.published_at, published_at: undefined }
+    const body = { ...data }
     return this.post<any>(`/api/admin/blogs`, body).then(r => mapBlog(r.post ?? r))
   }
 
   updateBlog(id: number, data: Record<string, any>) {
-    const body = { ...data, isActive: data.is_active, is_active: undefined, publishedAt: data.published_at, published_at: undefined }
-    return this.put<any>(`/api/admin/blogs/${id}`, body).then(r => mapBlog(r.post ?? r))
+    return this.put<any>(`/api/admin/blogs/${id}`, data).then(r => mapBlog(r.post ?? r))
   }
 
   deleteBlog(id: number) {
     return this.delete<void>(`/api/admin/blogs/${id}`)
   }
 
+  publishBlog(id: number) { return this.post<any>(`/api/admin/blogs/${id}/publish`).then(r=> mapBlog(r.post ?? r)) }
+  unpublishBlog(id: number) { return this.post<any>(`/api/admin/blogs/${id}/unpublish`).then(r=> mapBlog(r.post ?? r)) }
+  scheduleBlog(id: number, scheduledAt: string) { return this.post<any>(`/api/admin/blogs/${id}/schedule`, { scheduledAt }).then(r=> mapBlog(r.post ?? r)) }
+  getBlogAnalytics() { return this.get<any>(`/api/admin/blogs/analytics/overview`) }
   generateBlog(data: {
     topic?: string
     productId?: number | null
@@ -1556,6 +1589,14 @@ class ApiClient {
       tags: string[]
     }>(`/api/admin/blogs/generate`, data)
   }
+  bulkGenerateBlogs(data: { topics: string; keywords?: string[]; notes?: string; productId?: number|null; ctaTitle?: string; ctaSubtitle?: string; ctaUrl?: string; scheduleMode?: string; startAt?: string; intervalDays?: number; intervalHours?: number }) {
+    return this.post<{ jobId: string; total: number; requiredCredits: number; scheduleMode: string }>(`/api/admin/blogs/bulk/generate`, data)
+  }
+  getBulkBlogJob(jobId: string) { return this.get<any>(`/api/admin/blogs/bulk/${jobId}`) }
+  bulkGenerateSaasBlogs(data: { topics: string; keywords?: string[]; notes?: string; ctaTitle?: string; ctaSubtitle?: string; ctaUrl?: string; scheduleMode?: string; startAt?: string; intervalDays?: number; intervalHours?: number }) {
+    return this.post<{ jobId: string; total: number; requiredCredits: number; scheduleMode: string }>(`/api/admin/saas/blogs/bulk/generate`, data)
+  }
+  getSaasBulkBlogJob(jobId: string) { return this.get<any>(`/api/admin/saas/blogs/bulk/${jobId}`) }
 
   // External Feeds
   async getFeeds() {

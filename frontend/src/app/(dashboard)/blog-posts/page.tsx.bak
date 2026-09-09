@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { BlogPost } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Newspaper, Plus, Pencil, Trash2, Search, Sparkles, X, Calendar, Eye, Clock, BarChart3 } from 'lucide-react'
+import { Newspaper, Plus, Pencil, Trash2, Search, Sparkles, X } from 'lucide-react'
 import { CardSkeleton, EmptyState } from '@/components/ui/skeleton'
 import PlanGateModal from '@/components/ui/plan-gate-modal'
 
@@ -20,19 +20,13 @@ type FormState = {
   tags: string
   is_active: boolean
   published_at: string
-  scheduled_at: string
-  status: 'draft'|'scheduled'|'published'|'archived'
   seo_title: string
   seo_description: string
-  cta_title: string
-  cta_subtitle: string
-  cta_url: string
 }
 
 const defaultForm: FormState = {
   id: null, title: '', slug: '', excerpt: '', content: '', cover_image: '',
-  author: '', tags: '', is_active: true, published_at: '', scheduled_at: '', status: 'draft', seo_title: '', seo_description: '',
-  cta_title: '', cta_subtitle: '', cta_url: '/register',
+  author: '', tags: '', is_active: true, published_at: '', seo_title: '', seo_description: '',
 }
 
 function slugify(v: string) {
@@ -42,19 +36,16 @@ function slugify(v: string) {
 export default function BlogPage() {
   const { user } = useAuth()
   const { can } = useAuth()
-  const [posts, setPosts] = useState<any[]>([])
+  const [posts, setPosts] = useState<BlogPost[]>([])
   const [gate, setGate] = useState<null | { type: 'module'; module: string; message?: string }>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [summary, setSummary] = useState<any>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<FormState>(defaultForm)
-  const [analytics, setAnalytics] = useState<any>(null)
 
   // AI generation
   const [genMode, setGenMode] = useState<'topic' | 'product'>('topic')
@@ -66,13 +57,12 @@ export default function BlogPage() {
   const [products, setProducts] = useState<any[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const load = useCallback(async (p: number, q: string, st: string) => {
+  const load = useCallback(async (p: number, q: string) => {
     setLoading(true)
     try {
-      const r = await api.getBlogs({ page: p, limit: 20, search: q || undefined, status: st || undefined } as any)
+      const r = await api.getBlogs({ page: p, limit: 20, search: q || undefined })
       setPosts(r.data)
       setTotalPages(r.last_page || 1)
-      if ((r as any).summary) setSummary((r as any).summary)
     } catch {
       setMessage('Blog yazıları yüklenemedi')
     } finally {
@@ -80,11 +70,8 @@ export default function BlogPage() {
     }
   }, [])
 
-  useEffect(() => { load(1, '', '') }, [load])
+  useEffect(() => { load(1, '') }, [load])
   useEffect(() => { if (user) api.getProducts({ limit: 100 }).then(r => setProducts(r.data)).catch(() => {}) }, [user])
-  useEffect(() => {
-    api.getBlogAnalytics().then(setAnalytics).catch(()=>{})
-  }, [])
 
   if (!user) return null
 
@@ -98,7 +85,7 @@ export default function BlogPage() {
     setShowForm(true)
   }
 
-  function openEdit(post: any) {
+  function openEdit(post: BlogPost) {
     setForm({
       id: post.id,
       title: post.title ?? '',
@@ -108,15 +95,10 @@ export default function BlogPage() {
       cover_image: post.cover_image ?? '',
       author: post.author ?? '',
       tags: Array.isArray(post.tags) ? post.tags.join(', ') : '',
-      is_active: post.is_active ?? post.status==='published',
+      is_active: post.is_active ?? true,
       published_at: post.published_at ? post.published_at.slice(0, 10) : '',
-      scheduled_at: post.scheduled_at ? new Date(post.scheduled_at).toISOString().slice(0,16) : '',
-      status: post.status || (post.is_active ? 'published':'draft'),
-      seo_title: post.seo?.metaTitle || post.meta?.seo_title || '',
-      seo_description: post.seo?.metaDescription || post.meta?.seo_description || '',
-      cta_title: post.cta_title || '',
-      cta_subtitle: post.cta_subtitle || '',
-      cta_url: post.cta_url || '/register',
+      seo_title: (post.meta?.seo_title as string) ?? '',
+      seo_description: (post.meta?.seo_description as string) ?? '',
     })
     setShowForm(true)
   }
@@ -130,30 +112,16 @@ export default function BlogPage() {
     setSaving(true)
     setMessage('')
     try {
-      const payload:any = {
+      const payload = {
         title: form.title,
         slug: form.slug || slugify(form.title),
         excerpt: form.excerpt,
         content: form.content,
-        coverImage: form.cover_image,
         cover_image: form.cover_image,
         author: form.author,
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-        isActive: form.status==='published',
-        is_active: form.status==='published',
-        publishedAt: form.published_at || new Date().toISOString(),
+        is_active: form.is_active,
         published_at: form.published_at || new Date().toISOString(),
-        scheduledAt: form.scheduled_at || null,
-        scheduled_at: form.scheduled_at || null,
-        status: form.status,
-        ctaTitle: form.cta_title || null,
-        ctaSubtitle: form.cta_subtitle || null,
-        ctaUrl: form.cta_url || '/register',
-        seo: {
-          metaTitle: form.seo_title || form.title.slice(0,60),
-          metaDescription: form.seo_description || form.excerpt || form.title.slice(0,160),
-          keywords: form.tags.split(',').map(t=>t.trim()).filter(Boolean),
-        },
         meta: {
           seo_title: form.seo_title || form.title.slice(0, 60),
           seo_description: form.seo_description || form.excerpt || form.title.slice(0, 160),
@@ -166,7 +134,7 @@ export default function BlogPage() {
       }
       setMessage('Blog yazısı kaydedildi')
       setShowForm(false)
-      load(page, search, statusFilter)
+      load(page, search)
     } catch (e: any) {
       if (e?.code === 'PLAN_MODULE_DISABLED' || e?.data?.error === 'PLAN_MODULE_DISABLED') {
         setGate({ type: 'module', module: e?.data?.module || 'blog', message: e.message })
@@ -178,26 +146,14 @@ export default function BlogPage() {
     }
   }
 
-  async function remove(post: any) {
+  async function remove(post: BlogPost) {
     if (!window.confirm(`"${post.title}" yazısını silmek istediğinize emin misiniz?`)) return
     try {
       await api.deleteBlog(post.id)
-      load(page, search, statusFilter)
+      load(page, search)
     } catch (e: any) {
       setMessage(e.message || 'Silme hatası')
     }
-  }
-
-  async function handlePublish(post:any) {
-    try { await api.publishBlog(post.id); setMessage('Yayınlandı'); load(page, search, statusFilter) } catch(e:any){ setMessage(e.message||'Hata') }
-  }
-  async function handleUnpublish(post:any) {
-    try { await api.unpublishBlog(post.id); setMessage('Taslaka alındı'); load(page, search, statusFilter) } catch(e:any){ setMessage(e.message||'Hata') }
-  }
-  async function handleSchedule(post:any) {
-    const at = window.prompt('Yayın tarihi (YYYY-MM-DDTHH:mm)', new Date(Date.now()+24*60*60*1000).toISOString().slice(0,16))
-    if(!at) return
-    try { await api.scheduleBlog(post.id, new Date(at).toISOString()); setMessage('Zamanlandı'); load(page, search, statusFilter) } catch(e:any){ setMessage(e.message||'Hata') }
   }
 
   async function generate() {
@@ -233,6 +189,7 @@ export default function BlogPage() {
         return
       }
       if (e?.code === 'INSUFFICIENT_CREDITS') {
+        // let global quota gate handle, also show local message
         setMessage(e.message || 'AI krediniz yetersiz')
         return
       }
@@ -262,36 +219,12 @@ export default function BlogPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-white">Blog</h1>
-          <p className="text-sm text-zinc-400">Mağaza blog yazılarını yönetin, AI ile SEO uyumlu yazı üretin, zamanlayın ve analiz edin.</p>
+          <p className="text-sm text-zinc-400">Mağaza blog yazılarını yönetin, AI ile SEO uyumlu yazı üretin.</p>
         </div>
         <Button onClick={openNew} disabled={!can('blog')} title={!can('blog') ? 'Blog modülü planınızda kapalı' : ''} className={!can('blog') ? 'opacity-50' : ''}><Plus className="mr-2 h-4 w-4" /> Yeni Yazı</Button>
       </div>
 
       {message && <p className="mt-3 text-sm text-amber-400">{message}</p>}
-
-      {/* summary */}
-      {summary && (
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center"><p className="text-xs text-zinc-400">Toplam</p><p className="text-lg font-bold text-white">{summary.total}</p></div>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center"><p className="text-xs text-zinc-400">Taslak</p><p className="text-lg font-bold text-zinc-300">{summary.draft}</p></div>
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-center"><p className="text-xs text-amber-300">Zamanlanmış</p><p className="text-lg font-bold text-amber-400">{summary.scheduled}</p></div>
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-center"><p className="text-xs text-emerald-300">Yayında</p><p className="text-lg font-bold text-emerald-400">{summary.published}</p></div>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-center"><p className="text-xs text-zinc-400">Arşiv</p><p className="text-lg font-bold text-zinc-300">{summary.archived}</p></div>
-        </div>
-      )}
-
-      {/* analytics mini */}
-      {analytics && (
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white"><BarChart3 className="h-4 w-4" /> Blog Analitiği</div>
-          <div className="mt-3 grid grid-cols-3 gap-4 text-center">
-            <div><p className="text-2xl font-bold text-white">{analytics.totalViews ?? 0}</p><p className="text-xs text-zinc-400">Toplam Görüntüleme</p></div>
-            <div><p className="text-2xl font-bold text-white">{analytics.totalPosts ?? 0}</p><p className="text-xs text-zinc-400">Yazı</p></div>
-            <div><p className="text-2xl font-bold text-white">{analytics.topPosts?.[0]?.viewCount ?? 0}</p><p className="text-xs text-zinc-400">En Çok Okunan</p></div>
-          </div>
-          {analytics.topPosts?.length>0 && <div className="mt-3 text-xs text-zinc-500">Popüler: {analytics.topPosts.slice(0,3).map((p:any)=> `${p.title} (${p.viewCount})`).join(' • ')}</div>}
-        </div>
-      )}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <div className="relative">
@@ -299,19 +232,12 @@ export default function BlogPage() {
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            onKeyDown={e => { if (e.key === 'Enter') load(1, search, statusFilter) }}
+            onKeyDown={e => { if (e.key === 'Enter') load(1, search) }}
             placeholder="Yazı ara..."
             className="rounded-lg border border-zinc-700 bg-zinc-800 py-2 pl-9 pr-3 text-sm text-white placeholder-zinc-500 focus:border-zinc-500 focus:outline-none"
           />
         </div>
-        <select value={statusFilter} onChange={e=> { setStatusFilter(e.target.value); load(1, search, e.target.value) }} className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
-          <option value="">Tümü</option>
-          <option value="draft">Taslak</option>
-          <option value="scheduled">Zamanlanmış</option>
-          <option value="published">Yayında</option>
-          <option value="archived">Arşiv</option>
-        </select>
-        <Button variant="outline" size="sm" onClick={() => load(1, search, statusFilter)}>Ara</Button>
+        <Button variant="outline" size="sm" onClick={() => load(1, search)}>Ara</Button>
       </div>
 
       {loading ? (
@@ -324,33 +250,25 @@ export default function BlogPage() {
             <thead>
               <tr className="border-b border-zinc-800 text-xs uppercase text-zinc-500">
                 <th className="px-3 py-2">Başlık</th>
+                <th className="px-3 py-2">Slug</th>
+                <th className="px-3 py-2">Yayın Tarihi</th>
                 <th className="px-3 py-2">Durum</th>
-                <th className="px-3 py-2">Yayın/Zaman</th>
-                <th className="px-3 py-2">Görüntüleme</th>
                 <th className="px-3 py-2 text-right">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {posts.map(post => (
                 <tr key={post.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40">
-                  <td className="px-3 py-3 font-medium text-zinc-200">
-                    <div className="max-w-xs truncate">{post.title}</div>
-                    <div className="text-xs text-zinc-500">/{post.slug}</div>
-                  </td>
+                  <td className="px-3 py-3 font-medium text-zinc-200">{post.title}</td>
+                  <td className="px-3 py-3 text-zinc-400">/{post.slug}</td>
+                  <td className="px-3 py-3 text-zinc-400">{post.published_at ? new Date(post.published_at).toLocaleDateString('tr-TR') : '—'}</td>
                   <td className="px-3 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${post.status==='published' ? 'bg-emerald-500/15 text-emerald-400' : post.status==='scheduled' ? 'bg-amber-500/15 text-amber-400' : post.status==='archived' ? 'bg-red-500/15 text-red-400':'bg-zinc-700 text-zinc-300'}`}>
-                      {post.status==='published'?'Yayında': post.status==='scheduled'?'Zamanlandı': post.status==='archived'?'Arşiv':'Taslak'}
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${post.is_active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-700 text-zinc-300'}`}>
+                      {post.is_active ? 'Aktif' : 'Taslak'}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-zinc-400 text-xs">
-                    {post.status==='scheduled' ? (post.scheduled_at ? new Date(post.scheduled_at).toLocaleString('tr-TR') : '—') : (post.published_at ? new Date(post.published_at).toLocaleDateString('tr-TR') : '—')}
-                  </td>
-                  <td className="px-3 py-3 text-zinc-400"><span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{post.view_count ?? 0}</span></td>
                   <td className="px-3 py-3">
-                    <div className="flex justify-end gap-1">
-                      {post.status!=='published' && <Button variant="ghost" size="sm" title="Yayınla" onClick={()=> handlePublish(post)}><Calendar className="h-4 w-4 text-emerald-400" /></Button>}
-                      {post.status==='published' && <Button variant="ghost" size="sm" title="Taslaka al" onClick={()=> handleUnpublish(post)}><Clock className="h-4 w-4 text-amber-400" /></Button>}
-                      <Button variant="ghost" size="sm" title="Zamanla" onClick={()=> handleSchedule(post)}><Clock className="h-4 w-4" /></Button>
+                    <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(post)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => remove(post)}><Trash2 className="h-4 w-4 text-red-400" /></Button>
                     </div>
@@ -366,8 +284,8 @@ export default function BlogPage() {
         <div className="mt-4 flex items-center justify-between">
           <p className="text-xs text-zinc-500">Sayfa {page}/{totalPages}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => { setPage(page - 1); load(page - 1, search, statusFilter) }}>Önceki</Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => { setPage(page + 1); load(page + 1, search, statusFilter) }}>Sonraki</Button>
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => { setPage(page - 1); load(page - 1, search) }}>Önceki</Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => { setPage(page + 1); load(page + 1, search) }}>Sonraki</Button>
           </div>
         </div>
       )}
@@ -439,21 +357,11 @@ export default function BlogPage() {
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-zinc-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-400">Durum</label>
-                  <select value={form.status} onChange={e=> setForm({...form, status: e.target.value as any, is_active: e.target.value==='published'})} className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
-                    <option value="draft">Taslak</option>
-                    <option value="scheduled">Zamanlanmış</option>
-                    <option value="published">Yayında</option>
-                    <option value="archived">Arşiv</option>
-                  </select>
+                  <label className="mb-1 block text-sm font-medium text-zinc-400">Yayın Tarihi</label>
+                  <input type="date" value={form.published_at} onChange={e => setForm({ ...form, published_at: e.target.value })}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white [color-scheme:dark] focus:border-zinc-500 focus:outline-none" />
                 </div>
               </div>
-              {form.status==='scheduled' && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-400">Zamanlanmış Yayın Tarihi</label>
-                  <input type="datetime-local" value={form.scheduled_at} onChange={e=> setForm({...form, scheduled_at: e.target.value})} className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white [color-scheme:dark]" />
-                </div>
-              )}
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-400">Kapak Görseli</label>
                 <div className="flex items-center gap-2">
@@ -489,33 +397,20 @@ export default function BlogPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-400">SEO Başlığı (max 60)</label>
-                  <input value={form.seo_title} onChange={e => setForm({ ...form, seo_title: e.target.value })} maxLength={60}
+                  <label className="mb-1 block text-sm font-medium text-zinc-400">SEO Başlığı</label>
+                  <input value={form.seo_title} onChange={e => setForm({ ...form, seo_title: e.target.value })}
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-zinc-500 focus:outline-none" />
-                  <p className="text-xs text-zinc-500">{form.seo_title.length}/60</p>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-400">SEO Açıklaması (max 160)</label>
-                  <input value={form.seo_description} onChange={e => setForm({ ...form, seo_description: e.target.value })} maxLength={160}
+                  <label className="mb-1 block text-sm font-medium text-zinc-400">SEO Açıklaması</label>
+                  <input value={form.seo_description} onChange={e => setForm({ ...form, seo_description: e.target.value })}
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-zinc-500 focus:outline-none" />
-                  <p className="text-xs text-zinc-500">{form.seo_description.length}/160</p>
                 </div>
               </div>
-              <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-3">
-                <p className="text-sm font-medium text-zinc-300">CTA (her yazıda SaaS yönlendirmesi)</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                  <input value={form.cta_title} onChange={e=> setForm({...form, cta_title: e.target.value})} placeholder="Başlık: Hemen Başla" className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
-                  <input value={form.cta_subtitle} onChange={e=> setForm({...form, cta_subtitle: e.target.value})} placeholder="Alt metin" className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
-                  <input value={form.cta_url} onChange={e=> setForm({...form, cta_url: e.target.value})} placeholder="/register" className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
-                </div>
-              </div>
-              {form.status==='published' && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-400">Yayın Tarihi</label>
-                  <input type="date" value={form.published_at} onChange={e => setForm({ ...form, published_at: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white [color-scheme:dark] focus:border-zinc-500 focus:outline-none" />
-                </div>
-              )}
+              <label className="flex items-center gap-2 text-sm text-zinc-300">
+                <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} className="accent-indigo-500" />
+                Yayında (aktif)
+              </label>
             </div>
 
             <div className="mt-6 flex gap-2">

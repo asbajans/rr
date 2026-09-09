@@ -279,12 +279,11 @@ publicStoreRoutes.get('/:siteCode/blogs', async (req: Request, res: Response) =>
     const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '12'), 10) || 12));
 
-    const where: any = { storeId: store.id, isActive: true };
-    where.publishedAt = { [Op.lte]: new Date() };
+    const where: any = { storeId: store.id, status: 'published' };
 
     const { rows, count } = await BlogPost.findAndCountAll({
       where,
-      attributes: ['id', 'slug', 'title', 'excerpt', 'coverImage', 'tags', 'author', 'publishedAt', 'createdAt'],
+      attributes: ['id', 'slug', 'title', 'excerpt', 'coverImage', 'tags', 'author', 'publishedAt', 'scheduledAt', 'viewCount', 'ctaTitle', 'ctaSubtitle', 'ctaUrl', 'seo', 'createdAt'],
       order: [['publishedAt', 'DESC']],
       offset: (page - 1) * limit,
       limit,
@@ -306,17 +305,29 @@ publicStoreRoutes.get('/:siteCode/blogs/:slug', async (req: Request, res: Respon
     const store = await resolveStore(siteCode, req);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const where: any = { storeId: store.id, slug, isActive: true };
-    where.publishedAt = { [Op.lte]: new Date() };
+    const where: any = { storeId: store.id, slug, status: 'published' };
 
     const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ error: 'Blog post not found' });
+
+    // increment viewCount async (fire-and-forget, daily dedup could be added via analytics)
+    BlogPost.increment('viewCount', { where: { id: (post as any).id } }).catch(()=>{});
 
     res.json({ post });
   } catch (error) {
     console.error('Public blog post error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Public sitemap includes blog URLs
+publicStoreRoutes.get('/:siteCode/sitemap-blogs', async (req: Request, res: Response) => {
+  try {
+    const store = await resolveStore(req.params.siteCode, req);
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+    const posts = await BlogPost.findAll({ where:{ storeId: store.id, status:'published' }, attributes:['slug','updatedAt','publishedAt'], order:[['publishedAt','DESC']], limit:500 });
+    res.json({ posts: posts.map(p=>({ slug:(p as any).slug, updatedAt:(p as any).updatedAt, publishedAt:(p as any).publishedAt })) });
+  } catch (e){ res.status(500).json({ error:'Internal'}); }
 });
 
 

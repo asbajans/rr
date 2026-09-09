@@ -7,8 +7,39 @@ import { confirmPaidOrder } from './confirmPaidOrder.js';
 import { verifyOrderToken } from '../order/checkout.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { sequelize } from '../../config/database.js';
 
 export const paymentWebhookRoutes: Router = Router();
+
+function isAllowedRedirect(urlStr: string, store?: Store | null): boolean {
+  if (!urlStr) return true; // empty allowed (will fallback)
+  try {
+    const u = new URL(urlStr);
+    const frontendHost = (() => { try { return new URL(config.frontendUrl).hostname; } catch { return 'rahatio.com.tr'; } })();
+    const allowedHosts = new Set<string>([
+      frontendHost,
+      'rahatio.com.tr',
+      'www.rahatio.com.tr',
+      'localhost',
+      '127.0.0.1',
+    ]);
+    // store-specific domains
+    if (store?.domain) {
+      try { allowedHosts.add(new URL(store.domain.startsWith('http') ? store.domain : `https://${store.domain}`).hostname); } catch {}
+    }
+    if ((store as any)?.siteUrl) {
+      try { allowedHosts.add(new URL((store as any).siteUrl).hostname); } catch {}
+    }
+    // exact or subdomain of rahatio.com.tr
+    if (u.hostname === 'rahatio.com.tr' || u.hostname.endsWith('.rahatio.com.tr')) return true;
+    if (allowedHosts.has(u.hostname)) return true;
+    // allow same frontend host subdomains
+    if (frontendHost && (u.hostname === frontendHost || u.hostname.endsWith('.' + frontendHost))) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 async function loadStoreMethod(
   siteCode: string,
@@ -90,6 +121,11 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
 
     const redirect = typeof req.query.redirect === 'string' ? req.query.redirect : undefined;
     if (redirect) {
+      if (!isAllowedRedirect(redirect, found.store)) {
+        logger.warn({ redirect, storeId: found.store.id }, 'Blocked open redirect attempt');
+        res.status(400).json({ error: 'Invalid redirect URL' });
+        return;
+      }
       const status = result.success ? 'success' : 'failed';
       const q = new URLSearchParams({ payment: status });
       if (result.orderId) q.set('orderId', String(result.orderId));
@@ -122,7 +158,22 @@ paymentWebhookRoutes.post('/:siteCode/payments/webhook/stripe', async (req: Requ
   }
   try {
     const result = await gateway!.parseWebhook({ raw: req.body }, req.headers, secret);
+    // idempotency for storefront Stripe events (same as SaaS)
+    if (result.eventId) {
+      try {
+        await sequelize.query(`CREATE TABLE IF NOT EXISTS stripe_storefront_events ("eventId" VARCHAR(200) PRIMARY KEY, type VARCHAR(100), "createdAt" TIMESTAMP DEFAULT NOW())`);
+        const [dup]: any = await sequelize.query(`SELECT "eventId" FROM stripe_storefront_events WHERE "eventId" = $1`, { bind: [result.eventId] });
+        if (Array.isArray(dup) && dup.length > 0) {
+          logger.info(`Stripe storefront webhook duplicate ignored: ${result.eventId}`);
+          res.status(200).json({ received: true, duplicate: true });
+          return;
+        }
+      } catch {}
+    }
     await confirmFromResult(result, provider, found.store.id);
+    if (result.eventId) {
+      try { await sequelize.query(`INSERT INTO stripe_storefront_events ("eventId", type) VALUES ($1,$2) ON CONFLICT ("eventId") DO NOTHING`, { bind: [result.eventId, 'stripe'] }); } catch {}
+    }
     logger.info(`Stripe webhook ok: orderId=${result.orderId} success=${result.success}`);
     res.status(200).json({ received: true });
   } catch (err: any) {
@@ -187,12 +238,18 @@ paymentWebhookRoutes.post('/:siteCode/payments/initiate', async (req: Request, r
       return;
     }
 
+    const safeReturnUrl = String(returnUrl || '');
+    if (safeReturnUrl && !isAllowedRedirect(safeReturnUrl, store)) {
+      res.status(400).json({ error: 'Invalid returnUrl — host not allowed' });
+      return;
+    }
+
     const result = await gateway.createPayment({
       order,
       store,
       method,
-      returnUrl: String(returnUrl || ''),
-      callbackUrl: `${config.apiUrl}/api/store/${req.params.siteCode}/payments/callback/${provider}?orderId=${order.id}&redirect=${encodeURIComponent(String(returnUrl || ''))}`,
+      returnUrl: safeReturnUrl,
+      callbackUrl: `${config.apiUrl}/api/store/${req.params.siteCode}/payments/callback/${provider}?orderId=${order.id}&redirect=${encodeURIComponent(safeReturnUrl)}`,
       ipAddress: req.ip || req.socket?.remoteAddress || '',
       customer: {
         email: order.customerEmail || '',

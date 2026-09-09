@@ -49,6 +49,8 @@
   superStores: 'Mağazalar',
   superUsers: 'Kullanıcılar',
   superPlans: 'Planlar',
+  superCoupons: 'İndirim Kodları',
+  superBlogs: 'Landing Blog',
   superSupplierApps: 'Tedarikçi Başvuruları',
   superSupplierRatings: 'Tedarikçi Puanlama',
   superCategories: 'Kategoriler',

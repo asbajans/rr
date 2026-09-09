@@ -23,6 +23,9 @@ export class Page extends Model {
   { fields: ['storeId'] },
   { unique: true, fields: ['storeId', 'slug'] },
   { fields: ['publishedAt'] },
+  { fields: ['status'] },
+  { fields: ['scheduledAt'] },
+  { fields: ['viewCount'] },
 ] })
 export class BlogPost extends Model {
   @PrimaryKey @AutoIncrement @Column(DataType.BIGINT) declare id: number;
@@ -38,6 +41,15 @@ export class BlogPost extends Model {
   @AllowNull(true) @Column(DataType.BIGINT) declare productId: number;
   @Default(true) @Column(DataType.BOOLEAN) declare isActive: boolean;
   @AllowNull(true) @Column(DataType.DATE) declare publishedAt: Date;
+  // New fields for scheduling / SEO / CTA / analytics
+  @Default('draft') @Column(DataType.ENUM('draft', 'scheduled', 'published', 'archived')) declare status: string;
+  @AllowNull(true) @Column(DataType.DATE) declare scheduledAt: Date;
+  @Default(0) @Column(DataType.INTEGER) declare viewCount: number;
+  @AllowNull(true) @Column(DataType.TEXT) declare ctaTitle: string;
+  @AllowNull(true) @Column(DataType.TEXT) declare ctaSubtitle: string;
+  @AllowNull(true) @Column(DataType.STRING(500)) declare ctaUrl: string;
+  @AllowNull(true) @Column(DataType.JSONB) declare seo: object; // {metaTitle, metaDescription, keywords, faq, canonical, readingTime}
+  @AllowNull(true) @Column(DataType.STRING(100)) declare bulkJobId: string;
   @CreatedAt @Column(DataType.DATE) declare createdAt: Date;
   @UpdatedAt @Column(DataType.DATE) declare updatedAt: Date;
 

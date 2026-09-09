@@ -48,6 +48,12 @@ function mapPlanBody(body: any): any {
   else if (body.isActive !== undefined) mapped.isActive = body.isActive;
   if (body.stripePriceId !== undefined) mapped.stripePriceId = body.stripePriceId;
   if (body.hosting !== undefined) mapped.hosting = body.hosting;
+  if (body.yearlyPrice !== undefined) mapped.yearlyPrice = body.yearlyPrice;
+  if (body.yearly_price !== undefined) mapped.yearlyPrice = body.yearly_price;
+  if (body.yearlyDiscountPercent !== undefined) mapped.yearlyDiscountPercent = body.yearlyDiscountPercent;
+  if (body.yearly_discount_percent !== undefined) mapped.yearlyDiscountPercent = body.yearly_discount_percent;
+  if (body.stripeYearlyPriceId !== undefined) mapped.stripeYearlyPriceId = body.stripeYearlyPriceId;
+  if (body.stripe_yearly_price_id !== undefined) mapped.stripeYearlyPriceId = body.stripe_yearly_price_id;
   return mapped;
 }
 

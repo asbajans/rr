@@ -413,6 +413,40 @@ export const createApp = async (): Promise<Express> => {
     // Ignore if columns already exist
   }
 
+  // Blog scheduling / SEO / CTA / viewCount (Faz A)
+  try {
+    await sequelize.query(`DO $$ BEGIN CREATE TYPE enum_blog_posts_status AS ENUM('draft','scheduled','published','archived'); EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+  } catch {}
+  try {
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'draft'`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "scheduledAt" TIMESTAMP`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "viewCount" INTEGER DEFAULT 0`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "ctaTitle" TEXT`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "ctaSubtitle" TEXT`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "ctaUrl" VARCHAR(500)`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS seo JSONB`);
+    await sequelize.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS "bulkJobId" VARCHAR(100)`);
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS blog_posts_status ON blog_posts(status)`);
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS blog_posts_scheduled_at ON blog_posts("scheduledAt")`);
+    // backfill status from isActive/publishedAt
+    await sequelize.query(`UPDATE blog_posts SET status = CASE WHEN "isActive" = true AND "publishedAt" <= NOW() THEN 'published' WHEN "isActive" = true AND "publishedAt" > NOW() THEN 'scheduled' ELSE 'draft' END WHERE status IS NULL OR status = 'draft' AND "isActive" IS NOT NULL`);
+    await sequelize.query(`UPDATE blog_posts SET "scheduledAt" = "publishedAt" WHERE "scheduledAt" IS NULL AND status = 'scheduled'`);
+  } catch (e) {
+    // Ignore if columns already exist
+  }
+
+  // SaaS coupons + yearly pricing (Faz B)
+  try {
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "yearlyPrice" DECIMAL(10,2)`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "yearlyDiscountPercent" INTEGER`);
+    await sequelize.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS "stripeYearlyPriceId" VARCHAR(100)`);
+    await sequelize.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS "billingInterval" VARCHAR(20) DEFAULT 'month'`);
+    await sequelize.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS "appliedCouponCode" VARCHAR(80)`);
+    await sequelize.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS "appliedDiscountAmount" DECIMAL(15,2) DEFAULT 0`);
+  } catch (e) {
+    // Ignore
+  }
+
   // Normalize plan.modules: NULL → {} (empty means no modules selected → all
   // module-gated features are disabled; see isModuleEnabled). Also convert
   // legacy boolean module values into { enabled } objects.
@@ -642,6 +676,20 @@ export const startServer = async (): Promise<void> => {
     } catch (err) { logger.error({ err }, 'Analytics cleanup failed'); }
   }, 24 * 60 * 60 * 1000);
   analyticsCleanupTimer.unref?.();
+
+  // Blog scheduled publish — every 5 minutes, publish due posts
+  const blogPublishTimer = setInterval(async () => {
+    try {
+      const { BlogPost } = await import('./models/ContentModels.js');
+      const due = await BlogPost.findAll({ where: { status: 'scheduled', scheduledAt: { [require('sequelize').Op.lte]: new Date() } } as any, limit: 50 });
+      for (const post of due) {
+        await (post as any).update({ status: 'published', isActive: true, publishedAt: new Date(), scheduledAt: null });
+        logger.info(`Blog auto-published: ${(post as any).id} (${(post as any).slug})`);
+      }
+      if (due.length) logger.info({ count: due.length }, 'Blog scheduled posts published');
+    } catch (err) { logger.error({ err }, 'Blog publish check failed'); }
+  }, 5 * 60 * 1000);
+  blogPublishTimer.unref?.();
 
   // Meta long-lived token refresh — daily check, refresh if expires within 7 days (TechProvider)
   const metaTokenTimer = setInterval(async () => {

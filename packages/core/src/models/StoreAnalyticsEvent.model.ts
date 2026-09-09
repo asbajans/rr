@@ -24,7 +24,8 @@ export type AnalyticsEventType =
   | 'whatsapp_click'
   | 'signup'
   | 'lead'
-  | 'cta_click';
+  | 'cta_click'
+  | 'blog_view';
 
 @Table({
   tableName: 'store_analytics_events',

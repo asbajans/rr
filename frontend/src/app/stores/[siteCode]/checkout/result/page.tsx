@@ -68,7 +68,7 @@ function ResultInner() {
       })
   }, [siteCode, orderIdParam, payment])
 
-  const succeeded = payment === 'success' || order?.paymentStatus === 'paid'
+  const succeeded = order?.paymentStatus === 'paid' || order?.status === 'confirmed'
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8 text-center">

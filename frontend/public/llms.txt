@@ -1,0 +1,17 @@
+# Rahatio - AI Product Management for Marketplaces
+> Rahatio is an AI-powered e-commerce platform for Turkey marketplaces (Trendyol, Hepsiburada, N11, Pazarama, Amazon, Etsy). Snap a photo, let AI build listings, publish everywhere.
+
+## Primary Pages
+- [Homepage](https://rahatio.com.tr/): AI product intelligence, omnichannel marketplace integrations, storefronts, B2B
+- [Pricing](https://rahatio.com.tr/pricing): Plans, features, hosting options
+- [Blog](https://rahatio.com.tr/blog): E-commerce guides, marketplace tips, AI automation
+- [Login](https://rahatio.com.tr/login)
+- [Register](https://rahatio.com.tr/register)
+
+## Blog
+- Blog posts are at https://rahatio.com.tr/blog/{slug}
+- Sitemap: https://rahatio.com.tr/sitemap.xml
+- All blog content is SEO-optimized with JSON-LD, OpenGraph, and FAQ schema
+
+## API
+- Public store blogs: https://api.rahatio.com.tr/api/store/platform/blogs

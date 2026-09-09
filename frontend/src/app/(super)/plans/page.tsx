@@ -51,6 +51,9 @@ interface PlanForm {
   is_active: boolean
   modules: Record<string, { enabled: boolean; credit_cost?: number; limit?: number }>
   ai_scenario_models: Record<string, number>
+  yearly_price: string
+  yearly_discount_percent: string
+  stripe_yearly_price_id: string
 }
 
 const HOSTING_LABELS: Record<string, string> = {
@@ -64,6 +67,7 @@ const defaultForm: PlanForm = {
   ai_credits: '10', product_limit: '100', store_limit: '1', hosting: 'rahatio', is_active: true,
   modules: {},
   ai_scenario_models: {},
+  yearly_price: '', yearly_discount_percent: '', stripe_yearly_price_id: '',
 }
 
 export default function SuperPlansPage() {
@@ -102,6 +106,9 @@ export default function SuperPlansPage() {
       is_active: plan.is_active,
       modules: plan.modules || {},
       ai_scenario_models: plan.ai_scenario_models || {},
+      yearly_price: (plan as any).yearly_price != null ? String((plan as any).yearly_price) : '',
+      yearly_discount_percent: (plan as any).yearly_discount_percent != null ? String((plan as any).yearly_discount_percent) : '',
+      stripe_yearly_price_id: (plan as any).stripe_yearly_price_id || '',
     })
     setEditingId(plan.id)
     setShowForm(true)
@@ -130,6 +137,9 @@ export default function SuperPlansPage() {
       if (form.slug) data.slug = form.slug
       if (form.description) data.description = form.description
       if (form.currency) data.currency = form.currency
+      if (form.yearly_price) data.yearly_price = parseFloat(form.yearly_price)
+      if (form.yearly_discount_percent) data.yearly_discount_percent = parseInt(form.yearly_discount_percent)
+      if (form.stripe_yearly_price_id) data.stripe_yearly_price_id = form.stripe_yearly_price_id
       if (editingId) {
         await api.updateAdminPlan(editingId, data)
         setMessage('Plan güncellendi')
@@ -219,6 +229,7 @@ export default function SuperPlansPage() {
               </div>
               <p className="mt-2 text-sm text-zinc-300">{plan.description}</p>
               <p className="mt-3 text-2xl font-bold text-white">{(plan.price ?? 0).toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">₺/ay</span></p>
+              {(plan as any).yearly_price ? <p className="text-sm text-emerald-400">{Number((plan as any).yearly_price).toLocaleString('tr-TR')} ₺/yıl</p> : (plan as any).yearly_discount_percent ? <p className="text-sm text-emerald-400">Yıllıkta %{(plan as any).yearly_discount_percent} indirim</p> : null}
               <div className="mt-3 space-y-1 text-xs text-zinc-400">
                 <p>Yayınlama: <span className="text-zinc-300">{HOSTING_LABELS[plan.hosting] ?? plan.hosting}</span></p>
                 <p>AI Kredisi: {(plan.ai_credits ?? 0).toLocaleString('tr-TR')}</p>
@@ -263,7 +274,7 @@ export default function SuperPlansPage() {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400">Fiyat (₺)</label>
+                  <label className="block text-xs font-medium text-zinc-400">Fiyat (₺/ay)</label>
                   <input type="number" min="0" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                 </div>
@@ -276,6 +287,26 @@ export default function SuperPlansPage() {
                   <label className="block text-xs font-medium text-zinc-400">Para Birimi</label>
                   <input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400">Yıllık Fiyat (₺/yıl)</label>
+                  <input type="number" min="0" step="0.01" value={form.yearly_price} onChange={e => setForm({ ...form, yearly_price: e.target.value })}
+                    placeholder="Boş = aylık*12 - indirim"
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400">Yıllık İndirim %</label>
+                  <input type="number" min="0" max="90" value={form.yearly_discount_percent} onChange={e => setForm({ ...form, yearly_discount_percent: e.target.value })}
+                    placeholder="Örn 20"
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400">Stripe Yıllık Price ID</label>
+                  <input value={form.stripe_yearly_price_id} onChange={e => setForm({ ...form, stripe_yearly_price_id: e.target.value })}
+                    placeholder="price_..."
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-mono text-white" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

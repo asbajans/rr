@@ -196,6 +196,9 @@ if (stripe) {
   storeRoutes.post('/subscription/checkout', authMiddleware, requireRole('owner'), requireStore, [
     body('planId').optional().isInt(), body('plan_id').optional().isInt(),
     body('successUrl').optional().isURL(), body('cancelUrl').optional().isURL(),
+    body('interval').optional().isIn(['month','year']),
+    body('couponCode').optional().isString().isLength({ min:3, max:32 }),
+    body('coupon_code').optional().isString().isLength({ min:3, max:32 }),
   ], validate, async (req: Request, res: Response) => {
     try {
       const store = (req as any).store;
@@ -203,46 +206,160 @@ if (stripe) {
       const plan = await Plan.findByPk(planId);
       if (!plan) return res.status(400).json({ error: 'Invalid plan' });
 
+      const interval = (req.body.interval === 'year' ? 'year' : 'month') as 'month'|'year';
+      const rawCoupon = (req.body.couponCode || req.body.coupon_code || '').toString().trim().toUpperCase();
       const successUrl = req.body.successUrl || config.apiUrl;
       const cancelUrl = req.body.cancelUrl || config.apiUrl;
 
-      // Ücretsiz plan (price <=0) doğrudan aktif edilir — Stripe'a gitmez
-      if (Number(plan.price) <= 0) {
+      // validate returnUrl hosts (same as portal)
+      for (const url of [successUrl, cancelUrl]) {
+        try {
+          const u = new URL(url);
+          const frontendHost = (()=>{ try{ return new URL(config.frontendUrl).hostname; } catch{ return 'rahatio.com.tr'; }})();
+          const allowed = u.hostname === frontendHost || u.hostname === 'rahatio.com.tr' || u.hostname.endsWith('.rahatio.com.tr') || u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+          if (!allowed) return res.status(400).json({ error: 'Invalid successUrl/cancelUrl host' });
+        } catch { return res.status(400).json({ error: 'Invalid successUrl/cancelUrl' }); }
+      }
+
+      // compute base price for interval
+      let basePrice = Number((plan as any).price) || 0;
+      let stripePriceIdForInterval: string | null = (plan as any).stripePriceId || null;
+      if (interval === 'year') {
+        const yp = (plan as any).yearlyPrice;
+        const ydp = (plan as any).yearlyDiscountPercent;
+        if (yp != null) basePrice = Number(yp);
+        else if (ydp != null) basePrice = Math.round(Number((plan as any).price) * 12 * (1 - Number(ydp)/100) * 100)/100;
+        else basePrice = Number((plan as any).price) * 12;
+        stripePriceIdForInterval = (plan as any).stripeYearlyPriceId || (plan as any).stripePriceId || null;
+      }
+
+      // coupon validation (if provided) - with FOR UPDATE lock for race safety
+      let coupon: any = null;
+      let discountAmount = 0;
+      let stripeCouponId: string | null = null;
+      if (rawCoupon) {
+        const { SaasCoupon, SaasCouponRedemption } = await import('../../models/SaasCoupon.model.js');
+        const { sequelize } = await import('../../config/database.js');
+        // lock coupon row
+        coupon = await SaasCoupon.findOne({ where:{ code: rawCoupon, isActive:true } });
+        if (!coupon) return res.status(400).json({ error: 'Kod bulunamadı veya pasif' });
+        // re-fetch with lock inside transaction for usedCount check later, but quick checks here
+        const now = new Date();
+        if ((coupon as any).startsAt && new Date((coupon as any).startsAt) > now) return res.status(400).json({ error: 'Kod henüz aktif değil' });
+        if ((coupon as any).endsAt && new Date((coupon as any).endsAt) < now) return res.status(400).json({ error: 'Kod süresi dolmuş' });
+        if ((coupon as any).usageLimit != null && Number((coupon as any).usedCount) >= Number((coupon as any).usageLimit)) return res.status(400).json({ error: 'Kod kullanım limiti doldu' });
+        const planIds = (coupon as any).applicablePlanIds as number[] | null;
+        if (planIds && !planIds.includes(Number(plan.id))) return res.status(400).json({ error: 'Bu kod bu plan için geçerli değil' });
+        if (Number((coupon as any).minimumAmount) > basePrice) return res.status(400).json({ error: `Bu kod için minimum tutar ${Number((coupon as any).minimumAmount)} TRY` });
+        // perCustomerLimit
+        const existingRedemptions = await SaasCouponRedemption.count({ where:{ couponId: (coupon as any).id, storeId: store.id } });
+        if (existingRedemptions >= Number((coupon as any).perCustomerLimit || 1)) return res.status(400).json({ error: 'Bu kodu zaten kullandınız' });
+
+        // compute discount
+        if ((coupon as any).discountType === 'percent') discountAmount = basePrice * Number((coupon as any).discountValue) / 100;
+        else discountAmount = Number((coupon as any).discountValue);
+        if ((coupon as any).maxDiscount != null) discountAmount = Math.min(discountAmount, Number((coupon as any).maxDiscount));
+        discountAmount = Math.min(discountAmount, basePrice);
+        discountAmount = Math.round(discountAmount * 100)/100;
+
+        // ensure Stripe coupon (duration once)
+        if (stripe && discountAmount > 0) {
+          try {
+            // reuse existing stripeCouponId if valid
+            if ((coupon as any).stripeCouponId) {
+              try {
+                const existing = await stripe.coupons.retrieve((coupon as any).stripeCouponId);
+                if (existing && !existing.deleted) stripeCouponId = existing.id;
+              } catch {}
+            }
+            if (!stripeCouponId) {
+              const stripeParams: any = { duration: 'once', name: `Rahatio ${rawCoupon}`, max_redemptions: (coupon as any).usageLimit || undefined, redeem_by: (coupon as any).endsAt ? Math.floor(new Date((coupon as any).endsAt).getTime()/1000) : undefined };
+              if ((coupon as any).discountType === 'percent') stripeParams.percent_off = Number((coupon as any).discountValue);
+              else stripeParams.amount_off = Math.round(discountAmount * 100), stripeParams.currency = ((plan as any).currency || 'TRY').toLowerCase();
+              if ((coupon as any).maxDiscount != null && (coupon as any).discountType==='percent') {
+                // Stripe percent_off can't have max, so we fallback to amount_off for final discount
+                stripeParams.percent_off = undefined;
+                stripeParams.amount_off = Math.round(discountAmount * 100);
+                stripeParams.currency = ((plan as any).currency || 'TRY').toLowerCase();
+              }
+              const created = await stripe.coupons.create(stripeParams);
+              stripeCouponId = created.id;
+              await coupon.update({ stripeCouponId } as any);
+            }
+          } catch (stripeErr:any) {
+            logger.warn({ err: stripeErr.message, code: rawCoupon }, 'Stripe coupon create failed, fallback to price reduction');
+            // fallback: will reduce unit_amount instead
+            stripeCouponId = null;
+          }
+        }
+      }
+
+      const finalPrice = Math.max(0, basePrice - discountAmount);
+      // 100% discount or free plan -> activate without Stripe
+      if (finalPrice <= 0.01 || Number((plan as any).price) <= 0) {
+        const periodEnd = interval==='year' ? new Date(Date.now()+365*24*60*60*1000) : new Date(Date.now()+30*24*60*60*1000);
+        // record redemption if coupon used
+        if (coupon) {
+          const { SaasCouponRedemption } = await import('../../models/SaasCoupon.model.js');
+          const { sequelize } = await import('../../config/database.js');
+          await sequelize.transaction(async (t:any)=>{
+            const locked = await (await import('../../models/SaasCoupon.model.js')).SaasCoupon.findOne({ where:{ id: (coupon as any).id }, lock: t.LOCK.UPDATE, transaction: t });
+            if (!locked) throw new Error('Kupon bulunamadı');
+            if (Number((locked as any).usedCount) >= Number((locked as any).usageLimit || 9999999)) throw new Error('Kullanım limiti doldu');
+            await SaasCouponRedemption.create({ couponId:(coupon as any).id, storeId: store.id, subscriptionId:null, discountApplied: discountAmount, stripeCouponId } as any, { transaction: t });
+            await (locked as any).increment('usedCount', { by:1, transaction: t });
+          });
+        }
         await Subscription.upsert({
           storeId: store.id, planId: plan.id,
-          status: 'active', currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
+          status: 'active', currentPeriodEnd: periodEnd, billingInterval: interval, appliedCouponCode: coupon ? rawCoupon : null, appliedDiscountAmount: discountAmount,
+        } as any);
         await store.update({ planId: plan.id });
-        return res.json({ url: null });
+        return res.json({ url: null, free: true, billingInterval: interval });
       }
 
       if (!stripe) return res.status(500).json({ error: 'Stripe is not configured (STRIPE_SECRET_KEY missing)' });
       const customerId = await ensureCustomer(store);
 
-      // stripePriceId varsa onu kullan, yoksa plan.price üzerinden dinamik price_data oluştur (Laravel ile aynı)
-      const lineItem: any = plan.stripePriceId
-        ? { price: plan.stripePriceId, quantity: 1 }
-        : {
+      // build lineItem for interval
+      const lineItem: any = (() => {
+        // if interval year and stripeYearlyPriceId exists use it (ignore coupon stripe path - stripe will apply coupon on session)
+        if (stripePriceIdForInterval && stripePriceIdForInterval !== (plan as any).stripePriceId) {
+          return { price: stripePriceIdForInterval, quantity: 1 };
+        }
+        if ((plan as any).stripePriceId && interval==='month') return { price: (plan as any).stripePriceId, quantity: 1 };
+        // dynamic price_data
+        // if we have stripeCoupon fallback not available and discount exists, reduce unit_amount
+        const unitAmount = stripeCouponId ? Math.round(basePrice * 100) : Math.round(finalPrice * 100);
+        return {
             price_data: {
-              currency: (plan.currency || 'TRY').toLowerCase(),
-              product_data: { name: plan.name, description: plan.description || undefined },
-              unit_amount: Math.round(Number(plan.price) * 100),
-              recurring: { interval: 'month' as const },
+              currency: ((plan as any).currency || 'TRY').toLowerCase(),
+              product_data: { name: `${plan.name}${interval==='year'?' (Yıllık)':''}`, description: plan.description || undefined },
+              unit_amount: unitAmount,
+              recurring: { interval: interval as 'month' | 'year' },
             },
             quantity: 1,
           };
+      })();
 
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: any = {
         customer: customerId, payment_method_types: ['card'],
         line_items: [lineItem],
         mode: 'subscription', success_url: successUrl, cancel_url: cancelUrl,
-        metadata: { storeId: String(store.id), planId: String(plan.id) },
-        subscription_data: { metadata: { storeId: String(store.id), planId: String(plan.id) } },
-      });
-      res.json({ url: session.url });
+        metadata: { storeId: String(store.id), planId: String(plan.id), interval, couponCode: rawCoupon || '', discountAmount: String(discountAmount), billingInterval: interval },
+        subscription_data: { metadata: { storeId: String(store.id), planId: String(plan.id), interval, couponCode: rawCoupon || '', billingInterval: interval } },
+      };
+      if (stripeCouponId) sessionParams.discounts = [{ coupon: stripeCouponId }];
+      // also store coupon for webhook redemption (if price reduction path, metadata already has it)
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
+      res.json({ url: session.url, billingInterval: interval, discountAmount, basePrice, finalPrice });
     } catch (error: unknown) {
       logger.error({ err: error }, 'Stripe checkout error');
-      res.status(500).json({ error: 'Failed to create checkout session' });
+      const msg = (error as any)?.message || 'Failed to create checkout session';
+      // pass through 400 errors
+      if ((error as any)?.status === 400) return res.status(400).json({ error: msg });
+      res.status(500).json({ error: 'Failed to create checkout session', details: msg });
     }
   });
 
@@ -252,8 +369,16 @@ if (stripe) {
     try {
       const store = (req as any).store;
       if (!store.stripeAccountId) return res.status(400).json({ error: 'No Stripe customer' });
+      const rawReturn = req.body.returnUrl || config.apiUrl;
+      // allowlist check for portal returnUrl
+      try {
+        const u = new URL(rawReturn);
+        const frontendHost = (()=>{ try{ return new URL(config.frontendUrl).hostname; } catch{ return 'rahatio.com.tr'; }})();
+        const allowed = u.hostname === frontendHost || u.hostname === 'rahatio.com.tr' || u.hostname.endsWith('.rahatio.com.tr') || u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+        if (!allowed) return res.status(400).json({ error: 'Invalid returnUrl host' });
+      } catch { return res.status(400).json({ error: 'Invalid returnUrl' }); }
       const session = await stripe.billingPortal.sessions.create({
-        customer: store.stripeAccountId, return_url: req.body.returnUrl || config.apiUrl,
+        customer: store.stripeAccountId, return_url: rawReturn,
       });
       res.json({ url: session.url });
 } catch (error: unknown) {
@@ -427,20 +552,51 @@ if (stripe) {
           } else {
             const planId = (session.metadata as any)?.planId;
             const subId = (session as any).subscription as string | null;
+            const couponCode = (session.metadata as any)?.couponCode || (session.metadata as any)?.coupon_code || null;
+            const billingInterval = (session.metadata as any)?.billingInterval || (session.metadata as any)?.interval || 'month';
+            const discountAmount = parseFloat((session.metadata as any)?.discountAmount || '0') || 0;
             if (storeId && planId) {
+              const periodMs = billingInterval==='year' ? 365*24*60*60*1000 : 30*24*60*60*1000;
               // Upsert yerine mevcutu bul/güncelle (storeId unique değil, duplicate önle)
-              let sub = await Subscription.findOne({ where: { storeId: parseInt(storeId) }, order: [['createdAt', 'DESC']] });
+              let sub: any = await Subscription.findOne({ where: { storeId: parseInt(storeId) }, order: [['createdAt', 'DESC']] });
               if (sub && sub.stripeSubscriptionId === subId) {
-                await sub.update({ planId: parseInt(planId), status: 'active', currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), stripeSubscriptionId: subId || sub.stripeSubscriptionId } as any);
+                await sub.update({ planId: parseInt(planId), status: 'active', currentPeriodEnd: new Date(Date.now() + periodMs), stripeSubscriptionId: subId || sub.stripeSubscriptionId, billingInterval, appliedCouponCode: couponCode || sub.appliedCouponCode, appliedDiscountAmount: discountAmount || sub.appliedDiscountAmount } as any);
               } else {
-                await Subscription.create({ storeId: parseInt(storeId), planId: parseInt(planId), stripeSubscriptionId: (subId as any) || `cs_${session.id}`, status: 'active', currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } as any);
+                sub = await Subscription.create({ storeId: parseInt(storeId), planId: parseInt(planId), stripeSubscriptionId: (subId as any) || `cs_${session.id}`, status: 'active', currentPeriodEnd: new Date(Date.now() + periodMs), billingInterval, appliedCouponCode: couponCode || null, appliedDiscountAmount: discountAmount } as any);
               }
               await Store.update({ planId: parseInt(planId) }, { where: { id: parseInt(storeId) } });
-              logger.info(`Plan activated: store ${storeId} -> plan ${planId} (session ${session.id}, sub ${subId})`);
+              // SaaS coupon redemption (first cycle only)
+              if (couponCode) {
+                try {
+                  const { SaasCoupon, SaasCouponRedemption } = await import('../../models/SaasCoupon.model.js');
+                  const coupon = await SaasCoupon.findOne({ where:{ code: couponCode.toUpperCase(), isActive:true } });
+                  if (coupon) {
+                    const existingRedemption = await SaasCouponRedemption.findOne({ where:{ couponId: (coupon as any).id, storeId: parseInt(storeId) } });
+                    if (!existingRedemption) {
+                      const sequelizeInner = (await import('../../config/database.js')).sequelize;
+                      await sequelizeInner.transaction(async (t:any)=>{
+                        const locked = await SaasCoupon.findOne({ where:{ id:(coupon as any).id }, lock: t.LOCK.UPDATE, transaction:t });
+                        if (locked && (Number((locked as any).usedCount) < Number((locked as any).usageLimit || 9999999))) {
+                          await SaasCouponRedemption.create({ couponId:(coupon as any).id, storeId: parseInt(storeId), subscriptionId: sub.id, discountApplied: discountAmount, stripeCouponId: (coupon as any).stripeCouponId } as any, { transaction: t });
+                          await locked.increment('usedCount', { by:1, transaction:t });
+                        }
+                      });
+                    }
+                  }
+                } catch (couponErr:any){ logger.warn({ err: couponErr.message, couponCode }, 'Coupon redemption handling failed'); }
+              }
+              logger.info(`Plan activated: store ${storeId} -> plan ${planId} interval=${billingInterval} coupon=${couponCode||'-'} (session ${session.id}, sub ${subId})`);
               // purchase conversion (subscription)
               try {
                 const plan = await Plan.findByPk(parseInt(planId));
-                const amount = plan ? Number(plan.price) : null;
+                let amount = plan ? Number(plan.price) : null;
+                if (billingInterval==='year' && plan) {
+                  const yp = (plan as any).yearlyPrice;
+                  const ydp = (plan as any).yearlyDiscountPercent;
+                  if (yp != null) amount = Number(yp);
+                  else if (ydp != null) amount = Math.round(Number(plan.price)*12*(1-Number(ydp)/100)*100)/100;
+                  else amount = Number(plan.price)*12;
+                }
                 const currency = plan ? String(plan.currency || 'TRY') : 'TRY';
                 await StoreAnalyticsEvent.create({
                   storeId: null, sessionId: null, visitorId: null,
@@ -448,7 +604,7 @@ if (stripe) {
                   path: '/billing', productId: null,
                   referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
                   device: null, ipHash: null, userAgent: null,
-                  metadata: { type: 'subscription', planId: parseInt(planId), planName: plan?.name, amount, currency, storeId: parseInt(storeId), sessionId: session.id },
+                  metadata: { type: 'subscription', planId: parseInt(planId), planName: plan?.name, amount: amount!=null? Math.max(0, amount - discountAmount): null, currency, storeId: parseInt(storeId), sessionId: session.id, billingInterval, couponCode, discountAmount },
                 } as any);
               } catch {}
             }
