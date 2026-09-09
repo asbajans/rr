@@ -434,7 +434,8 @@ class ApiClient {
   }
 
   validateSaasCoupon(code: string, planId?: number, interval?: string) {
-    return this.post<any>(`/api/admin/saas/coupons/validate`, { code, planId, interval })
+    // owner-accessible endpoint (storeRoutes), not superadmin-only saas/coupons/validate
+    return this.post<any>(`/api/admin/subscription/validate-coupon`, { code, planId, interval })
   }
 
   // Superadmin SaaS coupons

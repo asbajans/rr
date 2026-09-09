@@ -12,6 +12,7 @@ import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { authMiddleware, requireRole, requireStore, generateApiKey } from '../auth/middleware.js';
 import Stripe from 'stripe';
+import { SaasCoupon } from '../../models/SaasCoupon.model.js';
 
 const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: '2024-04-10' }) : null;
 
@@ -401,6 +402,43 @@ if (stripe) {
       logger.error({ err: error }, 'Stripe cancel error');
       res.status(500).json({ error: 'Failed to cancel subscription' });
     }
+  });
+
+  // Validate SaaS coupon — owner accessible (billing page preview), not superadmin-only
+  storeRoutes.post('/subscription/validate-coupon', authMiddleware, requireStore, [
+    body('code').isString(),
+    body('planId').optional().isInt(),
+    body('interval').optional().isIn(['month','year']),
+  ], validate, async (req: Request, res: Response) => {
+    try {
+      const normalizeCode = (c:string)=> String(c).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,32);
+      const code = normalizeCode(req.body.code);
+      const coupon = await SaasCoupon.findOne({ where:{ code, isActive:true } });
+      if (!coupon) return res.json({ valid:false, error:'Kod bulunamadı' });
+      const now = new Date();
+      if ((coupon as any).startsAt && new Date((coupon as any).startsAt) > now) return res.json({ valid:false, error:'Kod henüz aktif değil' });
+      if ((coupon as any).endsAt && new Date((coupon as any).endsAt) < now) return res.json({ valid:false, error:'Kod süresi dolmuş' });
+      if ((coupon as any).usageLimit != null && Number((coupon as any).usedCount) >= Number((coupon as any).usageLimit)) return res.json({ valid:false, error:'Kullanım limiti doldu' });
+      if (!req.body.planId) {
+        return res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount }, basePrice:null, discount:null, finalPrice:null });
+      }
+      const plan = await Plan.findByPk(req.body.planId);
+      if (!plan) return res.status(404).json({ error:'Plan not found' });
+      const planIds = (coupon as any).applicablePlanIds as number[] | null;
+      if (planIds && !planIds.includes(Number(plan.id))) return res.json({ valid:false, error:'Bu plan için geçerli değil' });
+      const interval = req.body.interval || 'month';
+      let basePrice = Number((plan as any).price) || 0;
+      if (interval==='year') {
+        const yp = (plan as any).yearlyPrice != null ? Number((plan as any).yearlyPrice) : (Number((plan as any).price)*12*(1- (Number((plan as any).yearlyDiscountPercent||0)/100)));
+        basePrice = yp;
+      }
+      if (Number((coupon as any).minimumAmount) > basePrice) return res.json({ valid:false, error:`Minimum tutar ${(coupon as any).minimumAmount} TRY` });
+      let discount = (coupon as any).discountType==='percent' ? basePrice * Number((coupon as any).discountValue)/100 : Number((coupon as any).discountValue);
+      if ((coupon as any).maxDiscount != null) discount = Math.min(discount, Number((coupon as any).maxDiscount));
+      discount = Math.min(discount, basePrice);
+      const finalPrice = Math.max(0, basePrice - discount);
+      res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount }, basePrice, discount, finalPrice });
+    } catch(e:any){ logger.error({err:e},'validate-coupon'); res.status(500).json({error:'Internal'}); }
   });
 
   // Public: mevcut kredi paketlerini getir (billing/credits sayfaları için)
