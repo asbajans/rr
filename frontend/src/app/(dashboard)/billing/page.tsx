@@ -116,13 +116,17 @@ export default function BillingPage() {
     }
   }
 
-  async function handleValidateCoupon(plan?: Plan) {
+  async function handleValidateCoupon() {
     if (!couponCode.trim()) { setCouponValid(null); return }
     try {
-      const r = await api.validateSaasCoupon(couponCode.trim(), plan?.id as any, billingInterval)
+      const r = await api.validateSaasCoupon(couponCode.trim(), undefined, billingInterval)
       setCouponValid(r)
       if (!r.valid) setMessage(r.error || 'Kod geçersiz')
-      else setMessage(`Kod geçerli: ${r.discount} TRY indirim — yeni fiyat ${r.finalPrice} TRY`)
+      else {
+        const disc = r.coupon ? (r.coupon.discountType==='percent' ? `%${r.coupon.discountValue}` : `${r.coupon.discountValue} TRY`) : `${r.discount} TRY`
+        const max = r.coupon?.maxDiscount ? ` (max ${r.coupon.maxDiscount} TRY)` : ''
+        setMessage(`Kod geçerli: ${disc}${max} indirim — ilk fatura için geçerli`)
+      }
     } catch (e:any){ setMessage(e.message||'Doğrulama hatası') }
   }
 
@@ -269,11 +273,11 @@ export default function BillingPage() {
             </div>
             <div className="mt-3 flex gap-2">
               <input value={couponCode} onChange={e=> setCouponCode(e.target.value)} placeholder="İndirim kodu (varsa)" className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
-              <button onClick={()=> handleValidateCoupon(plans[0])} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm">Doğrula</button>
+              <button onClick={()=> handleValidateCoupon()} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm">Doğrula</button>
             </div>
             {couponValid && (
               <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${couponValid.valid?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>
-                {couponValid.valid ? `✓ ${couponValid.discount} TRY indirim — ${couponValid.finalPrice} TRY` : `✗ ${couponValid.error}`}
+                {couponValid.valid ? `✓ ${couponValid.coupon ? (couponValid.coupon.discountType==='percent' ? `%${couponValid.coupon.discountValue}` : `${couponValid.coupon.discountValue} TRY`) : `${couponValid.discount} TRY`} indirim${couponValid.coupon?.maxDiscount ? ` (max ${couponValid.coupon.maxDiscount} TRY)` : ''} — ilk fatura için` : `✗ ${couponValid.error}`}
                 {couponValid.valid && <span className="ml-2 text-[10px]">(ilk ay/fatura için geçerli, sonraki ay tam fiyat)</span>}
               </div>
             )}
@@ -302,6 +306,18 @@ export default function BillingPage() {
                       return <span className="text-sm font-normal text-zinc-500">{billingInterval==='year' ? '/yıl' : t('perMonth')}</span>
                     })()}
                   </p>
+                  {couponValid?.valid && couponValid.coupon && (() => {
+                    const applicable = (couponValid.coupon as any).applicablePlanIds as number[] | null | undefined
+                    if (applicable && Array.isArray(applicable) && applicable.length && !applicable.map(Number).includes(Number(plan.id))) return null
+                    const yearly = (plan as any).yearly_price != null ? Number((plan as any).yearly_price) : ((plan as any).yearly_discount_percent != null ? Math.round(Number(plan.price)*12*(1-Number((plan as any).yearly_discount_percent)/100)) : null)
+                    const base = billingInterval==='year' ? (yearly ?? plan.price) : plan.price
+                    if (!base || base<=0) return null
+                    const disc = couponValid.coupon.discountType==='percent' ? base * Number(couponValid.coupon.discountValue)/100 : Number(couponValid.coupon.discountValue)
+                    const capped = couponValid.coupon.maxDiscount != null ? Math.min(disc, Number(couponValid.coupon.maxDiscount)) : disc
+                    const final = Math.max(0, base - Math.min(capped, base))
+                    if (final >= base) return null
+                    return <p className="text-sm font-bold text-emerald-600">{final.toLocaleString('tr-TR')} {plan.currency} <span className="text-xs font-normal">ilk fatura</span> <span className="ml-1 text-xs font-normal text-zinc-400 line-through">{base.toLocaleString('tr-TR')}</span></p>
+                  })()}
                   {billingInterval==='year' && (plan as any).yearly_discount_percent ? <p className="text-xs font-medium text-emerald-600">%{(plan as any).yearly_discount_percent} indirim</p> : null}
                   <p className="mt-2 text-xs text-zinc-500">{plan.description}</p>
                   <ul className="mt-4 space-y-2 text-sm text-zinc-600">

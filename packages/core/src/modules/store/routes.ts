@@ -420,7 +420,7 @@ if (stripe) {
       if ((coupon as any).endsAt && new Date((coupon as any).endsAt) < now) return res.json({ valid:false, error:'Kod süresi dolmuş' });
       if ((coupon as any).usageLimit != null && Number((coupon as any).usedCount) >= Number((coupon as any).usageLimit)) return res.json({ valid:false, error:'Kullanım limiti doldu' });
       if (!req.body.planId) {
-        return res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount }, basePrice:null, discount:null, finalPrice:null });
+        return res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount, applicablePlanIds:(coupon as any).applicablePlanIds }, basePrice:null, discount:null, finalPrice:null });
       }
       const plan = await Plan.findByPk(req.body.planId);
       if (!plan) return res.status(404).json({ error:'Plan not found' });
@@ -437,7 +437,7 @@ if (stripe) {
       if ((coupon as any).maxDiscount != null) discount = Math.min(discount, Number((coupon as any).maxDiscount));
       discount = Math.min(discount, basePrice);
       const finalPrice = Math.max(0, basePrice - discount);
-      res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount }, basePrice, discount, finalPrice });
+      res.json({ valid:true, coupon:{ code:(coupon as any).code, discountType:(coupon as any).discountType, discountValue:(coupon as any).discountValue, maxDiscount:(coupon as any).maxDiscount, applicablePlanIds:(coupon as any).applicablePlanIds }, basePrice, discount, finalPrice });
     } catch(e:any){ logger.error({err:e},'validate-coupon'); res.status(500).json({error:'Internal'}); }
   });
 
