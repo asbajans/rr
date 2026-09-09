@@ -77,12 +77,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const s of stores.slice(0, 500)) {
       const code = s.siteCode ?? s.site_code ?? ''
       if (!code) continue
-      const domain = s.domain ?? (s as any).siteUrl ?? null
       const lm = s.updatedAt ? new Date(s.updatedAt) : now
-      // platform store itself is not a storefront — skip its /stores/platform URL
+      // Ana sitemap sadece rahatio.com.tr domainindeki URL'leri içermeli — custom domain URL'ler mağazanın kendi panelindeki sitemap'inde.
+      // Her mağaza zaten /stores/{siteCode} altında da erişilebilir, bu URL sitemap'e eklenir.
       if (code !== 'platform') {
         addEntry({
-          url: storePath(code, domain, ''),
+          url: `${PLATFORM_ORIGIN}/stores/${code}`,
           lastModified: lm,
           changeFrequency: 'daily',
           priority: 0.8,
@@ -94,7 +94,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const p of prods.slice(0, 200)) {
         const slug = p.slug ? String(p.slug) : String(p.id)
         addEntry({
-          url: storePath(code, domain, `products/${slug}`),
+          url: `${PLATFORM_ORIGIN}/stores/${code}/products/${slug}`,
           lastModified: p.updatedAt ? new Date(p.updatedAt) : lm,
           changeFrequency: 'weekly',
           priority: 0.6,
@@ -105,11 +105,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         (s as any).blogs ?? []
       for (const b of blogs.slice(0, 100)) {
         if (!b.slug) continue
-        // platform blogs live at /blog/:slug, not /stores/platform/blog/:slug
         const blogUrl =
           code === 'platform'
             ? `${PLATFORM_ORIGIN}/blog/${b.slug}`
-            : storePath(code, domain, `blog/${b.slug}`)
+            : `${PLATFORM_ORIGIN}/stores/${code}/blog/${b.slug}`
         addEntry({
           url: blogUrl,
           lastModified: b.updatedAt ? new Date(b.updatedAt) : (b.publishedAt ? new Date(b.publishedAt) : lm),
