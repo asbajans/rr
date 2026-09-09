@@ -7,7 +7,9 @@ import { authMiddleware, requireRole } from '../auth/middleware.js';
 import { logger } from '../../utils/logger.js';
 
 export const saasCouponRoutes: Router = Router();
-saasCouponRoutes.use(authMiddleware, requireRole('superadmin'));
+// auth for all saas coupon routes; per-route role checks below
+saasCouponRoutes.use(authMiddleware);
+const superAdminOnly = requireRole('superadmin');
 
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
@@ -19,8 +21,8 @@ function normalizeCode(code: string): string {
   return String(code).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
 }
 
-// GET /api/admin/saas/coupons
-saasCouponRoutes.get('/', async (req: Request, res: Response) => {
+// GET /api/admin/saas/coupons — superadmin only
+saasCouponRoutes.get('/', superAdminOnly, async (req: Request, res: Response) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page ?? '1'),10)||1);
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '20'),10)||20));
@@ -33,14 +35,14 @@ saasCouponRoutes.get('/', async (req: Request, res: Response) => {
   } catch(e){ logger.error({err:e},'list saas coupons'); res.status(500).json({error:'Internal'}); }
 });
 
-saasCouponRoutes.get('/:id', [param('id').isInt()], validate, async (req: Request, res: Response)=>{
+saasCouponRoutes.get('/:id', superAdminOnly, [param('id').isInt()], validate, async (req: Request, res: Response)=>{
   const c = await SaasCoupon.findByPk(req.params.id);
   if(!c) return res.status(404).json({error:'Not found'});
   const redemptions = await SaasCouponRedemption.findAll({ where:{ couponId: c.id }, order:[['createdAt','DESC']], limit:50 });
   res.json({ coupon:c, redemptions });
 });
 
-saasCouponRoutes.post('/', [
+saasCouponRoutes.post('/', superAdminOnly, [
   body('code').isString().isLength({ min:3, max:32 }).matches(/^[A-Za-z0-9_-]+$/),
   body('discountType').isIn(['percent','fixed']),
   body('discountValue').isFloat({ gt:0 }),
@@ -95,7 +97,7 @@ saasCouponRoutes.post('/', [
   } catch(e:any){ logger.error({err:e},'create saas coupon'); res.status(500).json({error:'Internal', message:e.message}); }
 });
 
-saasCouponRoutes.put('/:id', [
+saasCouponRoutes.put('/:id', superAdminOnly, [
   param('id').isInt(),
   body('code').optional().isString().isLength({ min:3, max:32 }),
   body('discountType').optional().isIn(['percent','fixed']),
@@ -154,7 +156,7 @@ saasCouponRoutes.put('/:id', [
   } catch(e:any){ logger.error({err:e},'update coupon'); res.status(500).json({error:'Internal'}); }
 });
 
-saasCouponRoutes.delete('/:id', [param('id').isInt()], validate, async (req: Request, res: Response)=>{
+saasCouponRoutes.delete('/:id', superAdminOnly, [param('id').isInt()], validate, async (req: Request, res: Response)=>{
   const c = await SaasCoupon.findByPk(req.params.id);
   if(!c) return res.status(404).json({error:'Not found'});
   const count = await SaasCouponRedemption.count({ where:{ couponId: c.id } });
@@ -166,7 +168,7 @@ saasCouponRoutes.delete('/:id', [param('id').isInt()], validate, async (req: Req
   res.json({ success:true });
 });
 
-saasCouponRoutes.get('/:id/redemptions', [param('id').isInt()], validate, async (req: Request, res: Response)=>{
+saasCouponRoutes.get('/:id/redemptions', superAdminOnly, [param('id').isInt()], validate, async (req: Request, res: Response)=>{
   const c = await SaasCoupon.findByPk(req.params.id);
   if(!c) return res.status(404).json({error:'Not found'});
   const rows = await SaasCouponRedemption.findAll({ where:{ couponId: c.id }, order:[['createdAt','DESC']] });
