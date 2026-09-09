@@ -33,13 +33,43 @@ export const createApp = async (): Promise<Express> => {
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
-  app.use(cors({
-    origin: config.corsOrigin,
+  const corsOptions: Parameters<typeof cors>[0] = {
+    origin(origin, cb) {
+      // allow requests with no origin (mobile apps, curl)
+      if (!origin) return cb(null, true);
+      try {
+        const url = new URL(origin);
+        const host = url.hostname;
+        // allow exact allowlist + any subdomain of rahatio.com.tr + localhost for dev
+        const isAllowed =
+          config.corsOrigin.includes(origin) ||
+          host === 'rahatio.com.tr' ||
+          host.endsWith('.rahatio.com.tr') ||
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host.endsWith('.localhost');
+        if (isAllowed) return cb(null, true);
+        // fallback: if origin string matches allowlist after trimming slash
+        const normalized = origin.replace(/\/$/, '');
+        if (config.corsOrigin.map((o: string) => o.replace(/\/$/, '')).includes(normalized)) {
+          return cb(null, true);
+        }
+        cb(null, false);
+      } catch {
+        // if origin is not a valid URL, fallback to allowlist check
+        if (config.corsOrigin.includes(origin)) return cb(null, true);
+        cb(null, false);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-API-Key-HMAC', 'X-Timestamp'],
-  }));
-  app.options('*', cors()); // Handle preflight for all routes
+    exposedHeaders: ['Content-Range', 'X-Total-Count'],
+  };
+  app.use(cors(corsOptions));
+  // Express 5: '*' is not valid path — use regex for preflight. cors() already handles most preflights,
+  // but explicit handler ensures 204 for any OPTIONS that falls through.
+  app.options(/.*/, cors(corsOptions));
   app.use(compression());
   app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
   // Stripe webhooks need the raw body for signature verification — parse raw BEFORE express.json
@@ -591,6 +621,7 @@ export const createApp = async (): Promise<Express> => {
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: 'Too many requests' },
+      skip: (req: Request) => req.method === 'OPTIONS',
     })
   );
 
@@ -602,6 +633,8 @@ export const createApp = async (): Promise<Express> => {
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: 'Too many requests — please slow down' },
+      // do not count CORS preflight requests toward the limit
+      skip: (req: Request) => req.method === 'OPTIONS',
     });
 
   app.use('/api/store/:siteCode/checkout', strictLimit(10));
