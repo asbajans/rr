@@ -211,9 +211,8 @@ marketplaceRoutes.get('/amazon/oauth/connect', authMiddleware, requireRole('owne
     const applicationId = globals.amazon_application_id;
     if (!applicationId) return res.status(400).json({ error: 'Amazon Application ID not configured. Ask super admin to set amazon_application_id in Global API Settings.' });
     if (!globals.amazon_lwa_client_id) return res.status(400).json({ error: 'Amazon LWA Client ID not configured.' });
-    const host = req.get('host') || 'api.rahatio.com.tr';
-    const protocol = req.protocol || 'https';
-    const redirectUri = `${protocol}://${host}/api/admin/integrations/amazon/oauth/callback`;
+    // MUST exactly match SPP Edit App -> OAuth Redirect URI (hardcoded, no dynamic host/protocol to avoid MD5101)
+    const redirectUri = 'https://api.rahatio.com.tr/api/admin/integrations/amazon/oauth/callback';
     const state = Buffer.from(JSON.stringify({ storeId: store.id, ts: Date.now(), nonce: Math.random().toString(36).slice(2) })).toString('base64url');
     const params = new URLSearchParams({ application_id: applicationId, state, redirect_uri: redirectUri, version: 'beta' });
     const url = `https://sellercentral.amazon.com/apps/authorize/consent?${params.toString()}`;
@@ -240,9 +239,7 @@ marketplaceRoutes.get('/amazon/oauth/callback', async (req: Request, res: Respon
     }
     const globals = await getAmazonGlobalConfig();
     if (!globals.amazon_lwa_client_id || !globals.amazon_lwa_client_secret) return res.status(400).json({ error: 'Amazon LWA credentials not configured' });
-    const host = req.get('host') || 'api.rahatio.com.tr';
-    const protocol = req.protocol || 'https';
-    const redirectUri = `${protocol}://${host}/api/admin/integrations/amazon/oauth/callback`;
+    const redirectUri = 'https://api.rahatio.com.tr/api/admin/integrations/amazon/oauth/callback';
     // Exchange code for refresh_token via LWA
     const axios = (await import('axios')).default;
     const tokenRes = await axios.post('https://api.amazon.com/auth/o2/token', new URLSearchParams({
@@ -277,8 +274,8 @@ marketplaceRoutes.get('/amazon/oauth/callback', async (req: Request, res: Respon
 marketplaceRoutes.get('/amazon/oauth/config', authMiddleware, requireStore, async (req: Request, res: Response) => {
   try {
     const globals = await getAmazonGlobalConfig();
-    const host = req.get('host') || 'api.rahatio.com.tr';
-    const protocol = req.protocol || 'https';
+    const host = 'api.rahatio.com.tr';
+    const protocol = 'https';
     const redirectUri = `${protocol}://${host}/api/admin/integrations/amazon/oauth/callback`;
     res.json({
       redirectUri,
