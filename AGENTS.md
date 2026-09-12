@@ -921,6 +921,44 @@ POST   /api/ai/chat                 # Proxy → ai-service
 - [ ] Portainer stack güncelle (env, volumes)
 - [ ] Canlı test: Register → Product → Marketplace Push → Order
 
+### Phase AMZ — Amazon SP-API Entegrasyonu (TODO) ⏳
+
+#### Mevcut Durum (2026-01-04 analiz)
+- [x] `AmazonClient` iskeleti mevcut: `packages/core/src/marketplace/clients/amazon.ts:20`, factory kayıtlı `clients/index.ts:32`
+- [x] `getProducts`/`createProduct`/`updateProduct`/`updatePrice`/`updateStock`/`getOrders`/`getOrder` stub'ları var — **prod'a uygun değil**
+- [ ] **Kritik bug'lar**: `ensureToken` LWA URL yanlış (`sellingpartnerapi-eu.amazon.com/auth/o2/token` → doğrusu `api.amazon.com/auth/o2/token` `amazon.ts:36`), `createProduct` SKU path parametresi eksik (`POST /items/{sellerId}` → `PUT /items/{sellerId}/{sku}`), `updatePrice` sahte `B00...` endpoint'i, `getProducts` Catalog API ile seller stoğu çekiyor (hep 0), `getOrders` deprecated `v0` hardcoded, `signRequest` `aws-sdk v2` hardcode
+- [ ] `marketplaceId` default `A1F83G8C2ARO7P` (UK) → TR için `A33AVAJ2PDY3EV` olmalı
+- [ ] Per-store `refreshToken`/`sellerId` kavramı yok — global `env` fallback var `config/index.ts:74`
+- [ ] OAuth callback route yok (Etsy'deki `GET /api/admin/integrations/etsy/callback` gibi Amazon için de gerekli)
+
+#### AMZ-1 — Başvuru / Manuel İşler (Sahip: İnsan — Koddan önce)
+- [ ] **Hesap**: Seller Central Professional hesap (primary user) — `sellercentral.amazon.com.tr` (EU)
+- [ ] **SPP**: `solutionproviderportal.amazon.com` hesap + Identity Verification (20 dk) + Developer Profile (contact/dataAccess/roles/useCases/securityControls, 500 kelime, 5 gün içinde ek belge cevabı) `developer-docs.amazon.com/sp-api/docs/sp-api-registration-overview`
+- [ ] **App tipi kararı**: Private (sadece kendi mağazan) vs Public (SaaS — tüm satıcılar için, **Rahatio için Public gerekli**). Public → Appstore listelenmesi + website review (`rahatio.com.tr` public olmalı)
+- [ ] **Roller**: `Product Listing` + `Inventory and Order Tracking` (sipariş için aynı roller; PII için Restricted → ayrı mimari review)
+- [ ] **AWS IAM**: IAM role/user oluştur, `arn:aws:iam::<account>:role/SPAPIRole`, `execute-api:Invoke` policy, `AccessKey/SecretKey` al
+- [ ] **LWA**: `developer.amazon.com` Security Profile → `Client ID/Secret` → SPP'de `OAuth redirect URI` = `https://api.rahatio.com.tr/api/admin/integrations/amazon/callback`
+- [ ] **Auth**: Private → SPP `Self-authorize` → `refresh_token`; Public → `Authorize` butonu → `spapi_oauth_code` → `POST https://api.amazon.com/auth/o2/token` → `refresh_token` (per-store saklanır)
+- [ ] **Billing**: SPP'de payment method + tax info (31.01.2026'dan sonra $1400/yıl + GET tier ücreti yoksa Appstore'dan silinme)
+
+#### AMZ-2 — Süperadmin Panel (Kod)
+- [ ] **Süperadmin > Global API Ayarları**: `frontend/src/app/(super)/api-settings/page.tsx` Amazon bölümü eklenecek — global app credential'ları: `amazon_lwa_client_id`, `amazon_lwa_client_secret`, `amazon_aws_access_key`, `amazon_aws_secret_key`, `amazon_iam_role_arn`, `amazon_application_id` (Setting key `amazon_*`, `packages/core/src/modules/superAdmin/routes.ts:592` `/api/admin/settings` üzerinden). Per-store `refreshToken`/`sellerId` **burada değil** marketplace integration config'inde saklanır
+- [ ] `MARKETPLACE_FIELDS.amazon` `frontend/src/lib/api-client.ts:121` genişletildi (marketplaceId, refreshToken, sellerId dahil)
+
+#### AMZ-3 — Backend Fix (Kod)
+- [ ] `amazon.ts:36` LWA token URL `api.amazon.com/auth/o2/token` düzelt, `signRequest` AWS Signature V4 `eu-west-1` + STS AssumeRole destekle
+- [ ] `getProducts` → `GET /listings/2021-08-01/items/{sellerId}/search?marketplaceIds=A33AVAJ2PDY3EV&includedData=summaries,offers` (Catalog değil Listings Search) `developer-docs.amazon.com/sp-api/docs/listings-items-api`
+- [ ] `createProduct` → `PUT /listings/2021-08-01/items/{sellerId}/{sku}?marketplaceIds=` + `productType` Definitions API + attribute patch
+- [ ] `updateProduct` → `patches[0]` ezilme bug'ı (`amazon.ts:118`) düzelt, `PATCH` ile `fulfillment_availability`/`purchasable_offer` merge
+- [ ] `updatePrice`/`updateStock` → aynı PATCH zinciri (`purchasable_offer` + `fulfillment_availability`)
+- [ ] `getOrders` → `v2026-01-01 searchOrders` + `CreatedAfter` + `MarketplaceIds`, `v0` deprecate `developer-docs.amazon.com/sp-api/docs/orders-api-v0-use-case-guide:18`
+- [ ] `packages/core/src/marketplace/clients/index.ts:83` default marketplaceId `A33AVAJ2PDY3EV` (TR)
+- [ ] OAuth callback: `GET /api/admin/integrations/amazon/callback` (Etsy pattern) + `GET /api/admin/integrations/amazon/oauth/connect` → Amazon consent URL
+
+#### AMZ-4 — Test
+- [ ] Private app ile kendi mağazada: `importProducts` → `normalizeMarketplaceProduct` → `createProduct (PUT)` → `searchOrders` → sipariş oluştu mu?
+- [ ] Public app için bir test satıcı OAuth → refresh_token per-store kayıt → ikinci mağaza ürün push
+
 ---
 
 ## Teknik Borçlar ve Riskler

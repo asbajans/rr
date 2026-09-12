@@ -118,7 +118,7 @@ const MARKETPLACE_FIELDS: Record<string, Record<string, string>> = {
   hepsiburada: { username: 'Kullanıcı Adı', password: 'Şifre', merchantId: 'Mağaza ID' },
   pazarama: { clientId: 'Client ID', clientSecret: 'Client Secret', apiKey: 'API Anahtar' },
   n11: { appKey: 'App Key', appSecret: 'App Secret' },
-  amazon: { refreshToken: 'Refresh Token', sellerId: 'Satıcı ID', awsAccessKey: 'AWS Access Key', awsSecretKey: 'AWS Secret Key' },
+  amazon: { refreshToken: 'Refresh Token (per-store)', sellerId: 'Satıcı ID (Seller ID)', marketplaceId: 'Marketplace ID (TR: A33AVAJ2PDY3EV)', awsAccessKey: 'AWS Access Key (opsiyonel - global varsa boş bırak)', awsSecretKey: 'AWS Secret Key (opsiyonel)', lwaClientId: 'LWA Client ID (opsiyonel - global varsa boş)', lwaClientSecret: 'LWA Client Secret (opsiyonel)' },
   etsy: { clientId: 'Client ID', clientSecret: 'Client Secret' },
   facebook: {},
   instagram: {},
