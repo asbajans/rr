@@ -20,7 +20,7 @@ const MARKETPLACE_ACTIONS: Record<string, string[]> = {
   hepsiburada: ['Sync Brands', 'Import Products', 'Get Categories', 'Edit Config'],
   pazarama: ['Sync Brands', 'Import Products', 'Get Categories', 'Edit Config'],
   n11: ['Sync Brands', 'Import Products', 'Get Categories', 'Edit Config'],
-  amazon: ['Sync Brands', 'Import Products', 'Get Categories', 'Edit Config'],
+  amazon: ['Sync Brands', 'Import Products', 'Get Categories', 'Edit Config', 'OAuth Connect'],
   etsy: ['Sync Brands', 'Import Products', 'Get Categories', 'Edit Config', 'OAuth Connect'],
 }
 
@@ -426,6 +426,32 @@ export default function MarketplaceDetailPage() {
                 <ExternalLink className="h-4 w-4" />
                 Etsy ile Bağlan
               </button>
+            </div>
+          )}
+
+          {mp === 'amazon' && (
+            <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-5">
+              <h3 className="text-sm font-semibold text-zinc-900">Amazon SP-API OAuth</h3>
+              <p className="mt-1 text-xs text-zinc-500">Amazon Seller Central hesabını OAuth ile bağla. Süperadmin Global API Ayarları’nda LWA + Application ID yapılandırılmış olmalı. Bağlantı sonrası Seller ID ve Refresh Token otomatik doldurulur.</p>
+              <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                Redirect URI (SPP’ye kayıtlı olmalı): <span className="font-mono break-all">https://api.rahatio.com.tr/api/admin/integrations/amazon/oauth/callback</span>
+              </div>
+              <button onClick={async () => {
+                try {
+                  const res = await api.get<any>(`/api/admin/integrations/amazon/oauth/connect`)
+                  if (res.url) window.location.href = res.url
+                  else setMessage('Amazon bağlantı URL alınamadı')
+                } catch (err: any) {
+                  setMessage(err.message || 'Amazon bağlantısı başlatılamadı. Süperadmin Application ID kontrol edin.')
+                }
+              }}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#FF9900] px-4 py-2 text-xs font-medium text-white hover:bg-[#e68a00]">
+                <ExternalLink className="h-4 w-4" />
+                Amazon ile Bağlan
+              </button>
+              {integration?.config?.sellerId && (
+                <p className="mt-2 text-xs text-green-700">Bağlı Seller ID: <span className="font-mono">{integration.config.sellerId}</span> {integration.config.refreshToken ? '· RefreshToken var' : ''}</p>
+              )}
             </div>
           )}
         </div>

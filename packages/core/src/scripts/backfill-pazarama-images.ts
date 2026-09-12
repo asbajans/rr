@@ -30,7 +30,7 @@ async function main() {
   const integrations = await MarketplaceIntegration.findAll({ where: { marketplace: 'pazarama' } });
   const clientByStore = new Map<number, PazaramaClient>();
   for (const it of integrations) {
-    const cfg = getMarketplaceConfig('pazarama', it);
+    const cfg = await getMarketplaceConfig('pazarama', it);
     clientByStore.set(Number(it.storeId), new PazaramaClient(cfg));
   }
 
@@ -65,7 +65,7 @@ async function main() {
 
     let client = clientByStore.get(Number(p.storeId));
     if (!client) {
-      client = new PazaramaClient(getMarketplaceConfig('pazarama', { config: {} }));
+      client = new PazaramaClient(await getMarketplaceConfig('pazarama', { config: {} }));
       clientByStore.set(Number(p.storeId), client);
     }
 

@@ -42,9 +42,21 @@ export function createMarketplaceClient(marketplace: MarketplaceType, config: an
   }
 }
 
-export function getMarketplaceConfig(marketplace: MarketplaceType, integration: any): any {
-  const baseConfig = integration.config || {};
+export async function getMarketplaceConfig(marketplace: MarketplaceType, integration: any): Promise<any> {
+  const baseConfig = integration?.config || {};
   
+  // helper to read global Setting fallback for Amazon (superadmin > Global API Settings)
+  async function getAmazonGlobals(): Promise<Record<string, string>> {
+    try {
+      const { Setting } = await import('../../models/Setting.model.js');
+      const keys = ['amazon_lwa_client_id','amazon_lwa_client_secret','amazon_aws_access_key','amazon_aws_secret_key','amazon_iam_role_arn','amazon_application_id','amazon_marketplace_id','amazon_aws_region'];
+      const rows = await Setting.findAll({ where: { key: keys } as any });
+      const map: Record<string, string> = {};
+      for (const r of rows) map[(r as any).key] = String((r as any).value || '');
+      return map;
+    } catch { return {}; }
+  }
+
   switch (marketplace) {
     case 'trendyol':
       return {
@@ -72,16 +84,21 @@ export function getMarketplaceConfig(marketplace: MarketplaceType, integration: 
         appKey: baseConfig.appKey || process.env.N11_APPKEY,
         appSecret: baseConfig.appSecret || process.env.N11_APPSECRET,
       };
-    case 'amazon':
+    case 'amazon': {
+      const globals = await getAmazonGlobals();
       return {
-        refreshToken: baseConfig.refreshToken || process.env.AMAZON_REFRESH_TOKEN,
-        lwaClientId: baseConfig.lwaClientId || process.env.AMAZON_LWA_CLIENT_ID,
-        lwaClientSecret: baseConfig.lwaClientSecret || process.env.AMAZON_LWA_CLIENT_SECRET,
-        awsAccessKey: baseConfig.awsAccessKey || process.env.AMAZON_AWS_ACCESS_KEY,
-        awsSecretKey: baseConfig.awsSecretKey || process.env.AMAZON_AWS_SECRET_KEY,
-        sellerId: baseConfig.sellerId || process.env.AMAZON_SELLER_ID,
-        marketplaceId: baseConfig.marketplaceId || 'A1F83G8C2ARO7P',
+        refreshToken: baseConfig.refreshToken || process.env.AMAZON_REFRESH_TOKEN || '',
+        lwaClientId: baseConfig.lwaClientId || baseConfig.lwa_client_id || globals.amazon_lwa_client_id || process.env.AMAZON_LWA_CLIENT_ID || '',
+        lwaClientSecret: baseConfig.lwaClientSecret || baseConfig.lwa_client_secret || globals.amazon_lwa_client_secret || process.env.AMAZON_LWA_CLIENT_SECRET || '',
+        awsAccessKey: baseConfig.awsAccessKey || baseConfig.aws_access_key || globals.amazon_aws_access_key || process.env.AMAZON_AWS_ACCESS_KEY || '',
+        awsSecretKey: baseConfig.awsSecretKey || baseConfig.aws_secret_key || globals.amazon_aws_secret_key || process.env.AMAZON_AWS_SECRET_KEY || '',
+        sellerId: baseConfig.sellerId || baseConfig.seller_id || process.env.AMAZON_SELLER_ID || '',
+        marketplaceId: baseConfig.marketplaceId || baseConfig.marketplace_id || globals.amazon_marketplace_id || process.env.AMAZON_MARKETPLACE_ID || 'A33AVAJ2PDY3EV',
+        region: baseConfig.region || globals.amazon_aws_region || process.env.AMAZON_AWS_REGION || 'eu-west-1',
+        applicationId: baseConfig.applicationId || globals.amazon_application_id || process.env.AMAZON_APPLICATION_ID || '',
+        iamRoleArn: baseConfig.iamRoleArn || globals.amazon_iam_role_arn || process.env.AMAZON_IAM_ROLE_ARN || '',
       };
+    }
     case 'etsy':
       return {
         clientId: baseConfig.clientId || process.env.ETSY_CLIENT_ID,

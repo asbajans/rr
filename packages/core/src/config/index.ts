@@ -78,6 +78,10 @@ export const config = {
       awsAccessKey: process.env.AMAZON_AWS_ACCESS_KEY || '',
       awsSecretKey: process.env.AMAZON_AWS_SECRET_KEY || '',
       sellerId: process.env.AMAZON_SELLER_ID || '',
+      marketplaceId: process.env.AMAZON_MARKETPLACE_ID || 'A33AVAJ2PDY3EV',
+      applicationId: process.env.AMAZON_APPLICATION_ID || '',
+      iamRoleArn: process.env.AMAZON_IAM_ROLE_ARN || '',
+      region: process.env.AMAZON_AWS_REGION || 'eu-west-1',
     },
     etsy: {
       clientId: process.env.ETSY_CLIENT_ID || '',

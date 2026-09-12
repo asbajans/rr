@@ -34,7 +34,7 @@ async function tryWithActiveIntegrations<T>(marketplace: MarketplaceType, fn: (c
   });
   for (const integ of integrations) {
     try {
-      const cfg = getMarketplaceConfig(marketplace, integ as any);
+      const cfg = await getMarketplaceConfig(marketplace, integ as any);
       const client = createMarketplaceClient(marketplace, cfg);
       const result = await fn(client as any, integ);
       if (result != null) return { result, sourceStoreId: integ.storeId };

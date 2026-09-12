@@ -350,7 +350,7 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
               where: { storeId: store.id, marketplace: 'trendyol', isActive: true },
             });
             if (integration) {
-              const mpConfig = getMarketplaceConfig('trendyol', integration);
+              const mpConfig = await getMarketplaceConfig('trendyol', integration);
               const tyClient = createMarketplaceClient('trendyol', mpConfig);
               const lines: Array<{ lineId: number; quantity: number }> = ((order.items as any[]) || [])
                 .map((item: any) => ({ lineId: item.orderLineId, quantity: item.quantity }))
@@ -396,7 +396,7 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
               where: { storeId: store.id, marketplace: 'n11', isActive: true },
             });
             if (integration) {
-              const mpConfig = getMarketplaceConfig('n11', integration);
+              const mpConfig = await getMarketplaceConfig('n11', integration);
               const n11Client = createMarketplaceClient('n11', mpConfig);
               const lineIds: number[] = ((order.items as any[]) || [])
                 .map((item: any) => item.orderLineId)
@@ -414,7 +414,7 @@ orderRoutes.put('/:id/status', authMiddleware, requireRole('owner', 'admin'), re
         try {
           const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
           if (!integration) throw new Error('Pazarama integration not configured');
-          const client = createMarketplaceClient('pazarama', getMarketplaceConfig('pazarama', integration)) as any;
+          const client = createMarketplaceClient('pazarama', await getMarketplaceConfig('pazarama', integration)) as any;
           await client.updateOrderStatus(order.marketplaceOrderNumber || order.marketplaceOrderId, 'processing');
         } catch (pazaramaErr: any) {
           logger.error({ err: pazaramaErr.message, orderId: order.id }, 'Failed to update Pazarama order status');
@@ -469,12 +469,12 @@ orderRoutes.put('/:id/tracking', authMiddleware, requireRole('owner', 'admin'), 
     if (order.marketplace === 'etsy') {
       const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'etsy', isActive: true } });
       if (!integration) return res.status(409).json({ error: 'Etsy integration not configured' });
-      const client = createMarketplaceClient('etsy', getMarketplaceConfig('etsy', integration)) as any;
+      const client = createMarketplaceClient('etsy', await getMarketplaceConfig('etsy', integration)) as any;
       await client.updateTracking(order.marketplaceOrderId, trackingNumber, carrier);
     } else if (order.marketplace === 'pazarama') {
       const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
       if (!integration) return res.status(409).json({ error: 'Pazarama integration not configured' });
-      const pConfig: any = getMarketplaceConfig('pazarama', integration);
+      const pConfig: any = await getMarketplaceConfig('pazarama', integration);
       const integrationConfig: any = integration.config || {};
       const configuredCargoId = integrationConfig.cargoCompanyId || integrationConfig.cargoCompanyIds?.[carrier];
       const client = createMarketplaceClient('pazarama', pConfig) as any;
@@ -587,7 +587,7 @@ orderRoutes.get('/:id/label', authMiddleware, requireStore, [
         where: { storeId: targetStoreId, marketplace: 'trendyol', isActive: true },
       });
       if (integration) {
-        const mpConfig = getMarketplaceConfig('trendyol' as MarketplaceType, integration);
+        const mpConfig = await getMarketplaceConfig('trendyol' as MarketplaceType, integration);
         const client = createMarketplaceClient('trendyol' as MarketplaceType, mpConfig) as any;
         const label = await (client as any).getOrderLabel({ packageId: marketplaceOrderId, trackingNumber: order.get('trackingNumber') });
         if (label) {
@@ -695,7 +695,7 @@ orderRoutes.post('/:id/marketplace/invoice', authMiddleware, requireRole('owner'
     if (order.marketplace !== 'pazarama') return res.status(409).json({ error: 'Invoice API is currently available for Pazarama only' });
     const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
     if (!integration) return res.status(409).json({ error: 'Pazarama integration not configured' });
-    const client = createMarketplaceClient('pazarama', getMarketplaceConfig('pazarama', integration)) as any;
+    const client = createMarketplaceClient('pazarama', await getMarketplaceConfig('pazarama', integration)) as any;
     await client.updateInvoiceLink(order.marketplaceOrderId, req.body.invoiceLink, {
       trackingNumber: order.trackingNumber || null,
     });
@@ -719,7 +719,7 @@ orderRoutes.post('/:id/marketplace/return', authMiddleware, requireRole('owner',
     if (order.marketplace !== 'pazarama') return res.status(409).json({ error: 'Return API is currently available for Pazarama only' });
     const integration = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'pazarama', isActive: true } });
     if (!integration) return res.status(409).json({ error: 'Pazarama integration not configured' });
-    const client = createMarketplaceClient('pazarama', getMarketplaceConfig('pazarama', integration)) as any;
+    const client = createMarketplaceClient('pazarama', await getMarketplaceConfig('pazarama', integration)) as any;
     await client.updateRefund(req.body.refundId, req.body.decision === 'approve' ? 2 : 3);
     if (req.body.decision === 'approve' && order.status !== 'returned') await order.update({ status: 'returned' });
     res.json({ success: true, decision: req.body.decision, order });

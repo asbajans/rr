@@ -85,7 +85,7 @@ marketplaceRoutes.get('/marketplace-trees', authMiddleware, requireStore, async 
       } catch {}
       try {
         const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
-        const config = getMarketplaceConfig(mp as any, integration);
+        const config = await getMarketplaceConfig(mp as any, integration);
         const client = createMarketplaceClient(mp as any, config);
         const categories = await client.getCategories();
         trees[mp] = buildCategoryTree(categories);
@@ -110,6 +110,24 @@ async function getEtsyGlobalConfig(): Promise<{ clientId: string; clientSecret: 
     clientId: map.etsy_client_id || process.env.ETSY_CLIENT_ID || '',
     clientSecret: map.etsy_client_secret || process.env.ETSY_CLIENT_SECRET || '',
   };
+}
+
+async function getAmazonGlobalConfig(): Promise<Record<string, string>> {
+  try {
+    const keys = ['amazon_lwa_client_id','amazon_lwa_client_secret','amazon_aws_access_key','amazon_aws_secret_key','amazon_application_id','amazon_marketplace_id','amazon_aws_region','amazon_iam_role_arn'];
+    const rows = await Setting.findAll({ where: { key: keys } as any });
+    const map: Record<string, string> = {};
+    for (const r of rows) map[(r as any).key] = String((r as any).value || '');
+    if (!map.amazon_lwa_client_id) map.amazon_lwa_client_id = process.env.AMAZON_LWA_CLIENT_ID || '';
+    if (!map.amazon_lwa_client_secret) map.amazon_lwa_client_secret = process.env.AMAZON_LWA_CLIENT_SECRET || '';
+    if (!map.amazon_aws_access_key) map.amazon_aws_access_key = process.env.AMAZON_AWS_ACCESS_KEY || '';
+    if (!map.amazon_aws_secret_key) map.amazon_aws_secret_key = process.env.AMAZON_AWS_SECRET_KEY || '';
+    if (!map.amazon_application_id) map.amazon_application_id = process.env.AMAZON_APPLICATION_ID || '';
+    if (!map.amazon_marketplace_id) map.amazon_marketplace_id = process.env.AMAZON_MARKETPLACE_ID || 'A33AVAJ2PDY3EV';
+    if (!map.amazon_aws_region) map.amazon_aws_region = process.env.AMAZON_AWS_REGION || 'eu-west-1';
+    if (!map.amazon_iam_role_arn) map.amazon_iam_role_arn = process.env.AMAZON_IAM_ROLE_ARN || '';
+    return map;
+  } catch { return {}; }
 }
 
 marketplaceRoutes.get('/etsy/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
@@ -177,6 +195,101 @@ marketplaceRoutes.get('/etsy/oauth/callback', async (req: Request, res: Response
   } catch (error: unknown) {
     logger.error({ err: error }, 'Etsy OAuth callback error');
     res.status(500).send('Etsy authorization failed. Please try again.');
+  }
+});
+
+// ============ AMAZON OAuth (SP-API) ============
+marketplaceRoutes.get('/amazon/oauth/connect', authMiddleware, requireRole('owner', 'admin'), requireStore, requireModule('marketplace'), async (req: Request, res: Response) => {
+  try {
+    const store = (req as any).store;
+    const existing = await MarketplaceIntegration.findOne({ where: { storeId: store.id, marketplace: 'amazon' } });
+    if (!existing?.isActive) {
+      const quota = await assertMarketplaceQuota(store);
+      if (!quota.ok) return res.status(403).json({ error: 'PLAN_MARKETPLACE_LIMIT', limit: quota.limit, current: quota.current, message: 'Pazaryeri entegrasyon limitiniz doldu.' });
+    }
+    const globals = await getAmazonGlobalConfig();
+    const applicationId = globals.amazon_application_id;
+    if (!applicationId) return res.status(400).json({ error: 'Amazon Application ID not configured. Ask super admin to set amazon_application_id in Global API Settings.' });
+    if (!globals.amazon_lwa_client_id) return res.status(400).json({ error: 'Amazon LWA Client ID not configured.' });
+    const host = req.get('host') || 'api.rahatio.com.tr';
+    const protocol = req.protocol || 'https';
+    const redirectUri = `${protocol}://${host}/api/admin/integrations/amazon/oauth/callback`;
+    const state = Buffer.from(JSON.stringify({ storeId: store.id, ts: Date.now(), nonce: Math.random().toString(36).slice(2) })).toString('base64url');
+    const params = new URLSearchParams({ application_id: applicationId, state, redirect_uri: redirectUri, version: 'beta' });
+    const url = `https://sellercentral.amazon.com/apps/authorize/consent?${params.toString()}`;
+    res.json({ url, redirectUri, state });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Amazon OAuth connect error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+marketplaceRoutes.get('/amazon/oauth/callback', async (req: Request, res: Response) => {
+  try {
+    const code = (req.query.spapi_oauth_code || req.query.code) as string | undefined;
+    const state = req.query.state as string | undefined;
+    const sellingPartnerId = (req.query.selling_partner_id || req.query.sellerId) as string | undefined;
+    if (!code || !state) return res.status(400).json({ error: 'Missing spapi_oauth_code or state' });
+    let storeId: number;
+    try {
+      const decoded = JSON.parse(Buffer.from(state as string, 'base64url').toString());
+      storeId = decoded.storeId;
+      if (!storeId) throw new Error('no storeId');
+    } catch {
+      return res.status(400).json({ error: 'Invalid state parameter' });
+    }
+    const globals = await getAmazonGlobalConfig();
+    if (!globals.amazon_lwa_client_id || !globals.amazon_lwa_client_secret) return res.status(400).json({ error: 'Amazon LWA credentials not configured' });
+    const host = req.get('host') || 'api.rahatio.com.tr';
+    const protocol = req.protocol || 'https';
+    const redirectUri = `${protocol}://${host}/api/admin/integrations/amazon/oauth/callback`;
+    // Exchange code for refresh_token via LWA
+    const axios = (await import('axios')).default;
+    const tokenRes = await axios.post('https://api.amazon.com/auth/o2/token', new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: globals.amazon_lwa_client_id,
+      client_secret: globals.amazon_lwa_client_secret,
+      redirect_uri: redirectUri,
+    }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 });
+    const data = tokenRes.data as { access_token: string; refresh_token: string; expires_in: number };
+    if (!data.refresh_token) return res.status(400).json({ error: 'No refresh_token returned', data });
+    let integration = await MarketplaceIntegration.findOne({ where: { storeId, marketplace: 'amazon' } });
+    const newConfig: any = { refreshToken: data.refresh_token, lwaClientId: globals.amazon_lwa_client_id, lwaClientSecret: globals.amazon_lwa_client_secret };
+    if (sellingPartnerId) newConfig.sellerId = sellingPartnerId;
+    if (globals.amazon_marketplace_id) newConfig.marketplaceId = globals.amazon_marketplace_id;
+    if (integration) {
+      await integration.update({ isActive: true, config: { ...(integration.config as any || {}), ...newConfig } });
+    } else {
+      integration = await MarketplaceIntegration.create({ storeId, marketplace: 'amazon', isActive: true, config: newConfig });
+    }
+    logger.info({ storeId, sellingPartnerId }, 'Amazon OAuth completed');
+    // Redirect to frontend with success flag
+    const frontendUrl = process.env.FRONTEND_URL || 'https://rahatio.com.tr';
+    res.redirect(`${frontendUrl}/marketplaces/amazon?amazon=connected`);
+  } catch (error: any) {
+    logger.error({ err: error, data: error?.response?.data }, 'Amazon OAuth callback error');
+    const msg = error?.response?.data ? JSON.stringify(error.response.data) : error.message;
+    res.status(500).send(`Amazon authorization failed: ${msg}`);
+  }
+});
+
+marketplaceRoutes.get('/amazon/oauth/config', authMiddleware, requireStore, async (req: Request, res: Response) => {
+  try {
+    const globals = await getAmazonGlobalConfig();
+    const host = req.get('host') || 'api.rahatio.com.tr';
+    const protocol = req.protocol || 'https';
+    const redirectUri = `${protocol}://${host}/api/admin/integrations/amazon/oauth/callback`;
+    res.json({
+      redirectUri,
+      applicationIdConfigured: Boolean(globals.amazon_application_id),
+      lwaConfigured: Boolean(globals.amazon_lwa_client_id && globals.amazon_lwa_client_secret),
+      marketplaceId: globals.amazon_marketplace_id || 'A33AVAJ2PDY3EV',
+      region: globals.amazon_aws_region || 'eu-west-1',
+    });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Amazon OAuth config error');
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -525,7 +638,7 @@ marketplaceRoutes.get('/:marketplace/categories', authMiddleware, requireStore, 
     } catch { /* fall through to live */ }
 
     const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
-    const config = getMarketplaceConfig(marketplace as any, integration);
+    const config = await getMarketplaceConfig(marketplace as any, integration);
     const client = createMarketplaceClient(marketplace as any, config);
     const categories = await client.getCategories();
 
@@ -574,7 +687,7 @@ marketplaceRoutes.get('/:marketplace/categories/:categoryId/attributes', authMid
     } catch { /* ignore */ }
 
     const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
-    const config = getMarketplaceConfig(marketplace as any, integration);
+    const config = await getMarketplaceConfig(marketplace as any, integration);
     const client = createMarketplaceClient(marketplace as any, config);
 
     if (typeof client.getCategoryAttributes !== 'function') {
@@ -616,7 +729,7 @@ marketplaceRoutes.get('/:marketplace/shipment-templates', authMiddleware, requir
     }
 
     const { createMarketplaceClient, getMarketplaceConfig } = await import('../../marketplace/clients/index.js');
-    const config = getMarketplaceConfig(marketplace as any, integration);
+    const config = await getMarketplaceConfig(marketplace as any, integration);
     const client = createMarketplaceClient(marketplace as any, config);
 
     if (typeof (client as any).getShipmentTemplates !== 'function') {

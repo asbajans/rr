@@ -285,7 +285,7 @@ export async function createImportWorker() {
         return { success: false, reason: `PLAN_PRODUCT_LIMIT:${quota.current}/${quota.limit}` };
       }
 
-      const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
+      const mpConfig = await getMarketplaceConfig(marketplace as MarketplaceType, integration);
       const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
 
       // Sync marketplace categories: per-store for FK + global for shared catalog (non-blocking)
@@ -878,7 +878,7 @@ export async function createSyncWorker() {
             continue;
           }
 
-          const mpConfig = getMarketplaceConfig(mp as MarketplaceType, integration);
+          const mpConfig = await getMarketplaceConfig(mp as MarketplaceType, integration);
           const client = createMarketplaceClient(mp as MarketplaceType, mpConfig);
 
           const existingListing = product.marketplaceListings?.find(l => l.platform === mp);
@@ -1233,7 +1233,7 @@ async function handleMarketplacePublication(job: Job<PublicationJobData>) {
     return { success: false, retryable: false, error: 'Integration not connected' };
   }
 
-  const mpConfig = getMarketplaceConfig(mp, integration);
+  const mpConfig = await getMarketplaceConfig(mp, integration);
   const client = createMarketplaceClient(mp, mpConfig);
 
   // Trendyol and Pazarama return a batch id for product creation. Poll the

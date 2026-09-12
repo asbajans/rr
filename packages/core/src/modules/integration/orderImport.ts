@@ -151,7 +151,7 @@ export async function importMarketplaceOrders(opts: ImportOrdersOptions): Promis
     return { imported: 0, created: 0, updated: 0, orders: [], error: `${marketplace} entegrasyonu aktif değil` };
   }
 
-  const mpConfig = getMarketplaceConfig(marketplace as MarketplaceType, integration);
+  const mpConfig = await getMarketplaceConfig(marketplace as MarketplaceType, integration);
   const client = createMarketplaceClient(marketplace as MarketplaceType, mpConfig);
 
   const result: ImportOrdersResult = { imported: 0, created: 0, updated: 0, orders: [] };
