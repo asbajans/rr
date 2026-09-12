@@ -17,7 +17,10 @@ const validate = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-superAdminAiRoutes.use(authMiddleware);
+superAdminAiRoutes.use((req: any, res: any, next: any) => {
+  if (String(req.path || '').includes('/oauth/callback')) return next();
+  return (authMiddleware as any)(req, res, next);
+});
 
 const superAdminOnly = requireRole('superadmin');
 

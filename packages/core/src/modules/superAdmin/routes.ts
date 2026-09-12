@@ -57,8 +57,11 @@ function mapPlanBody(body: any): any {
   return mapped;
 }
 
-// Auth runs for all requests (sets req.user, req.store)
-router.use(authMiddleware);
+// Auth runs for all requests (sets req.user, req.store) - but skip public OAuth callbacks (Amazon/Etsy) which are under /api/admin/integrations/*/oauth/callback and must be reachable without Bearer token (Amazon redirects without auth)
+router.use((req, res, next) => {
+  if (req.path.includes('/oauth/callback')) return next();
+  return (authMiddleware as any)(req, res, next);
+});
 
 const superAdminOnly = requireRole('superadmin');
 
