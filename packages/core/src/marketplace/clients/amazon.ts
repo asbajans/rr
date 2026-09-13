@@ -162,24 +162,70 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
     const data: any = await this.spRequest('GET', path);
     const items = data.items || data.listings || [];
     const next = data.pagination?.nextToken || data.nextToken || undefined;
-    // Normalize to importNormalizer expected shape
+    // Normalize to importNormalizer expected shape - map Amazon's nested structures to flat fields that normalizeMarketplaceProduct understands
     const products = (Array.isArray(items) ? items : []).map((it: any) => {
       const summary = it.summaries?.[0] || {};
       const offer = it.offers?.[0] || {};
+      const attrs = it.attributes || {};
+      // Images: main + other locators
+      const images: string[] = [];
+      const mainImgs = attrs.main_product_image_locator || attrs.main_offer_image_locator || [];
+      const otherImgs = attrs.other_product_image_locator || attrs.other_offer_image_locator || [];
+      for (const img of [...(Array.isArray(mainImgs) ? mainImgs : []), ...(Array.isArray(otherImgs) ? otherImgs : [])]) {
+        const url = img?.media_location || img?.url || img?.value || (typeof img === 'string' ? img : null);
+        if (url && typeof url === 'string' && url.startsWith('http')) images.push(url);
+      }
+      // Fallback: summary may contain images
+      if (images.length === 0 && summary.mainImage?.link) images.push(summary.mainImage.link);
+      // Brand
+      const brand = attrs.brand?.[0]?.value || summary.brand || attrs.brand_name?.[0]?.value || '';
+      // Category = productType (Amazon uses productType, not numeric categoryId)
+      const category = summary.productType || it.productTypes?.[0]?.productType || attrs.product_type?.[0]?.value || '';
+      const categoryId = summary.productType || it.productTypes?.[0]?.productType || undefined;
+      // Description
+      const description = attrs.product_description?.[0]?.value || attrs.description?.[0]?.value || summary.productName || '';
+      // Price: offers.price.amount or purchasable_offer.our_price[0].schedule[0].value_with_tax
+      let price: number | undefined;
+      let currency: string | undefined;
+      if (offer?.price?.amount) { price = Number(offer.price.amount); currency = offer.price.currency || offer.price.currencyCode; }
+      else if (offer?.ourPrice?.amount) { price = Number(offer.ourPrice.amount); currency = offer.ourPrice.currency; }
+      else {
+        const po = attrs.purchasable_offer?.[0];
+        const sched = po?.our_price?.[0]?.schedule?.[0] || po?.ourPrice?.[0]?.schedule?.[0];
+        if (sched?.value_with_tax != null) { price = Number(sched.value_with_tax); currency = po?.currency || 'TRY'; }
+        else if (po?.our_price?.[0]?.schedule?.[0]?.value != null) { price = Number(po.our_price[0].schedule[0].value); currency = po?.currency || 'TRY'; }
+      }
+      // Quantity
+      const quantity = offer.availableQuantity ?? attrs.fulfillment_availability?.[0]?.quantity ?? offer.quantity ?? 0;
+      const skuVal = it.sku || summary.sku || it.sellerSku || it.sellerSKU || '';
+      const titleVal = summary.itemName || summary.productName || attrs.item_name?.[0]?.value || attrs.title?.[0]?.value || skuVal || 'Imported Amazon Product';
       return {
-        sku: it.sku || summary.sku || it.sellerSku,
+        sku: skuVal,
         sellerSKU: it.sku,
         asin: summary.asin || it.asin,
-        title: summary.itemName || summary.productName || it.attributes?.item_name?.[0]?.value || it.sku,
-        productName: summary.itemName,
-        quantity: offer.availableQuantity ?? it.attributes?.fulfillment_availability?.[0]?.quantity ?? 0,
-        price: offer.price ?? offer.ourPrice ?? undefined,
-        salePrice: offer.price,
-        listPrice: offer.price,
+        title: titleVal,
+        name: titleVal,
+        productName: summary.itemName || titleVal,
+        description,
+        quantity: Number(quantity) || 0,
+        price,
+        salePrice: price,
+        listPrice: price,
+        currency: currency || 'TRY',
+        currencyType: currency || 'TRY',
+        brand,
+        brandName: brand,
+        category,
+        categoryId,
+        productType: category,
+        images,
+        imageUrl: images[0] || undefined,
+        imageUrls: images,
         attributes: it.attributes,
         summaries: it.summaries,
         offers: it.offers,
         issues: it.issues,
+        productTypes: it.productTypes,
         raw: it,
       };
     });
