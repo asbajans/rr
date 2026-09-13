@@ -143,7 +143,118 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
     return res.data;
   }
 
-  async getCategories(): Promise<any[]> { return []; }
+  async getCategories(): Promise<any[]> {
+    // Amazon uses Product Types as categories. Fetch via Product Type Definitions API
+    // Fallback to a curated list if API fails (so UI never stays empty)
+    const fallback = [
+      { id: 'PRODUCT', name: 'Generic Product', parent_id: '0' },
+      { id: 'COFFEE_MAKER', name: 'Coffee Maker', parent_id: '0' },
+      { id: 'SCREWDRIVER', name: 'Screwdriver', parent_id: '0' },
+      { id: 'LITTER_BOX', name: 'Litter Box', parent_id: '0' },
+      { id: 'HOME', name: 'Home', parent_id: '0' },
+      { id: 'TOOLS', name: 'Tools', parent_id: '0' },
+    ];
+    try {
+      const path = `/definitions/2020-09-01/productTypes?marketplaceIds=${encodeURIComponent(this.config.marketplaceId)}`;
+      const data: any = await this.spRequest('GET', path);
+      const types: any[] = data.productTypes || data.product_types || data.items || [];
+      if (Array.isArray(types) && types.length > 0) {
+        return types.map((pt: any) => {
+          const id = pt.productType || pt.name || pt.value || String(pt);
+          const name = pt.displayName || pt.productType || pt.name || String(pt);
+          return { id: String(id), marketplace_category_id: String(id), name: String(name), parent_id: '0', parentId: '0', level: 0, path: String(name) };
+        });
+      }
+    } catch (e) { /* fallback */ }
+    // Try to enrich fallback with already-seen productTypes from seller's listings (so atabayonline's types appear)
+    try {
+      const res: any = await this.spRequest('GET', `/listings/2021-08-01/items/${encodeURIComponent(this.config.sellerId)}?marketplaceIds=${encodeURIComponent(this.config.marketplaceId)}&includedData=summaries&pageSize=20`);
+      const items: any[] = res.items || [];
+      const seen = new Map<string, string>();
+      for (const it of items) {
+        const pt = it.summaries?.[0]?.productType;
+        if (pt && !seen.has(pt)) seen.set(pt, pt);
+      }
+      if (seen.size > 0) return Array.from(seen.entries()).map(([id, name]) => ({ id, marketplace_category_id: id, name, parent_id: '0', parentId: '0', level: 0, path: name }));
+    } catch {}
+    return fallback;
+  }
+
+  async getBrands(search?: string): Promise<{ id: string; name: string }[]> {
+    // Amazon has no brands API - return seller's distinct brands from listings so UI has suggestions, otherwise empty (free-text brand)
+    try {
+      const res: any = await this.spRequest('GET', `/listings/2021-08-01/items/${encodeURIComponent(this.config.sellerId)}?marketplaceIds=${encodeURIComponent(this.config.marketplaceId)}&includedData=attributes&pageSize=20`);
+      const items: any[] = res.items || [];
+      const brands = new Map<string, string>();
+      for (const it of items) {
+        const b = it.attributes?.brand?.[0]?.value;
+        if (b && !brands.has(b.toLowerCase())) brands.set(b.toLowerCase(), b);
+      }
+      let list = Array.from(brands.values()).map((name) => ({ id: name, name }));
+      if (search) {
+        const q = search.toLowerCase();
+        list = list.filter((b) => b.name.toLowerCase().includes(q));
+      }
+      return list;
+    } catch { return []; }
+  }
+
+  async getCategoryAttributes(categoryId: string | number): Promise<any[]> {
+    const productType = String(categoryId);
+    try {
+      // Product Type Definitions: get definition for a productType to extract required attributes
+      const path = `/definitions/2020-09-01/productTypes/${encodeURIComponent(productType)}?marketplaceIds=${encodeURIComponent(this.config.marketplaceId)}&requirements=LISTING&requirementsEnforced=false&locale=tr_TR`;
+      const data: any = await this.spRequest('GET', path);
+      // Definitions API returns schema with properties
+      const schema = data.schema || data.productTypeDefinition?.schema || data;
+      const props = schema?.properties || schema?.definitions || {};
+      // Also try defs from response directly
+      const attributes: any[] = [];
+      const addAttr = (name: string, def: any) => {
+        if (!name || name.startsWith('_')) return;
+        // Skip internal
+        if (['marketplace_id', 'version'].includes(name)) return;
+        attributes.push({
+          id: name,
+          attributeId: name,
+          name,
+          label: def?.title || name,
+          required: Array.isArray(schema.required) ? schema.required.includes(name) : false,
+          type: def?.type || 'string',
+          description: def?.description || '',
+          enum: def?.enum || def?.options || undefined,
+        });
+      };
+      if (props && typeof props === 'object') {
+        for (const [k, v] of Object.entries(props)) addAttr(k, v as any);
+      }
+      // If still empty, try parsing definitions
+      if (attributes.length === 0 && data.propertyGroups) {
+        for (const g of data.propertyGroups) {
+          for (const p of g.properties || []) addAttr(p.name || p.propertyName, p);
+        }
+      }
+      // Fallback: return common Amazon attributes so UI not empty
+      if (attributes.length === 0) {
+        return [
+          { id: 'brand', attributeId: 'brand', name: 'brand', label: 'Marka', required: true, type: 'string' },
+          { id: 'item_name', attributeId: 'item_name', name: 'item_name', label: 'Ürün Adı', required: true, type: 'string' },
+          { id: 'product_description', attributeId: 'product_description', name: 'product_description', label: 'Açıklama', required: false, type: 'string' },
+          { id: 'main_product_image_locator', attributeId: 'main_product_image_locator', name: 'main_product_image_locator', label: 'Ana Görsel', required: true, type: 'string' },
+          { id: 'purchasable_offer', attributeId: 'purchasable_offer', name: 'purchasable_offer', label: 'Fiyat', required: true, type: 'object' },
+          { id: 'fulfillment_availability', attributeId: 'fulfillment_availability', name: 'fulfillment_availability', label: 'Stok', required: true, type: 'object' },
+        ];
+      }
+      return attributes;
+    } catch (e: any) {
+      // On error, return minimal attributes so product creation still works
+      return [
+        { id: 'brand', attributeId: 'brand', name: 'brand', label: 'Marka', required: true, type: 'string' },
+        { id: 'item_name', attributeId: 'item_name', name: 'item_name', label: 'Ürün Adı', required: true, type: 'string' },
+        { id: 'product_description', attributeId: 'product_description', name: 'product_description', label: 'Açıklama', required: false, type: 'string' },
+      ];
+    }
+  }
 
   async getProducts(params: any = {}): Promise<{ products: any[]; hasMore: boolean; nextToken?: string }> {
     if (!this.config.sellerId) throw new Error('Amazon sellerId missing');
