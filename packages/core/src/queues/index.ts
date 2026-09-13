@@ -371,11 +371,13 @@ export async function createImportWorker() {
         }
       }
 
+      let nextToken: string | undefined = undefined;
       while (hasMore && page < maxPages) {
         try {
-          const result = await client.getProducts({ page, size: 50 });
+          const result = await client.getProducts(nextToken ? { nextToken, size: 50, pageToken: nextToken } : { page, size: 50 });
           const products = result.products || [];
           hasMore = result.hasMore;
+          nextToken = (result as any).nextToken || (result as any).pageToken || undefined;
 
           if (marketplace === 'pazarama' && products.length > 0) {
             const hasImages = products.some((p: any) => p.images != null);
