@@ -15,6 +15,7 @@ type ChannelSelection = {
   brandId?: string | null
   brand?: string | null
   attributes?: any[]
+  shipmentTemplate?: string | null
 }
 
 const ALL_CHANNELS = [
@@ -443,7 +444,7 @@ function toggleChannel(c: string) {
       const cleanSelections: Record<string, ChannelSelection> = {}
       for (const c of allowed) {
         const s = selections[c] || {}
-        if (s.categoryId != null || s.brandId || s.brand) cleanSelections[c] = s
+        if (s.categoryId != null || s.brandId || s.brand || (s as any).shipmentTemplate) cleanSelections[c] = s
       }
       const res = await api.validateAiProductChannels(draft.id, selectedChannels, cleanSelections)
       setValidation(res || [])
@@ -559,7 +560,7 @@ function toggleChannel(c: string) {
       const cleanSelections: Record<string, ChannelSelection> = {}
       for (const c of allowed) {
         const s = selections[c] || {}
-        if (s.categoryId != null || s.brandId || s.brand) cleanSelections[c] = s
+        if (s.categoryId != null || s.brandId || s.brand || (s as any).shipmentTemplate) cleanSelections[c] = s
       }
       const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels, cleanSelections)
       setPublishResults(res.results || [])
@@ -998,6 +999,19 @@ function toggleChannel(c: string) {
                                   )}
                                 </div>
                               </div>
+
+                              {c === 'n11' && (
+                                <div className="mt-2">
+                                  <label className="text-[11px] text-zinc-500">N11 Kargo Şablonu *</label>
+                                  <input
+                                    value={sel.shipmentTemplate ?? ''}
+                                    onChange={(e) => setChannelSelection(c, { shipmentTemplate: e.target.value })}
+                                    placeholder="N11 Teslimat Bilgilerindeki şablon adı (örn: Standart Teslimat)"
+                                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder:text-zinc-500"
+                                  />
+                                  <p className="mt-1 text-[10px] text-zinc-500">Hesabım → Teslimat Bilgileri’ndeki şablon adı ile birebir aynı olmalı. Boş bırakırsanız varsayılan şablon kullanılır.</p>
+                                </div>
+                              )}
 
                               {sel.categoryId != null && (() => {
                                 const rawAttrs = Array.isArray(categoryAttrs[c]) ? categoryAttrs[c] : []

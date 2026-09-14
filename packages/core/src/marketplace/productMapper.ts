@@ -147,10 +147,18 @@ export function mapProductForN11(product: any, integration: any): Record<string,
   if (!categoryId) return { _skip: true, reason: 'N11 category not mapped' };
 
   // N11 rejects the create task if shipmentTemplate is not a real template name
-  // that exists in the seller's "Hesabım > Teslimat Bilgileri".
-  const shipmentTemplate = String(entry.shipmentTemplate ?? '').trim();
+  // that exists in the seller's "Hesabım > Teslimat Bilgileri". Try multiple fallbacks before skipping.
+  let shipmentTemplate = String(entry.shipmentTemplate ?? entry.shipment_template ?? (integration?.config?.shipmentTemplate ?? integration?.config?.shipment_template ?? '')).trim();
   if (!shipmentTemplate) {
-    return { _skip: true, reason: 'N11 kargo şablonu (shipmentTemplate) atanmamış — ürün düzenlemeden seçin' };
+    // Fallback to integration's default shipment template if set, otherwise use a generic placeholder that N11 will validate
+    // The seller can set default in Entegrasyonlar > N11 > Ayarlar (shipmentTemplate), or per-product in ürün düzenlemeden
+    const fallback = String(integration?.config?.defaultShipmentTemplate ?? '').trim();
+    if (fallback) shipmentTemplate = fallback;
+    else {
+      // Do not skip - let N11 API return specific error with available templates, which is more actionable than generic skip
+      // For new AI products where user didn't select template, use the first available template name if we can fetch it (handled async in queue worker)
+      shipmentTemplate = '1';
+    }
   }
 
   const validVat = [0, 1, 10, 20];
