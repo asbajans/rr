@@ -100,6 +100,7 @@ export const createApp = async (): Promise<Express> => {
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS pixels JSONB`);
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "siteUrl" VARCHAR(255)`);
     await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS "defaultAiCategoryId" BIGINT`);
+    await sequelize.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
   } catch (e) {
     // Ignore
   }

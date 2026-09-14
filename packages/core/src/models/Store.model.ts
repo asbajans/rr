@@ -63,6 +63,10 @@ export class Store extends Model {
   @Column(DataType.STRING(255))
   declare email: string;
 
+  @AllowNull(true)
+  @Column(DataType.STRING(50))
+  declare phone: string;
+
   @Default(true)
   @Column(DataType.BOOLEAN)
   declare isActive: boolean;

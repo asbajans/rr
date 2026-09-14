@@ -11,9 +11,17 @@ export async function ensureSupplierForStore(storeId: number): Promise<Supplier>
   const existing = await Supplier.findOne({ where: { storeId } });
   if (existing) return existing;
 
-  const store = await Store.findByPk(storeId, {
-    attributes: ['id', 'name', 'email', 'phone'],
-  });
+  let store: any = null;
+  try {
+    store = await Store.findByPk(storeId, {
+      attributes: ['id', 'name', 'email', 'phone'],
+    });
+  } catch {
+    // Fallback if phone column not yet migrated (old DB)
+    store = await Store.findByPk(storeId, {
+      attributes: ['id', 'name', 'email'],
+    });
+  }
 
   const supplier = await Supplier.create({
     storeId,
