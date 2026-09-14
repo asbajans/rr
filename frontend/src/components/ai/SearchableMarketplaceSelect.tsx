@@ -64,18 +64,19 @@ export default function SearchableMarketplaceSelect({ options, value, onChange, 
         />
       </div>
       {open && !disabled && (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl">
+        <div className="absolute z-20 mt-1 max-h-72 w-full min-w-full overflow-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl">
           {filtered.length === 0 && <div className="px-3 py-2 text-sm text-zinc-500">{emptyText}</div>}
           {filtered.map((o) => (
             <button
               key={String(o.id)}
               type="button"
+              title={o.name}
               onClick={() => {
                 onChange(String(o.id), o)
                 setQuery(o.name)
                 setOpen(false)
               }}
-              className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-zinc-800 ${String(o.id) === String(value) ? 'bg-zinc-800 text-violet-300' : 'text-white'}`}
+              className={`block w-full whitespace-normal break-words px-3 py-2 text-left text-sm hover:bg-zinc-800 ${String(o.id) === String(value) ? 'bg-zinc-800 text-violet-300' : 'text-white'}`}
             >
               {o.name}
             </button>

@@ -1534,6 +1534,7 @@ on_sale: !!md.on_sale,
                             <input
                               list={`cat-${mp}`}
                               value={md.category ?? ''}
+                              title={md.category ?? ''}
                               onChange={(e) => {
                                 const match = catOpts.find((o) => o.name === e.target.value)
                                 const cid = match?.id ?? md.category_id ?? ''
@@ -1557,6 +1558,7 @@ on_sale: !!md.on_sale,
                             <input
                               list={`brand-${mp}`}
                               value={md.brand ?? ''}
+                              title={md.brand ?? ''}
                               onChange={(e) => {
                                 const match = brOpts.find((o) => o.name === e.target.value)
                                 updateMd(mp, { brand: e.target.value, brand_id: match?.id ?? md.brand_id ?? '' })

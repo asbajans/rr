@@ -964,16 +964,38 @@ function toggleChannel(c: string) {
                                 </div>
                                 <div>
                                   <label className="text-[11px] text-zinc-500">{t('aiBrand')}</label>
-                                  <SearchableMarketplaceSelect
-                                    options={brOpts}
-                                    value={sel.brandId ?? null}
-                                    onChange={(id, opt) => {
-                                      setChannelSelection(c, { brandId: opt ? String(opt.id) : null, brand: opt ? opt.name : null })
-                                    }}
-                                    placeholder={brOpts.length === 0 ? '— Marka yok —' : 'Marka ara...'}
-                                    disabled={brOpts.length === 0}
-                                    emptyText="Marka bulunamadı"
-                                  />
+                                  {c === 'amazon' ? (
+                                    <div className="relative">
+                                      <input
+                                        value={sel.brand ?? sel.brandId ?? ''}
+                                        onChange={(e) => {
+                                          const v = e.target.value.trim()
+                                          setChannelSelection(c, { brand: v || null, brandId: v || null })
+                                        }}
+                                        list={`amazon-brand-list-${c}`}
+                                        placeholder={brOpts.length > 0 ? 'Marka yazın veya seçin...' : 'Marka yazın (örn: atabayonline)'}
+                                        className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+                                      />
+                                      {brOpts.length > 0 && (
+                                        <datalist id={`amazon-brand-list-${c}`}>
+                                          {brOpts.map((b) => (
+                                            <option key={b.id} value={b.name} />
+                                          ))}
+                                        </datalist>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <SearchableMarketplaceSelect
+                                      options={brOpts}
+                                      value={sel.brandId ?? null}
+                                      onChange={(id, opt) => {
+                                        setChannelSelection(c, { brandId: opt ? String(opt.id) : null, brand: opt ? opt.name : null })
+                                      }}
+                                      placeholder={brOpts.length === 0 ? '— Marka yok —' : 'Marka ara...'}
+                                      disabled={brOpts.length === 0}
+                                      emptyText="Marka bulunamadı"
+                                    />
+                                  )}
                                 </div>
                               </div>
 

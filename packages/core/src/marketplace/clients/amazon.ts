@@ -234,25 +234,17 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
           for (const p of g.properties || []) addAttr(p.name || p.propertyName, p);
         }
       }
-      // Fallback: return common Amazon attributes so UI not empty
-      if (attributes.length === 0) {
-        return [
-          { id: 'brand', attributeId: 'brand', name: 'brand', label: 'Marka', required: true, type: 'string' },
-          { id: 'item_name', attributeId: 'item_name', name: 'item_name', label: 'Ürün Adı', required: true, type: 'string' },
-          { id: 'product_description', attributeId: 'product_description', name: 'product_description', label: 'Açıklama', required: false, type: 'string' },
-          { id: 'main_product_image_locator', attributeId: 'main_product_image_locator', name: 'main_product_image_locator', label: 'Ana Görsel', required: true, type: 'string' },
-          { id: 'purchasable_offer', attributeId: 'purchasable_offer', name: 'purchasable_offer', label: 'Fiyat', required: true, type: 'object' },
-          { id: 'fulfillment_availability', attributeId: 'fulfillment_availability', name: 'fulfillment_availability', label: 'Stok', required: true, type: 'object' },
-        ];
-      }
-      return attributes;
+      // Filter out base product fields that are handled at product level (title/brand/description/images/price/stock) - they should not appear as category attributes
+      const baseAttrs = new Set(['brand', 'item_name', 'product_description', 'main_product_image_locator', 'main_offer_image_locator', 'other_product_image_locator', 'other_product_image_locator_1', 'other_product_image_locator_2', 'other_product_image_locator_3', 'purchasable_offer', 'fulfillment_availability', 'merchant_shipping_group', 'condition_type']);
+      const filtered = attributes.filter((a: any) => !baseAttrs.has(String(a.id || a.attributeId || a.name)));
+      if (filtered.length > 0) return filtered;
+      // If only base attrs, return empty so UI doesn't show brand*/item_name* as required category attributes (they are satisfied by product title/brand)
+      if (attributes.length > 0) return [];
+      // Fallback: no attributes for this productType yet - return empty (UI will show no extra attributes)
+      return [];
     } catch (e: any) {
-      // On error, return minimal attributes so product creation still works
-      return [
-        { id: 'brand', attributeId: 'brand', name: 'brand', label: 'Marka', required: true, type: 'string' },
-        { id: 'item_name', attributeId: 'item_name', name: 'item_name', label: 'Ürün Adı', required: true, type: 'string' },
-        { id: 'product_description', attributeId: 'product_description', name: 'product_description', label: 'Açıklama', required: false, type: 'string' },
-      ];
+      // On error, return empty - product can still be created with base fields
+      return [];
     }
   }
 
