@@ -41,12 +41,10 @@ export function resolveThemeTokens(
   const muted = p?.secondary || '#f5f5f5'
 
   // font: override varsa o, yoksa preset fontStack'i kullan
-  let fontFamily: string | null = t.font_family || null
-  let fontHeading: string | null = null
+  const fontFamily: string | null = t.font_family || null
+  const fontHeading: string | null = null
   let fontStack: string | null = presetFontStack
   if (!fontFamily && presetFontStack) {
-    // preset'i ham halde bırak, ensureFontsForTheme ve buildThemeCss içinde ayrışacak
-    // body/heading ayrımı için resolveThemeFonts kullanılacak
     fontStack = presetFontStack
   }
 

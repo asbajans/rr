@@ -104,7 +104,8 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
   const g = parseInt(h.slice(2, 4), 16) / 255
   const b = parseInt(h.slice(4, 6), 16) / 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
-  let hh = 0, s = 0, l = (max + min) / 2
+  let hh = 0, s = 0
+  const l = (max + min) / 2
   if (max !== min) {
     const d = max - min
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
