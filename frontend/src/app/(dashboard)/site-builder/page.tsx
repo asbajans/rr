@@ -6,6 +6,9 @@ import { api } from '@/lib/api-client'
 import type { Store, StoreTheme, StoreHomepage, SiteDeployment } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Palette, Type, Code, Upload, Image, Rocket, Undo2, History, LayoutTemplate, MessageCircle } from 'lucide-react'
+import { ThemePicker } from '@/components/store/ThemePicker'
+import { getThemeById } from '@/themes/catalog'
+import { buildThemeCss, resolveThemeTokens } from '@/themes/apply'
 
 const FONT_OPTIONS = ['Inter', 'Playfair Display', 'Roboto', 'Open Sans']
 
@@ -63,6 +66,15 @@ export default function SiteBuilderPage() {
   function updateHomepage(partial: Partial<StoreHomepage>) {
     setHomepage((prev) => ({ ...prev, ...partial }))
   }
+
+  // Seçili hazır temayı anlık önizle (kaydetmeden önce canlı preview — sadece bu sayfada)
+  const activePreset = getThemeById((theme as any).templateId || (theme as any).template_id || null)
+  const previewCss = (() => {
+    try {
+      const tokens = resolveThemeTokens(activePreset, theme)
+      return buildThemeCss(tokens, activePreset?.id || null)
+    } catch { return null }
+  })()
 
   async function handleHeroUpload() {
     const input = document.createElement('input')
@@ -214,8 +226,9 @@ export default function SiteBuilderPage() {
 
   return (
     <div>
+      {previewCss && <style dangerouslySetInnerHTML={{ __html: previewCss }} />}
       <h1 className="text-2xl font-bold text-zinc-900">Site Builder</h1>
-      <p className="mt-1 text-sm text-zinc-600">Mağaza temasını ve görünümünü özelleştir.</p>
+      <p className="mt-1 text-sm text-zinc-600">Mağaza temasını ve görünümünü özelleştir — 149 hazır tema arasından seç, renkleri ince ayarla, yayınla.</p>
 
       {/* Publish / Deployment */}
       {providerInfo && (
@@ -358,6 +371,26 @@ export default function SiteBuilderPage() {
             )}
           </div>
         )}
+
+        {/* Hazır Temalar — 149 Rahatio teması */}
+        <ThemePicker
+          value={(theme as any).templateId || (theme as any).template_id || null}
+          saving={saving}
+          onChange={(id) => {
+            const preset = getThemeById(id)
+            if (!preset) {
+              updateTheme({ templateId: id } as any)
+              return
+            }
+            // Preset seçildiğinde renkleri preset'e göre doldur, logo/favicon korunur
+            updateTheme({
+              templateId: id,
+              primary_color: preset.preview.brand,
+              secondary_color: preset.preview.primary,
+              accent_color: preset.preview.accent,
+            } as any)
+          }}
+        />
 
         {/* Logo & Favicon */}
         <div className="rounded-xl border border-zinc-200 p-6">

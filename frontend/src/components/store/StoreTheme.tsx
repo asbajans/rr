@@ -2,11 +2,14 @@
 
 import { useEffect, useRef } from 'react'
 import { api } from '@/lib/api-client'
+import { getPresetLite } from '@/themes/presets'
+import { buildThemeCss, resolveThemeTokens } from '@/themes/apply'
 
 /**
- * Fetches the store's theme once and injects it as CSS custom properties on
- * <html> plus an inline <style> for custom_css / font-family, and sets the
- * favicon. Storefront components consume --sf-* variables with zinc fallbacks.
+ * Storefront tema enjeksiyonu — Rahatio markalı.
+ * Store.theme içindeki `templateId` (theme-001..theme-149) preset'i taban alır,
+ * mağazanın primary_color / custom_css gibi alanları preset'i ezer.
+ * Dış marka (YNS vb.) enjekte edilmez; CSS yorumunda sadece Rahatio geçer.
  */
 export default function StoreThemeInjector({ siteCode }: { siteCode: string }) {
   const injected = useRef<string | null>(null)
@@ -17,17 +20,28 @@ export default function StoreThemeInjector({ siteCode }: { siteCode: string }) {
 
     api.getStoreFront(siteCode)
       .then((r: any) => {
-        const theme = r?.store?.theme ?? {}
-        const primary = theme.primary_color || '#4f46e5'
-        const secondary = theme.secondary_color || '#18181b'
-        const accent = theme.accent_color || '#f59e0b'
-        const font = theme.font_family || ''
+        const theme = (r?.store?.theme ?? {}) as Record<string, any>
+        const templateId: string | null = theme.templateId || theme.template_id || theme.themeId || null
+        const lite = getPresetLite(templateId)
+        // Bridge lite -> StorefrontTheme preview shape expected by resolveThemeTokens
+        const presetBridge: any = lite
+          ? { id: lite.id, preview: { brand: lite.brand, background: lite.bg, foreground: lite.fg, primary: lite.primary, secondary: lite.secondary, accent: lite.accent, border: lite.border, radius: lite.radius, card: lite.card }, fontStack: lite.fontStack, layoutHint: lite.layoutHint }
+          : null
+        const tokens = resolveThemeTokens(presetBridge, theme)
+        const css = buildThemeCss(tokens, templateId)
 
         const root = document.documentElement
-        root.style.setProperty('--sf-primary', primary)
-        root.style.setProperty('--sf-secondary', secondary)
-        root.style.setProperty('--sf-accent', accent)
-        root.style.setProperty('--sf-font', font)
+        // Hızlı setProperty + tam CSS text (fallbacks korunur)
+        root.style.setProperty('--sf-primary', tokens.brand)
+        root.style.setProperty('--sf-secondary', tokens.primary)
+        root.style.setProperty('--sf-accent', tokens.accent)
+        root.style.setProperty('--sf-bg', tokens.bg)
+        root.style.setProperty('--sf-fg', tokens.fg)
+        root.style.setProperty('--sf-border', tokens.border)
+        root.style.setProperty('--sf-radius', tokens.radius)
+        if (tokens.fontFamily) root.style.setProperty('--sf-font', tokens.fontFamily)
+        if (templateId) root.setAttribute('data-theme', templateId)
+        else root.removeAttribute('data-theme')
 
         const styleId = 'store-theme-css'
         let styleEl = document.getElementById(styleId) as HTMLStyleElement | null
@@ -36,20 +50,7 @@ export default function StoreThemeInjector({ siteCode }: { siteCode: string }) {
           styleEl.id = styleId
           document.head.appendChild(styleEl)
         }
-        styleEl.textContent = `
-          :root {
-            --sf-primary: ${primary};
-            --sf-secondary: ${secondary};
-            --sf-accent: ${accent};
-            ${font ? `--sf-font: '${font}', system-ui, sans-serif;` : ''}
-          }
-          ${font ? `[data-storefront] { font-family: '${font}', system-ui, sans-serif; }` : ''}
-          [data-storefront] .sf-btn-primary { background-color: ${primary}; border-color: ${primary}; }
-          [data-storefront] .sf-btn-primary:hover { opacity: 0.92; }
-          [data-storefront] .sf-text-primary { color: ${primary}; }
-          [data-storefront] .sf-accent { color: ${accent}; }
-          ${theme.custom_css || ''}
-        `
+        styleEl.textContent = css
 
         const favicon = theme.favicon_url
         if (favicon) {

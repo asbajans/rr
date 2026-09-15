@@ -60,6 +60,8 @@ export type StoreHomepage = {
 }
 
 export type StoreTheme = {
+  templateId?: string | null // theme-001 .. theme-149 (Rahatio hazır tema)
+  template_id?: string | null
   primary_color?: string
   secondary_color?: string
   accent_color?: string
