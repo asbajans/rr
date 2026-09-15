@@ -36,7 +36,7 @@ export default function StoreHero({ homepage, siteCode }: { homepage: StoreHomep
               allowFullScreen
             />
           </div>
-          {heading && <h1 className="max-w-3xl text-3xl font-bold text-white sm:text-5xl">{heading}</h1>}
+          {heading && <h1 className="sf-heading max-w-3xl text-3xl font-bold text-white sm:text-5xl">{heading}</h1>}
           {subtitle && <p className="mt-4 max-w-2xl text-base text-zinc-300 sm:text-lg">{subtitle}</p>}
           {buttonText && (
             <Link href={buttonUrl} className="sf-btn-primary mt-6 rounded-xl px-8 py-3 text-sm font-semibold text-white shadow-lg">
@@ -48,7 +48,7 @@ export default function StoreHero({ homepage, siteCode }: { homepage: StoreHomep
         <div className={`relative flex flex-col items-center justify-center px-4 py-16 text-center ${minHeight}`} style={overlayStyle}>
           <img src={homepage.image_url} alt={heading || 'Mağaza'} className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-3xl">
-            {heading && <h1 className="text-3xl font-bold text-white sm:text-5xl">{heading}</h1>}
+            {heading && <h1 className="sf-heading text-3xl font-bold text-white sm:text-5xl">{heading}</h1>}
             {subtitle && <p className="mt-4 text-base text-zinc-200 sm:text-lg">{subtitle}</p>}
             {buttonText && (
               <Link href={buttonUrl} className="sf-btn-primary mt-6 inline-block rounded-xl px-8 py-3 text-sm font-semibold text-white shadow-lg">
@@ -59,7 +59,7 @@ export default function StoreHero({ homepage, siteCode }: { homepage: StoreHomep
         </div>
       ) : heading || subtitle || buttonText ? (
         <div className={`flex flex-col items-center justify-center px-4 py-16 text-center ${minHeight}`}>
-          {heading && <h1 className="max-w-3xl text-3xl font-bold text-zinc-900 sm:text-5xl">{heading}</h1>}
+          {heading && <h1 className="sf-heading max-w-3xl text-3xl font-bold sm:text-5xl" style={{ color: 'var(--foreground)' }}>{heading}</h1>}
           {subtitle && <p className="mt-4 max-w-2xl text-base text-zinc-600 sm:text-lg">{subtitle}</p>}
           {buttonText && (
             <Link href={buttonUrl} className="sf-btn-primary mt-6 rounded-xl px-8 py-3 text-sm font-semibold text-white shadow-lg">

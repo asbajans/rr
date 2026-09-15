@@ -37,6 +37,7 @@ export type StorefrontTheme = {
   id: string
   name: string
   category: string
+  colorFamily: string
   preview: {
     brand: string
     background: string
@@ -93,6 +94,71 @@ function sanitizeColor(c: string | null | undefined): string {
   return c
 }
 
+function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
+  let h = hex.trim()
+  if (!h.startsWith('#')) return null
+  h = h.slice(1)
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  if (h.length !== 6) return null
+  const r = parseInt(h.slice(0, 2), 16) / 255
+  const g = parseInt(h.slice(2, 4), 16) / 255
+  const b = parseInt(h.slice(4, 6), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  let hh = 0, s = 0, l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: hh = (g - b) / d + (g < b ? 6 : 0); break
+      case g: hh = (b - r) / d + 2; break
+      case b: hh = (r - g) / d + 4; break
+    }
+    hh /= 6
+  }
+  return { h: hh * 360, s, l }
+}
+
+export function getColorFamily(brand: string): string {
+  const b = brand.trim()
+  if (b.startsWith('oklch')) {
+    const m = b.match(/oklch\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)/)
+    if (!m) return 'Gri'
+    const L = parseFloat(m[1]), C = parseFloat(m[2]), H = parseFloat(m[3])
+    if (C < 0.03) {
+      if (L < 0.22) return 'Siyah'
+      if (L > 0.9) return 'Beyaz'
+      return 'Gri'
+    }
+    if (H < 20 || H >= 340) return 'Kırmızı'
+    if (H < 45) return 'Turuncu'
+    if (H < 70) return 'Sarı'
+    if (H < 170) return 'Yeşil'
+    if (H < 200) return 'Turkuaz'
+    if (H < 260) return 'Mavi'
+    if (H < 310) return 'Mor'
+    return 'Pembe'
+  }
+  if (b.startsWith('#')) {
+    const hsl = hexToHsl(b)
+    if (!hsl) return 'Gri'
+    if (hsl.s < 0.08) {
+      if (hsl.l < 0.22) return 'Siyah'
+      if (hsl.l > 0.85) return 'Beyaz'
+      return 'Gri'
+    }
+    const h = hsl.h
+    if (h < 15 || h >= 345) return 'Kırmızı'
+    if (h < 45) return 'Turuncu'
+    if (h < 70) return 'Sarı'
+    if (h < 170) return 'Yeşil'
+    if (h < 200) return 'Turkuaz'
+    if (h < 260) return 'Mavi'
+    if (h < 310) return 'Mor'
+    return 'Pembe'
+  }
+  return 'Gri'
+}
+
 export const THEMES: StorefrontTheme[] = (liteRaw as YnsThemeRaw[]).map((r) => {
   const brand = sanitizeColor(r.brand || r.primary)
   const bg = sanitizeColor(r.bg || '#ffffff')
@@ -107,6 +173,7 @@ export const THEMES: StorefrontTheme[] = (liteRaw as YnsThemeRaw[]).map((r) => {
     id: r.id,
     name: displayName(r.id, r),
     category: guessCategory(r),
+    colorFamily: getColorFamily(brand),
     preview: {
       brand,
       background: bg,
@@ -129,6 +196,8 @@ export const YNS_THEMES = THEMES
 export const RAHATIO_THEMES = THEMES
 
 export const THEME_CATEGORIES = Array.from(new Set(THEMES.map((t) => t.category))).sort()
+export const COLOR_FAMILIES = ['Siyah', 'Beyaz', 'Gri', 'Kırmızı', 'Turuncu', 'Sarı', 'Yeşil', 'Turkuaz', 'Mavi', 'Mor', 'Pembe'] as const
+export type ColorFamily = typeof COLOR_FAMILIES[number]
 
 export function getThemeById(id: string | null | undefined): StorefrontTheme | null {
   if (!id) return null
@@ -136,3 +205,4 @@ export function getThemeById(id: string | null | undefined): StorefrontTheme | n
 }
 
 export const THEME_COUNT = THEMES.length
+export const DEFAULT_THEME_FILTER = { category: 'Tümü' as string, color: 'Tümü' as string }

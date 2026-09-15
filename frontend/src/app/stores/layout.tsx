@@ -110,7 +110,7 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
   }, [siteCode])
 
   return (
-    <header className="border-b border-zinc-200">
+    <header className="border-b" style={{ borderColor: 'var(--border)', background: 'var(--background)' }}>
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2">
           <button
@@ -125,7 +125,7 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
             {theme.logo_url ? (
               <img src={theme.logo_url} alt={storeName || 'Mağaza'} className="h-9 w-auto object-contain" />
             ) : (
-              <span className="truncate text-xl font-bold tracking-tight text-zinc-900">{storeName || 'Rahatio'}</span>
+              <span className="sf-heading truncate text-xl font-bold tracking-tight" style={{ color: 'var(--foreground)' }}>{storeName || 'Rahatio'}</span>
             )}
           </Link>
         </div>

@@ -164,7 +164,7 @@ export default function StoreFrontPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-zinc-900">{storeName}</h1>
+          <h1 className="sf-heading text-3xl font-bold" style={{ color: 'var(--foreground)' }}>{storeName}</h1>
         </div>
 
       <form onSubmit={handleSearch} className="relative mb-4">
@@ -172,7 +172,8 @@ export default function StoreFrontPage() {
         <input
           value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
           placeholder="Ürün ara: 'kafa lambası', 'elektronik aksesuar'..."
-          className="w-full rounded-xl border border-zinc-300 py-3 pl-12 pr-4 text-sm focus:border-zinc-900 focus:outline-none"
+          className="w-full border border-zinc-300 py-3 pl-12 pr-4 text-sm focus:border-zinc-900 focus:outline-none"
+          style={{ borderRadius: 'var(--radius)', borderColor: 'var(--border)' }}
         />
         {searchQuery && (
           <button type="button" onClick={clearSearch} className="absolute right-20 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
@@ -180,7 +181,8 @@ export default function StoreFrontPage() {
           </button>
         )}
         <button type="submit" disabled={searching || !searchQuery.trim()}
-          className="sf-btn-primary absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+          className="sf-btn-primary absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          style={{ borderRadius: 'var(--radius)' }}>
           {searching ? 'Aranıyor...' : 'Ara'}
         </button>
       </form>
@@ -207,9 +209,10 @@ export default function StoreFrontPage() {
             <Link
               key={product['product.id']}
               href={`${storeBase(siteCode)}/products/${product['product.id']}`}
-              className="group rounded-xl border border-zinc-200 p-4 transition hover:border-zinc-300 hover:shadow-sm"
+              className="sf-card group border p-4 transition hover:shadow-sm"
+              style={{ borderRadius: 'var(--radius)', borderColor: 'var(--border)', background: 'var(--card)' }}
             >
-              <div className="aspect-square overflow-hidden rounded-lg bg-zinc-100">
+              <div className="aspect-square overflow-hidden bg-zinc-100" style={{ borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
                 {product.image ? (
                   <img src={product.image} alt={product['product.label']} className="h-full w-full object-cover transition group-hover:scale-105" />
                 ) : (
@@ -220,7 +223,7 @@ export default function StoreFrontPage() {
                   </div>
                 )}
               </div>
-              <h3 className="mt-3 font-medium text-zinc-900 group-hover:text-zinc-600">
+              <h3 className="sf-heading mt-3 font-medium group-hover:opacity-80" style={{ color: 'var(--foreground)' }}>
                 {product['product.label']}
               </h3>
               {product.price !== null && (

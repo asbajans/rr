@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { api } from '@/lib/api-client'
 import { getPresetLite } from '@/themes/presets'
 import { buildThemeCss, resolveThemeTokens } from '@/themes/apply'
+import { ensureFontsForTheme } from '@/themes/fonts'
 
 /**
  * Storefront tema enjeksiyonu — Rahatio markalı.
@@ -28,6 +29,8 @@ export default function StoreThemeInjector({ siteCode }: { siteCode: string }) {
           ? { id: lite.id, preview: { brand: lite.brand, background: lite.bg, foreground: lite.fg, primary: lite.primary, secondary: lite.secondary, accent: lite.accent, border: lite.border, radius: lite.radius, card: lite.card }, fontStack: lite.fontStack, layoutHint: lite.layoutHint }
           : null
         const tokens = resolveThemeTokens(presetBridge, theme)
+        // font yükle (preset + override)
+        ensureFontsForTheme(presetBridge?.fontStack || null, (tokens as any).fontFamily || null)
         const css = buildThemeCss(tokens, templateId)
 
         const root = document.documentElement
