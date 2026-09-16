@@ -171,20 +171,29 @@ export async function importMarketplaceOrders(opts: ImportOrdersOptions): Promis
       for (const rawPkg of packages) {
         let pkg = rawPkg;
         if (marketplace === 'pazarama') pkg = mapPazaramaPackage(rawPkg);
+        // Amazon's SP-API uses AmazonOrderId, not id
+        if (marketplace === 'amazon' && pkg.AmazonOrderId) pkg.id = pkg.AmazonOrderId;
+        // Fetch Amazon order items (getOrders only returns header, items need separate call)
+        if (marketplace === 'amazon' && pkg.AmazonOrderId && (!pkg.lines || pkg.lines.length === 0) && (!pkg.items || pkg.items.length === 0)) {
+          try {
+            const items = await (client as any).getOrderItems(pkg.AmazonOrderId);
+            if (Array.isArray(items) && items.length > 0) pkg = { ...pkg, lines: items, items };
+          } catch {}
+        }
 
-        const marketplaceOrderId = String(pkg.id);
+        const marketplaceOrderId = String(pkg.AmazonOrderId || pkg.orderId || pkg.id || pkg.orderNumber || '');
         if (!marketplaceOrderId || marketplaceOrderId === 'null' || marketplaceOrderId === 'undefined') continue;
 
         const existing = await DropshippingOrder.findOne({
           where: { storeId, marketplaceOrderId, marketplace },
         });
 
-        const lines = pkg.lines || pkg.items || [];
+        const lines = pkg.lines || pkg.items || pkg.OrderItems || [];
         const items = lines.map((l: any) => ({
-          sku: l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || '',
-          name: l.productName || l.title || l.name || l.productTitle || l.itemName || '',
-          quantity: Number(l.quantity || l.piece || l.adet || l.amount || 1),
-          price: parseFloat(l.salePrice || l.price || l.unitPrice || l.salesPrice || l.productPrice || 0) || 0,
+          sku: l.SellerSKU || l.sellerSKU || l.barcode || l.sku || l.stockCode || l.productCode || l.productBarcode || l.code || l.ASIN || '',
+          name: l.Title || l.title || l.productName || l.name || l.productTitle || l.itemName || '',
+          quantity: Number(l.QuantityOrdered ?? l.quantityOrdered ?? l.quantity ?? l.piece ?? l.adet ?? l.amount ?? 1),
+          price: parseFloat(l.ItemPrice?.Amount ?? l.itemPrice?.amount ?? l.salePrice ?? l.price ?? l.unitPrice ?? l.salesPrice ?? l.productPrice ?? 0) || 0,
           image: l.imageUrl || l.productImageUrl || l.image || '',
           variantAttributes: l.variantAttributes || [],
           orderLineId: l.orderLineId || l.orderItemId || l.id,
