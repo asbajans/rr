@@ -429,7 +429,7 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
     if (params.maxResults) query.set('maxResults', String(Math.min(Number(params.maxResults), 100)));
     else query.set('maxResults', '50');
 
-    // Try v2026 first, fallback to v0 for older credentials if 404
+    // Try v2026 first, fallback to v0 for older credentials if 404. On 403, also try v0 and log details
     const tryFetch = async (version: string, pathSuffix: string) => {
       const path = `/orders/${version}/orders${pathSuffix}?${query.toString()}`;
       try {
@@ -440,7 +440,7 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
         if (data.payload?.Orders) return data.payload.Orders;
         return [];
       } catch (e: any) {
-        if (version === 'v2026-01-01' && e?.response?.status === 404) throw e;
+        if (version === 'v2026-01-01' && (e?.response?.status === 404 || e?.response?.status === 403)) throw e;
         throw e;
       }
     };
@@ -449,13 +449,19 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
       const orders = await tryFetch('v2026-01-01', '');
       return orders;
     } catch (e: any) {
-      // Fallback to v0 if v2026 not available
-      if (e?.response?.status === 404 || e?.response?.data?.errors?.[0]?.code === 'NotFound') {
+      const isNotFound = e?.response?.status === 404 || e?.response?.data?.errors?.[0]?.code === 'NotFound';
+      const isForbidden = e?.response?.status === 403;
+      // Fallback to v0 if v2026 not available or forbidden (some sellers still on v0, or missing PII scope)
+      if (isNotFound || isForbidden) {
         const v0Path = `/orders/v0/orders?MarketplaceIds=${encodeURIComponent(marketplaceId)}&CreatedAfter=${encodeURIComponent(new Date(createdAfter).toISOString())}`;
         try {
           const data: any = await this.spRequest('GET', v0Path);
           return data.payload?.Orders || data.Orders || [];
-        } catch {}
+        } catch (e2: any) {
+          // If v0 also 403, surface original error with details
+          if (isForbidden) throw e;
+          throw e2;
+        }
       }
       throw e;
     }
