@@ -417,9 +417,10 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
     const marketplaceId = this.config.marketplaceId;
     const query = new URLSearchParams();
     query.set('marketplaceIds', marketplaceId);
-    // SP-API requires CreatedAfter or LastUpdatedAfter
-    const createdAfter = params.startDate || params.CreatedAfter || params.createdAfter || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    query.set('createdAfter', new Date(createdAfter).toISOString());
+    // SP-API requires CreatedAfter or LastUpdatedAfter - extend to 30 days for sellers with older orders (was 7d, missed many)
+    const createdAfterRaw = params.startDate || params.CreatedAfter || params.createdAfter || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const createdAfter = new Date(createdAfterRaw).toISOString();
+    query.set('createdAfter', createdAfter);
     if (params.endDate || params.CreatedBefore) query.set('createdBefore', new Date(params.endDate || params.CreatedBefore).toISOString());
     if (params.status) query.set('orderStatuses', String(params.status));
     else if (params.OrderStatuses) query.set('orderStatuses', String(params.OrderStatuses));
