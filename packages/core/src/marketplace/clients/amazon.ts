@@ -491,6 +491,30 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
       } catch { return []; }
     }
   }
+
+  async getOrderBuyerInfo(orderId: string): Promise<any> {
+    try {
+      const data: any = await this.spRequest('GET', `/orders/v2026-01-01/orders/${encodeURIComponent(orderId)}/buyerInfo`);
+      return data.buyerInfo || data.payload?.BuyerInfo || data;
+    } catch {
+      try {
+        const data: any = await this.spRequest('GET', `/orders/v0/orders/${encodeURIComponent(orderId)}/buyerInfo`);
+        return data.payload?.BuyerInfo || data.BuyerInfo || data;
+      } catch { return null; }
+    }
+  }
+
+  async getOrderAddress(orderId: string): Promise<any> {
+    try {
+      const data: any = await this.spRequest('GET', `/orders/v2026-01-01/orders/${encodeURIComponent(orderId)}/address`);
+      return data.shippingAddress || data.payload?.ShippingAddress || data;
+    } catch {
+      try {
+        const data: any = await this.spRequest('GET', `/orders/v0/orders/${encodeURIComponent(orderId)}/address`);
+        return data.payload?.ShippingAddress || data.ShippingAddress || data;
+      } catch { return null; }
+    }
+  }
 }
 
 export function createAmazonClient(config: AmazonConfig): AmazonClient {

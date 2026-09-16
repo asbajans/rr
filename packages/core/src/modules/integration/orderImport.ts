@@ -102,7 +102,8 @@ export function normalizeMarketplaceStatus(marketplace: string, raw: any): strin
 }
 
 function extractOrderDate(pkg: any): Date | null {
-  const od = pkg?.orderDate || pkg?.orderCreateDate || pkg?.orderCreationDate || pkg?.createdAt
+  const od = pkg?.PurchaseDate || pkg?.purchaseDate || pkg?.LastUpdateDate || pkg?.lastUpdateDate
+    || pkg?.orderDate || pkg?.orderCreateDate || pkg?.orderCreationDate || pkg?.createdAt
     || pkg?.createdDate || pkg?.createDate || pkg?.packageCreateDate || pkg?.creationDate || null;
   if (!od) return null;
   const d = new Date(od);
@@ -173,12 +174,27 @@ export async function importMarketplaceOrders(opts: ImportOrdersOptions): Promis
         if (marketplace === 'pazarama') pkg = mapPazaramaPackage(rawPkg);
         // Amazon's SP-API uses AmazonOrderId, not id
         if (marketplace === 'amazon' && pkg.AmazonOrderId) pkg.id = pkg.AmazonOrderId;
-        // Fetch Amazon order items (getOrders only returns header, items need separate call)
-        if (marketplace === 'amazon' && pkg.AmazonOrderId && (!pkg.lines || pkg.lines.length === 0) && (!pkg.items || pkg.items.length === 0)) {
-          try {
-            const items = await (client as any).getOrderItems(pkg.AmazonOrderId);
-            if (Array.isArray(items) && items.length > 0) pkg = { ...pkg, lines: items, items };
-          } catch {}
+        // Fetch Amazon order items + PII (getOrders only returns header, items and buyer info need separate calls)
+        if (marketplace === 'amazon' && pkg.AmazonOrderId) {
+          if ((!pkg.lines || pkg.lines.length === 0) && (!pkg.items || pkg.items.length === 0) && (!pkg.OrderItems || pkg.OrderItems.length === 0)) {
+            try {
+              const items = await (client as any).getOrderItems(pkg.AmazonOrderId);
+              if (Array.isArray(items) && items.length > 0) pkg = { ...pkg, lines: items, items, OrderItems: items };
+            } catch {}
+          }
+          // Try to fetch buyer info and shipping address PII (requires Restricted Data Token, may fail if app not approved for PII)
+          if (!pkg.BuyerInfo || Object.keys(pkg.BuyerInfo).length === 0) {
+            try {
+              const buyer = await (client as any).getOrderBuyerInfo?.(pkg.AmazonOrderId);
+              if (buyer) pkg.BuyerInfo = buyer;
+            } catch {}
+          }
+          if (!pkg.ShippingAddress || Object.keys(pkg.ShippingAddress).length <= 2) {
+            try {
+              const addr = await (client as any).getOrderAddress?.(pkg.AmazonOrderId);
+              if (addr) pkg.ShippingAddress = addr;
+            } catch {}
+          }
         }
 
         const marketplaceOrderId = String(pkg.AmazonOrderId || pkg.orderId || pkg.id || pkg.orderNumber || '');
@@ -199,23 +215,27 @@ export async function importMarketplaceOrders(opts: ImportOrdersOptions): Promis
           orderLineId: l.orderLineId || l.orderItemId || l.id,
         }));
 
-        const totalAmount = Number(pkg.totalAmount || pkg.orderAmount || items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
-        const address = pkg.address || pkg.shippingAddress || pkg.shipmentAddress || {};
+        const totalAmount = Number(pkg.OrderTotal?.Amount ?? pkg.orderTotal?.amount ?? pkg.totalAmount ?? pkg.orderAmount ?? items.reduce((s: number, i: any) => s + i.price * i.quantity, 0));
+        const address = pkg.ShippingAddress || pkg.shippingAddress || pkg.address || pkg.shipmentAddress || {};
+        const buyerInfo = pkg.BuyerInfo || pkg.buyerInfo || {};
         const fullName = (pkg.customerfullName || pkg.customerFullName)
           || `${pkg.customerFirstName || ''} ${pkg.customerLastName || ''}`.trim()
-          || address.fullName || address.name || '';
-        const phone = address.gsm || address.phone || address.phoneNumber || pkg.gsm || pkg.phone || '';
-        const customerEmail = pkg.customerEmail || pkg.email || address.email || '';
+          || buyerInfo.BuyerName || buyerInfo.buyerName
+          || address.Name || address.name || address.fullName || '';
+        const phone = address.Phone || address.phone || address.gsm || address.phoneNumber || pkg.gsm || pkg.phone || buyerInfo.Phone || '';
+        const customerEmail = pkg.customerEmail || pkg.email || address.email || buyerInfo.BuyerEmail || buyerInfo.buyerEmail || '';
         const shippingAddress = {
           fullName, phone, email: customerEmail,
-          city: address.city || pkg.city || '',
-          district: address.district || pkg.district || '',
+          city: address.City || address.city || pkg.city || '',
+          district: address.District || address.district || pkg.district || '',
           neighborhood: address.neighborhood || pkg.neighborhood || '',
-          address: address.address1 || address.address || address.fullAddress || address.line || pkg.address || '',
-          zipCode: address.zipCode || address.postalCode || pkg.zipCode || '',
+          address: address.AddressLine1 || address.addressLine1 || address.address1 || address.AddressLine2 || address.addressLine2 || address.address || address.fullAddress || address.line || pkg.address || [address.AddressLine1, address.AddressLine2].filter(Boolean).join(', ') || '',
+          zipCode: address.PostalCode || address.postalCode || address.zipCode || pkg.zipCode || '',
+          country: address.CountryCode || address.countryCode || address.country || '',
         };
 
-        const newStatus = normalizeMarketplaceStatus(marketplace, pkg.status);
+        const rawStatus = pkg.OrderStatus || pkg.orderStatus || pkg.status;
+        const newStatus = normalizeMarketplaceStatus(marketplace, rawStatus);
         const orderDate = extractOrderDate(pkg);
         const prefix = marketplace === 'pazarama' ? 'PZ' : marketplace === 'trendyol' ? 'TY' : marketplace.slice(0, 2).toUpperCase();
         const orderNumber = pkg.orderNumber ? `${prefix}-${pkg.orderNumber}` : `ORD-${Date.now()}-${pkg.id}`;
