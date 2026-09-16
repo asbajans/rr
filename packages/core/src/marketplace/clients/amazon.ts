@@ -492,9 +492,31 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
     }
   }
 
-  async getOrderBuyerInfo(orderId: string): Promise<any> {
+  private async getRestrictedDataToken(path: string, method: string = 'GET'): Promise<string | null> {
+    const body = JSON.stringify({ restrictedResources: [{ method, path }] });
     try {
-      const data: any = await this.spRequest('GET', `/orders/v2026-01-01/orders/${encodeURIComponent(orderId)}/buyerInfo`);
+      const headers: any = await this.signedRequest('POST', '/tokens/2021-03-01/restrictedDataToken', body);
+      const res: any = await (this as any).request({ method: 'POST', url: '/tokens/2021-03-01/restrictedDataToken', data: body, headers: { ...headers, 'Content-Type': 'application/json' } });
+      return res.restrictedDataToken || res.payload?.restrictedDataToken || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getOrderBuyerInfo(orderId: string): Promise<any> {
+    const path = `/orders/v2026-01-01/orders/${encodeURIComponent(orderId)}/buyerInfo`;
+    // Try with Restricted Data Token first (required for PII)
+    const rdt = await this.getRestrictedDataToken(path, 'GET');
+    if (rdt) {
+      try {
+        const headers: any = await this.signedRequest('GET', path);
+        headers['x-amz-access-token'] = rdt;
+        const data: any = await (this as any).request({ method: 'GET', url: path, headers });
+        return data.buyerInfo || data.payload?.BuyerInfo || data;
+      } catch {}
+    }
+    try {
+      const data: any = await this.spRequest('GET', path);
       return data.buyerInfo || data.payload?.BuyerInfo || data;
     } catch {
       try {
@@ -505,8 +527,18 @@ export class AmazonClient extends BaseMarketplaceClient implements MarketplaceCl
   }
 
   async getOrderAddress(orderId: string): Promise<any> {
+    const path = `/orders/v2026-01-01/orders/${encodeURIComponent(orderId)}/address`;
+    const rdt = await this.getRestrictedDataToken(path, 'GET');
+    if (rdt) {
+      try {
+        const headers: any = await this.signedRequest('GET', path);
+        headers['x-amz-access-token'] = rdt;
+        const data: any = await (this as any).request({ method: 'GET', url: path, headers });
+        return data.shippingAddress || data.payload?.ShippingAddress || data;
+      } catch {}
+    }
     try {
-      const data: any = await this.spRequest('GET', `/orders/v2026-01-01/orders/${encodeURIComponent(orderId)}/address`);
+      const data: any = await this.spRequest('GET', path);
       return data.shippingAddress || data.payload?.ShippingAddress || data;
     } catch {
       try {
