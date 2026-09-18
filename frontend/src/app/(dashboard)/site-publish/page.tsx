@@ -106,28 +106,17 @@ function DomainManager() {
       <div className="mt-4">
         <DomainSetupGuide cloudflare={cf} compact={domains.length>0} />
       </div>
-      <div className="mt-3 rounded-lg bg-zinc-900 p-3 text-xs text-zinc-300">
-        <p className="font-medium text-white">Doğrulama nasıl çalışır?</p>
-        <ul className="mt-1 list-disc space-y-1 pl-4">
-          <li><b>Rahatio (önerilen) — Cloudflare SaaS:</b> Domaini ekle → DNS'te <code>CNAME {domains[0]?.domain || 'magazan.com'} → {cf?.cnameTarget || 'customers.rahatio.com.tr'}</code> ekle → <b>Doğrula</b> (Cloudflare custom hostname + tunnel). SSL otomatik.</li>
-          <li><b>Vercel</b> (hosting = Vercel ise): Domaini ekle → Vercel Dashboard → Project → Settings → Domains’e aynı domaini ekle → DNS’i ver → <b>Doğrula</b>.</li>
-          <li><b>PHP (kendi sunucun)</b>: Domaini ekle → hostingine ZIP’teki <code>index.php</code>+<code>.htaccess</code>’i at → <code>https://domain/health</code> → <code>{"`{status:ok, store:siteCode}`"}</code> → <b>Doğrula</b>.</li>
-        </ul>
-      </div>
     </div>
   )
 }
 
 function PhpControl() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [health, setHealth] = useState<{ ok:boolean; msg:string; detail?:any }|null>(null)
+  const [health, setHealth] = useState<{ ok:boolean; msg:string }|null>(null)
   const [checking, setChecking] = useState(false)
-  const [products, setProducts] = useState<{ total:number; synced_at:string|null }|null>(null)
-  const [domains, setDomains] = useState<string[]>([])
 
   useEffect(()=>{
     api.getAdminApiKeys().then(setApiKeys).catch(()=>{})
-    api.getSiteDomains().then(r=> setDomains((r.domains||[]).map(d=>d.domain))).catch(()=>{})
   }, [])
 
   const handleCheck = async () => {
@@ -135,60 +124,34 @@ function PhpControl() {
     try {
       const r = await api.getSiteDomains()
       const list = r.domains||[]
-      if (!list.length) { setHealth({ok:false, msg:'Önce Domain Yönetimi’nden domain ekle'}); return }
-      // Check primary or first domain's health via backend proxy? For now do direct fetch to first domain's health via backend verify endpoint to avoid CORS
-      // Use verify endpoint as health check proxy
+      if (!list.length) { setHealth({ok:false, msg:'Önce domain ekleyin'}); return }
       const target = list.find(d=>d.verified)?.domain || list[0].domain
       const v = await api.verifySiteDomainMulti(target)
-      if (v.verified) setHealth({ok:true, msg:`${target} → doğrulanmış (method: ${v.method})`, detail: v.detail})
-      else setHealth({ok:false, msg:`${target} doğrulanamadı`, detail: v.detail})
-      // Also fetch product count via public store front
-      try {
-        const s = await api.getSettings()
-        const siteCode = s.site_code || (s as any).siteCode
-        if (siteCode) {
-          const prod = await fetch(`https://api.rahatio.com.tr/api/store/${siteCode}`).then(r=>r.json()).catch(()=>null)
-          if (prod && typeof prod.total === 'number') setProducts({ total: prod.total, synced_at: null })
-        }
-      } catch {}
+      if (v.verified) setHealth({ok:true, msg:`${target} doğrulandı`})
+      else setHealth({ok:false, msg:`${target} doğrulanamadı — DNS’i kontrol edin`})
     } catch(e:any){ setHealth({ok:false, msg:e.message}) } finally{ setChecking(false) }
   }
 
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-white p-4">
-        <h3 className="font-medium text-zinc-900">PHP ile Yayınla — sadece kendi hostingin</h3>
-        <p className="mt-1 text-sm text-zinc-600">ZIP’i indir, hostingine at, domaini yukarıdan ekleyip doğrula. Aşağıdaki kontroller satıcı paneline özeldir, son kullanıcı görmez.</p>
+        <p className="text-sm text-zinc-600">ZIP’i indirip hostinginize yükleyin, sonra domaininizi doğrulayın.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" onClick={()=>api.downloadSlavePhp()} disabled={apiKeys.length===0}><Download className="mr-1 h-3 w-3"/>İndir (PHP ZIP)</Button>
+          <Button size="sm" onClick={()=>api.downloadSlavePhp()} disabled={apiKeys.length===0}><Download className="mr-1 h-3 w-3"/>PHP ZIP İndir</Button>
           <Button size="sm" variant="outline" onClick={handleCheck} disabled={checking}><RefreshCw className={`mr-1 h-3 w-3 ${checking?'animate-spin':''}`}/>{checking?'Kontrol ediliyor...':'Bağlantıyı Test Et'}</Button>
         </div>
         {apiKeys.length===0 && <p className="mt-2 text-xs text-amber-600">Önce Ayarlar → API Anahtarları’ndan anahtar oluştur.</p>}
         <details className="mt-3 rounded-lg bg-zinc-50 p-3 text-xs">
-          <summary className="cursor-pointer font-medium">ZIP içinde ne var & nasıl kurulur?</summary>
-          <p className="mt-2">ZIP: <code>index.php</code> + <code>.htaccess</code> + <code>README.txt</code>. ZIP’i aç → <code>public_html</code>’e yükle → <code>https://domain/health</code> → {"`{status:ok}`"} görmelisin. Ürünler 5 dk’da senkronize olur.</p>
-          <pre className="mt-2 overflow-auto rounded bg-zinc-900 p-2 font-mono text-[11px] text-zinc-100">{`RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]`}</pre>
+          <summary className="cursor-pointer font-medium">Nasıl kurulur?</summary>
+          <p className="mt-2">ZIP’i aç → <code>public_html</code>’e yükle → <code>https://domaininiz/health</code> adresini açın, <code>status:ok</code> görmelisiniz.</p>
         </details>
       </div>
 
       {health && (
         <div className={`rounded-lg border p-3 text-sm ${health.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
           <div className="flex items-center gap-2">{health.ok ? <CheckCircle2 className="h-4 w-4"/> : <XCircle className="h-4 w-4"/>}<span className="font-medium">{health.msg}</span></div>
-          {health.detail && <pre className="mt-2 max-h-32 overflow-auto rounded bg-white p-2 text-xs text-zinc-600">{JSON.stringify(health.detail,null,2)}</pre>}
         </div>
       )}
-
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600">
-        <div className="flex items-center gap-2"><Package className="h-4 w-4"/><span className="font-medium">Kontrol listesi (satıcı)</span></div>
-        <ul className="mt-2 list-disc space-y-1 pl-4">
-          <li><code>/health</code> → <code>status:ok</code> ve <code>store: siteCode</code> eşleşmeli</li>
-          <li><code>/sitemap.xml</code> Search Console’a ekle</li>
-          <li>Ürünler gelmiyorsa: Mağazada ürün var mı (isActive) ve <code>products</code> tablosunda <code>storeId</code> doğru mu kontrol et</li>
-        </ul>
-      </div>
     </div>
   )
 }
@@ -261,6 +224,59 @@ function VercelHostingPanel() {
           <Button size="sm" onClick={handleDeploy} disabled={deploying || !vercelCfg?.hasToken}><Upload className="mr-1 h-3 w-3"/>{deploying?'Deploy ediliyor...':'Vercel’e Deploy Et'}</Button>
           {deployMsg && <p className={`text-sm ${deployMsg.type==='success'?'text-emerald-600': deployMsg.type==='error'?'text-red-600':'text-indigo-600'}`}>{deployMsg.text}</p>}
           {deployment?.providerUrl && <a href={deployment.providerUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline">{deployment.providerUrl}</a>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PublishMethods({ isVercelPlan, vercelHostingName }: { isVercelPlan: boolean; vercelHostingName: string }) {
+  const [tab, setTab] = useState<'rahatio' | 'vercel' | 'php'>('rahatio')
+  return (
+    <div className="mt-6">
+      <div className="flex gap-2 rounded-lg bg-zinc-100 p-1">
+        <button onClick={() => setTab('rahatio')} className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === 'rahatio' ? 'bg-white shadow text-zinc-900' : 'text-zinc-600 hover:text-zinc-900'}`}>
+          <span className="hidden sm:inline">Yöntem 1: </span>Rahatio <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">Önerilen</span>
+        </button>
+        <button onClick={() => setTab('vercel')} className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === 'vercel' ? 'bg-white shadow text-zinc-900' : 'text-zinc-600 hover:text-zinc-900'}`}>
+          <span className="hidden sm:inline">Yöntem 2: </span>Vercel
+        </button>
+        <button onClick={() => setTab('php')} className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === 'php' ? 'bg-white shadow text-zinc-900' : 'text-zinc-600 hover:text-zinc-900'}`}>
+          <span className="hidden sm:inline">Yöntem 3: </span>Kendi Sunucun
+        </button>
+      </div>
+
+      {tab === 'rahatio' && (
+        <div className="mt-6 space-y-4">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <p className="font-medium">Rahatio ile yayınlayın — en kolay yöntem</p>
+            <p className="mt-1 text-xs text-emerald-700">Domaininizi ekleyin, DNS’te tek bir CNAME oluşturun ve doğrulayın. SSL ve yönlendirme otomatik.</p>
+          </div>
+          <DomainManager />
+        </div>
+      )}
+
+      {tab === 'vercel' && (
+        <div className="mt-6">
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+            <p className="font-medium">Vercel ile yayınlayın</p>
+            <p className="mt-1 text-xs text-indigo-700">Kendi Vercel hesabınızda deploy edin. Sadece Vercel planındaysanız kullanın.</p>
+          </div>
+          {!isVercelPlan ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Vercel için planını yükselt. Mevcut: <b>{vercelHostingName}</b>. <a href="/billing" className="text-indigo-700 hover:underline">Planlara git →</a>
+            </div>
+          ) : <div className="mt-4"><VercelHostingPanel /></div>}
+        </div>
+      )}
+
+      {tab === 'php' && (
+        <div className="mt-6">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+            <p className="font-medium">Kendi sunucunuzda (PHP/cPanel) yayınlayın</p>
+            <p className="mt-1 text-xs text-zinc-500">Paylaşımlı hosting için. ZIP’i indirip hostinginize yükleyin.</p>
+          </div>
+          <div className="mt-4"><PhpControl /></div>
         </div>
       )}
     </div>
@@ -355,45 +371,14 @@ export default function SitePublishPage() {
           ) : <p className="mt-4 text-sm text-zinc-400">Yükleniyor...</p>}
         </div>
 
-        {/* 2. Domain Yönetimi */}
+        {/* Yayın Yöntemleri — 3 ayrı sekme, satıcı sadece kendine uygun olanı görsün */}
         <div className="rounded-xl border border-zinc-200 p-6">
-          <div className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-zinc-500" />
-            <h2 className="text-lg font-semibold text-zinc-900">Domain Yönetimi</h2>
-            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">max 5</span>
-          </div>
-          <p className="mt-1 text-sm text-zinc-600">Kendi domainlerini ekle, her birini ayrı doğrula. Doğrulama, yayın yöntemine göre otomatik seçilir.</p>
-          <div className="mt-4">
-            <DomainManager />
-          </div>
-        </div>
-
-        {/* 3. Vercel Yayınlama */}
-        <div className="rounded-xl border border-zinc-200 p-6">
-          <div className="flex items-center gap-2">
-            <Rocket className="h-5 w-5 text-zinc-500" />
-            <h2 className="text-lg font-semibold text-zinc-900">Vercel ile Yayınla</h2>
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">Kendi hesabın</span>
-          </div>
-          <p className="mt-1 text-sm text-zinc-600">Vercel hesabında yayınla — domainleri yukarıdan yönet, burada deploy et.</p>
-          {!isVercelPlan ? (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Vercel için planını yükselt. Mevcut: <b>{store?.plan?.hosting ?? storeSettings?.plan?.hosting ?? 'rahatio'}</b>. <a href="/billing" className="text-indigo-700 hover:underline">Planlara git →</a>
-            </div>
-          ) : <div className="mt-4"><VercelHostingPanel /></div>}
-        </div>
-
-        {/* 4. PHP - Kendi Sunucunda */}
-        <div className="rounded-xl border border-zinc-200 p-6">
-          <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-zinc-500" />
-            <h2 className="text-lg font-semibold text-zinc-900">PHP ile Kendi Sunucunda</h2>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">cPanel uyumlu</span>
-          </div>
-          <p className="mt-1 text-sm text-zinc-600">Paylaşımlı hosting için. İndir, yükle, domaini yukarıdan doğrula.</p>
-          <div className="mt-4">
-            <PhpControl />
-          </div>
+          <h2 className="text-lg font-semibold text-zinc-900">Sitenizi Yayınlayın</h2>
+          <p className="mt-1 text-sm text-zinc-600">3 yöntemden birini seçin. Her yöntemin domain bağlama adımları kendi içinde anlatılır.</p>
+          <PublishMethods
+            isVercelPlan={isVercelPlan}
+            vercelHostingName={store?.plan?.hosting ?? storeSettings?.plan?.hosting ?? 'rahatio'}
+          />
         </div>
       </div>
     </div>
