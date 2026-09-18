@@ -1,4 +1,5 @@
 version: "3.9"
+# DNS management 2026-09-18 — triggers rebuild for per-zone Cloudflare DNS
 
 networks:
   rahatio:
