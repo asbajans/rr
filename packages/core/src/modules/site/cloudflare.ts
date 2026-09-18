@@ -183,6 +183,76 @@ export async function ensureSaaSDnsRecords(): Promise<{ fallback: any; target: a
   return { fallback, target };
 }
 
+// ── Per-zone helpers (for customer-owned zones moved to our account) ──
+
+export async function getZoneByName(name: string): Promise<any | null> {
+  const normalized = name.trim().toLowerCase();
+  const json = await cfFetch(`/zones?name=${encodeURIComponent(normalized)}&per_page=5`);
+  const list: any[] = json.result || [];
+  return list.find((z: any) => String(z.name).toLowerCase() === normalized) || null;
+}
+
+export async function createZone(name: string): Promise<any> {
+  const { accountId } = cfConfig();
+  const json = await cfFetch(`/zones`, {
+    method: 'POST',
+    body: JSON.stringify({ name: name.trim().toLowerCase(), account: { id: accountId }, jump_start: true, type: 'full' }),
+  });
+  return json.result;
+}
+
+export async function listDnsRecordsForZone(zoneId: string, params: { name?: string; type?: string } = {}): Promise<any[]> {
+  const qs = new URLSearchParams();
+  if (params.name) qs.set('name', params.name);
+  if (params.type) qs.set('type', params.type);
+  qs.set('per_page', '100');
+  const json = await cfFetch(`/zones/${zoneId}/dns_records?${qs.toString()}`);
+  return json.result || [];
+}
+
+export async function createDnsRecordForZone(zoneId: string, input: { type: string; name: string; content: string; ttl?: number; proxied?: boolean; priority?: number; comment?: string }): Promise<any> {
+  const body: any = {
+    type: input.type.toUpperCase(),
+    name: input.name,
+    content: input.content,
+    ttl: input.ttl ?? 1,
+    comment: input.comment,
+  };
+  if (input.proxied !== undefined) body.proxied = input.proxied;
+  if (input.priority !== undefined) body.priority = input.priority;
+  // Cloudflare API expects MX priority at top level, some types use data
+  const json = await cfFetch(`/zones/${zoneId}/dns_records`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return json.result;
+}
+
+export async function updateDnsRecordForZone(zoneId: string, recordId: string, input: { type?: string; name?: string; content?: string; ttl?: number; proxied?: boolean; priority?: number; comment?: string }): Promise<any> {
+  const body: any = {};
+  if (input.type) body.type = input.type.toUpperCase();
+  if (input.name) body.name = input.name;
+  if (input.content) body.content = input.content;
+  if (input.ttl !== undefined) body.ttl = input.ttl;
+  if (input.proxied !== undefined) body.proxied = input.proxied;
+  if (input.priority !== undefined) body.priority = input.priority;
+  if (input.comment !== undefined) body.comment = input.comment;
+  const json = await cfFetch(`/zones/${zoneId}/dns_records/${recordId}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  return json.result;
+}
+
+export async function deleteDnsRecordForZone(zoneId: string, recordId: string): Promise<void> {
+  await cfFetch(`/zones/${zoneId}/dns_records/${recordId}`, { method: 'DELETE' });
+}
+
+export async function getZoneDetails(zoneId: string): Promise<any> {
+  const json = await cfFetch(`/zones/${zoneId}`);
+  return json.result;
+}
+
 // ── Custom Hostnames (for SaaS) ───────────────────────────────────
 // POST /zones/{zone_id}/custom_hostnames  {hostname, ssl:{method, type}, custom_origin_server?}
 

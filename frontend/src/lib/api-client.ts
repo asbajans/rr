@@ -1495,6 +1495,24 @@ class ApiClient {
   verifySiteDomainMulti(domain: string) {
     return this.post<{ domain: string; verified: boolean; method: string | null; detail: any; domains: Array<{ domain: string; verified: boolean }> }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/verify`)
   }
+  getDomainZone(domain: string) {
+    return this.get<{ domain: string; zoneId: string | null; zoneStatus: string; nameServers: string[] | null; zone?: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/zone`)
+  }
+  createDomainZone(domain: string) {
+    return this.post<{ domain: string; zoneId: string; zoneStatus: string; nameServers: string[]; zone: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/zone`)
+  }
+  listDomainDns(domain: string) {
+    return this.get<{ domain: string; zoneId: string; records: Array<{ id: string; type: string; name: string; content: string; ttl: number; proxied: boolean; priority?: number; comment?: string }> }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns`)
+  }
+  createDomainDns(domain: string, data: { type: string; name: string; content: string; ttl?: number; proxied?: boolean; priority?: number; comment?: string }) {
+    return this.post<{ record: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns`, data)
+  }
+  updateDomainDns(domain: string, recordId: string, data: any) {
+    return this.put<{ record: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns/${encodeURIComponent(recordId)}`, data)
+  }
+  deleteDomainDns(domain: string, recordId: string) {
+    return this.delete<{ ok: boolean }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns/${encodeURIComponent(recordId)}`)
+  }
 
   addSiteDomain(domain: string, opts?: { token?: string; teamId?: string | null }) {
     return this.post<{ domain: string; verified: boolean; configured?: boolean; verification: Array<{ type?: string; domain?: string; value?: string; reason?: string }>; url?: string | null }>('/api/admin/site/domain', { domain, ...opts })

@@ -25,6 +25,13 @@ import {
   deleteCustomHostname,
   getFallbackOrigin,
   putFallbackOrigin,
+  getZoneByName,
+  createZone,
+  listDnsRecordsForZone,
+  createDnsRecordForZone,
+  updateDnsRecordForZone,
+  deleteDnsRecordForZone,
+  getZoneDetails,
 } from './cloudflare.js';
 
 export const siteRoutes: Router = Router();
@@ -405,6 +412,158 @@ siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 
   }
 
   res.json({ domain, verified, method, detail, domains });
+});
+
+// ── DNS Yönetimi (customer zone moved to our Cloudflare) ──
+// Zone oluştur / NS taşı — müşteri NS'i lily/ricardo'ya alınca zone bizde oluşur
+siteRoutes.post('/domains/:domain/zone', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare yapılandırılmadı' });
+  const raw = String(req.params.domain || '').toLowerCase();
+  const domain = normalizeDomainInput(raw);
+  if (!isValidHostname(domain)) return res.status(400).json({ error: 'Geçersiz domain' });
+  const store = (req as any).store;
+  let domains: any[] = getStoreDomains(store);
+  const idx = domains.findIndex((d: any) => d.domain === domain);
+  if (idx === -1 && (store as any).domain !== domain) return res.status(404).json({ error: 'Domain mağazaya ait değil' });
+
+  try {
+    let zone = await getZoneByName(domain);
+    if (!zone) zone = await createZone(domain);
+    // persist zoneId
+    if (idx !== -1) {
+      domains[idx] = { ...domains[idx], zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, lastCheckedAt: new Date().toISOString() };
+      await store.update({ domains: domains as any });
+    } else {
+      // legacy primary
+      const entry: any = { domain, verified: false, zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, addedAt: new Date().toISOString(), lastCheckedAt: new Date().toISOString() };
+      domains = [...domains, entry];
+      await store.update({ domains: domains as any });
+    }
+    // Ensure SaaS records inside customer zone if they point www/@ to our target (optional auto-create)
+    // Don't auto-create to avoid overwriting customer's MX
+    res.json({ domain, zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, zone });
+  } catch (e: any) {
+    logger.error({ err: e, domain }, 'Create zone error');
+    res.status(502).json({ error: e.message || 'Zone oluşturulamadı' });
+  }
+});
+
+siteRoutes.get('/domains/:domain/zone', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare yapılandırılmadı' });
+  const domain = normalizeDomainInput(String(req.params.domain || ''));
+  const store = (req as any).store;
+  const entry: any = getStoreDomains(store).find((d: any) => d.domain === domain) || ((store as any).domain === domain ? { domain, zoneId: null } : null);
+  if (!entry) return res.status(404).json({ error: 'Domain bulunamadı' });
+  try {
+    let zone: any = null;
+    if (entry.zoneId) {
+      try { zone = await getZoneDetails(entry.zoneId); } catch { zone = await getZoneByName(domain); }
+    } else {
+      zone = await getZoneByName(domain);
+    }
+    if (!zone) return res.json({ domain, zoneId: null, zoneStatus: 'not_created', nameServers: null });
+    // sync if zone found but not stored
+    if (!entry.zoneId) {
+      const domains: any[] = getStoreDomains(store);
+      const idx = domains.findIndex((d: any) => d.domain === domain);
+      if (idx !== -1) {
+        domains[idx] = { ...domains[idx], zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers };
+        await store.update({ domains: domains as any });
+      }
+    }
+    res.json({ domain, zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, zone });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+siteRoutes.get('/domains/:domain/dns', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare yapılandırılmadı' });
+  const domain = normalizeDomainInput(String(req.params.domain || ''));
+  const store = (req as any).store;
+  const entry: any = getStoreDomains(store).find((d: any) => d.domain === domain) || ((store as any).domain === domain ? { domain } : null);
+  if (!entry) return res.status(404).json({ error: 'Domain bulunamadı' });
+  let zoneId: string | null = entry.zoneId || null;
+  if (!zoneId) {
+    const z: any = await getZoneByName(domain).catch(() => null);
+    if (!z) return res.status(404).json({ error: 'Bu domain için Cloudflare zone yok — önce NS’i taşıyıp zone oluşturun', code: 'NO_ZONE' });
+    zoneId = z.id;
+  }
+  try {
+    const records = await listDnsRecordsForZone(zoneId!);
+    res.json({ domain, zoneId, records });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+siteRoutes.post('/domains/:domain/dns', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare yapılandırılmadı' });
+  const domain = normalizeDomainInput(String(req.params.domain || ''));
+  const store = (req as any).store;
+  const entry: any = getStoreDomains(store).find((d: any) => d.domain === domain) || ((store as any).domain === domain ? { domain } : null);
+  if (!entry) return res.status(404).json({ error: 'Domain bulunamadı' });
+  let zoneId: string | null = entry.zoneId || null;
+  if (!zoneId) {
+    const z: any = await getZoneByName(domain).catch(() => null);
+    if (!z) return res.status(404).json({ error: 'Zone yok — önce zone oluşturun', code: 'NO_ZONE' });
+    zoneId = z.id;
+  }
+  const { type, name, content, ttl, proxied, priority, comment } = req.body || {};
+  if (!type || !content) return res.status(400).json({ error: 'type ve content gerekli' });
+  const t = String(type).toUpperCase();
+  if (!['A', 'AAAA', 'CNAME', 'TXT', 'MX', 'NS', 'SRV', 'CAA'].includes(t)) return res.status(400).json({ error: 'Desteklenmeyen type' });
+  // Prevent deleting SaaS CNAME by mistake — allow but warn
+  const recName = String(name || '@').trim() || '@';
+  const fullName = recName === '@' || recName === domain ? domain : recName.includes('.') ? recName : `${recName}.${domain}`;
+  try {
+    const rec = await createDnsRecordForZone(zoneId!, { type: t, name: fullName, content: String(content), ttl: ttl ? Number(ttl) : 1, proxied: proxied ?? false, priority: priority ? Number(priority) : undefined, comment });
+    res.json({ record: rec });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+siteRoutes.put('/domains/:domain/dns/:recordId', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare yapılandırılmadı' });
+  const domain = normalizeDomainInput(String(req.params.domain || ''));
+  const recordId = String(req.params.recordId || '');
+  const store = (req as any).store;
+  const entry: any = getStoreDomains(store).find((d: any) => d.domain === domain) || ((store as any).domain === domain ? { domain } : null);
+  if (!entry) return res.status(404).json({ error: 'Domain bulunamadı' });
+  let zoneId: string | null = entry.zoneId || null;
+  if (!zoneId) {
+    const z: any = await getZoneByName(domain).catch(() => null);
+    if (!z) return res.status(404).json({ error: 'Zone yok' });
+    zoneId = z.id;
+  }
+  try {
+    const rec = await updateDnsRecordForZone(zoneId!, recordId, req.body || {});
+    res.json({ record: rec });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+siteRoutes.delete('/domains/:domain/dns/:recordId', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare yapılandırılmadı' });
+  const domain = normalizeDomainInput(String(req.params.domain || ''));
+  const recordId = String(req.params.recordId || '');
+  const store = (req as any).store;
+  const entry: any = getStoreDomains(store).find((d: any) => d.domain === domain) || ((store as any).domain === domain ? { domain } : null);
+  if (!entry) return res.status(404).json({ error: 'Domain bulunamadı' });
+  let zoneId: string | null = entry.zoneId || null;
+  if (!zoneId) {
+    const z: any = await getZoneByName(domain).catch(() => null);
+    if (!z) return res.status(404).json({ error: 'Zone yok' });
+    zoneId = z.id;
+  }
+  try {
+    await deleteDnsRecordForZone(zoneId!, recordId);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
 });
 
 // POST /api/admin/site/mapping — manual siteUrl + domain update (Option A — ZIP ile kendi Vercel'ine deploy edenler)

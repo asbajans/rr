@@ -5,16 +5,18 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Globe, Download, Server, Rocket, Link2, ExternalLink, Key, Upload, Settings as SettingsIcon, AlertCircle, Info, CheckCircle2, Trash2, Plus, ShieldCheck, Loader2, XCircle, RefreshCw, Package } from 'lucide-react'
+import { Globe, Download, Server, Rocket, Link2, ExternalLink, Key, Upload, Settings as SettingsIcon, AlertCircle, Info, CheckCircle2, Trash2, Plus, ShieldCheck, Loader2, XCircle, RefreshCw, Package, Settings } from 'lucide-react'
 import DomainSetupGuide from '@/components/store/DomainSetupGuide'
+import DnsManager from '@/components/store/DnsManager'
 
 function DomainManager() {
-  const [domains, setDomains] = useState<Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null; cloudflare?: any }>>([])
+  const [domains, setDomains] = useState<Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null; cloudflare?: any; zoneId?: string | null }>>([])
   const [cf, setCf] = useState<{ configured: boolean; fallbackOrigin: string; cnameTarget: string; zoneName: string } | null>(null)
   const [input, setInput] = useState('')
   const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState<{ type:'success'|'error'; text:string }|null>(null)
   const [verifying, setVerifying] = useState<string | null>(null)
+  const [dnsOpen, setDnsOpen] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -96,6 +98,17 @@ function DomainManager() {
               {!d.verified && (
                 <div className="mt-3">
                   <DomainSetupGuide cloudflare={cf} domain={d.domain} compact />
+                </div>
+              )}
+              <div className="mt-3 flex items-center gap-2">
+                <button onClick={() => setDnsOpen(dnsOpen === d.domain ? null : d.domain)} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline">
+                  <Settings className="h-3.5 w-3.5" />{dnsOpen === d.domain ? 'DNS Kapat' : 'DNS Yönetimi'}
+                </button>
+                <span className="text-[11px] text-zinc-400">— Seçenek 1 (CNAME) veya Seçenek 2 (NS taşıma) için</span>
+              </div>
+              {dnsOpen === d.domain && (
+                <div className="mt-3">
+                  <DnsManager domain={d.domain} />
                 </div>
               )}
             </div>
