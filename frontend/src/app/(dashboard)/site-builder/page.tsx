@@ -9,6 +9,7 @@ import { Palette, Type, Code, Upload, Image, Rocket, Undo2, History, LayoutTempl
 import { ThemePicker } from '@/components/store/ThemePicker'
 import { ThemeLivePreview } from '@/components/store/ThemeLivePreview'
 import { getThemeById } from '@/themes/catalog'
+import DomainSetupGuide from '@/components/store/DomainSetupGuide'
 
 const FONT_OPTIONS = ['Inter', 'Playfair Display', 'Roboto', 'Open Sans']
 
@@ -320,50 +321,65 @@ export default function SiteBuilderPage() {
       </div>
 
       <div className="mt-8 space-y-8">
-        {providerInfo?.provider === 'vercel' && (
-          <div className="rounded-xl border border-zinc-200 p-6">
-            <h2 className="text-lg font-semibold text-zinc-900">Özel Domain</h2>
-            <p className="mt-1 text-sm text-zinc-600">Domaininizi Vercel projesine bağlayın. DNS kayıtları kendi DNS sağlayıcınızda oluşturulur.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <input
-                value={domainInput}
-                onChange={(e) => setDomainInput(e.target.value)}
-                placeholder="magazaniz.com"
-                className="w-64 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-              <Button size="sm" onClick={handleAddDomain} disabled={domainBusy || !domainInput.trim()}>
-                {domainBusy ? 'Kontrol ediliyor...' : 'Domaini Ekle'}
-              </Button>
-              {domainInfo?.domain && !domainInfo.verified && (
-                <Button size="sm" variant="outline" onClick={handleVerifyDomain} disabled={domainBusy}>
-                  Tekrar Doğrula
+        {/* Domain — Rahatio SaaS (önerilen) her planda göster, Vercel'e özel blok aşağıda */}
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <h2 className="text-lg font-semibold text-zinc-900">Özel Domain</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            {providerInfo?.provider === 'vercel'
+              ? 'Domaininizi Vercel projesine bağlayın. DNS kayıtları kendi DNS sağlayıcınızda oluşturulur.'
+              : 'Kendi domaininizi bağlayın — DNS’te tek CNAME ile mağazanız doğrudan domaininizde açılır. Mevcut tunnel tüm portları yönetir, yeni connector gerekmez.'}
+          </p>
+          {providerInfo?.provider === 'vercel' ? (
+            <>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <input
+                  value={domainInput}
+                  onChange={(e) => setDomainInput(e.target.value)}
+                  placeholder="magazaniz.com"
+                  className="w-64 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <Button size="sm" onClick={handleAddDomain} disabled={domainBusy || !domainInput.trim()}>
+                  {domainBusy ? 'Kontrol ediliyor...' : 'Domaini Ekle'}
                 </Button>
-              )}
-            </div>
-            {domainInfo?.domain && (
-              <div className={`mt-4 rounded-lg border p-3 text-sm ${domainInfo.verified ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                <div className="font-medium">{domainInfo.domain}: {domainInfo.verified ? 'Doğrulandı' : 'DNS doğrulaması bekleniyor'}</div>
-                {!domainInfo.verified && domainInfo.verification.length > 0 && (
-                  <div className="mt-3 overflow-x-auto">
-                    <p className="mb-2 text-xs">Aşağıdaki kayıtları DNS sağlayıcınızda oluşturun:</p>
-                    <table className="min-w-full text-xs">
-                      <thead><tr className="text-left"><th className="pr-4 py-1">Tür</th><th className="pr-4 py-1">Ad</th><th className="py-1">Değer</th></tr></thead>
-                      <tbody>
-                        {domainInfo.verification.map((record, index) => (
-                          <tr key={`${record.type}-${index}`} className="border-t border-amber-200/70 align-top">
-                            <td className="pr-4 py-2 font-medium">{record.type || 'TXT'}</td>
-                            <td className="pr-4 py-2 font-mono break-all">{record.domain || domainInfo.domain}</td>
-                            <td className="py-2 font-mono break-all">{record.value || record.reason || 'Vercel panelindeki değeri kullanın'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                {domainInfo?.domain && !domainInfo.verified && (
+                  <Button size="sm" variant="outline" onClick={handleVerifyDomain} disabled={domainBusy}>
+                    Tekrar Doğrula
+                  </Button>
                 )}
               </div>
-            )}
-          </div>
-        )}
+              {domainInfo?.domain && (
+                <div className={`mt-4 rounded-lg border p-3 text-sm ${domainInfo.verified ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                  <div className="font-medium">{domainInfo.domain}: {domainInfo.verified ? 'Doğrulandı' : 'DNS doğrulaması bekleniyor'}</div>
+                  {!domainInfo.verified && domainInfo.verification.length > 0 && (
+                    <div className="mt-3 overflow-x-auto">
+                      <p className="mb-2 text-xs">Aşağıdaki kayıtları DNS sağlayıcınızda oluşturun:</p>
+                      <table className="min-w-full text-xs">
+                        <thead><tr className="text-left"><th className="pr-4 py-1">Tür</th><th className="pr-4 py-1">Ad</th><th className="py-1">Değer</th></tr></thead>
+                        <tbody>
+                          {domainInfo.verification.map((record, index) => (
+                            <tr key={`${record.type}-${index}`} className="border-t border-amber-200/70 align-top">
+                              <td className="pr-4 py-2 font-medium">{record.type || 'TXT'}</td>
+                              <td className="pr-4 py-2 font-mono break-all">{record.domain || domainInfo.domain}</td>
+                              <td className="py-2 font-mono break-all">{record.value || record.reason || 'Vercel panelindeki değeri kullanın'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="mt-4">
+              <p className="text-sm text-zinc-600">Ayrıntılı yönetim için <a href="/site-publish" className="font-medium text-indigo-600 hover:underline">Site Yayın → Domain Yönetimi</a>’ne gidin.</p>
+              <div className="mt-4">
+                <DomainSetupGuide compact />
+              </div>
+              <p className="mt-3 text-xs text-zinc-500">İpucu: Domaini Site Yayın sayfasından ekleyince panel size <code className="font-mono">CNAME → customers.rahatio.com.tr</code> talimatını ve doğrulama durumunu gösterecek.</p>
+            </div>
+          )}
+        </div>
 
         {/* Hazır Temalar — 149 Rahatio teması */}
         <ThemePicker

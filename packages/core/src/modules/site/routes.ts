@@ -13,6 +13,19 @@ import { computeNextVersion, resolveRollbackTarget, serializeDeployment } from '
 import { getHostingProvider, getVercelAdapterForStore, verifyVercelToken } from './providers.js';
 import { buildVercelArtifactFiles } from '../slave/routes.js';
 import { config } from '../../config/index.js';
+import {
+  isCloudflareConfigured,
+  getCloudflarePublicConfig,
+  getTunnelConfig,
+  ensureFallbackIngress,
+  ensureSaaSDnsRecords,
+  createCustomHostname,
+  getCustomHostname,
+  getCustomHostnameStatus,
+  deleteCustomHostname,
+  getFallbackOrigin,
+  putFallbackOrigin,
+} from './cloudflare.js';
 
 export const siteRoutes: Router = Router();
 
@@ -152,11 +165,46 @@ siteRoutes.delete('/vercel-config', authMiddleware, requireRole('owner', 'admin'
   res.json({ hasToken: false });
 });
 
-// Domain Yönetimi — max 5, her domain ayrı doğrulama (Vercel veya PHP health)
+// Domain Yönetimi — max 5, her domain ayrı doğrulama (Vercel / PHP health / Cloudflare SaaS)
 siteRoutes.get('/domains', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
   const store = (req as any).store;
   const domains = getStoreDomains(store);
-  res.json({ domains, max: 5, primary: (store as any).domain || null });
+  const cf = getCloudflarePublicConfig();
+  // Enrich unverified domains with SaaS instructions if Cloudflare configured
+  const enriched = await Promise.all(domains.map(async (d) => {
+    if (d.verified || !isCloudflareConfigured()) return d;
+    try {
+      const st = await getCustomHostnameStatus(d.domain).catch(() => null);
+      if (st?.found && st.verification) {
+        return { ...d, cloudflare: { status: st.status, sslStatus: st.sslStatus, verification: st.verification, cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin } } as any;
+      }
+      return { ...d, cloudflare: { cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, hint: `DNS'te CNAME oluştur: ${d.domain} -> ${cf.cnameTarget}` } } as any;
+    } catch { return d; }
+  }));
+  res.json({ domains: enriched, max: 5, primary: (store as any).domain || null, cloudflare: cf });
+});
+
+// Cloudflare SaaS public config — frontend guide needs it without auth? keep auth for now
+siteRoutes.get('/cloudflare', authMiddleware, requireRole('owner', 'admin'), requireStore, async (_req: Request, res: Response) => {
+  res.json(getCloudflarePublicConfig());
+});
+
+siteRoutes.post('/cloudflare/setup', authMiddleware, requireRole('owner', 'admin'), requireStore, async (_req: Request, res: Response) => {
+  if (!isCloudflareConfigured()) return res.status(503).json({ error: 'Cloudflare API yapılandırılmadı — CLOUDFLARE_API_TOKEN / ACCOUNT_ID / ZONE_ID / TUNNEL_ID gerekli' });
+  try {
+    await ensureFallbackIngress();
+    const dnsRes = await ensureSaaSDnsRecords();
+    let fb: any = null;
+    try { fb = await getFallbackOrigin(); } catch {}
+    if (!fb || String(fb.origin || '').toLowerCase() !== getCloudflarePublicConfig().fallbackOrigin.toLowerCase()) {
+      try { fb = await putFallbackOrigin(getCloudflarePublicConfig().fallbackOrigin); } catch (e: any) { logger.warn({ err: e }, 'putFallbackOrigin failed'); }
+    }
+    const { ingress } = await getTunnelConfig();
+    res.json({ ok: true, dns: dnsRes, fallbackOrigin: fb, ingressCount: ingress.length, cnameTarget: getCloudflarePublicConfig().cnameTarget, fallbackOriginHost: getCloudflarePublicConfig().fallbackOrigin });
+  } catch (e: any) {
+    logger.error({ err: e }, 'Cloudflare setup error');
+    res.status(502).json({ error: e.message || 'Cloudflare kurulumu başarısız' });
+  }
 });
 
 siteRoutes.post('/domains', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
@@ -175,12 +223,42 @@ siteRoutes.post('/domains', authMiddleware, requireRole('owner', 'admin'), requi
     const [rows]: any = await (Store as any).sequelize.query(`SELECT id FROM stores WHERE domains @> '[{"domain":"${domain.replace(/'/g, "''")}"}]'::jsonb AND id != ${Number(store.id)} LIMIT 1`);
     if (rows && rows.length) return res.status(400).json({ error: 'Bu domain başka bir mağaza tarafından kullanılıyor' });
   } catch {}
-  const entry = { domain, verified: false, method: null, addedAt: new Date().toISOString(), lastCheckedAt: null as string | null };
+  const entry: any = { domain, verified: false, method: null, addedAt: new Date().toISOString(), lastCheckedAt: null as string | null };
   const next = [...domains, entry];
   await store.update({ domains: next as any });
   // Legacy single domain sync for backward compat
   if (!(store as any).domain) await store.update({ domain } as any);
-  res.json({ domains: next, domain });
+
+  // Cloudflare SaaS: try to create custom hostname + ensure tunnel fallback (best-effort, don't fail the request)
+  const hosting = await storeHosting(store);
+  if (hosting !== 'vercel' && isCloudflareConfigured()) {
+    try {
+      await ensureFallbackIngress().catch(() => {});
+      let ch: any = null;
+      try { ch = await getCustomHostname(domain); } catch {}
+      if (!ch) {
+        try { ch = await createCustomHostname(domain, { method: 'http' }); } catch (e: any) {
+          logger.warn({ err: e, domain }, 'createCustomHostname failed — frontend will show CNAME guide');
+        }
+      }
+      if (ch) {
+        entry.method = 'cloudflare';
+        entry.cloudflareId = ch.id;
+        // update stored entry with cloudflare id
+        const idx = next.findIndex((d: any) => d.domain === domain);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], method: 'cloudflare', cloudflareId: ch.id, lastCheckedAt: new Date().toISOString() } as any;
+          await store.update({ domains: next as any });
+        }
+      }
+    } catch (e: any) {
+      logger.warn({ err: e, domain }, 'Cloudflare post-domain hook failed');
+    }
+  }
+
+  const cf = getCloudflarePublicConfig();
+  const enriched = { ...entry, cloudflare: isCloudflareConfigured() ? { cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, hint: `DNS'te CNAME oluştur: ${domain} -> ${cf.cnameTarget}` } : undefined };
+  res.json({ domains: next, domain, entry: enriched, cloudflare: cf });
 });
 
 siteRoutes.delete('/domains/:domain', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
@@ -194,6 +272,8 @@ siteRoutes.delete('/domains/:domain', authMiddleware, requireRole('owner', 'admi
     // Also check legacy primary
     if ((store as any).domain === domain) {
       await store.update({ domain: null as any, domains } as any);
+      // best-effort cloudflare cleanup
+      if (isCloudflareConfigured()) { try { await deleteCustomHostname(domain); } catch {} }
       return res.json({ domains });
     }
     return res.status(404).json({ error: 'Domain bulunamadı' });
@@ -202,6 +282,9 @@ siteRoutes.delete('/domains/:domain', authMiddleware, requireRole('owner', 'admi
   if ((store as any).domain === domain) {
     const nextPrimary = domains.find(d=>d.verified)?.domain || domains[0]?.domain || null;
     await store.update({ domain: nextPrimary as any } as any);
+  }
+  if (isCloudflareConfigured()) {
+    try { await deleteCustomHostname(domain); } catch (e: any) { logger.warn({ err: e, domain }, 'deleteCustomHostname failed'); }
   }
   res.json({ domains });
 });
@@ -245,6 +328,40 @@ siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 
         }
       }
     } catch (e:any) { detail = { error: e.message }; }
+  }
+
+  // Cloudflare SaaS verification — primary for rahatio hosting when configured
+  if (!verified && isCloudflareConfigured() && hosting !== 'vercel') {
+    try {
+      const st = await getCustomHostnameStatus(domain);
+      if (st.found) {
+        if (st.status === 'active') {
+          verified = true;
+          method = 'cloudflare';
+          detail = st;
+        } else {
+          // pending — enrich with CNAME check so frontend can show guide
+          let cnames: string[] = [];
+          try { cnames = await dns.resolveCname(domain).catch(() => [] as string[]); } catch {}
+          if (!cnames.length) { try { const a = await dns.resolve(domain).catch(()=>[]); if (a.length) cnames = a; } catch {} }
+          const target = getCloudflarePublicConfig().cnameTarget.toLowerCase();
+          const pointsToTarget = cnames.some((c) => c.toLowerCase() === target || c.toLowerCase().endsWith('.' + target));
+          detail = { ...st, cnames, pointsToTarget, hint: `DNS'te CNAME oluştur: ${domain} -> ${target}`, cnameTarget: target, fallbackOrigin: getCloudflarePublicConfig().fallbackOrigin };
+          // also allow health fallback if CNAME already points but Cloudflare hasn't yet marked active — don't auto-verify yet
+        }
+      } else {
+        // lazy create on verify if missing (customer added domain before SaaS was enabled)
+        try {
+          const ch = await createCustomHostname(domain, { method: 'http' });
+          detail = { created: true, hostname: ch.hostname, status: ch.status, hint: `DNS'te CNAME oluştur: ${domain} -> ${getCloudflarePublicConfig().cnameTarget}` };
+          method = 'cloudflare';
+        } catch (e: any) {
+          detail = detail || { error: e.message };
+        }
+      }
+    } catch (e: any) {
+      if (!detail) detail = { error: e.message };
+    }
   }
 
   // Fallback / PHP health check — always try if not yet verified

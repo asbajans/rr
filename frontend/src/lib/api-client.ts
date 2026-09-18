@@ -1476,12 +1476,18 @@ class ApiClient {
     return this.post<{ siteUrl: string | null; domain: string | null }>('/api/admin/site/mapping', data)
   }
 
-  // Multi-domain (max 5) — new
+  // Multi-domain (max 5) — Cloudflare SaaS aware
   getSiteDomains() {
-    return this.get<{ domains: Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null }>; max: number; primary: string | null }>('/api/admin/site/domains')
+    return this.get<{ domains: Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null; cloudflare?: any }>; max: number; primary: string | null; cloudflare?: { configured: boolean; fallbackOrigin: string; cnameTarget: string; zoneName: string } }>('/api/admin/site/domains')
+  }
+  getCloudflareConfig() {
+    return this.get<{ configured: boolean; fallbackOrigin: string; cnameTarget: string; zoneName: string; zoneId: string; tunnelId: string }>('/api/admin/site/cloudflare')
+  }
+  setupCloudflare() {
+    return this.post<{ ok: boolean; dns: any; fallbackOrigin: any; ingressCount: number; cnameTarget: string; fallbackOriginHost: string }>('/api/admin/site/cloudflare/setup')
   }
   addSiteDomainMulti(domain: string) {
-    return this.post<{ domains: Array<{ domain: string; verified: boolean }>; domain: string }>('/api/admin/site/domains', { domain })
+    return this.post<{ domains: Array<{ domain: string; verified: boolean }>; domain: string; entry?: any; cloudflare?: any }>('/api/admin/site/domains', { domain })
   }
   removeSiteDomain(domain: string) {
     return this.delete<{ domains: Array<{ domain: string; verified: boolean }> }>(`/api/admin/site/domains/${encodeURIComponent(domain)}`)

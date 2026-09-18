@@ -6,16 +6,25 @@ import { api } from '@/lib/api-client'
 import type { ApiKey } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Globe, Download, Server, Rocket, Link2, ExternalLink, Key, Upload, Settings as SettingsIcon, AlertCircle, Info, CheckCircle2, Trash2, Plus, ShieldCheck, Loader2, XCircle, RefreshCw, Package } from 'lucide-react'
+import DomainSetupGuide from '@/components/store/DomainSetupGuide'
 
 function DomainManager() {
-  const [domains, setDomains] = useState<Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null }>>([])
+  const [domains, setDomains] = useState<Array<{ domain: string; verified: boolean; method?: string | null; addedAt?: string; lastCheckedAt?: string | null; cloudflare?: any }>>([])
+  const [cf, setCf] = useState<{ configured: boolean; fallbackOrigin: string; cnameTarget: string; zoneName: string } | null>(null)
   const [input, setInput] = useState('')
   const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState<{ type:'success'|'error'; text:string }|null>(null)
   const [verifying, setVerifying] = useState<string | null>(null)
 
   const load = async () => {
-    try { const r = await api.getSiteDomains(); setDomains(r.domains || []) } catch {}
+    try {
+      const r = await api.getSiteDomains();
+      setDomains(r.domains || []);
+      if ((r as any).cloudflare) setCf((r as any).cloudflare);
+      else {
+        try { const c = await api.getCloudflareConfig(); setCf(c); } catch {}
+      }
+    } catch {}
   }
   useEffect(()=>{ load() }, [])
 
@@ -60,36 +69,49 @@ function DomainManager() {
       {domains.length===0 ? (
         <p className="text-sm text-zinc-500">Henüz domain yok. Yukarıdan ekleyebilirsiniz.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {domains.map(d=>(
-            <div key={d.domain} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 ${d.verified ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-zinc-500"/>
-                  <span className="font-mono text-sm font-medium text-zinc-900">{d.domain}</span>
-                  {d.verified ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"><CheckCircle2 className="h-3 w-3"/>Doğrulandı</span> : <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"><XCircle className="h-3 w-3"/>Bekliyor</span>}
-                  {d.method && <span className="rounded bg-white px-1.5 py-0.5 text-xs text-zinc-500">{d.method}</span>}
+            <div key={d.domain} className={`rounded-lg border p-3 ${d.verified ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-zinc-500"/>
+                    <span className="font-mono text-sm font-medium text-zinc-900">{d.domain}</span>
+                    {d.verified ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"><CheckCircle2 className="h-3 w-3"/>Doğrulandı</span> : <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"><XCircle className="h-3 w-3"/>Bekliyor</span>}
+                    {d.method && <span className="rounded bg-white px-1.5 py-0.5 text-xs text-zinc-500">{d.method}</span>}
+                  </div>
+                  {d.lastCheckedAt && <p className="mt-1 text-xs text-zinc-500">Son kontrol: {new Date(d.lastCheckedAt).toLocaleString('tr-TR')}</p>}
+                  {!d.verified && (d as any).cloudflare && (
+                    <p className="mt-1 text-xs text-zinc-600">Hedef: <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">{(d as any).cloudflare?.cnameTarget || cf?.cnameTarget}</code> → CNAME ekleyin</p>
+                  )}
                 </div>
-                {d.lastCheckedAt && <p className="mt-1 text-xs text-zinc-500">Son kontrol: {new Date(d.lastCheckedAt).toLocaleString('tr-TR')}</p>}
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant={d.verified ? 'outline' : 'primary'} onClick={()=>handleVerify(d.domain)} disabled={verifying===d.domain}>
+                    {verifying===d.domain ? <Loader2 className="mr-1 h-3 w-3 animate-spin"/> : <ShieldCheck className="mr-1 h-3 w-3"/>}
+                    {d.verified ? 'Tekrar Doğrula' : 'Doğrula'}
+                  </Button>
+                  <button onClick={()=>handleRemove(d.domain)} className="rounded p-1.5 text-zinc-400 hover:bg-white hover:text-red-600"><Trash2 className="h-4 w-4"/></button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant={d.verified ? 'outline' : 'primary'} onClick={()=>handleVerify(d.domain)} disabled={verifying===d.domain}>
-                  {verifying===d.domain ? <Loader2 className="mr-1 h-3 w-3 animate-spin"/> : <ShieldCheck className="mr-1 h-3 w-3"/>}
-                  {d.verified ? 'Tekrar Doğrula' : 'Doğrula'}
-                </Button>
-                <button onClick={()=>handleRemove(d.domain)} className="rounded p-1.5 text-zinc-400 hover:bg-white hover:text-red-600"><Trash2 className="h-4 w-4"/></button>
-              </div>
+              {!d.verified && (
+                <div className="mt-3">
+                  <DomainSetupGuide cloudflare={cf} domain={d.domain} compact />
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
       {msg && <p className={`text-sm ${msg.type==='success'?'text-emerald-600':'text-red-600'}`}>{msg.text}</p>}
-      <div className="rounded-lg bg-zinc-900 p-3 text-xs text-zinc-300">
+      <div className="mt-4">
+        <DomainSetupGuide cloudflare={cf} compact={domains.length>0} />
+      </div>
+      <div className="mt-3 rounded-lg bg-zinc-900 p-3 text-xs text-zinc-300">
         <p className="font-medium text-white">Doğrulama nasıl çalışır?</p>
         <ul className="mt-1 list-disc space-y-1 pl-4">
-          <li><b>Vercel</b> kullanıyorsan: Domaini yukarı ekle → Vercel Dashboard → Project → Settings → Domains’e aynı domaini ekle → DNS’i ver → burada <b>Doğrula</b>’ya bas (Vercel API’si kontrol eder).</li>
-          <li><b>PHP (kendi sunucun)</b> kullanıyorsan: Domaini ekle → hostingine ZIP’teki <code>index.php</code>+<code>.htaccess</code>’i at → domain <code>https://domain/health</code> → <code>{"`{status:ok, store:siteCode}`"}</code> dönmeli → <b>Doğrula</b> (health kontrol).</li>
-          <li>Eklemeden <b>doğrulama yapılamaz</b>. Her domain tek tek doğrulanır.</li>
+          <li><b>Rahatio (önerilen) — Cloudflare SaaS:</b> Domaini ekle → DNS'te <code>CNAME {domains[0]?.domain || 'magazan.com'} → {cf?.cnameTarget || 'customers.rahatio.com.tr'}</code> ekle → <b>Doğrula</b> (Cloudflare custom hostname + tunnel). SSL otomatik.</li>
+          <li><b>Vercel</b> (hosting = Vercel ise): Domaini ekle → Vercel Dashboard → Project → Settings → Domains’e aynı domaini ekle → DNS’i ver → <b>Doğrula</b>.</li>
+          <li><b>PHP (kendi sunucun)</b>: Domaini ekle → hostingine ZIP’teki <code>index.php</code>+<code>.htaccess</code>’i at → <code>https://domain/health</code> → <code>{"`{status:ok, store:siteCode}`"}</code> → <b>Doğrula</b>.</li>
         </ul>
       </div>
     </div>

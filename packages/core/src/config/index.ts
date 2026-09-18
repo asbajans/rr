@@ -113,4 +113,16 @@ export const config = {
     apiUrl: process.env.GOLD_API_URL || 'https://api.altin.in/api/v1/gold.json',
     fallbackPrice: 2300,
   },
+
+  cloudflare: {
+    apiToken: process.env.CLOUDFLARE_API_TOKEN || '',
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID || '9e584cb7f7d060030693ae51d9fef71b',
+    zoneId: process.env.CLOUDFLARE_ZONE_ID || '405de399f5fe47235777c527b9fc7654',
+    tunnelId: process.env.CLOUDFLARE_TUNNEL_ID || 'efd9b1ff-8ed2-4aa4-bf61-c12099e04909',
+    // SaaS: fallback origin must be a proxied hostname inside rahatio.com.tr that points to the origin via tunnel
+    fallbackOrigin: process.env.CLOUDFLARE_SAAS_FALLBACK_ORIGIN || 'saas.rahatio.com.tr',
+    cnameTarget: process.env.CLOUDFLARE_SAAS_CNAME_TARGET || 'customers.rahatio.com.tr',
+    // Internal origin service for fallback (tunnel ingress target)
+    originService: process.env.CLOUDFLARE_ORIGIN_SERVICE || 'http://192.168.0.243:3690',
+  },
 };
