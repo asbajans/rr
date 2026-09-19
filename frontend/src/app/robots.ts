@@ -33,7 +33,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   try {
     const { headers } = await import('next/headers')
     const h = (await headers()).get('host') || ''
-    let host = h.toLowerCase().split(':')[0].replace(/^www\./, '').replace(/\.$/, '')
+    const host = h.toLowerCase().split(':')[0].replace(/^www\./, '').replace(/\.$/, '')
     const isCustom = host && host !== 'rahatio.com.tr' && !host.endsWith('.rahatio.com.tr') && host !== 'localhost' && !host.endsWith('.localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(host)
     if (isCustom) {
       hostUrl = `https://${host}`
