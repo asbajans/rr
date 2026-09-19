@@ -1,4 +1,5 @@
 version: "3.9"
+# SEO per-store 2026-09-18 — triggers rebuild for custom domain title/sitemap
 # DNS management 2026-09-18 — triggers rebuild for per-zone Cloudflare DNS
 
 networks:
