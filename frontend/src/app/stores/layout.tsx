@@ -10,6 +10,7 @@ import AiChat from '@/components/store/AiChat'
 import WhatsAppButton from '@/components/store/WhatsAppButton'
 import PixelInjector from '@/components/store/PixelInjector'
 import StoreThemeInjector from '@/components/store/StoreTheme'
+import StoreSeo from '@/components/store/StoreSeo'
 import { StoreMenuBar, StoreFooterMenus } from '@/components/store/StoreMenuBar'
 import { api } from '@/lib/api-client'
 import { storeBase } from '@/lib/store-path'
@@ -202,6 +203,7 @@ export default function StoreLayout({ children }: { children: ReactNode }) {
     <CartProvider siteCode={siteCode}>
       <div data-storefront className="min-h-screen bg-white">
         <StoreThemeInjector siteCode={siteCode} />
+        <StoreSeo siteCode={siteCode} />
         <StoreHeader siteCode={siteCode} />
         <main>{children}</main>
         <footer className="border-t border-zinc-200 bg-zinc-50">
