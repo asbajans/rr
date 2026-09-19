@@ -26,8 +26,20 @@ const AI_CRAWLERS = [
   'img2dataset',
 ]
 
-export default function robots(): MetadataRoute.Robots {
-  const sitemap = `${PLATFORM_ORIGIN}/sitemap.xml`
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  // Custom domain: sitemap should point to custom origin
+  let sitemap = `${PLATFORM_ORIGIN}/sitemap.xml`
+  let hostUrl = PLATFORM_ORIGIN
+  try {
+    const { headers } = await import('next/headers')
+    const h = (await headers()).get('host') || ''
+    let host = h.toLowerCase().split(':')[0].replace(/^www\./, '').replace(/\.$/, '')
+    const isCustom = host && host !== 'rahatio.com.tr' && !host.endsWith('.rahatio.com.tr') && host !== 'localhost' && !host.endsWith('.localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(host)
+    if (isCustom) {
+      hostUrl = `https://${host}`
+      sitemap = `${hostUrl}/sitemap.xml`
+    }
+  } catch {}
   // Panel + superadmin private paths — must not be indexed. Public storefronts (/stores/[siteCode]) stay allowed via Allow.
   const privatePaths = [
     '/api/',
@@ -90,6 +102,6 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules,
     sitemap,
-    host: PLATFORM_ORIGIN,
+    host: hostUrl,
   }
 }

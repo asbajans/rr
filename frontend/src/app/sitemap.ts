@@ -30,6 +30,58 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Custom domain: sitemap should be per-store with custom origin
+  try {
+    const { headers } = await import('next/headers')
+    const h = (await headers()).get('host') || ''
+    let host = h.toLowerCase().split(':')[0].replace(/^www\./, '').replace(/\.$/, '')
+    const isCustom = host && host !== 'rahatio.com.tr' && !host.endsWith('.rahatio.com.tr') && host !== 'localhost' && !host.endsWith('.localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(host)
+    if (isCustom) {
+      const now = new Date()
+      // Resolve custom host to siteCode
+      try {
+        const r = await fetch(`${API_BASE}/api/store/resolve?domain=${encodeURIComponent(host)}`, { cache: 'no-store' })
+        if (r.ok) {
+          const j: any = await r.json().catch(() => null)
+          const siteCode: string | undefined = j?.store?.siteCode
+          const domain: string | null = j?.store?.domain || host
+          if (siteCode) {
+            const origin = `https://${domain}`
+            const entries: MetadataRoute.Sitemap = [
+              { url: origin, lastModified: now, changeFrequency: 'daily', priority: 1 },
+              { url: `${origin}/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+            ]
+            // Fetch store's products/blogs for custom sitemap
+            try {
+              const sr = await fetch(`${API_BASE}/api/store/${siteCode}`, { cache: 'no-store' })
+              if (sr.ok) {
+                const sd: any = await sr.json().catch(() => null)
+                const prods: any[] = sd?.products ?? []
+                for (const p of prods.slice(0, 500)) {
+                  const id = p['product.id'] ?? p.id
+                  const slug = p.slug ? String(p.slug) : String(id)
+                  const lm = p.updatedAt ? new Date(p.updatedAt) : now
+                  entries.push({ url: `${origin}/products/${slug}`, lastModified: lm, changeFrequency: 'weekly', priority: 0.8 })
+                }
+              }
+            } catch {}
+            try {
+              const br = await fetch(`${API_BASE}/api/store/${siteCode}/blogs?limit=100`, { cache: 'no-store' })
+              if (br.ok) {
+                const bd: any = await br.json().catch(() => null)
+                const posts: any[] = bd?.posts ?? []
+                for (const p of posts.slice(0, 100)) {
+                  if (!p.slug) continue
+                  entries.push({ url: `${origin}/blog/${p.slug}`, lastModified: p.updatedAt ? new Date(p.updatedAt) : (p.publishedAt ? new Date(p.publishedAt) : now), changeFrequency: 'weekly', priority: 0.7 })
+                }
+              }
+            } catch {}
+            if (entries.length > 2) return entries
+          }
+        }
+      } catch {}
+    }
+  } catch {}
   const now = new Date()
   const staticPages: MetadataRoute.Sitemap = [
     { url: PLATFORM_ORIGIN, lastModified: now, changeFrequency: 'daily', priority: 1 },
