@@ -51,6 +51,10 @@ export default function ProductDetailClient({
   const [reviewSuccess, setReviewSuccess] = useState('')
 
   useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [productId])
+
+  useEffect(() => {
     if (initialProduct) return
     if (!siteCode || !productId) return
     api.getStoreProduct(siteCode, productId)
@@ -198,7 +202,7 @@ export default function ProductDetailClient({
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <p className="text-sm text-red-600">{error}</p>
-        <Link href={storeBase(siteCode)} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
+        <Link href={storeBase(siteCode) || '/'} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">
           Mağazaya Dön
         </Link>
       </div>
@@ -224,7 +228,7 @@ export default function ProductDetailClient({
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Link href={storeBase(siteCode)} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href={storeBase(siteCode) || '/'} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
         <ArrowLeft className="h-4 w-4" /> Mağazaya Dön
       </Link>
 

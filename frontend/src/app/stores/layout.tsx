@@ -122,7 +122,7 @@ function StoreHeader({ siteCode }: { siteCode: string }) {
           >
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <Link href={storeBase(siteCode)} className="flex shrink-0 items-center gap-2">
+          <Link href={storeBase(siteCode) || '/'} className="flex shrink-0 items-center gap-2">
             {theme.logo_url ? (
               <img src={theme.logo_url} alt={storeName || 'Mağaza'} className="h-9 w-auto object-contain" />
             ) : (

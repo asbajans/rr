@@ -16,7 +16,7 @@ export default function CartPage() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-bold text-zinc-900">Sepet</h1>
         <p className="mt-4 text-sm text-zinc-500">Sepetinde ürün bulunmuyor.</p>
-        <Link href={storeBase(siteCode)} className="mt-4 inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900">
+        <Link href={storeBase(siteCode) || '/'} className="mt-4 inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900">
           <ArrowLeft className="h-4 w-4" /> Alışverişe Başla
         </Link>
       </div>

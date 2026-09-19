@@ -51,7 +51,7 @@ export default function StoreBlogPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 text-center">
         <p className="text-sm text-red-600">{error}</p>
-        <Link href={storeBase(siteCode)} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">Mağazaya Dön</Link>
+        <Link href={storeBase(siteCode) || '/'} className="mt-4 inline-block text-sm text-zinc-500 hover:text-zinc-900">Mağazaya Dön</Link>
       </div>
     )
   }

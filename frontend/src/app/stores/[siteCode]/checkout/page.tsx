@@ -284,7 +284,7 @@ export default function CheckoutPage() {
           <p className="mt-1 text-sm text-zinc-500">Siparişiniz en kısa sürede hazırlanacaktır.</p>
         )}
         <button
-          onClick={() => router.push(storeBase(siteCode))}
+          onClick={() => router.push(storeBase(siteCode) || '/')}
           className="mt-8 inline-flex items-center gap-1 sf-btn-primary rounded-lg px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800"
         >
           <ArrowLeft className="h-4 w-4" /> Alışverişe Devam Et
