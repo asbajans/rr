@@ -338,7 +338,7 @@ export default function MarketingScreen() {
       {activeSection === 'stats' && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Site İstatistiği</Text>
-          <Text style={styles.empty}>Web'deki Site İstatistiği paneli yakında mobilde.</Text>
+          <Text style={styles.empty}>Web&apos;deki Site İstatistiği paneli yakında mobilde.</Text>
         </View>
       )}
     </ScrollView>
