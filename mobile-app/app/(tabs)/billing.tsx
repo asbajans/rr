@@ -9,7 +9,7 @@ import { useI18n } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
 import type { Plan, Subscription } from '../../src/shared/types'
 
-const CREDIT_PACKAGES = [
+const FALLBACK_CREDIT_PACKS = [
   { credits: 50, price: 50 },
   { credits: 200, price: 150 },
   { credits: 500, price: 300 },
@@ -46,17 +46,20 @@ export default function BillingScreen() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null)
+  const [creditPacks, setCreditPacks] = useState<{ credits: number; price: number; label?: string }[]>(FALLBACK_CREDIT_PACKS)
   const [busy, setBusy] = useState<string | null>(null)
 
   async function load() {
     try {
-      const [plansRes, subRes] = await Promise.all([
+      const [plansRes, subRes, packs] = await Promise.all([
         api.getPlans(),
         api.getSubscription(),
+        api.getCreditPacks().catch(() => FALLBACK_CREDIT_PACKS),
       ])
       setPlans(plansRes)
       setSubscription(subRes.subscription)
       setCurrentPlan(subRes.plan)
+      if (Array.isArray(packs) && packs.length > 0) setCreditPacks(packs)
     } catch (e: any) {
       Alert.alert(t('error'), e.message)
     } finally {
@@ -237,10 +240,10 @@ export default function BillingScreen() {
       })}
 
       <Text style={styles.sectionTitle}>{t('creditPackages')}</Text>
-      {CREDIT_PACKAGES.map((c) => (
+      {creditPacks.map((c) => (
         <View key={c.credits} style={styles.creditCard}>
           <View style={styles.creditCardInfo}>
-            <Text style={styles.creditCardTitle}>{t('credits' + c.credits)}</Text>
+            <Text style={styles.creditCardTitle}>{c.label || `${c.credits} Kredi`}</Text>
             <Text style={styles.creditCardPrice}>₺{c.price}</Text>
           </View>
           <TouchableOpacity

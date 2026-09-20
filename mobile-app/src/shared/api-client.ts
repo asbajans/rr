@@ -286,10 +286,18 @@ class ApiClient {
             id: r.store.id,
             name: r.store.name,
             site_code: r.store.siteCode ?? r.store.site_code ?? '',
+            siteCode: r.store.siteCode ?? r.store.site_code ?? '',
             domain: r.store.domain ?? null,
+            siteUrl: r.store.siteUrl ?? null,
             email: r.store.email ?? null,
             is_active: r.store.isActive ?? r.store.is_active ?? true,
-          }
+            isActive: r.store.isActive ?? r.store.is_active ?? true,
+            published: r.store.published ?? true,
+            currency: r.store.currency ?? 'TRY',
+            theme: r.store.theme ?? null,
+            homepage: r.store.homepage ?? null,
+            domains: r.store.domains ?? [],
+          } as any
         : null,
       plan: r.plan || null,
       subscription: r.subscription || null,
@@ -862,11 +870,94 @@ class ApiClient {
   }
 
   getMarketplaceIntegrations() {
-    return this.get<{ integrations: any[] }>('/api/admin/integrations').then(r => r.integrations || [])
+    const MARKETPLACE_LABELS: Record<string,string> = { trendyol:'Trendyol', hepsiburada:'Hepsiburada', pazarama:'Pazarama', n11:'N11', amazon:'Amazon', etsy:'Etsy' }
+    const MARKETPLACE_FIELDS: Record<string, Record<string,string>> = {
+      trendyol: { supplierId: 'Tedarikçi ID', apiKey: 'API Anahtarı', apiSecret: 'API Secret', cariId: 'Cari ID (opsiyonel)', integrationRefCode: 'Entegrasyon Referans Kodu', token: 'Token (opsiyonel)' },
+      hepsiburada: { username: 'Kullanıcı Adı', password: 'Şifre', merchantId: 'Mağaza ID' },
+      pazarama: { clientId: 'Client ID', clientSecret: 'Client Secret', apiKey: 'API Anahtar' },
+      n11: { appKey: 'App Key', appSecret: 'App Secret' },
+      amazon: { refreshToken: 'Refresh Token', sellerId: 'Satıcı ID', marketplaceId: 'Marketplace ID', awsAccessKey: 'AWS Access Key', awsSecretKey: 'AWS Secret Key', lwaClientId: 'LWA Client ID', lwaClientSecret: 'LWA Client Secret' },
+      etsy: { clientId: 'Client ID', clientSecret: 'Client Secret' },
+    }
+    const map = (i:any) => ({ ...i, is_active: i.isActive ?? i.is_active, label: MARKETPLACE_LABELS[i.marketplace] ?? i.marketplace, fields: MARKETPLACE_FIELDS[i.marketplace] ?? {} })
+    // Pazaryerleri altında sadece gerçek pazaryerleri, facebook/instagram marketing altında
+    const PAZARYERLERI = ['trendyol','hepsiburada','pazarama','n11','amazon','etsy']
+    return this.get<{ integrations: any[] }>('/api/admin/integrations').then(r => (r.integrations || []).filter((x:any) => PAZARYERLERI.includes(x.marketplace)).map(map))
+  }
+
+  getIntegration(marketplace: string) {
+    const MARKETPLACE_LABELS: Record<string,string> = { trendyol:'Trendyol', hepsiburada:'Hepsiburada', pazarama:'Pazarama', n11:'N11', amazon:'Amazon', etsy:'Etsy' }
+    const MARKETPLACE_FIELDS: Record<string, Record<string,string>> = {
+      trendyol: { supplierId: 'Tedarikçi ID', apiKey: 'API Anahtarı', apiSecret: 'API Secret', cariId: 'Cari ID (opsiyonel)', integrationRefCode: 'Entegrasyon Referans Kodu', token: 'Token (opsiyonel)' },
+      hepsiburada: { username: 'Kullanıcı Adı', password: 'Şifre', merchantId: 'Mağaza ID' },
+      pazarama: { clientId: 'Client ID', clientSecret: 'Client Secret', apiKey: 'API Anahtar' },
+      n11: { appKey: 'App Key', appSecret: 'App Secret' },
+      amazon: { refreshToken: 'Refresh Token', sellerId: 'Satıcı ID', marketplaceId: 'Marketplace ID', awsAccessKey: 'AWS Access Key', awsSecretKey: 'AWS Secret Key', lwaClientId: 'LWA Client ID', lwaClientSecret: 'LWA Client Secret' },
+      etsy: { clientId: 'Client ID', clientSecret: 'Client Secret' },
+    }
+    const map = (i:any) => ({ ...i, is_active: i.isActive ?? i.is_active, label: MARKETPLACE_LABELS[i.marketplace] ?? i.marketplace, fields: MARKETPLACE_FIELDS[i.marketplace] ?? {} })
+    return this.get<any>(`/api/admin/integrations/${marketplace}`).then(r => map(r.integration ?? r))
+  }
+
+  updateIntegration(marketplace: string, data: { isActive?: boolean; config?: Record<string, any> }) {
+    const MARKETPLACE_LABELS: Record<string,string> = { trendyol:'Trendyol', hepsiburada:'Hepsiburada', pazarama:'Pazarama', n11:'N11', amazon:'Amazon', etsy:'Etsy' }
+    const MARKETPLACE_FIELDS: Record<string, Record<string,string>> = {
+      trendyol: { supplierId: 'Tedarikçi ID', apiKey: 'API Anahtarı', apiSecret: 'API Secret', cariId: 'Cari ID (opsiyonel)', integrationRefCode: 'Entegrasyon Referans Kodu', token: 'Token (opsiyonel)' },
+      hepsiburada: { username: 'Kullanıcı Adı', password: 'Şifre', merchantId: 'Mağaza ID' },
+      pazarama: { clientId: 'Client ID', clientSecret: 'Client Secret', apiKey: 'API Anahtar' },
+      n11: { appKey: 'App Key', appSecret: 'App Secret' },
+      amazon: { refreshToken: 'Refresh Token', sellerId: 'Satıcı ID', marketplaceId: 'Marketplace ID', awsAccessKey: 'AWS Access Key', awsSecretKey: 'AWS Secret Key', lwaClientId: 'LWA Client ID', lwaClientSecret: 'LWA Client Secret' },
+      etsy: { clientId: 'Client ID', clientSecret: 'Client Secret' },
+    }
+    const map = (i:any) => ({ ...i, is_active: i.isActive ?? i.is_active, label: MARKETPLACE_LABELS[i.marketplace] ?? i.marketplace, fields: MARKETPLACE_FIELDS[i.marketplace] ?? {} })
+    return this.put<any>(`/api/admin/integrations/${marketplace}`, data).then(r => map(r.integration ?? r))
+  }
+
+  deleteIntegration(marketplace: string) {
+    return this.delete<{ success: boolean }>(`/api/admin/integrations/${marketplace}`)
+  }
+
+  getMarketplaceCategories(marketplace: string) {
+    return this.get<{ categories: any[] }>(`/api/admin/integrations/${marketplace}/categories`)
+  }
+
+  syncBrands(marketplace: string) {
+    return this.post<{ imported: number; message?: string }>(`/api/admin/integrations/${marketplace}/sync-brands`)
+  }
+
+  importIntegrationProducts(marketplace: string, maxPages = 20) {
+    return this.post<{ jobId: string }>(`/api/admin/integrations/${marketplace}/import`, { maxPages })
   }
 
   getMarketplaceCategoryAttributes(marketplace: string, categoryId: string | number) {
     return this.get<{ attributes: any[] }>(`/api/admin/integrations/${marketplace}/categories/${categoryId}/attributes`)
+  }
+
+  // OAuth for Amazon/Etsy
+  getAmazonOAuthUrl() {
+    return this.get<{ url: string }>(`/api/admin/integrations/amazon/oauth/connect`)
+  }
+  getEtsyOAuthUrl() {
+    return this.get<{ url: string }>(`/api/admin/integrations/etsy/oauth/connect`)
+  }
+
+  // Site domains
+  getSiteDomains() {
+    return this.get<{ domains: any[]; cloudflare?: any }>(`/api/admin/site/domains`)
+  }
+  addSiteDomain(domain: string) {
+    return this.post<{ domains: any[] }>(`/api/admin/site/domains`, { domain })
+  }
+  verifySiteDomain(domain: string) {
+    return this.post<{ domains: any[]; verified: boolean; method?: string }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/verify`)
+  }
+  removeSiteDomain(domain: string) {
+    return this.delete<{ domains: any[] }>(`/api/admin/site/domains/${encodeURIComponent(domain)}`)
+  }
+
+  // Themes catalog (simple - fetch from core or use local)
+  getThemes() {
+    return this.get<{ themes: any[] }>(`/api/admin/themes`).catch(() => ({ themes: [] }))
   }
 
   // AI product studio channel selections (marketplace category/brand/attributes)
@@ -916,7 +1007,7 @@ class ApiClient {
     return this.delete<void>(`/api/admin/api-keys/${id}`)
   }
 
-  // Settings
+  // Settings — full store details (siteUrl, theme, homepage, domains, etc.)
   async getSettings() {
     const r = await this.get<any>('/api/admin/me')
     const s = r.store || {}
@@ -924,20 +1015,46 @@ class ApiClient {
       id: s.id,
       name: s.name,
       site_code: s.siteCode ?? s.site_code,
+      siteCode: s.siteCode ?? s.site_code,
       domain: s.domain ?? null,
+      siteUrl: s.siteUrl ?? null,
       email: s.email ?? null,
       is_active: s.isActive ?? s.is_active ?? true,
-    } as Store
+      isActive: s.isActive ?? s.is_active ?? true,
+      published: s.published ?? true,
+      currency: s.currency ?? 'TRY',
+      theme: s.theme ?? null,
+      homepage: s.homepage ?? null,
+      domains: s.domains ?? [],
+      taxSettings: s.taxSettings ?? null,
+      shippingSettings: s.shippingSettings ?? null,
+      plan: r.store?.plan ?? null,
+    } as any
   }
 
-  async updateSettings(data: Partial<Store>) {
+  async checkSiteCode(code: string) {
+    return this.get<{ available: boolean }>('/api/admin/me/check-site-code', { params: { code } })
+  }
+
+  async updateSettings(data: Partial<Store> & Record<string, any>) {
     const payload: Record<string, any> = {}
     if (data.name) payload.name = data.name
-    if (data.domain) payload.domain = data.domain
+    if (data.domain !== undefined) payload.domain = data.domain
+    if ((data as any).siteUrl !== undefined) payload.siteUrl = (data as any).siteUrl
     if (data.email) payload.email = data.email
     if (data.site_code) payload.siteCode = data.site_code
+    if ((data as any).siteCode) payload.siteCode = (data as any).siteCode
+    if ((data as any).currency) payload.currency = (data as any).currency
+    if ((data as any).theme !== undefined) payload.theme = (data as any).theme
+    if ((data as any).homepage !== undefined) payload.homepage = (data as any).homepage
+    if ((data as any).taxSettings !== undefined) payload.taxSettings = (data as any).taxSettings
+    if ((data as any).shippingSettings !== undefined) payload.shippingSettings = (data as any).shippingSettings
     await this.put<any>('/api/admin/me', payload)
     return this.getSettings()
+  }
+
+  async getSitePublishStatus() {
+    return this.get<any>('/api/admin/site/publish/status').catch(() => null)
   }
 
   // AI
@@ -1037,6 +1154,10 @@ class ApiClient {
 
   purchaseCredits(credits: number) {
     return this.post<{ url: string }>('/api/admin/subscription/purchase-credits', { credits })
+  }
+
+  getCreditPacks() {
+    return this.get<{ packs: { credits: number; price: number; popular?: boolean; label?: string }[] }>('/api/admin/subscription/credit-packs').then(r => r.packs || [])
   }
 
   // B2B product settings
@@ -1267,6 +1388,75 @@ class ApiClient {
 
   deleteMySupplierRating(id: number) {
     return this.delete<any>(`/api/admin/supplier/ratings/${id}`)
+  }
+
+  // Meta / Marketing (Facebook / Instagram)
+  getMetaConnectUrl(mode: 'minimal' | 'full' = 'minimal') {
+    return this.get<{ url: string; redirectUri?: string }>(`/api/admin/integrations/facebook/oauth/connect`, { params: { scopes: mode } })
+  }
+  getMetaOAuthConfig() {
+    return this.get<{ redirectUri: string; appIdConfigured: boolean; appSecretConfigured: boolean }>(`/api/admin/integrations/facebook/oauth/config`)
+  }
+  getMetaAssets() {
+    return this.get<{ pages: any[]; catalogs: any[]; instagram: any[]; selected: any }>(`/api/admin/integrations/facebook/assets`)
+  }
+  selectMetaAssets(data: { pageId: string; catalogId: string; igUserId?: string | null }) {
+    return this.post<{ ok: boolean }>(`/api/admin/integrations/facebook/assets`, data)
+  }
+  fbeCallback(data: Record<string, any>) {
+    return this.post<{ ok: boolean }>(`/api/admin/integrations/facebook/fbe/callback`, data)
+  }
+  getMetaPixels() {
+    return this.get<{ pixels: any[]; selected: string | null }>(`/api/admin/integrations/facebook/pixels`)
+  }
+  getMetaDomain() {
+    return this.get<{ domain: string; verificationToken: string | null; businessId: string | null }>(`/api/admin/integrations/facebook/domain`)
+  }
+  getInstagramShoppingStatus() {
+    return this.get<{ connected: boolean; eligible: boolean | null }>(`/api/admin/integrations/facebook/instagram-shopping-status`)
+  }
+  metaPublish(data: { productIds?: number[]; productId?: number; channels?: string[]; channel?: string; caption?: string }) {
+    return this.post<{ ok: boolean; results: any[] }>(`/api/admin/integrations/meta/publish`, data)
+  }
+  getMetaIgComments(mediaId?: string) {
+    const params: Record<string, string> = {}
+    if (mediaId) params.mediaId = mediaId
+    return this.get<{ comments: any[] }>(`/api/admin/integrations/facebook/ig/comments`, { params })
+  }
+  replyMetaIgComment(commentId: string, message: string) {
+    return this.post<{ ok: boolean }>(`/api/admin/integrations/facebook/ig/comments/${commentId}/reply`, { message })
+  }
+  deleteMetaIgComment(commentId: string) {
+    return this.delete<{ ok: boolean }>(`/api/admin/integrations/facebook/ig/comments/${commentId}`)
+  }
+  getMetaIgMessages() {
+    return this.get<{ conversations: any[] }>(`/api/admin/integrations/facebook/ig/messages`)
+  }
+  getMetaIgConversation(id: string) {
+    return this.get<{ conversation: any }>(`/api/admin/integrations/facebook/ig/messages/${id}`)
+  }
+  sendMetaIgMessage(conversationId: string, message: string) {
+    return this.post<{ ok: boolean }>(`/api/admin/integrations/facebook/ig/messages/${conversationId}/send`, { message })
+  }
+  getMetaAds() {
+    return this.get<{ ads: any[] }>(`/api/admin/integrations/facebook/ads`)
+  }
+  getMetaAdInsights(adId: string) {
+    return this.get<{ insights: any[] }>(`/api/admin/integrations/facebook/ads/${adId}/insights`)
+  }
+  getMetaPageInsights() {
+    return this.get<{ insights: any; posts: any[] }>(`/api/admin/integrations/facebook/page/insights`)
+  }
+  getMetaIgAccount() {
+    return this.get<{ account: any; accounts: any[] }>(`/api/admin/integrations/facebook/ig/account`)
+  }
+  // Product helper for marketing
+  async getProductsForMarketing(search?: string, limit = 24) {
+    const params: Record<string, string> = {}
+    if (search) params.search = search
+    if (limit) params.limit = String(limit)
+    const r = await this.get<{ products: any[]; pagination: any }>('/api/admin/products', { params })
+    return r.products || []
   }
 
   // Store Frontend

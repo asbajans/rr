@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Modal, Pressable, Image } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Modal, Pressable, Image, Linking, Alert } from 'react-native'
 import { useAuth } from '../../src/shared/auth'
 import { useI18n, LOCALES } from '../../src/shared/i18n'
 import { api } from '../../src/shared/api-client'
@@ -77,6 +77,57 @@ export default function DashboardScreen() {
         <Text style={styles.langHint}>{t('selectLanguage')}: {LOCALES.find((l) => l.code === locale)?.label}</Text>
       </TouchableOpacity>
 
+      {(data?.store as any)?.site_code && data?.store && (
+        <View style={styles.websiteCard}>
+          <View style={styles.websiteHeader}>
+            <Ionicons name="globe-outline" size={18} color="#2563eb" />
+            <Text style={styles.websiteTitle}>{t('websiteTitle')}</Text>
+            {(data?.store as any).published === false && <Text style={styles.websiteBadgeOff}>{t('draft')}</Text>}
+            {(data?.store as any).published !== false && <Text style={styles.websiteBadgeOn}>{t('published')}</Text>}
+          </View>
+          {(() => {
+            const s: any = data!.store
+            const primaryUrl = s.domain ? `https://${s.domain}` : s.siteUrl || `https://rahatio.com.tr/stores/${s.site_code}`
+            const rahatioUrl = `https://rahatio.com.tr/stores/${s.site_code}`
+            return (
+              <>
+                <TouchableOpacity style={styles.urlRow} onPress={() => Linking.openURL(primaryUrl)}>
+                  <Ionicons name="link-outline" size={16} color="#2563eb" />
+                  <Text style={styles.urlText} numberOfLines={1}>{primaryUrl}</Text>
+                  <Ionicons name="open-outline" size={14} color="#2563eb" />
+                </TouchableOpacity>
+                {s.domain && rahatioUrl !== primaryUrl && (
+                  <TouchableOpacity style={styles.urlRowSecondary} onPress={() => Linking.openURL(rahatioUrl)}>
+                    <Ionicons name="storefront-outline" size={14} color="#999" />
+                    <Text style={styles.urlTextSecondary} numberOfLines={1}>{rahatioUrl}</Text>
+                  </TouchableOpacity>
+                )}
+                <View style={styles.urlActions}>
+                  <TouchableOpacity style={styles.urlActionBtn} onPress={() => Alert.alert(t('copyLink'), primaryUrl)}>
+                    <Ionicons name="copy-outline" size={14} color="#666" />
+                    <Text style={styles.urlActionText}>{t('viewSite')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.urlActionBtn, { backgroundColor: '#2563eb' }]} onPress={() => Linking.openURL(primaryUrl)}>
+                    <Ionicons name="eye-outline" size={14} color="#fff" />
+                    <Text style={[styles.urlActionText, { color: '#fff' }]}>{t('openSite')}</Text>
+                  </TouchableOpacity>
+                </View>
+                {Array.isArray((s as any).domains) && (s as any).domains.length > 0 && (
+                  <View style={styles.domainsWrap}>
+                    {((s as any).domains as any[]).slice(0, 3).map((d: any, i: number) => (
+                      <View key={i} style={styles.domainChip}>
+                        <Text style={styles.domainChipText}>{d.domain}</Text>
+                        <View style={[styles.domainDot, d.verified ? { backgroundColor: '#10b981' } : { backgroundColor: '#f59e0b' }]} />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )
+          })()}
+        </View>
+      )}
+
       {quota && (quota.product.severity !== 'ok' || quota.credits.severity !== 'ok') && (
         <View style={styles.quotaBox}>
           {quota.product.severity !== 'ok' && (
@@ -84,9 +135,9 @@ export default function DashboardScreen() {
               <Ionicons name={quota.product.severity === 'exhausted' ? 'alert-circle' : 'warning-outline'} size={18} color={quota.product.severity === 'exhausted' ? '#dc2626' : '#d97706'} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.quotaTitle, quota.product.severity === 'exhausted' ? { color: '#dc2626' } : { color: '#92400e' }]}>
-                  {quota.product.severity === 'exhausted' ? 'Ürün limitiniz doldu' : quota.product.severity === 'critical' ? 'Ürün limitiniz dolmak üzere' : 'Ürün limitine yaklaşıyorsunuz'}
+                  {quota.product.severity === 'exhausted' ? t('quotaProductExhaustedTitle') : quota.product.severity === 'critical' ? t('quotaProductCriticalTitle') : t('quotaProductWarningTitle')}
                 </Text>
-                <Text style={styles.quotaBody}>{quota.product.current}/{quota.product.limit} (%{quota.product.percentUsed} dolu){quota.product.severity === 'exhausted' ? ' — Yeni ürün ekleyemezsiniz. Neden: plan kotası doldu.' : ' — Yakında ekleme engellenecek.'}</Text>
+                <Text style={styles.quotaBody}>{quota.product.current}/{quota.product.limit} (%{quota.product.percentUsed} dolu){quota.product.severity === 'exhausted' ? ` — ${t('quotaProductExhaustedDesc')}` : ` — ${t('quotaProductWarningDesc')}`}</Text>
               </View>
             </View>
           )}
@@ -95,16 +146,16 @@ export default function DashboardScreen() {
               <Ionicons name="sparkles-outline" size={18} color={quota.credits.severity === 'exhausted' ? '#dc2626' : '#d97706'} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.quotaTitle, quota.credits.severity === 'exhausted' ? { color: '#dc2626' } : { color: '#92400e' }]}>
-                  {quota.credits.severity === 'exhausted' ? 'AI krediniz bitti' : quota.credits.severity === 'critical' ? 'AI krediniz kritik' : 'AI krediniz azalıyor'}
+                  {quota.credits.severity === 'exhausted' ? t('quotaCreditsExhaustedTitle') : quota.credits.severity === 'critical' ? t('quotaCreditsCriticalTitle') : t('quotaCreditsWarningTitle')}
                 </Text>
-                <Text style={styles.quotaBody}>{quota.credits.remaining}/{quota.credits.allowance} kalan (%{quota.credits.percentRemaining} kalan){quota.credits.severity === 'exhausted' ? ' — AI durdu. Kredi alın veya üst pakete geçin.' : ''}</Text>
+                <Text style={styles.quotaBody}>{quota.credits.remaining}/{quota.credits.allowance} kalan (%{quota.credits.percentRemaining} kalan){quota.credits.severity === 'exhausted' ? ` — ${t('quotaCreditsExhaustedDesc')}` : ''}</Text>
               </View>
             </View>
           )}
           <TouchableOpacity style={styles.quotaCta} onPress={() => router.push('/(tabs)/settings')}>
-            <Text style={styles.quotaCtaText}>{quota.product.severity === 'exhausted' ? 'Planı Yükselt' : quota.credits.severity === 'exhausted' ? 'Kredi Al / Planı Yükselt' : 'Planı Gör'} →</Text>
+            <Text style={styles.quotaCtaText}>{quota.product.severity === 'exhausted' ? t('quotaUpgradePlan') : quota.credits.severity === 'exhausted' ? t('quotaBuyCredits') : t('quotaViewPlan')} →</Text>
           </TouchableOpacity>
-          {quota.nextPlan && <Text style={styles.quotaHint}>Öneri: {quota.nextPlan.name} — {quota.nextPlan.productLimit} ürün / {quota.nextPlan.aiCredits} kredi · {quota.nextPlan.price} ₺/ay</Text>}
+          {quota.nextPlan && <Text style={styles.quotaHint}>{t('quotaSuggestion')}: {quota.nextPlan.name} — {quota.nextPlan.productLimit} {t('products')} / {quota.nextPlan.aiCredits} {t('aiCredits')} · {quota.nextPlan.price} ₺/{t('perMonth').replace('/','')}</Text>}
         </View>
       )}
 
@@ -124,7 +175,7 @@ export default function DashboardScreen() {
 
       <TouchableOpacity style={styles.aiButton} onPress={() => router.push('/(tabs)/ai')}>
         <Ionicons name="sparkles" size={20} color="#fff" />
-        <Text style={styles.aiButtonText}>AI ile Ürün Ekle</Text>
+        <Text style={styles.aiButtonText}>{t('addProduct')}</Text>
         <Ionicons name="arrow-forward" size={18} color="#fff" />
       </TouchableOpacity>
 
@@ -139,7 +190,7 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.orderStatusCard}>
-        <Text style={styles.orderStatusTitle}>Siparişler — Durum Dağılımı</Text>
+        <Text style={styles.orderStatusTitle}>{t('orderStatusTitle')}</Text>
         <View style={styles.orderStatusGrid}>
           {orderStatuses.map((s) => (
             <TouchableOpacity key={s.key} style={[styles.orderStatusItem, { backgroundColor: s.bg }]} onPress={() => router.push(`/(tabs)/orders?status=${s.key}`)}>
@@ -149,7 +200,7 @@ export default function DashboardScreen() {
           ))}
         </View>
         <TouchableOpacity style={styles.viewOrdersBtn} onPress={() => router.push('/(tabs)/orders')}>
-          <Text style={styles.viewOrdersText}>Tüm Siparişleri Gör →</Text>
+          <Text style={styles.viewOrdersText}>{t('viewAllOrders')} →</Text>
         </TouchableOpacity>
       </View>
 
@@ -195,6 +246,22 @@ const styles = StyleSheet.create({
   storeName: { fontSize: 18, fontWeight: '600', marginTop: 4 },
   storeCode: { fontSize: 14, color: '#666', marginTop: 2 },
   langHint: { fontSize: 13, color: '#059669', marginTop: 8, fontWeight: '600' },
+  websiteCard: { backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#dbeafe' },
+  websiteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  websiteTitle: { fontSize: 14, fontWeight: '700', color: '#1e40af' },
+  websiteBadgeOn: { fontSize: 11, fontWeight: '700', color: '#059669', backgroundColor: '#ecfdf5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
+  websiteBadgeOff: { fontSize: 11, fontWeight: '700', color: '#dc2626', backgroundColor: '#fef2f2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
+  urlRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, marginTop: 6 },
+  urlRowSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f9fafb', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, marginTop: 6, borderWidth: 1, borderColor: '#e5e7eb' },
+  urlText: { fontSize: 12, color: '#2563eb', flex: 1, fontWeight: '600' },
+  urlTextSecondary: { fontSize: 11, color: '#6b7280', flex: 1 },
+  urlActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  urlActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#f3f4f6', paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+  urlActionText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  domainsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  domainChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb' },
+  domainChipText: { fontSize: 11, fontWeight: '600', color: '#374151' },
+  domainDot: { width: 7, height: 7, borderRadius: 4 },
   planCard: {
     backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 12,
     padding: 16, marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

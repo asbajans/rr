@@ -3,7 +3,7 @@
     "name": "Rahatio",
     "slug": "rahatio",
     "version": "1.0.2",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "rahatio",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -30,7 +30,9 @@
       },
       "permissions": [
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "pan"
     },
     "plugins": [
       "expo-router",
@@ -46,6 +48,20 @@
         "expo-notifications",
         {
           "sounds": ["./assets/sounds/coin.wav"]
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class expo.modules.** { *; }\n-keep class com.facebook.** { *; }\n-dontwarn expo.modules.**",
+            "usesCleartextTraffic": false
+          },
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
         }
       ]
     ],
