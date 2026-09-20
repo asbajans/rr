@@ -568,18 +568,15 @@ export const createApp = async (): Promise<Express> => {
     logger.warn({ err: e }, 'AI defaults seed failed');
   }
 
-  // Seed default categories (idempotent)
+  // Remove built-in default "Oto Yedek Parça" if it exists — user wants no default, each store adds its own
   try {
     const { Category } = await import('./models/Category.model.js');
-    const defaultCategories = [
-      { name: { tr: 'Oto Yedek Parça', en: 'Auto Spare Parts' }, slug: 'oto-yedek-parca', sortOrder: 0 },
-    ];
-    for (const cat of defaultCategories) {
-      await Category.findOrCreate({
-        where: { storeId: null, slug: cat.slug } as any,
-        defaults: { ...cat, isActive: true } as any,
-      });
-    }
+    await Category.destroy({ where: { storeId: null, slug: 'oto-yedek-parca' } as any });
+    // Also clean up legacy built-in if slug differs but name matches
+    await Category.destroy({ where: { storeId: null, isActive: true } as any });
+    // Ensure no store has it as default
+    const { Store: S2 } = await import('./models/Store.model.js');
+    await S2.update({ defaultAiCategoryId: null } as any, { where: { defaultAiCategoryId: { [require('sequelize').Op.not]: null } } as any });
   } catch (e) {
     // Ignore if categories table not ready
   }
