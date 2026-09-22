@@ -83,8 +83,8 @@ function DomainManager() {
                     {d.method && <span className="rounded bg-white px-1.5 py-0.5 text-xs text-zinc-500">{d.method}</span>}
                   </div>
                   {d.lastCheckedAt && <p className="mt-1 text-xs text-zinc-500">Son kontrol: {new Date(d.lastCheckedAt).toLocaleString('tr-TR')}</p>}
-                  {!d.verified && (d as any).cloudflare && (
-                    <p className="mt-1 text-xs text-zinc-600">Hedef: <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">{(d as any).cloudflare?.cnameTarget || cf?.cnameTarget}</code> → CNAME ekleyin</p>
+                  {!d.verified && (
+                    <p className="mt-1 text-xs text-zinc-600">NS: <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">lily.ns.cloudflare.com</code> , <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">ricardo.ns.cloudflare.com</code> → NS değiştirin</p>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -262,8 +262,8 @@ function PublishMethods({ isVercelPlan, vercelHostingName }: { isVercelPlan: boo
       {tab === 'rahatio' && (
         <div className="mt-6 space-y-4">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            <p className="font-medium">Rahatio ile yayınlayın — en kolay yöntem</p>
-            <p className="mt-1 text-xs text-emerald-700">Domaininizi ekleyin, DNS’te tek bir CNAME oluşturun ve doğrulayın. SSL ve yönlendirme otomatik.</p>
+            <p className="font-medium">Rahatio ile yayınlayın — NS ile en kolay</p>
+            <p className="mt-1 text-xs text-emerald-700">Domaininizi ekleyin, NS’i Cloudflare’e yönlendirin ve doğrulayın. Kök ve www birlikte çalışır.</p>
           </div>
           <DomainManager />
         </div>

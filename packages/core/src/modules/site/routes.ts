@@ -32,6 +32,7 @@ import {
   updateDnsRecordForZone,
   deleteDnsRecordForZone,
   getZoneDetails,
+  ensureTunnelHostname,
 } from './cloudflare.js';
 
 export const siteRoutes: Router = Router();
@@ -236,36 +237,58 @@ siteRoutes.post('/domains', authMiddleware, requireRole('owner', 'admin'), requi
   // Legacy single domain sync for backward compat
   if (!(store as any).domain) await store.update({ domain } as any);
 
-  // Cloudflare SaaS: try to create custom hostname + ensure tunnel fallback (best-effort, don't fail the request)
+  // Cloudflare NS: zone oluştur ve DNS'i hazırla (best-effort)
   const hosting = await storeHosting(store);
   if (hosting !== 'vercel' && isCloudflareConfigured()) {
     try {
       await ensureFallbackIngress().catch(() => {});
-      let ch: any = null;
-      try { ch = await getCustomHostname(domain); } catch {}
-      if (!ch) {
-        try { ch = await createCustomHostname(domain, { method: 'http' }); } catch (e: any) {
-          logger.warn({ err: e, domain }, 'createCustomHostname failed — frontend will show CNAME guide');
+      let zone: any = null;
+      try { zone = await getZoneByName(domain); } catch {}
+      if (!zone) {
+        try { zone = await createZone(domain); } catch (e: any) {
+          logger.warn({ err: e, domain }, 'createZone failed — frontend will show NS guide');
         }
       }
-      if (ch) {
-        entry.method = 'cloudflare';
-        entry.cloudflareId = ch.id;
-        // update stored entry with cloudflare id
+      if (zone) {
+        // Apex ve www için gerekli kayıtları oluştur (proxied)
+        const cnameTarget = getCloudflarePublicConfig().cnameTarget;
+        try {
+          const existing = await listDnsRecordsForZone(zone.id).catch(() => []);
+          const hasWww = existing.some((r: any) => String(r.name).toLowerCase() === `www.${domain}`.toLowerCase() && r.type === 'CNAME');
+          const hasApex = existing.some((r: any) => String(r.name).toLowerCase() === domain.toLowerCase() && r.type === 'CNAME');
+          if (!hasWww) await createDnsRecordForZone(zone.id, { type: 'CNAME', name: `www.${domain}`, content: cnameTarget, proxied: true, ttl: 1, comment: 'Rahatio storefront' }).catch(() => {});
+          if (!hasApex) await createDnsRecordForZone(zone.id, { type: 'CNAME', name: domain, content: cnameTarget, proxied: true, ttl: 1, comment: 'Rahatio storefront apex' }).catch(() => {});
+        } catch {}
+        // Tunnel ingress for both
+        try { await ensureTunnelHostname(`www.${domain}`, getCloudflarePublicConfig().originService).catch(() => {}); } catch {}
+        try { await ensureTunnelHostname(domain, getCloudflarePublicConfig().originService).catch(() => {}); } catch {}
+        entry.method = 'cloudflare_ns';
+        entry.zoneId = zone.id;
+        entry.zoneStatus = zone.status;
+        entry.nameServers = zone.name_servers;
         const idx = next.findIndex((d: any) => d.domain === domain);
         if (idx >= 0) {
-          next[idx] = { ...next[idx], method: 'cloudflare', cloudflareId: ch.id, lastCheckedAt: new Date().toISOString() } as any;
+          next[idx] = { ...next[idx], method: 'cloudflare_ns', zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, lastCheckedAt: new Date().toISOString() } as any;
           await store.update({ domains: next as any });
         }
       }
     } catch (e: any) {
-      logger.warn({ err: e, domain }, 'Cloudflare post-domain hook failed');
+      logger.warn({ err: e, domain }, 'Cloudflare NS post-domain hook failed');
     }
   }
 
   const cf = getCloudflarePublicConfig();
-  const enriched = { ...entry, cloudflare: isCloudflareConfigured() ? { cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, hint: `DNS'te CNAME oluştur: ${domain} -> ${cf.cnameTarget}` } : undefined };
-  res.json({ domains: next, domain, entry: enriched, cloudflare: cf });
+  const zoneForHint = await getZoneByName(domain).catch(() => null);
+  const enriched: any = { ...entry };
+  if (isCloudflareConfigured()) {
+    if (zoneForHint) {
+      enriched.cloudflare = { zoneId: zoneForHint.id, zoneStatus: zoneForHint.status, nameServers: zoneForHint.name_servers, cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin };
+      enriched.zoneId = zoneForHint.id;
+    } else {
+      enriched.cloudflare = { cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, nameServers: ['lily.ns.cloudflare.com', 'ricardo.ns.cloudflare.com'], hint: `NS değiştir: ${domain} -> lily.ns.cloudflare.com / ricardo.ns.cloudflare.com` };
+    }
+  }
+  res.json({ domains: next, domain, entry: enriched, cloudflare: cf, zone: zoneForHint });
 });
 
 siteRoutes.delete('/domains/:domain', authMiddleware, requireRole('owner', 'admin'), requireStore, async (req: Request, res: Response) => {
@@ -337,34 +360,54 @@ siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 
     } catch (e:any) { detail = { error: e.message }; }
   }
 
-  // Cloudflare SaaS verification — primary for rahatio hosting when configured
+  // Cloudflare NS verification — primary for rahatio hosting when configured
   if (!verified && isCloudflareConfigured() && hosting !== 'vercel') {
     try {
-      const st = await getCustomHostnameStatus(domain);
-      if (st.found) {
-        if (st.status === 'active') {
+      let zone: any = null;
+      try { zone = await getZoneByName(domain); } catch {}
+      if (!zone) {
+        try { zone = await createZone(domain); } catch (e: any) { detail = { error: e.message }; }
+        if (zone) {
+          const cnameTarget = getCloudflarePublicConfig().cnameTarget;
+          try {
+            const existing = await listDnsRecordsForZone(zone.id).catch(() => [] as any[]);
+            const hasWww = existing.some((r: any) => String(r.name).toLowerCase() === `www.${domain}`.toLowerCase() && r.type === 'CNAME');
+            const hasApex = existing.some((r: any) => String(r.name).toLowerCase() === domain.toLowerCase() && r.type === 'CNAME');
+            if (!hasWww) await createDnsRecordForZone(zone.id, { type: 'CNAME', name: `www.${domain}`, content: cnameTarget, proxied: true, ttl: 1, comment: 'Rahatio storefront' }).catch(() => {});
+            if (!hasApex) await createDnsRecordForZone(zone.id, { type: 'CNAME', name: domain, content: cnameTarget, proxied: true, ttl: 1, comment: 'Rahatio storefront apex' }).catch(() => {});
+          } catch {}
+          try { await ensureTunnelHostname(`www.${domain}`, getCloudflarePublicConfig().originService).catch(() => {}); } catch {}
+          try { await ensureTunnelHostname(domain, getCloudflarePublicConfig().originService).catch(() => {}); } catch {}
+        }
+      }
+      if (zone) {
+        let ns: string[] = [];
+        try { const resolved = await dns.resolveNs(domain); ns = resolved.map((s: string) => s.toLowerCase()); } catch {}
+        const expected = ['lily.ns.cloudflare.com', 'ricardo.ns.cloudflare.com'];
+        const pointsToCf = expected.every((e) => ns.includes(e));
+        const zoneActive = String(zone.status).toLowerCase() === 'active';
+        if (pointsToCf && zoneActive) {
           verified = true;
-          method = 'cloudflare';
-          detail = st;
+          method = 'cloudflare_ns';
+          detail = { zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, ns, verified: true };
         } else {
-          // pending — enrich with CNAME check so frontend can show guide
-          let cnames: string[] = [];
-          try { cnames = await dns.resolveCname(domain).catch(() => [] as string[]); } catch {}
-          if (!cnames.length) { try { const a = await dns.resolve(domain).catch(()=>[]); if (a.length) cnames = a; } catch {} }
-          const target = getCloudflarePublicConfig().cnameTarget.toLowerCase();
-          const pointsToTarget = cnames.some((c) => c.toLowerCase() === target || c.toLowerCase().endsWith('.' + target));
-          detail = { ...st, cnames, pointsToTarget, hint: `DNS'te CNAME oluştur: ${domain} -> ${target}`, cnameTarget: target, fallbackOrigin: getCloudflarePublicConfig().fallbackOrigin };
-          // also allow health fallback if CNAME already points but Cloudflare hasn't yet marked active — don't auto-verify yet
+          detail = { zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, ns, pointsToCf, zoneActive, hint: `NS değiştir: ${domain} -> lily.ns.cloudflare.com / ricardo.ns.cloudflare.com`, expected };
+          method = 'cloudflare_ns';
+        }
+        const dIdx = domains.findIndex((d: any) => d.domain === domain);
+        if (dIdx !== -1) {
+          domains[dIdx] = { ...domains[dIdx], zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, lastCheckedAt: new Date().toISOString(), verified, method: verified ? 'cloudflare_ns' : domains[dIdx].method } as any;
+          await store.update({ domains: domains as any });
+          if (verified) await store.update({ domain } as any);
+        } else if (isLegacyPrimary) {
+          // will be handled below
         }
       } else {
-        // lazy create on verify if missing (customer added domain before SaaS was enabled)
+        // Fallback to previous SaaS check if zone not created (e.g., token lacks zone create)
         try {
-          const ch = await createCustomHostname(domain, { method: 'http' });
-          detail = { created: true, hostname: ch.hostname, status: ch.status, hint: `DNS'te CNAME oluştur: ${domain} -> ${getCloudflarePublicConfig().cnameTarget}` };
-          method = 'cloudflare';
-        } catch (e: any) {
-          detail = detail || { error: e.message };
-        }
+          const st = await getCustomHostnameStatus(domain);
+          if (st.found && st.status === 'active') { verified = true; method = 'cloudflare'; detail = st; }
+        } catch {}
       }
     } catch (e: any) {
       if (!detail) detail = { error: e.message };

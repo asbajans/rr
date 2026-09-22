@@ -31,6 +31,7 @@ export function getCloudflarePublicConfig() {
     zoneId,
     zoneName,
     tunnelId: cfConfig().tunnelId,
+    originService: cfConfig().originService,
   };
 }
 
