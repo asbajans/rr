@@ -100,6 +100,76 @@ function DomainManagerMobile() {
     } catch (e: any) { Alert.alert(t('error'), e.message) }
   }
 
+function NsGuideMobile({ domain }: { domain?: string }) {
+  const apexHint = domain?.replace(/^www\./, '') || 'magazaniz.com'
+  const ns1 = 'lily.ns.cloudflare.com'
+  const ns2 = 'ricardo.ns.cloudflare.com'
+  return (
+    <View style={{ marginTop: 12, backgroundColor: '#f8fafc', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', padding: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#2563eb', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="globe-outline" size={18} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>Kendi domaininizi nasıl bağlarsınız?</Text>
+          <Text style={{ fontSize: 11, color: '#475569', marginTop: 4, lineHeight: 16 }}>
+            Mağazanızı <Text style={{ fontWeight: '700', color: '#0f172a' }}>{apexHint}</Text> gibi kendi alan adınızda yayınlamak için NS kayıtlarını Cloudflare’e yönlendirin. Sonra tüm DNS’i panelden yönetebilirsiniz.
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', padding: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>1</Text></View>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#0f172a' }}>Panelden domain ekle</Text>
+        </View>
+        <Text style={{ fontSize: 11, color: '#475569', marginTop: 6, lineHeight: 15 }}>Yukarıdaki kutuya <Text style={{ fontFamily: 'monospace', backgroundColor: '#f1f5f9', paddingHorizontal: 4 }}>{apexHint}</Text> yaz → Ekle.</Text>
+      </View>
+
+      <View style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', padding: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>2</Text></View>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#0f172a' }}>Domain sağlayıcınızda NS değiştir</Text>
+        </View>
+        <Text style={{ fontSize: 11, color: '#475569', marginTop: 6, lineHeight: 15 }}>Domaini aldığınız yer (Natro, GoDaddy, İsimtescil, vb.) → NS / Nameserver yönetimi → aşağıdaki NS’leri girin:</Text>
+        <View style={{ marginTop: 8, backgroundColor: '#f8fafc', borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' }}>
+          <View style={{ flexDirection: 'row', backgroundColor: '#f1f5f9', paddingVertical: 6, paddingHorizontal: 8 }}>
+            <Text style={{ flex: 0.3, fontSize: 10, fontWeight: '700', color: '#64748b' }}>Tür</Text>
+            <Text style={{ flex: 1, fontSize: 10, fontWeight: '700', color: '#64748b' }}>Değer</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+            <Text style={{ flex: 0.3, fontSize: 11, fontFamily: 'monospace', fontWeight: '600' }}>NS</Text>
+            <Text style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: '#0f172a' }}>{ns1}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+            <Text style={{ flex: 0.3, fontSize: 11, fontFamily: 'monospace', fontWeight: '600' }}>NS</Text>
+            <Text style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: '#0f172a' }}>{ns2}</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, backgroundColor: '#f8fafc', borderRadius: 6, padding: 7 }}>
+          <Ionicons name="information-circle-outline" size={14} color="#64748b" style={{ marginTop: 1 }} />
+          <Text style={{ flex: 1, fontSize: 10, color: '#475569', lineHeight: 14 }}>Eski NS’leri silip bu ikisini ekleyin. Değişiklik sonrası DNS yayılması genelde 5-30 dk, en fazla 24 saat sürer. Bu sürede siteniz eski NS üzerinden çalışmaya devam eder.</Text>
+        </View>
+      </View>
+
+      <View style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', padding: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>3</Text></View>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#0f172a' }}>Doğrulayın</Text>
+        </View>
+        <Text style={{ fontSize: 11, color: '#475569', marginTop: 6, lineHeight: 15 }}>
+          NS değişikliğinden sonra listedeki <Text style={{ fontWeight: '700' }}>Doğrula</Text> butonuna basın. Doğrulandıktan sonra <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>https://{apexHint}</Text> ve <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>https://www.{apexHint}</Text> doğrudan mağazanızı açar. Sonra mail ve diğer kayıtları <Text style={{ fontWeight: '700' }}>DNS Yönetimi</Text>’nden ekleyebilirsiniz.
+        </Text>
+      </View>
+
+      <TouchableOpacity onPress={() => Linking.openURL(`https://dnschecker.org/#NS/${apexHint}`)} style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={{ fontSize: 11, color: '#2563eb' }}>dnschecker.org ile kontrol et</Text>
+        <Ionicons name="open-outline" size={12} color="#2563eb" />
+      </TouchableOpacity>
+    </View>
+  )
+}
+
   if (loading) return <View style={{ padding: 12 }}><ActivityIndicator /></View>
   return (
     <View style={[styles.section, { marginTop: 16 }]}>
@@ -185,11 +255,12 @@ function DomainManagerMobile() {
               )}
             </View>
           )}
-        </View>
-      ))}
-    </View>
-  )
-}
+          </View>
+        ))}
+        <NsGuideMobile domain={domains[0]?.domain || (input.trim() ? input.trim().toLowerCase().replace(/^www\./,'') : undefined)} />
+      </View>
+    )
+  }
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth()
