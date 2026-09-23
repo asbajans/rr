@@ -36,7 +36,6 @@ export default function SettingsScreen() {
   const [expandedMp, setExpandedMp] = useState<string | null>(null)
   const [mpDetails, setMpDetails] = useState<Record<string, any>>({})
   const [mpSaving, setMpSaving] = useState<string | null>(null)
-  const [redirectTab, setRedirectTab] = useState<'cname' | 'ns'>('cname')
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null)
   const [themeSaving, setThemeSaving] = useState(false)
 
@@ -238,33 +237,14 @@ export default function SettingsScreen() {
 
         <View style={[styles.guideBox, { marginTop: 16 }]}>
           <Text style={styles.guideTitle}>{t('redirectGuide')}</Text>
-          <View style={styles.tabRow}>
-            <TouchableOpacity style={[styles.tab, redirectTab === 'cname' && styles.tabActive]} onPress={() => setRedirectTab('cname')}><Text style={[styles.tabText, redirectTab === 'cname' && styles.tabTextActive]}>{t('cnameTab')}</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.tab, redirectTab === 'ns' && styles.tabActive]} onPress={() => setRedirectTab('ns')}><Text style={[styles.tabText, redirectTab === 'ns' && styles.tabTextActive]}>{t('nsTab')}</Text></TouchableOpacity>
+          <Text style={styles.guideStep}>1. {t('nsStep1') || 'Domain sağlayıcınızda NS değiştirin'}</Text>
+          <View style={styles.table}>
+            <View style={styles.tableRowHeader}><Text style={styles.tableCellHeader}>Tür</Text><Text style={styles.tableCellHeader}>Değer</Text></View>
+            <View style={styles.tableRow}><Text style={styles.tableCell}>NS</Text><Text style={styles.tableCellSmall}>lily.ns.cloudflare.com</Text></View>
+            <View style={styles.tableRow}><Text style={styles.tableCell}>NS</Text><Text style={styles.tableCellSmall}>ricardo.ns.cloudflare.com</Text></View>
           </View>
-          {redirectTab === 'cname' ? (
-            <View style={styles.guideContent}>
-              <Text style={styles.guideStep}>{t('cnameStep1')}</Text>
-              <Text style={styles.guideStep}>{t('cnameStep2')}</Text>
-              <View style={styles.table}>
-                <View style={styles.tableRowHeader}><Text style={styles.tableCellHeader}>Tür</Text><Text style={styles.tableCellHeader}>Host</Text><Text style={styles.tableCellHeader}>Değer</Text></View>
-                <View style={styles.tableRow}><Text style={styles.tableCell}>CNAME</Text><Text style={styles.tableCell}>www</Text><Text style={styles.tableCellSmall}>customers.rahatio.com.tr</Text></View>
-                <View style={styles.tableRow}><Text style={styles.tableCell}>CNAME</Text><Text style={styles.tableCell}>@</Text><Text style={styles.tableCellSmall}>customers.rahatio.com.tr</Text></View>
-              </View>
-              <Text style={styles.guideHint}>{t('cnameHint')}</Text>
-            </View>
-          ) : (
-            <View style={styles.guideContent}>
-              <Text style={styles.guideStep}>{t('nsStep1')}</Text>
-              <View style={styles.table}>
-                <View style={styles.tableRowHeader}><Text style={styles.tableCellHeader}>Tür</Text><Text style={styles.tableCellHeader}>Değer</Text></View>
-                <View style={styles.tableRow}><Text style={styles.tableCell}>NS</Text><Text style={styles.tableCellSmall}>ns1.rahatio.com.tr</Text></View>
-                <View style={styles.tableRow}><Text style={styles.tableCell}>NS</Text><Text style={styles.tableCellSmall}>ns2.rahatio.com.tr</Text></View>
-              </View>
-              <Text style={styles.guideHint}>{t('nsHint')}</Text>
-            </View>
-          )}
-          <Text style={styles.guideStep}>{t('verifyStep')}</Text>
+          <Text style={styles.guideHint}>{t('nsHint') || 'Eski NSleri silip bu ikisini ekleyin. Yayılma 5-30 dk.'}</Text>
+          <Text style={[styles.guideStep, { marginTop: 8 }]}>2. {t('verifyStep')}</Text>
         </View>
       </View>
 
