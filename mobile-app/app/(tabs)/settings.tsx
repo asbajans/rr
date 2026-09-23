@@ -20,6 +20,152 @@ const MP_LABELS: Record<string, string> = {
   n11: 'N11', amazon: 'Amazon', etsy: 'Etsy', facebook: 'Facebook', instagram: 'Instagram',
 }
 
+function DomainManagerMobile() {
+  const { t } = useI18n()
+  const [domains, setDomains] = useState<any[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [verifying, setVerifying] = useState<string | null>(null)
+  const [dnsOpen, setDnsOpen] = useState<string | null>(null)
+  const [dnsRecords, setDnsRecords] = useState<Record<string, any[]>>({})
+  const [dnsLoading, setDnsLoading] = useState<string | null>(null)
+  const [newDns, setNewDns] = useState<Record<string, { type: string; name: string; content: string }>>({})
+
+  const load = async () => {
+    try {
+      const r: any = await api.getSiteDomains()
+      setDomains(r.domains || [])
+    } catch {}
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  const handleAdd = async () => {
+    const d = input.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/^www\./, '')
+    if (!d) return
+    if (domains.length >= 5) { Alert.alert(t('error'), 'En fazla 5 domain'); return }
+    setAdding(true)
+    try {
+      const r: any = await api.addSiteDomain(d)
+      setDomains(r.domains || [])
+      setInput('')
+      Alert.alert(t('success'), 'Domain eklendi — NS’i değiştirip doğrulayın')
+    } catch (e: any) { Alert.alert(t('error'), e.message) }
+    finally { setAdding(false) }
+  }
+  const handleVerify = async (domain: string) => {
+    setVerifying(domain)
+    try {
+      const r: any = await api.verifySiteDomain(domain)
+      setDomains(r.domains || [])
+      Alert.alert(r.verified ? t('success') : t('error'), r.verified ? `${domain} doğrulandı` : `${domain} doğrulanamadı — NS’i kontrol edin`)
+    } catch (e: any) { Alert.alert(t('error'), e.message) }
+    finally { setVerifying(null) }
+  }
+  const handleDelete = async (domain: string) => {
+    Alert.alert(t('delete'), `${domain} silinsin mi?`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: async () => {
+        try { const r: any = await api.removeSiteDomain(domain); setDomains(r.domains || []) } catch (e: any) { Alert.alert(t('error'), e.message) }
+      }},
+    ])
+  }
+  const toggleDns = async (domain: string) => {
+    if (dnsOpen === domain) { setDnsOpen(null); return }
+    setDnsOpen(domain)
+    setDnsLoading(domain)
+    try {
+      const r: any = await api.listDomainDns(domain)
+      setDnsRecords(prev => ({ ...prev, [domain]: r.records || [] }))
+    } catch (e: any) {
+      if (String(e.message).includes('NO_ZONE')) {
+        try {
+          const z: any = await api.createDomainZone(domain)
+          Alert.alert(t('success'), `Zone oluşturuldu — NS: ${z.nameServers?.join(', ')}`)
+          const r2: any = await api.listDomainDns(domain)
+          setDnsRecords(prev => ({ ...prev, [domain]: r2.records || [] }))
+        } catch (err: any) { Alert.alert(t('error'), err.message) }
+      } else Alert.alert(t('error'), e.message)
+    } finally { setDnsLoading(null) }
+  }
+  const handleCreateDns = async (domain: string) => {
+    const f = newDns[domain] || { type: 'A', name: '', content: '' }
+    if (!f.name.trim() || !f.content.trim()) { Alert.alert(t('error'), t('required')); return }
+    try {
+      await api.createDomainDns(domain, { type: f.type, name: f.name.trim(), content: f.content.trim() })
+      const r: any = await api.listDomainDns(domain)
+      setDnsRecords(prev => ({ ...prev, [domain]: r.records || [] }))
+      setNewDns(prev => ({ ...prev, [domain]: { type: 'A', name: '', content: '' } }))
+    } catch (e: any) { Alert.alert(t('error'), e.message) }
+  }
+
+  if (loading) return <View style={{ padding: 12 }}><ActivityIndicator /></View>
+  return (
+    <View style={[styles.guideBox, { marginTop: 12 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <Ionicons name="globe-outline" size={16} color="#000" />
+        <Text style={styles.guideTitle}>Domainler (max 5)</Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={input} onChangeText={setInput} placeholder="ornek.com.tr" autoCapitalize="none" placeholderTextColor="#999" />
+        <TouchableOpacity style={[styles.saveBtn, { paddingHorizontal: 14, marginTop: 0 }]} onPress={handleAdd} disabled={adding || !input.trim()}>
+          {adding ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Ekle</Text>}
+        </TouchableOpacity>
+      </View>
+      {domains.length === 0 ? <Text style={[styles.meta, { marginTop: 8 }]}>Henüz domain yok</Text> : domains.map((d: any) => (
+        <View key={d.domain} style={{ marginTop: 10, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: d.verified ? '#bbf7d0' : '#fde68a', padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontFamily: 'monospace', fontWeight: '700', flex: 1 }} numberOfLines={1}>{d.domain}</Text>
+            <View style={{ backgroundColor: d.verified ? '#dcfce7' : '#fef3c7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: d.verified ? '#15803d' : '#92400e' }}>{d.verified ? 'Doğrulandı' : 'Bekliyor'}</Text>
+            </View>
+          </View>
+          {d.zoneId && <Text style={styles.meta}>Zone: {String(d.zoneId).slice(0, 8)}... {d.zoneStatus || ''}</Text>}
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: d.verified ? '#fff' : '#111', borderWidth: 1, borderColor: d.verified ? '#ddd' : '#111', flex: 1 }]} onPress={() => handleVerify(d.domain)} disabled={verifying === d.domain}>
+              {verifying === d.domain ? <ActivityIndicator size="small" /> : <Text style={[styles.saveBtnText, { color: d.verified ? '#111' : '#fff' }]}>{d.verified ? 'Tekrar Doğrula' : 'Doğrula'}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', flex: 1 }]} onPress={() => handleDelete(d.domain)}>
+              <Text style={[styles.saveBtnText, { color: '#dc2626' }]}>Sil</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => toggleDns(d.domain)}>
+            <Ionicons name="settings-outline" size={14} color="#2563eb" />
+            <Text style={{ fontSize: 12, color: '#2563eb', fontWeight: '600' }}>{dnsOpen === d.domain ? 'DNS Kapat' : 'DNS Yönetimi'}</Text>
+          </TouchableOpacity>
+          {dnsOpen === d.domain && (
+            <View style={{ marginTop: 8 }}>
+              {dnsLoading === d.domain ? <ActivityIndicator size="small" /> : (
+                <>
+                  <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6 }}>
+                    <TextInput style={[styles.input, { flex: 0.6, marginBottom: 0, paddingVertical: 6 }]} value={(newDns[d.domain]?.type) || 'A'} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), type: v.toUpperCase() } }))} placeholder="A" autoCapitalize="characters" />
+                    <TextInput style={[styles.input, { flex: 1, marginBottom: 0, paddingVertical: 6 }]} value={newDns[d.domain]?.name || ''} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), name: v } }))} placeholder="@" />
+                    <TextInput style={[styles.input, { flex: 1.5, marginBottom: 0, paddingVertical: 6 }]} value={newDns[d.domain]?.content || ''} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), content: v } }))} placeholder="1.2.3.4" />
+                  </View>
+                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#111', paddingVertical: 8 }]} onPress={() => handleCreateDns(d.domain)}>
+                    <Text style={styles.saveBtnText}>Ekle</Text>
+                  </TouchableOpacity>
+                  {(dnsRecords[d.domain] || []).length === 0 ? <Text style={[styles.meta, { marginTop: 6 }]}>Kayıt yok</Text> : (dnsRecords[d.domain] || []).map((r: any) => (
+                    <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: '#f9fafb', padding: 6, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', width: 36 }}>{r.type}</Text>
+                      <Text style={{ fontSize: 10, flex: 1 }} numberOfLines={1}>{r.name}</Text>
+                      <Text style={{ fontSize: 10, flex: 1.2 }} numberOfLines={1}>{r.content}</Text>
+                      <TouchableOpacity onPress={async () => { try { await api.deleteDomainDns(d.domain, r.id); const nr: any = await api.listDomainDns(d.domain); setDnsRecords(prev => ({ ...prev, [d.domain]: nr.records || [] })) } catch (e: any) { Alert.alert(t('error'), e.message) } }}>
+                        <Ionicons name="trash-outline" size={14} color="#dc2626" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
+        </View>
+      ))}
+    </View>
+  )
+}
+
 export default function SettingsScreen() {
   const { user, logout } = useAuth()
   const { t } = useI18n()
@@ -247,6 +393,8 @@ export default function SettingsScreen() {
           <Text style={[styles.guideStep, { marginTop: 8 }]}>2. {t('verifyStep')}</Text>
         </View>
       </View>
+
+      <DomainManagerMobile />
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}><Ionicons name="color-palette-outline" size={20} color="#ec4899" /><Text style={styles.sectionTitle}>{t('design')}</Text></View>

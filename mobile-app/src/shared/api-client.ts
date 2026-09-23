@@ -943,16 +943,31 @@ class ApiClient {
 
   // Site domains
   getSiteDomains() {
-    return this.get<{ domains: any[]; cloudflare?: any }>(`/api/admin/site/domains`)
+    return this.get<{ domains: any[]; cloudflare?: any; max?: number; primary?: string | null }>(`/api/admin/site/domains`)
   }
   addSiteDomain(domain: string) {
-    return this.post<{ domains: any[] }>(`/api/admin/site/domains`, { domain })
+    return this.post<{ domains: any[]; domain: string; entry?: any; cloudflare?: any; zone?: any }>(`/api/admin/site/domains`, { domain })
   }
   verifySiteDomain(domain: string) {
-    return this.post<{ domains: any[]; verified: boolean; method?: string }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/verify`)
+    return this.post<{ domains: any[]; verified: boolean; method?: string; detail?: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/verify`)
   }
   removeSiteDomain(domain: string) {
     return this.delete<{ domains: any[] }>(`/api/admin/site/domains/${encodeURIComponent(domain)}`)
+  }
+  getDomainZone(domain: string) {
+    return this.get<{ domain: string; zoneId: string | null; zoneStatus: string; nameServers: string[] | null; zone?: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/zone`)
+  }
+  createDomainZone(domain: string) {
+    return this.post<{ domain: string; zoneId: string; zoneStatus: string; nameServers: string[]; zone: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/zone`)
+  }
+  listDomainDns(domain: string) {
+    return this.get<{ domain: string; zoneId: string; records: Array<{ id: string; type: string; name: string; content: string; ttl: number; proxied: boolean; priority?: number }> }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns`)
+  }
+  createDomainDns(domain: string, data: { type: string; name: string; content: string; ttl?: number; proxied?: boolean; priority?: number }) {
+    return this.post<{ record: any }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns`, data)
+  }
+  deleteDomainDns(domain: string, recordId: string) {
+    return this.delete<{ ok: boolean }>(`/api/admin/site/domains/${encodeURIComponent(domain)}/dns/${encodeURIComponent(recordId)}`)
   }
 
   // Themes catalog (simple - fetch from core or use local)
