@@ -1,22 +1,25 @@
 export type PixelConfig = Record<string, any>
 
+export type PixelScript = { id: string; html?: string; src?: string; strategy: 'afterInteractive' | 'beforeInteractive' | 'lazyOnload' }
+
 // Shared renderer for both storefront (PixelInjector) and SaaS landing (SaasPixelInjector).
 // Covers GA4, GTM, Google Ads, Meta (FB), TikTok, plus custom head/body.
-export function renderPixelScripts(pixels: PixelConfig): { id: string; html: string; strategy: 'afterInteractive' | 'beforeInteractive' }[] {
-  const scripts: { id: string; html: string; strategy: 'afterInteractive' | 'beforeInteractive' }[] = []
+export function renderPixelScripts(pixels: PixelConfig): PixelScript[] {
+  const scripts: PixelScript[] = []
 
   if (pixels.google_analytics?.enabled && pixels.google_analytics.measurement_id) {
     const id = String(pixels.google_analytics.measurement_id).trim()
     if (id) {
+      // Correct GA4 pattern: external gtag/js + inline config (dataLayer queue)
       scripts.push({
-        id: 'ga-script',
-        html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${id}');`,
+        id: 'ga-src',
+        src: `https://www.googletagmanager.com/gtag/js?id=${id}`,
         strategy: 'afterInteractive',
       })
       scripts.push({
-        id: 'ga-loader',
-        html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtag/js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${id}');`,
-        strategy: 'beforeInteractive',
+        id: 'ga-config',
+        html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${id}');`,
+        strategy: 'afterInteractive',
       })
     }
   }
@@ -27,29 +30,24 @@ export function renderPixelScripts(pixels: PixelConfig): { id: string; html: str
       scripts.push({
         id: 'gtm-script',
         html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${id}');`,
-        strategy: 'beforeInteractive',
-      })
-      scripts.push({
-        id: 'gtm-noscript',
-        html: `<iframe src="https://www.googletagmanager.com/ns.html?id=${id}" height="0" width="0" style="display:none;visibility:hidden"></iframe>`,
         strategy: 'afterInteractive',
       })
+      // gtm noscript is an HTML iframe, not a Script — handled via <noscript> in the injector if needed; skip here
     }
   }
 
   if (pixels.google_ads?.enabled && pixels.google_ads.conversion_id) {
     const id = String(pixels.google_ads.conversion_id).trim()
     if (id) {
-      // Reuse same dataLayer/gtag bootstrap as GA4 if not already added; safe to duplicate config.
       scripts.push({
-        id: 'gads-script',
-        html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${id}');`,
+        id: 'gads-src',
+        src: `https://www.googletagmanager.com/gtag/js?id=${id}`,
         strategy: 'afterInteractive',
       })
       scripts.push({
-        id: 'gads-loader',
-        html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtag/js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${id}');`,
-        strategy: 'beforeInteractive',
+        id: 'gads-config',
+        html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${id}');`,
+        strategy: 'afterInteractive',
       })
     }
   }

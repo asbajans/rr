@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import Script from 'next/script'
 import { API_BASE } from '@/lib/api-client'
-import { renderPixelScripts } from '@/lib/pixel-render'
+import { renderPixelScripts, type PixelScript } from '@/lib/pixel-render'
 
 export function SaasPixelInjector() {
-  const [scripts, setScripts] = useState<{ id: string; html: string; strategy: 'afterInteractive' | 'beforeInteractive' }[]>([])
+  const [scripts, setScripts] = useState<PixelScript[]>([])
 
   useEffect(() => {
     fetch(`${API_BASE}/api/analytics/platform/pixels`)
@@ -30,9 +30,13 @@ export function SaasPixelInjector() {
 
   return (
     <>
-      {scripts.map((s) => (
-        <Script key={s.id} id={`saas-${s.id}`} strategy={s.strategy} dangerouslySetInnerHTML={{ __html: s.html }} />
-      ))}
+      {scripts.map((s) =>
+        s.src ? (
+          <Script key={s.id} id={`saas-${s.id}`} src={s.src} strategy={s.strategy} />
+        ) : (
+          <Script key={s.id} id={`saas-${s.id}`} strategy={s.strategy} dangerouslySetInnerHTML={{ __html: s.html! }} />
+        )
+      )}
     </>
   )
 }

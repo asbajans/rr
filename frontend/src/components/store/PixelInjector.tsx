@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import Script from 'next/script'
 import { api } from '@/lib/api-client'
-import { renderPixelScripts } from '@/lib/pixel-render'
+import { renderPixelScripts, type PixelScript } from '@/lib/pixel-render'
 
 export default function PixelInjector({ siteCode }: { siteCode: string }) {
-  const [scripts, setScripts] = useState<{ id: string; html: string; strategy: 'afterInteractive' | 'beforeInteractive' }[]>([])
+  const [scripts, setScripts] = useState<PixelScript[]>([])
 
   useEffect(() => {
     if (!siteCode) return
@@ -29,9 +29,13 @@ export default function PixelInjector({ siteCode }: { siteCode: string }) {
 
   return (
     <>
-      {scripts.map((s) => (
-        <Script key={s.id} id={s.id} strategy={s.strategy} dangerouslySetInnerHTML={{ __html: s.html }} />
-      ))}
+      {scripts.map((s) =>
+        s.src ? (
+          <Script key={s.id} id={s.id} src={s.src} strategy={s.strategy} />
+        ) : (
+          <Script key={s.id} id={s.id} strategy={s.strategy} dangerouslySetInnerHTML={{ __html: s.html! }} />
+        )
+      )}
     </>
   )
 }
