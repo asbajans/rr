@@ -27,10 +27,11 @@ function CopyBtn({ value, label }: { value: string; label?: string }) {
   )
 }
 
-export default function DomainSetupGuide({ cloudflare, domain, compact }: Props) {
+export default function DomainSetupGuide({ cloudflare, domain, compact, nameServers }: Props & { nameServers?: string[] }) {
   const apexHint = domain?.replace(/^www\./, '') || 'magazaniz.com'
-  const ns1 = 'lily.ns.cloudflare.com'
-  const ns2 = 'ricardo.ns.cloudflare.com'
+  // Per-zone NS are unique — use the zone's actual name_servers, not hardcoded lily/ricardo
+  const rawNs: string[] = (nameServers as string[] | undefined) || (cloudflare as any)?.nameServers || []
+  const nsList = rawNs.length >= 2 ? rawNs.slice(0, 2) : null
   return (
     <div className={`rounded-xl border ${compact ? 'border-zinc-200 bg-zinc-50' : 'border-indigo-200 bg-indigo-50/40'} p-5`}>
       <div className="flex items-start gap-3">
@@ -62,23 +63,24 @@ export default function DomainSetupGuide({ cloudflare, domain, compact }: Props)
               <p className="mt-2 text-xs text-zinc-600">Domaini aldığınız yer (Natro, GoDaddy, İsimtescil, vb.) → NS / Nameserver yönetimi → aşağıdaki NS’leri girin:</p>
 
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[460px] text-left text-xs">
-                  <thead className="text-zinc-500">
-                    <tr><th className="py-1.5 pr-3 font-medium">Tür</th><th className="py-1.5 pr-3 font-medium">Değer</th><th /></tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    <tr>
-                      <td className="py-2 font-mono">NS</td>
-                      <td className="py-2 font-mono break-all">{ns1}</td>
-                      <td className="py-2"><CopyBtn value={ns1} /></td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 font-mono">NS</td>
-                      <td className="py-2 font-mono break-all">{ns2}</td>
-                      <td className="py-2"><CopyBtn value={ns2} /></td>
-                    </tr>
-                  </tbody>
-                </table>
+                {nsList ? (
+                  <table className="w-full min-w-[460px] text-left text-xs">
+                    <thead className="text-zinc-500">
+                      <tr><th className="py-1.5 pr-3 font-medium">Tür</th><th className="py-1.5 pr-3 font-medium">Değer</th><th /></tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100">
+                      {nsList.map((ns) => (
+                        <tr key={ns}>
+                          <td className="py-2 font-mono">NS</td>
+                          <td className="py-2 font-mono break-all">{ns}</td>
+                          <td className="py-2"><CopyBtn value={ns} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-xs text-zinc-500">Domain ekledikten sonra panel, o domaine özel NS adreslerini gösterecek — registrar’da eski NS’leri silip bunları ekleyin.</p>
+                )}
               </div>
 
               <div className="mt-3 flex gap-2 rounded-lg bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-600">

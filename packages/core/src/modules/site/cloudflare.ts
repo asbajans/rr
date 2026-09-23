@@ -254,6 +254,10 @@ export async function getZoneDetails(zoneId: string): Promise<any> {
   return json.result;
 }
 
+export async function deleteZone(zoneId: string): Promise<void> {
+  await cfFetch(`/zones/${zoneId}`, { method: 'DELETE' });
+}
+
 // ── Custom Hostnames (for SaaS) ───────────────────────────────────
 // POST /zones/{zone_id}/custom_hostnames  {hostname, ssl:{method, type}, custom_origin_server?}
 

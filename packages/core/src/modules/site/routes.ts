@@ -32,7 +32,9 @@ import {
   updateDnsRecordForZone,
   deleteDnsRecordForZone,
   getZoneDetails,
+  deleteZone,
   ensureTunnelHostname,
+  removeTunnelHostname,
 } from './cloudflare.js';
 
 export const siteRoutes: Router = Router();
@@ -179,9 +181,18 @@ siteRoutes.get('/domains', authMiddleware, requireRole('owner', 'admin'), requir
   const domains = getStoreDomains(store);
   const cf = getCloudflarePublicConfig();
   // Enrich unverified domains with SaaS instructions if Cloudflare configured
-  const enriched = await Promise.all(domains.map(async (d) => {
+  const enriched = await Promise.all(domains.map(async (d: any) => {
     if (d.verified || !isCloudflareConfigured()) return d;
     try {
+      // Full zone (NS) workflow — show actual per-zone NS, not hardcoded
+      if (d.zoneId) {
+        try {
+          const zone = await getZoneDetails(d.zoneId).catch(() => null) || await getZoneByName(d.domain).catch(() => null);
+          if (zone && Array.isArray(zone.name_servers) && zone.name_servers.length) {
+            return { ...d, cloudflare: { zoneId: zone.id, status: zone.status, nameServers: zone.name_servers, cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, hint: `NS değiştir: ${d.domain} -> ${zone.name_servers.join(' / ')}` } } as any;
+          }
+        } catch {}
+      }
       const st = await getCustomHostnameStatus(d.domain).catch(() => null);
       if (st?.found && st.verification) {
         return { ...d, cloudflare: { status: st.status, sslStatus: st.sslStatus, verification: st.verification, cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin } } as any;
@@ -285,7 +296,8 @@ siteRoutes.post('/domains', authMiddleware, requireRole('owner', 'admin'), requi
       enriched.cloudflare = { zoneId: zoneForHint.id, zoneStatus: zoneForHint.status, nameServers: zoneForHint.name_servers, cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin };
       enriched.zoneId = zoneForHint.id;
     } else {
-      enriched.cloudflare = { cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, nameServers: ['lily.ns.cloudflare.com', 'ricardo.ns.cloudflare.com'], hint: `NS değiştir: ${domain} -> lily.ns.cloudflare.com / ricardo.ns.cloudflare.com` };
+      const nsHint = Array.isArray((entry as any).nameServers) && (entry as any).nameServers.length ? ((entry as any).nameServers as string[]).join(' / ') : null;
+      enriched.cloudflare = { cnameTarget: cf.cnameTarget, fallbackOrigin: cf.fallbackOrigin, nameServers: (entry as any).nameServers || null, hint: nsHint ? `NS değiştir: ${domain} -> ${nsHint}` : `NS değiştir: ${domain} -> Cloudflare NS'lerine yönlendirin` };
     }
   }
   res.json({ domains: next, domain, entry: enriched, cloudflare: cf, zone: zoneForHint });
@@ -295,26 +307,40 @@ siteRoutes.delete('/domains/:domain', authMiddleware, requireRole('owner', 'admi
   const store = (req as any).store;
   const raw = String(req.params.domain || '').toLowerCase();
   const domain = normalizeDomainInput(raw);
-  let domains = getStoreDomains(store);
+  const beforeDomains = getStoreDomains(store);
+  const removedEntry: any = beforeDomains.find((d: any) => d.domain === domain) || null;
+  let domains = beforeDomains;
   const before = domains.length;
   domains = domains.filter(d => d.domain !== domain);
   if (domains.length === before) {
-    // Also check legacy primary
     if ((store as any).domain === domain) {
       await store.update({ domain: null as any, domains } as any);
-      // best-effort cloudflare cleanup
-      if (isCloudflareConfigured()) { try { await deleteCustomHostname(domain); } catch {} }
+      if (isCloudflareConfigured()) {
+        for (const h of [domain, `www.${domain}`]) {
+          try { await deleteCustomHostname(h); } catch {}
+          try { await removeTunnelHostname(h); } catch {}
+        }
+        const zid = (removedEntry as any)?.zoneId || (removedEntry as any)?.zone_id;
+        if (zid) { try { await deleteZone(zid); } catch (e: any) { logger.warn({ err: e, domain, zid }, 'deleteZone failed'); } }
+      }
       return res.json({ domains });
     }
     return res.status(404).json({ error: 'Domain bulunamadı' });
   }
   await store.update({ domains: domains as any });
   if ((store as any).domain === domain) {
-    const nextPrimary = domains.find(d=>d.verified)?.domain || domains[0]?.domain || null;
+    const nextPrimary = domains.find((d: any) => d.verified)?.domain || domains[0]?.domain || null;
     await store.update({ domain: nextPrimary as any } as any);
   }
   if (isCloudflareConfigured()) {
-    try { await deleteCustomHostname(domain); } catch (e: any) { logger.warn({ err: e, domain }, 'deleteCustomHostname failed'); }
+    for (const h of [domain, `www.${domain}`]) {
+      try { await deleteCustomHostname(h); } catch (e: any) { logger.warn({ err: e, domain: h }, 'deleteCustomHostname failed'); }
+      try { await removeTunnelHostname(h); } catch (e: any) { logger.warn({ err: e, domain: h }, 'removeTunnelHostname failed'); }
+    }
+    const zid = removedEntry?.zoneId || (removedEntry as any)?.zone_id;
+    if (zid) {
+      try { await deleteZone(zid); logger.info(`Cloudflare zone ${zid} deleted for ${domain}`); } catch (e: any) { logger.warn({ err: e, domain, zid }, 'deleteZone failed'); }
+    }
   }
   res.json({ domains });
 });
@@ -383,15 +409,16 @@ siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 
       if (zone) {
         let ns: string[] = [];
         try { const resolved = await dns.resolveNs(domain); ns = resolved.map((s: string) => s.toLowerCase()); } catch {}
-        const expected = ['lily.ns.cloudflare.com', 'ricardo.ns.cloudflare.com'];
-        const pointsToCf = expected.every((e) => ns.includes(e));
+        const expected: string[] = Array.isArray(zone.name_servers) ? (zone.name_servers as string[]).map((s: string) => s.toLowerCase()) : [];
+        const pointsToCf = expected.length > 0 && expected.every((e) => ns.includes(e));
         const zoneActive = String(zone.status).toLowerCase() === 'active';
         if (pointsToCf && zoneActive) {
           verified = true;
           method = 'cloudflare_ns';
           detail = { zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, ns, verified: true };
         } else {
-          detail = { zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, ns, pointsToCf, zoneActive, hint: `NS değiştir: ${domain} -> lily.ns.cloudflare.com / ricardo.ns.cloudflare.com`, expected };
+          const hint = expected.length ? `NS değiştir: ${domain} -> ${expected.join(' / ')}` : `NS değiştir: ${domain} -> Cloudflare NS'lerine yönlendirin`;
+          detail = { zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, ns, pointsToCf, zoneActive, hint, expected };
           method = 'cloudflare_ns';
         }
         const dIdx = domains.findIndex((d: any) => d.domain === domain);

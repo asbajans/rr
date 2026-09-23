@@ -97,7 +97,7 @@ function DomainManager() {
               </div>
               {!d.verified && (
                 <div className="mt-3">
-                  <DomainSetupGuide cloudflare={cf} domain={d.domain} compact />
+                  <DomainSetupGuide cloudflare={cf} domain={d.domain} nameServers={(d as any).nameServers || (d as any).cloudflare?.nameServers} compact />
                 </div>
               )}
               <div className="mt-3 flex items-center gap-2">

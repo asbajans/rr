@@ -100,10 +100,9 @@ function DomainManagerMobile() {
     } catch (e: any) { Alert.alert(t('error'), e.message) }
   }
 
-function NsGuideMobile({ domain }: { domain?: string }) {
+function NsGuideMobile({ domain, nameServers }: { domain?: string; nameServers?: string[] }) {
   const apexHint = domain?.replace(/^www\./, '') || 'magazaniz.com'
-  const ns1 = 'lily.ns.cloudflare.com'
-  const ns2 = 'ricardo.ns.cloudflare.com'
+  const nsList = nameServers && nameServers.length >= 2 ? nameServers.slice(0, 2) : null
   return (
     <View style={{ marginTop: 12, backgroundColor: '#f8fafc', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', padding: 12 }}>
       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
@@ -137,14 +136,16 @@ function NsGuideMobile({ domain }: { domain?: string }) {
             <Text style={{ flex: 0.3, fontSize: 10, fontWeight: '700', color: '#64748b' }}>Tür</Text>
             <Text style={{ flex: 1, fontSize: 10, fontWeight: '700', color: '#64748b' }}>Değer</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
-            <Text style={{ flex: 0.3, fontSize: 11, fontFamily: 'monospace', fontWeight: '600' }}>NS</Text>
-            <Text style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: '#0f172a' }}>{ns1}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
-            <Text style={{ flex: 0.3, fontSize: 11, fontFamily: 'monospace', fontWeight: '600' }}>NS</Text>
-            <Text style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: '#0f172a' }}>{ns2}</Text>
-          </View>
+          {nsList ? nsList.map(ns => (
+            <View key={ns} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+              <Text style={{ flex: 0.3, fontSize: 11, fontFamily: 'monospace', fontWeight: '600' }}>NS</Text>
+              <Text style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: '#0f172a' }}>{ns}</Text>
+            </View>
+          )) : (
+            <View style={{ padding: 8 }}>
+              <Text style={{ fontSize: 11, color: '#64748b' }}>Domain ekledikten sonra panel size özel NS adreslerini gösterecek — o adresleri registrar’a ekleyin.</Text>
+            </View>
+          )}
         </View>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, backgroundColor: '#f8fafc', borderRadius: 6, padding: 7 }}>
           <Ionicons name="information-circle-outline" size={14} color="#64748b" style={{ marginTop: 1 }} />
@@ -213,7 +214,7 @@ function NsGuideMobile({ domain }: { domain?: string }) {
           {d.zoneId && <Text style={[styles.meta, { fontSize: 10 }]}>Zone: {String(d.zoneId).slice(0, 8)}... {d.zoneStatus || ''}</Text>}
           {!d.verified && (
             <View style={{ marginTop: 6, backgroundColor: '#fffbeb', borderRadius: 6, padding: 6, borderWidth: 1, borderColor: '#fde68a' }}>
-              <Text style={{ fontSize: 10, color: '#92400e' }}>NS: <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>lily.ns.cloudflare.com</Text> , <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>ricardo.ns.cloudflare.com</Text> → NS değiştirin</Text>
+              <Text style={{ fontSize: 10, color: '#92400e' }}>NS: <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>{(() => { const ns = (d as any).nameServers || (d as any).cloudflare?.nameServers; return Array.isArray(ns) && ns.length ? ns.join(' , ') : 'lily.ns.cloudflare.com , ricardo.ns.cloudflare.com'; })()}</Text> → NS değiştirin</Text>
             </View>
           )}
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
@@ -257,7 +258,7 @@ function NsGuideMobile({ domain }: { domain?: string }) {
           )}
           </View>
         ))}
-        <NsGuideMobile domain={domains[0]?.domain || (input.trim() ? input.trim().toLowerCase().replace(/^www\./,'') : undefined)} />
+        <NsGuideMobile domain={domains[0]?.domain || (input.trim() ? input.trim().toLowerCase().replace(/^www\./,'') : undefined)} nameServers={(domains[0] as any)?.nameServers || (domains[0] as any)?.cloudflare?.nameServers} />
       </View>
     )
   }
