@@ -33,6 +33,9 @@ const MODULE_LABELS: Record<string, string> = {
   static_pages: 'Statik Sayfalar',
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = { USD: '$', TRY: '₺', EUR: '€', GBP: '£' }
+function currencySymbol(code?: string | null) { return CURRENCY_SYMBOLS[(code || 'USD').toUpperCase()] || code || '$' }
+
 type PlanModule = { enabled: boolean; credit_cost?: number; limit?: number }
 
 function enabledModules(plan: Plan | null): { key: string; label: string }[] {
@@ -123,8 +126,9 @@ export default function BillingPage() {
       setCouponValid(r)
       if (!r.valid) setMessage(r.error || 'Kod geçersiz')
       else {
-        const disc = r.coupon ? (r.coupon.discountType==='percent' ? `%${r.coupon.discountValue}` : `${r.coupon.discountValue} TRY`) : `${r.discount} TRY`
-        const max = r.coupon?.maxDiscount ? ` (max ${r.coupon.maxDiscount} TRY)` : ''
+        const cur = currentPlan?.currency || 'USD'
+        const disc = r.coupon ? (r.coupon.discountType==='percent' ? `%${r.coupon.discountValue}` : `${r.coupon.discountValue} ${cur}`) : `${r.discount} ${cur}`
+        const max = r.coupon?.maxDiscount ? ` (max ${r.coupon.maxDiscount} ${cur})` : ''
         setMessage(`Kod geçerli: ${disc}${max} indirim — ilk fatura için geçerli`)
       }
     } catch (e:any){ setMessage(e.message||'Doğrulama hatası') }
@@ -277,7 +281,7 @@ export default function BillingPage() {
             </div>
             {couponValid && (
               <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${couponValid.valid?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>
-                {couponValid.valid ? `✓ ${couponValid.coupon ? (couponValid.coupon.discountType==='percent' ? `%${couponValid.coupon.discountValue}` : `${couponValid.coupon.discountValue} TRY`) : `${couponValid.discount} TRY`} indirim${couponValid.coupon?.maxDiscount ? ` (max ${couponValid.coupon.maxDiscount} TRY)` : ''} — ilk fatura için` : `✗ ${couponValid.error}`}
+                {couponValid.valid ? `✓ ${couponValid.coupon ? (couponValid.coupon.discountType==='percent' ? `%${couponValid.coupon.discountValue}` : `${couponValid.coupon.discountValue} ${currentPlan?.currency || 'USD'}`) : `${couponValid.discount} ${currentPlan?.currency || 'USD'}`} indirim${couponValid.coupon?.maxDiscount ? ` (max ${couponValid.coupon.maxDiscount} ${currentPlan?.currency || 'USD'})` : ''} — ilk fatura için` : `✗ ${couponValid.error}`}
                 {couponValid.valid && <span className="ml-2 text-[10px]">(ilk ay/fatura için geçerli, sonraki ay tam fiyat)</span>}
               </div>
             )}
@@ -352,7 +356,7 @@ export default function BillingPage() {
                 <div key={pack.credits} className={`relative rounded-xl border p-5 ${pack.popular ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-zinc-200'}`}>
                   {pack.popular && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white">{t('popular')}</span>}
                   <p className="text-lg font-bold text-zinc-900">{pack.credits} {t('creditsUnit')}</p>
-                  <p className="mt-1 text-2xl font-bold text-indigo-600">₺{pack.price}</p>
+                  <p className="mt-1 text-2xl font-bold text-indigo-600">{currencySymbol(currentPlan?.currency || 'USD')}{pack.price} <span className="text-sm font-normal text-zinc-500">{currentPlan?.currency || 'USD'}</span></p>
                   <button onClick={() => buyCredits(pack.credits)} disabled={buying}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
                     <ShoppingCart className="h-4 w-4" /> {buying ? t('redirecting') : t('buy')}

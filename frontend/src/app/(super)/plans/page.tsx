@@ -62,8 +62,12 @@ const HOSTING_LABELS: Record<string, string> = {
   custom: 'Kendi Sunucu',
 }
 
+const CURRENCIES = ['USD', 'TRY', 'EUR', 'GBP'] as const
+const CURRENCY_SYMBOLS: Record<string, string> = { USD: '$', TRY: '₺', EUR: '€', GBP: '£' }
+function currencySymbol(code: string) { return CURRENCY_SYMBOLS[code?.toUpperCase()] || code || '' }
+
 const defaultForm: PlanForm = {
-  name: '', slug: '', description: '', price: '0', currency: 'TRY',
+  name: '', slug: '', description: '', price: '0', currency: 'USD',
   ai_credits: '10', product_limit: '100', store_limit: '1', hosting: 'rahatio', is_active: true,
   modules: {},
   ai_scenario_models: {},
@@ -228,8 +232,8 @@ export default function SuperPlansPage() {
                 </div>
               </div>
               <p className="mt-2 text-sm text-zinc-300">{plan.description}</p>
-              <p className="mt-3 text-2xl font-bold text-white">{(plan.price ?? 0).toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">₺/ay</span></p>
-              {(plan as any).yearly_price ? <p className="text-sm text-emerald-400">{Number((plan as any).yearly_price).toLocaleString('tr-TR')} ₺/yıl</p> : (plan as any).yearly_discount_percent ? <p className="text-sm text-emerald-400">Yıllıkta %{(plan as any).yearly_discount_percent} indirim</p> : null}
+              <p className="mt-3 text-2xl font-bold text-white">{currencySymbol(plan.currency)}{(plan.price ?? 0).toLocaleString('tr-TR')} <span className="text-sm font-normal text-zinc-400">/ay</span> <span className="text-xs font-normal text-zinc-500">({plan.currency})</span></p>
+              {(plan as any).yearly_price ? <p className="text-sm text-emerald-400">{currencySymbol(plan.currency)}{Number((plan as any).yearly_price).toLocaleString('tr-TR')} /yıl <span className="text-xs">({plan.currency})</span></p> : (plan as any).yearly_discount_percent ? <p className="text-sm text-emerald-400">Yıllıkta %{(plan as any).yearly_discount_percent} indirim</p> : null}
               <div className="mt-3 space-y-1 text-xs text-zinc-400">
                 <p>Yayınlama: <span className="text-zinc-300">{HOSTING_LABELS[plan.hosting] ?? plan.hosting}</span></p>
                 <p>AI Kredisi: {(plan.ai_credits ?? 0).toLocaleString('tr-TR')}</p>
@@ -274,7 +278,7 @@ export default function SuperPlansPage() {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400">Fiyat (₺/ay)</label>
+                  <label className="block text-xs font-medium text-zinc-400">Fiyat ({form.currency}/ay) {currencySymbol(form.currency)}</label>
                   <input type="number" min="0" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
                 </div>
@@ -285,13 +289,15 @@ export default function SuperPlansPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-400">Para Birimi</label>
-                  <input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />
+                  <select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })}
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white">
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c} ({CURRENCY_SYMBOLS[c]})</option>)}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400">Yıllık Fiyat (₺/yıl)</label>
+                  <label className="block text-xs font-medium text-zinc-400">Yıllık Fiyat ({form.currency}/yıl)</label>
                   <input type="number" min="0" step="0.01" value={form.yearly_price} onChange={e => setForm({ ...form, yearly_price: e.target.value })}
                     placeholder="Boş = aylık*12 - indirim"
                     className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white" />

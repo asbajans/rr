@@ -56,7 +56,7 @@ export class Plan extends Model {
   declare description: string;
 
   @AllowNull(true)
-  @Default('TRY')
+  @Default('USD')
   @Column(DataType.STRING(3))
   declare currency: string;
 

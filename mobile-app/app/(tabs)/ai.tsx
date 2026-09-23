@@ -10,7 +10,76 @@ import { useAuth } from '../../src/shared/auth'
 import { api } from '../../src/shared/api-client'
 import type { AiCategory, AiChannel, AiChannelValidationResult, AiProductDraft, AiProductSession } from '../../src/shared/types'
 import { Ionicons } from '@expo/vector-icons'
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import SearchablePicker from '../../src/shared/SearchablePicker'
+
+function ZoomableImage({ uri }: { uri: string }) {
+  const scale = useSharedValue(1)
+  const savedScale = useSharedValue(1)
+  const translateX = useSharedValue(0)
+  const translateY = useSharedValue(0)
+  const savedTranslateX = useSharedValue(0)
+  const savedTranslateY = useSharedValue(0)
+
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = savedScale.value * e.scale
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value
+      if (scale.value < 1) {
+        scale.value = withTiming(1)
+        savedScale.value = 1
+        translateX.value = withTiming(0)
+        translateY.value = withTiming(0)
+        savedTranslateX.value = 0
+        savedTranslateY.value = 0
+      } else if (scale.value > 4) {
+        scale.value = withTiming(4)
+        savedScale.value = 4
+      }
+    })
+
+  const pan = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scale.value > 1) {
+        translateX.value = savedTranslateX.value + e.translationX
+        translateY.value = savedTranslateY.value + e.translationY
+      }
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value
+      savedTranslateY.value = translateY.value
+    })
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1) {
+        scale.value = withTiming(1)
+        savedScale.value = 1
+        translateX.value = withTiming(0)
+        translateY.value = withTiming(0)
+        savedTranslateX.value = 0
+        savedTranslateY.value = 0
+      } else {
+        scale.value = withTiming(2)
+        savedScale.value = 2
+      }
+    })
+
+  const composed = Gesture.Simultaneous(pinch, pan, doubleTap)
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: scale.value }],
+  }))
+
+  return (
+    <GestureDetector gesture={composed}>
+      <Animated.Image source={{ uri }} style={[{ width: '100%', height: '78%', borderRadius: 12 }, animatedStyle]} resizeMode="contain" />
+    </GestureDetector>
+  )
+}
 
 const CHANNELS: { key: AiChannel; icon: any }[] = [
   { key: 'storefront', icon: 'storefront-outline' },
@@ -528,6 +597,29 @@ export default function AiScreen() {
     } finally { setAiImgBusy(null) }
   }
 
+  async function handleRemoveDraftImage(idx: number) {
+    if (!draft) return
+    const img = draft.images?.[idx]
+    if (!img) return
+    Alert.alert('Görseli sil?', 'Bu görsel taslaktan kaldırılacak', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const newImages = (draft.images || []).filter((_, i) => i !== idx)
+            const updated = await api.updateAiProductDraft(draft.id, { images: newImages } as any)
+            setDraft(updated)
+            setSuccess('Görsel silindi')
+          } catch (e: any) {
+            Alert.alert(t('error'), e.message || 'Silinemedi')
+          }
+        },
+      },
+    ])
+  }
+
   function toggleChannel(channel: AiChannel) {
     setSelectedChannels((prev) => {
       const next = prev.includes(channel) ? prev.filter((c) => c !== channel) : [...prev, channel]
@@ -822,13 +914,15 @@ export default function AiScreen() {
         )}
       </ScrollView>
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImage(null)} style={styles.previewOverlay}>
+        <View style={styles.previewOverlay}>
           <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewImage(null)}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
-          {previewImage && <Image source={{ uri: previewImage }} style={styles.previewFullImage} resizeMode="contain" />}
-          <Text style={styles.previewHint}>Kapatmak için dokunun</Text>
-        </TouchableOpacity>
+          <GestureHandlerRootView style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+            {previewImage && <ZoomableImage uri={previewImage} />}
+          </GestureHandlerRootView>
+          <Text style={styles.previewHint}>Çift dokun: yakınlaştır • Pinch ile zoom • Kapatmak için X</Text>
+        </View>
       </Modal>
       </>
     )
@@ -852,9 +946,15 @@ export default function AiScreen() {
             {draft.images && draft.images.length > 0 ? (
               <View style={styles.imageGrid}>
                 {draft.images.map((img, i) => (
-                  <View key={i} style={{ alignItems: 'center' }}>
+                  <View key={i} style={{ alignItems: 'center', position: 'relative' }}>
                     <TouchableOpacity onPress={() => setPreviewImage(img)} activeOpacity={0.8}>
                       <Image source={{ uri: img }} style={styles.thumbImage} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveDraftImage(i)}
+                      style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Ionicons name="close" size={12} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ marginTop: 4, backgroundColor: '#7c3aed', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
@@ -1084,15 +1184,17 @@ export default function AiScreen() {
         )}
         </ScrollView>
 
-        {/* Image preview — tap thumbnail to view large */}
+        {/* Image preview — pinch to zoom */}
         <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-          <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImage(null)} style={styles.previewOverlay}>
+          <View style={styles.previewOverlay}>
             <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewImage(null)}>
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
-            {previewImage && <Image source={{ uri: previewImage }} style={styles.previewFullImage} resizeMode="contain" />}
-            <Text style={styles.previewHint}>Kapatmak için dokunun</Text>
-          </TouchableOpacity>
+            <GestureHandlerRootView style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+              {previewImage && <ZoomableImage uri={previewImage} />}
+            </GestureHandlerRootView>
+            <Text style={styles.previewHint}>Çift dokun: yakınlaştır • Pinch ile zoom • Kapatmak için X</Text>
+          </View>
         </Modal>
 
         {/* Searchable category picker */}

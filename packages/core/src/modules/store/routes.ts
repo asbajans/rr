@@ -251,7 +251,7 @@ if (stripe) {
         if ((coupon as any).usageLimit != null && Number((coupon as any).usedCount) >= Number((coupon as any).usageLimit)) return res.status(400).json({ error: 'Kod kullanım limiti doldu' });
         const planIds = (coupon as any).applicablePlanIds as number[] | null;
         if (planIds && !planIds.includes(Number(plan.id))) return res.status(400).json({ error: 'Bu kod bu plan için geçerli değil' });
-        if (Number((coupon as any).minimumAmount) > basePrice) return res.status(400).json({ error: `Bu kod için minimum tutar ${Number((coupon as any).minimumAmount)} TRY` });
+        if (Number((coupon as any).minimumAmount) > basePrice) return res.status(400).json({ error: `Bu kod için minimum tutar ${Number((coupon as any).minimumAmount)} ${(plan as any).currency || 'USD'}` });
         // perCustomerLimit
         const existingRedemptions = await SaasCouponRedemption.count({ where:{ couponId: (coupon as any).id, storeId: store.id } });
         if (existingRedemptions >= Number((coupon as any).perCustomerLimit || 1)) return res.status(400).json({ error: 'Bu kodu zaten kullandınız' });
@@ -432,7 +432,7 @@ if (stripe) {
         const yp = (plan as any).yearlyPrice != null ? Number((plan as any).yearlyPrice) : (Number((plan as any).price)*12*(1- (Number((plan as any).yearlyDiscountPercent||0)/100)));
         basePrice = yp;
       }
-      if (Number((coupon as any).minimumAmount) > basePrice) return res.json({ valid:false, error:`Minimum tutar ${(coupon as any).minimumAmount} TRY` });
+      if (Number((coupon as any).minimumAmount) > basePrice) return res.json({ valid:false, error:`Minimum tutar ${(coupon as any).minimumAmount} ${(plan as any).currency || 'USD'}` });
       let discount = (coupon as any).discountType==='percent' ? basePrice * Number((coupon as any).discountValue)/100 : Number((coupon as any).discountValue);
       if ((coupon as any).maxDiscount != null) discount = Math.min(discount, Number((coupon as any).maxDiscount));
       discount = Math.min(discount, basePrice);
@@ -464,11 +464,13 @@ if (stripe) {
       if (!pack) return res.status(400).json({ error: 'Invalid credit package — süperadmin panelden paketleri kontrol edin' });
 
       const customerId = await ensureCustomer(store);
+      const _packPlan = store.planId ? await Plan.findByPk(store.planId) : null;
+      const _packCurrency = ((_packPlan as any)?.currency || 'USD').toLowerCase();
       const session = await stripe.checkout.sessions.create({
         customer: customerId, payment_method_types: ['card'],
         line_items: [{
           price_data: {
-            currency: 'try',
+            currency: _packCurrency,
             product_data: { name: `${credits} AI Kredisi` },
             unit_amount: pack.price * 100,
           },
