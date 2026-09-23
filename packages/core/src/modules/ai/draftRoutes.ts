@@ -242,11 +242,26 @@ export async function analyzeAndCreateSession(
   } catch (error: any) {
     const upstreamData = error?.response?.data;
     const upstreamMsg = typeof upstreamData === 'string' ? upstreamData : (upstreamData?.error || upstreamData?.message || error?.message || 'AI analysis failed');
-    console.error(`[AI-SESSION] CATCH sessionId=${session?.id} status=${error?.response?.status || 500} upstream=${String(upstreamMsg).slice(0, 500)}`);
+    // Avoid leaking apiKey in logs — upstreamMsg is safe, but error.config?.data may contain it
+    const safeUpstream = String(upstreamMsg).slice(0, 500).replace(/sk-or-v1-[a-zA-Z0-9_-]+/g, 'sk-or-v1-***');
+    console.error(`[AI-SESSION] CATCH sessionId=${session?.id} status=${error?.response?.status || 500} upstream=${safeUpstream}`);
     if (session) {
       await session.update({ status: 'failed', errorMessage: String(upstreamMsg).slice(0, 2000) }).catch(() => undefined);
     }
-    logger.error({ err: error, message: error?.message, status: error?.response?.status }, 'AI session creation failed');
+    // Sanitize error before pino logging (remove apiKey from config.data)
+    let sanitized: any = error;
+    try {
+      const copy: any = { ...error, config: error?.config ? { ...error.config } : undefined, response: error?.response ? { ...error.response, data: error.response.data } : undefined };
+      if (copy.config?.data && typeof copy.config.data === 'string') {
+        try {
+          const jd = JSON.parse(copy.config.data);
+          if (jd?.provider?.apiKey) jd.provider.apiKey = '***';
+          copy.config.data = JSON.stringify(jd);
+        } catch {}
+      }
+      sanitized = copy;
+    } catch {}
+    logger.error({ err: sanitized, message: error?.message, status: error?.response?.status }, 'AI session creation failed');
     const status = error?.response?.status || 500;
     return { error: { status, body: { error: upstreamMsg } } };
   }
@@ -347,6 +362,18 @@ export async function processAiProductSession(job: {
   if (result.error) {
     const errBody = result.error.body;
     const errMsg = String(errBody?.message || errBody?.error || 'AI analysis failed').slice(0, 2000);
+    // 429 (rate limit) is transient — let BullMQ retry with backoff instead of failing immediately
+    if (result.error.status === 429) {
+      const attemptsMade = (job as any).attemptsMade ?? 0;
+      const maxAttempts = (job as any).opts?.attempts ?? 3;
+      if (attemptsMade + 1 < maxAttempts) {
+        console.warn(`[AI-SESSION] RETRY sessionId=${job.data.sessionId} attempt ${attemptsMade + 1}/${maxAttempts} after 429`);
+        await session.update({ status: 'analyzing', errorMessage: null }).catch(() => {});
+        const retryErr: any = new Error(errMsg);
+        retryErr.status = 429;
+        throw retryErr;
+      }
+    }
     console.error(`[AI-SESSION] FAILED sessionId=${job.data.sessionId} status=${result.error.status} error=${errMsg}`);
     await session.update({
       status: 'failed',

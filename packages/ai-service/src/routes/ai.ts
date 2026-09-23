@@ -358,11 +358,7 @@ router.post(
     } catch (err: any) {
       const upstreamDetail = err?.upstreamData ? ` | upstream: ${JSON.stringify(err.upstreamData).slice(0, 500)}` : '';
       console.error(`[AI-AGENTIC] Error: ${err?.message || err}${upstreamDetail}`);
-      if (err instanceof OllamaUnavailableError || isUnavailableError(err)) {
-        res.status(503).json({ error: FRIENDLY_ERROR });
-        return;
-      }
-      res.status(500).json({ error: err.message });
+      return handleLlmError(res, err);
     }
   }
 );

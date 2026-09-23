@@ -5,18 +5,21 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
-  REGISTRY_USER: ${{ github.actor }}
-  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: actions/setup-node@v4
@@ -31,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: actions/setup-node@v4
@@ -49,7 +52,7 @@ jobs:
         package: [core, ai-service, integration-service, frontend]
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: actions/setup-node@v4
@@ -57,11 +60,22 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build --filter=@rahatio/${{ matrix.package }}
+      - name: Build core/ai-service/integration-service
+        if: matrix.package != 'frontend'
+        run: pnpm build --filter=@rahatio/${{ matrix.package }}
+      - name: Build frontend
+        if: matrix.package == 'frontend'
+        run: |
+          # Frontend has its own package-lock.json (npm) but lives in pnpm workspace.
+          # Turbo will run `next build` regardless of package manager, so pnpm works.
+          # Fallback to npm if pnpm build fails due to workspace mismatch.
+          pnpm build --filter=@rahatio/${{ matrix.package }} || (cd frontend && npm ci && npm run build)
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.package }}-dist
-          path: packages/${{ matrix.package }}/dist
+          path: |
+            packages/${{ matrix.package }}/dist
+            frontend/.next
           retention-days: 1
 
   docker-build:
@@ -73,22 +87,24 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     steps:
       - uses: actions/checkout@v4
+      - name: Lowercase owner
+        id: owner
+        run: echo "lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Login to Portainer Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_PASSWORD }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push Core API
         uses: docker/build-push-action@v5
         with:
           context: .
           file: packages/core/Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/core:latest
+          tags: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/rahatio/core:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push AI Service
@@ -97,8 +113,7 @@ jobs:
           context: .
           file: packages/ai-service/Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/ai-service:latest
+          tags: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/rahatio/ai-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push Integration Service
@@ -107,27 +122,71 @@ jobs:
           context: .
           file: packages/integration-service/Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/integration-service:latest
+          tags: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/rahatio/integration-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
+          file: ./frontend/Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/rahatio/frontend:latest
+          tags: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/rahatio/frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     needs: docker-build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: Trigger Portainer webhook
+      - name: Verify webhook secret exists
         run: |
-          curl -s -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
-          echo ""
-          echo "Webhook triggered at $(date)"
+          if [ -z "${{ secrets.PORTAINER_WEBHOOK_URL }}" ]; then
+            echo "::error::PORTAINER_WEBHOOK_URL secret is empty — add it in GitHub Settings → Secrets → Actions"
+            echo "Expected: https://cont.asb.web.tr/api/stacks/webhooks/<uuid> (Portainer → Stack → Webhooks)"
+            echo "Note: Do NOT add a manual GitHub Webhook in repo Settings → Webhooks — this Actions workflow triggers the deploy via curl."
+            exit 1
+          fi
+          echo "PORTAINER_WEBHOOK_URL is set (length ${#PORTAINER_WEBHOOK_URL} masked)"
+        env:
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+      - name: Trigger Portainer webhook (with retry)
+        env:
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          set -e
+          url="$PORTAINER_WEBHOOK_URL"
+          # Mask URL in logs (show domain only)
+          masked=$(echo "$url" | sed -E 's#(https://[^/]+/api/stacks/webhooks/)[^ ]+#\1****#')
+          echo "Triggering webhook: $masked"
+          # Retry 3 times, fail on HTTP error, show headers + body
+          for i in 1 2 3; do
+            echo "Attempt $i/3..."
+            http_code=$(curl -s -o /tmp/webhook_body.txt -w "%{http_code}" -X POST "$url" \
+              -H "Content-Type: application/json" \
+              -H "User-Agent: rahatio-ci/1.0" \
+              --connect-timeout 10 --max-time 30 || echo "000")
+            echo "HTTP $http_code"
+            cat /tmp/webhook_body.txt || true
+            echo ""
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo "✅ Webhook succeeded (HTTP $http_code) at $(date -u)"
+              exit 0
+            fi
+            echo "⚠️ Webhook attempt $i failed (HTTP $http_code), retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Portainer webhook failed after 3 attempts (last HTTP $http_code)"
+          echo "Check: 1) Stack webhook is enabled in Portainer → Stacks → rahatio-stack → Webhooks"
+          echo "       2) URL matches exactly (no trailing spaces)"
+          echo "       3) Portainer server is reachable from GitHub Actions (not firewalled)"
+          exit 1
+      - name: Verify stack updated (optional Portainer API)
+        if: env.PORTAINER_API_URL != '' && env.PORTAINER_API_KEY != ''
+        env:
+          PORTAINER_API_URL: ${{ secrets.PORTAINER_API_URL }}
+          PORTAINER_API_KEY: ${{ secrets.PORTAINER_API_KEY }}
+        run: |
+          echo "PORTAINER_API_URL/KEY provided — could verify stack status via API, skipping for now (webhook already triggered)"
+          echo "To enable: add PORTAINER_API_URL=https://cont.asb.web.tr and PORTAINER_API_KEY in secrets"

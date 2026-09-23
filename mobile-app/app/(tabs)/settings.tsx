@@ -102,26 +102,50 @@ function DomainManagerMobile() {
 
   if (loading) return <View style={{ padding: 12 }}><ActivityIndicator /></View>
   return (
-    <View style={[styles.guideBox, { marginTop: 12 }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <Ionicons name="globe-outline" size={16} color="#000" />
-        <Text style={styles.guideTitle}>Domainler (max 5)</Text>
+    <View style={[styles.section, { marginTop: 16 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <Ionicons name="globe-outline" size={18} color="#2563eb" />
+        <Text style={[styles.sectionTitle, { fontSize: 15 }]}>Özel Domainler</Text>
+        <Text style={{ fontSize: 10, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>{domains.length}/5</Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 6, backgroundColor: '#eff6ff', borderRadius: 8, padding: 8, marginBottom: 10, borderWidth: 1, borderColor: '#dbeafe' }}>
+        <Ionicons name="information-circle-outline" size={14} color="#2563eb" style={{ marginTop: 1 }} />
+        <Text style={{ fontSize: 11, color: '#1e40af', flex: 1, lineHeight: 15 }}>En fazla <Text style={{ fontWeight: '700' }}>5</Text> domain ekleyebilirsiniz. Domaini <Text style={{ fontWeight: '700' }}>önce ekleyin, sonra doğrulayın</Text> — NS’i Cloudflare’e yönlendirip doğrulayın, ardından DNS’i yönetin.</Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 6 }}>
-        <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={input} onChangeText={setInput} placeholder="ornek.com.tr" autoCapitalize="none" placeholderTextColor="#999" />
-        <TouchableOpacity style={[styles.saveBtn, { paddingHorizontal: 14, marginTop: 0 }]} onPress={handleAdd} disabled={adding || !input.trim()}>
+        <TextInput
+          style={[styles.input, { flex: 1, marginBottom: 0 }]}
+          value={input}
+          onChangeText={(v) => setInput(v.toLowerCase().replace(/[^a-z0-9.-]/g,''))}
+          placeholder="ornek.com.tr"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholderTextColor="#999"
+          onSubmitEditing={handleAdd}
+          returnKeyType="done"
+        />
+        <TouchableOpacity style={[styles.saveBtn, { paddingHorizontal: 14, marginTop: 0, backgroundColor: domains.length>=5 ? '#9ca3af' : '#2563eb' }]} onPress={handleAdd} disabled={adding || !input.trim() || domains.length>=5}>
           {adding ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Ekle</Text>}
         </TouchableOpacity>
       </View>
-      {domains.length === 0 ? <Text style={[styles.meta, { marginTop: 8 }]}>Henüz domain yok</Text> : domains.map((d: any) => (
-        <View key={d.domain} style={{ marginTop: 10, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: d.verified ? '#bbf7d0' : '#fde68a', padding: 10 }}>
+      {domains.length>=5 && <Text style={{ fontSize: 11, color: '#d97706', marginTop: 6 }}>Limit doldu (5/5). Birini silerek yeni ekleyebilirsin.</Text>}
+      {domains.length === 0 ? <Text style={[styles.meta, { marginTop: 8 }]}>Henüz domain yok. Yukarıdan ekleyebilirsiniz.</Text> : domains.map((d: any) => (
+        <View key={d.domain} style={{ marginTop: 10, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: d.verified ? '#bbf7d0' : '#fde68a', padding: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontFamily: 'monospace', fontWeight: '700', flex: 1 }} numberOfLines={1}>{d.domain}</Text>
+            <Ionicons name="globe-outline" size={14} color="#6b7280" />
+            <Text style={{ fontFamily: 'monospace', fontWeight: '700', flex: 1, fontSize: 13 }} numberOfLines={1}>{d.domain}</Text>
             <View style={{ backgroundColor: d.verified ? '#dcfce7' : '#fef3c7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: d.verified ? '#15803d' : '#92400e' }}>{d.verified ? 'Doğrulandı' : 'Bekliyor'}</Text>
             </View>
+            {d.method && <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6 }}><Text style={{ fontSize: 9, color: '#6b7280' }}>{d.method}</Text></View>}
           </View>
-          {d.zoneId && <Text style={styles.meta}>Zone: {String(d.zoneId).slice(0, 8)}... {d.zoneStatus || ''}</Text>}
+          {d.lastCheckedAt && <Text style={[styles.meta, { marginTop: 4, fontSize: 10 }]}>Son kontrol: {new Date(d.lastCheckedAt).toLocaleString('tr-TR')}</Text>}
+          {d.zoneId && <Text style={[styles.meta, { fontSize: 10 }]}>Zone: {String(d.zoneId).slice(0, 8)}... {d.zoneStatus || ''}</Text>}
+          {!d.verified && (
+            <View style={{ marginTop: 6, backgroundColor: '#fffbeb', borderRadius: 6, padding: 6, borderWidth: 1, borderColor: '#fde68a' }}>
+              <Text style={{ fontSize: 10, color: '#92400e' }}>NS: <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>lily.ns.cloudflare.com</Text> , <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>ricardo.ns.cloudflare.com</Text> → NS değiştirin</Text>
+            </View>
+          )}
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: d.verified ? '#fff' : '#111', borderWidth: 1, borderColor: d.verified ? '#ddd' : '#111', flex: 1 }]} onPress={() => handleVerify(d.domain)} disabled={verifying === d.domain}>
               {verifying === d.domain ? <ActivityIndicator size="small" /> : <Text style={[styles.saveBtnText, { color: d.verified ? '#111' : '#fff' }]}>{d.verified ? 'Tekrar Doğrula' : 'Doğrula'}</Text>}
@@ -133,21 +157,22 @@ function DomainManagerMobile() {
           <TouchableOpacity style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => toggleDns(d.domain)}>
             <Ionicons name="settings-outline" size={14} color="#2563eb" />
             <Text style={{ fontSize: 12, color: '#2563eb', fontWeight: '600' }}>{dnsOpen === d.domain ? 'DNS Kapat' : 'DNS Yönetimi'}</Text>
+            <Text style={{ fontSize: 10, color: '#9ca3af' }}>— A / CNAME / MX / TXT</Text>
           </TouchableOpacity>
           {dnsOpen === d.domain && (
             <View style={{ marginTop: 8 }}>
               {dnsLoading === d.domain ? <ActivityIndicator size="small" /> : (
                 <>
                   <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6 }}>
-                    <TextInput style={[styles.input, { flex: 0.6, marginBottom: 0, paddingVertical: 6 }]} value={(newDns[d.domain]?.type) || 'A'} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), type: v.toUpperCase() } }))} placeholder="A" autoCapitalize="characters" />
-                    <TextInput style={[styles.input, { flex: 1, marginBottom: 0, paddingVertical: 6 }]} value={newDns[d.domain]?.name || ''} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), name: v } }))} placeholder="@" />
-                    <TextInput style={[styles.input, { flex: 1.5, marginBottom: 0, paddingVertical: 6 }]} value={newDns[d.domain]?.content || ''} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), content: v } }))} placeholder="1.2.3.4" />
+                    <TextInput style={[styles.input, { flex: 0.6, marginBottom: 0, paddingVertical: 6, fontSize: 12 }]} value={(newDns[d.domain]?.type) || 'A'} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), type: v.toUpperCase() } }))} placeholder="A" autoCapitalize="characters" />
+                    <TextInput style={[styles.input, { flex: 1, marginBottom: 0, paddingVertical: 6, fontSize: 12 }]} value={newDns[d.domain]?.name || ''} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), name: v } }))} placeholder="@ (veya www)" />
+                    <TextInput style={[styles.input, { flex: 1.5, marginBottom: 0, paddingVertical: 6, fontSize: 12 }]} value={newDns[d.domain]?.content || ''} onChangeText={(v) => setNewDns(prev => ({ ...prev, [d.domain]: { ...(prev[d.domain] || { type: 'A', name: '', content: '' }), content: v } }))} placeholder="1.2.3.4 / hedef" />
                   </View>
                   <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#111', paddingVertical: 8 }]} onPress={() => handleCreateDns(d.domain)}>
                     <Text style={styles.saveBtnText}>Ekle</Text>
                   </TouchableOpacity>
-                  {(dnsRecords[d.domain] || []).length === 0 ? <Text style={[styles.meta, { marginTop: 6 }]}>Kayıt yok</Text> : (dnsRecords[d.domain] || []).map((r: any) => (
-                    <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: '#f9fafb', padding: 6, borderRadius: 6 }}>
+                  {(dnsRecords[d.domain] || []).length === 0 ? <Text style={[styles.meta, { marginTop: 6 }]}>Kayıt yok — NS taşındıysa buradan A/CNAME/MX/TXT ekleyin</Text> : (dnsRecords[d.domain] || []).map((r: any) => (
+                    <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: '#f9fafb', padding: 6, borderRadius: 6, borderWidth: 1, borderColor: '#e5e7eb' }}>
                       <Text style={{ fontSize: 10, fontWeight: '700', width: 36 }}>{r.type}</Text>
                       <Text style={{ fontSize: 10, flex: 1 }} numberOfLines={1}>{r.name}</Text>
                       <Text style={{ fontSize: 10, flex: 1.2 }} numberOfLines={1}>{r.content}</Text>
@@ -173,7 +198,7 @@ export default function SettingsScreen() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [siteCode, setSiteCode] = useState('')
-  const [domain, setDomain] = useState('')
+  const [siteCodeStatus, setSiteCodeStatus] = useState<'idle'|'checking'|'available'|'taken'|'invalid'>('idle')
   const [saving, setSaving] = useState(false)
   const [webSaving, setWebSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -197,13 +222,26 @@ export default function SettingsScreen() {
       setName(s.name || '')
       setEmail(s.email || '')
       setSiteCode(s.site_code || s.siteCode || '')
-      setDomain(s.domain || '')
       if (s.theme?.templateId) setSelectedTheme(s.theme.templateId)
       else if (s.theme?.template_id) setSelectedTheme(s.theme.template_id)
     } catch {}
   }
 
   useEffect(() => { load(); loadIntegrations() }, [])
+
+  // siteCode availability check — same as web site-publish
+  useEffect(() => {
+    if (!siteCode.trim()) { setSiteCodeStatus('idle'); return }
+    const saved = String(settings?.site_code || settings?.siteCode || '').toLowerCase()
+    const normalized = siteCode.trim().toLowerCase()
+    if (!/^[a-z0-9-]{2,50}$/.test(normalized)) { setSiteCodeStatus('invalid'); return }
+    if (normalized === saved.toLowerCase()) { setSiteCodeStatus('available'); return }
+    setSiteCodeStatus('checking')
+    const timer = setTimeout(() => {
+      api.checkSiteCode(normalized).then(r => setSiteCodeStatus(r.available ? 'available' : 'taken')).catch(()=> setSiteCodeStatus('idle'))
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [siteCode, settings])
 
   async function loadIntegrations() {
     try {
@@ -306,19 +344,22 @@ export default function SettingsScreen() {
 
   async function saveWebsite() {
     if (!siteCode.trim()) { Alert.alert(t('error'), t('required')); return }
+    if (siteCodeStatus === 'taken' || siteCodeStatus === 'invalid') { Alert.alert(t('error'), siteCodeStatus === 'taken' ? 'Bu site adresi başka bir mağaza tarafından kullanılıyor' : '2-50 karakter, a-z 0-9 -'); return }
     setWebSaving(true)
     try {
-      if (settings && siteCode.trim().toLowerCase() !== String(settings.site_code || settings.siteCode || '').toLowerCase()) {
-        const chk = await api.checkSiteCode(siteCode.trim().toLowerCase())
+      const current = String(settings?.site_code || settings?.siteCode || '').toLowerCase()
+      const next = siteCode.trim().toLowerCase()
+      if (next && next !== current) {
+        const chk = await api.checkSiteCode(next)
         if (!chk.available) { Alert.alert(t('error'), 'Bu site adresi başka bir mağaza tarafından kullanılıyor'); setWebSaving(false); return }
       }
-      const d = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
-      const payload: any = { site_code: siteCode.trim().toLowerCase() }
-      if (d) { payload.domain = d; payload.siteUrl = `https://${d}` }
-      else { payload.domain = null; payload.siteUrl = null }
+      const payload: any = {}
+      if (next && next !== current) payload.site_code = next
+      if (!Object.keys(payload).length) { Alert.alert(t('success'), 'Değişiklik yok'); setWebSaving(false); return }
       const updated: any = await api.updateSettings(payload)
       setSettings(updated)
-      Alert.alert(t('success'), t('websiteSaved'))
+      setSiteCode(updated.site_code ?? next)
+      Alert.alert(t('success'), 'Mağaza adresi güncellendi')
     } catch (e: any) { Alert.alert(t('error'), e.message || 'Kaydedilemedi') }
     finally { setWebSaving(false) }
   }
@@ -349,8 +390,7 @@ export default function SettingsScreen() {
   }
 
   const storeUrl = settings?.site_code ? `https://rahatio.com.tr/stores/${settings.site_code}` : null
-  const customUrl = settings?.domain ? `https://${settings.domain}` : null
-  const primaryUrl = customUrl || storeUrl
+  // primary custom domain is managed via DomainManager (max 5), not a single field
   const theme = settings?.theme || null
 
   return (
@@ -368,30 +408,30 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}><Ionicons name="globe-outline" size={20} color="#2563eb" /><Text style={styles.sectionTitle}>{t('website')}</Text></View>
-        <Text style={styles.helper}>{t('websiteDesc')}</Text>
-        <Text style={styles.label}>{t('siteCodeLabel')}</Text>
-        <TextInput style={styles.input} value={siteCode} onChangeText={setSiteCode} placeholder="ornek-magaza" autoCapitalize="none" placeholderTextColor="#999" />
-        {storeUrl && <TouchableOpacity onPress={() => Linking.openURL(storeUrl)} style={styles.linkRow}><Ionicons name="link-outline" size={16} color="#2563eb" /><Text style={styles.linkText} numberOfLines={1}>{storeUrl}</Text></TouchableOpacity>}
-
-        <Text style={styles.label}>{t('customDomain')}</Text>
-        <TextInput style={styles.input} value={domain} onChangeText={setDomain} placeholder={t('customDomainPlaceholder')} autoCapitalize="none" placeholderTextColor="#999" />
-        {customUrl && <TouchableOpacity onPress={() => Linking.openURL(customUrl)} style={[styles.linkRow, { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0' }]}><Ionicons name="globe-outline" size={16} color="#059669" /><Text style={[styles.linkText, { color: '#059669' }]}>{customUrl}</Text></TouchableOpacity>}
-
-        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#2563eb' }]} onPress={saveWebsite} disabled={webSaving}>
-          {webSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>{t('saveChanges')}</Text>}
-        </TouchableOpacity>
-
-        <View style={[styles.guideBox, { marginTop: 16 }]}>
-          <Text style={styles.guideTitle}>{t('redirectGuide')}</Text>
-          <Text style={styles.guideStep}>1. {t('nsStep1') || 'Domain sağlayıcınızda NS değiştirin'}</Text>
-          <View style={styles.table}>
-            <View style={styles.tableRowHeader}><Text style={styles.tableCellHeader}>Tür</Text><Text style={styles.tableCellHeader}>Değer</Text></View>
-            <View style={styles.tableRow}><Text style={styles.tableCell}>NS</Text><Text style={styles.tableCellSmall}>lily.ns.cloudflare.com</Text></View>
-            <View style={styles.tableRow}><Text style={styles.tableCell}>NS</Text><Text style={styles.tableCellSmall}>ricardo.ns.cloudflare.com</Text></View>
+        <Text style={styles.helper}>Rahatio üzerindeki adresiniz. Domain bağlasanız da bu adres yedek kalır.</Text>
+        <Text style={styles.label}>Mağaza kodu</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'stretch', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, overflow: 'hidden', backgroundColor: '#f9f9f9' }}>
+          <View style={{ backgroundColor: '#f3f4f6', paddingHorizontal: 10, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 12, color: '#6b7280' }}>rahatio.com.tr/stores/</Text>
           </View>
-          <Text style={styles.guideHint}>{t('nsHint') || 'Eski NSleri silip bu ikisini ekleyin. Yayılma 5-30 dk.'}</Text>
-          <Text style={[styles.guideStep, { marginTop: 8 }]}>2. {t('verifyStep')}</Text>
+          <TextInput style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14 }} value={siteCode} onChangeText={(v) => setSiteCode(v.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="magaza-adin" autoCapitalize="none" placeholderTextColor="#999" maxLength={50} />
         </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+          {siteCodeStatus==='checking' && <Text style={{ fontSize: 11, color: '#9ca3af' }}>Kontrol ediliyor...</Text>}
+          {siteCodeStatus==='available' && <Text style={{ fontSize: 11, color: '#16a34a' }}>✓ Kullanılabilir</Text>}
+          {siteCodeStatus==='taken' && <Text style={{ fontSize: 11, color: '#dc2626' }}>Başka mağaza kullanıyor</Text>}
+          {siteCodeStatus==='invalid' && <Text style={{ fontSize: 11, color: '#dc2626' }}>2-50 karakter, a-z 0-9 -</Text>}
+        </View>
+        {storeUrl && (
+          <TouchableOpacity onPress={() => Linking.openURL(storeUrl!)} style={styles.linkRow}>
+            <Ionicons name="link-outline" size={16} color="#2563eb" />
+            <Text style={styles.linkText} numberOfLines={1}>{storeUrl}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#2563eb' }]} onPress={saveWebsite} disabled={webSaving || siteCodeStatus==='taken' || siteCodeStatus==='invalid'}>
+          {webSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Adresi Kaydet</Text>}
+        </TouchableOpacity>
+        <Text style={[styles.helper, { marginTop: 8, fontSize: 11 }]}>Aktif siteniz: {storeUrl ?? '—'}</Text>
       </View>
 
       <DomainManagerMobile />

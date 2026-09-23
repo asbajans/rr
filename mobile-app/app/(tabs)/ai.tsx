@@ -112,6 +112,13 @@ export default function AiScreen() {
   const [mpPicker, setMpPicker] = useState<{ mp: string; field: 'category' | 'brand' } | null>(null)
   const [mpAttrPicker, setMpAttrPicker] = useState<{ mp: string; attributeId: number; attributeName: string; values: any[] } | null>(null)
 
+  // AI image edit / generate (draft stage) — parity with web studio
+  const [imgEditPrompt, setImgEditPrompt] = useState('')
+  const [imgGenPrompt, setImgGenPrompt] = useState('')
+  const [imgGenCount, setImgGenCount] = useState(1)
+  const [aiImgBusy, setAiImgBusy] = useState<'edit' | 'generate' | null>(null)
+  const [aiImgMsg, setAiImgMsg] = useState('')
+
   const loadDrafts = async () => {
     setDraftsLoading(true)
     try {
@@ -344,6 +351,8 @@ export default function AiScreen() {
           { text: t('cancel'), style: 'cancel' },
           { text: t('upgradePlan') || 'Planı Gör', onPress: () => router.push('/(tabs)/settings') },
         ])
+      } else if (err?.status === 429 || String(err?.message || '').includes('yoğun')) {
+        setError('AI sağlayıcısı şu an yoğun (istek kuyruğu dolu). Lütfen 10-20 saniye sonra tekrar deneyin.')
       } else {
         setError(err.message || t('aiSessionFailed'))
       }
@@ -466,6 +475,56 @@ export default function AiScreen() {
     if (!result.canceled && result.assets[0]) {
       addPhotoToDraft(result.assets[0].uri)
     }
+  }
+
+  async function handleEditImage(idx: number) {
+    const url = draft?.images?.[idx]
+    if (!url) { setAiImgMsg('Düzenlenecek görsel yok'); return }
+    const prompt = imgEditPrompt.trim()
+    if (prompt.length < 3) { setAiImgMsg('Düzenleme talimatı girin (örn: beyaz arka plan, daha parlak)'); return }
+    setAiImgBusy('edit'); setAiImgMsg(''); setError('')
+    try {
+      const res = await api.imageEdit({ imageUrl: url, prompt, category: draft?.categoryPath?.[0] ? String(draft.categoryPath[0]).toLowerCase() : undefined })
+      const files = await api.pollAiImageSession(res.sessionId)
+      if (files.length === 0) throw new Error('Görsel düzenlenemedi')
+      for (const file of files) {
+        const up = await api.takeAiResultImage(res.sessionId, file)
+        const newImages = [...(draft?.images || []), up.url]
+        const updated = await api.updateAiProductDraft(draft!.id, { images: newImages } as any)
+        setDraft(updated)
+      }
+      setAiImgMsg('Yeni görsel eklendi — istersen eskiyi silip yenisini tutabilirsin')
+      refreshMe()
+    } catch (e: any) {
+      if (e?.code === 'INSUFFICIENT_CREDITS' || e?.status === 402) { refreshMe(); Alert.alert(t('error'), t('insufficientCredits')) }
+      else setAiImgMsg(e?.message || 'Görsel düzenlenemedi')
+    } finally { setAiImgBusy(null) }
+  }
+
+  async function handleGenerateImages() {
+    const prompt = imgGenPrompt.trim()
+    if (prompt.length < 3) { setAiImgMsg('Görsel talimatı girin (örn: ürünün beyaz arka planlı profesyonel çekimi)'); return }
+    const count = Math.max(1, Math.min(4, imgGenCount || 1))
+    setAiImgBusy('generate'); setAiImgMsg(''); setError('')
+    try {
+      const ref = draft?.images?.length ? draft.images[draft.images.length - 1] : undefined
+      const res = await api.imageGenerate({ prompt, count, category: draft?.categoryPath?.[0] ? String(draft.categoryPath[0]).toLowerCase() : undefined, referenceImageUrl: ref })
+      const files = await api.pollAiImageSession(res.sessionId)
+      if (files.length === 0) throw new Error('Görsel üretilemedi')
+      const urls: string[] = []
+      for (const file of files) {
+        const up = await api.takeAiResultImage(res.sessionId, file)
+        if (up.url) urls.push(up.url)
+      }
+      const newImages = [...(draft?.images || []), ...urls]
+      const updated = await api.updateAiProductDraft(draft!.id, { images: newImages } as any)
+      setDraft(updated)
+      setAiImgMsg(`${urls.length} görsel üretildi (${count * 3} kredi)`)
+      refreshMe()
+    } catch (e: any) {
+      if (e?.code === 'INSUFFICIENT_CREDITS' || e?.status === 402) { refreshMe(); Alert.alert(t('error'), t('insufficientCredits')) }
+      else setAiImgMsg(e?.message || 'Görsel üretilemedi')
+    } finally { setAiImgBusy(null) }
   }
 
   function toggleChannel(channel: AiChannel) {
@@ -773,24 +832,83 @@ export default function AiScreen() {
         <StepPills />
         <StatusBoxes />
 
-        {draft && draft.images && draft.images.length > 0 && (
+        {draft && (
           <View style={styles.metaCard}>
-            <Text style={styles.metaTitle}>{t('images')} ({draft.images.length})</Text>
-            <View style={styles.imageGrid}>
-              {draft.images.map((img, i) => (
-                <Image key={i} source={{ uri: img }} style={styles.thumbImage} />
-              ))}
-            </View>
+            <Text style={styles.metaTitle}>{t('images')} ({draft.images?.length || 0}) <Text style={{ fontWeight: '400', color: '#6b7280', fontSize: 11 }}>— her AI işlemi kredi düşer</Text></Text>
+            {draft.images && draft.images.length > 0 ? (
+              <View style={styles.imageGrid}>
+                {draft.images.map((img, i) => (
+                  <View key={i} style={{ alignItems: 'center' }}>
+                    <Image source={{ uri: img }} style={styles.thumbImage} />
+                    <TouchableOpacity
+                      style={{ marginTop: 4, backgroundColor: '#7c3aed', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                      onPress={() => handleEditImage(i)}
+                      disabled={aiImgBusy !== null}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>{aiImgBusy === 'edit' ? '...' : 'AI Düzenle'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={[styles.metaValue, { marginTop: 4 }]}>Henüz görsel yok — aşağıdan yeni görsel üretebilirsin.</Text>
+            )}
             <View style={styles.addPhotoRow}>
-              <TouchableOpacity style={[styles.addPhotoBtn, { backgroundColor: '#000' }]} onPress={takePhotoToAdd} disabled={addingPhoto}>
+              <TouchableOpacity style={[styles.addPhotoBtn, { backgroundColor: '#000' }]} onPress={takePhotoToAdd} disabled={addingPhoto || aiImgBusy !== null}>
                 <Ionicons name="camera-outline" size={18} color="#fff" />
                 <Text style={styles.addPhotoBtnText}>{t('takePhoto')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.addPhotoBtn, { backgroundColor: '#3b82f6' }]} onPress={pickPhotoToAdd} disabled={addingPhoto}>
+              <TouchableOpacity style={[styles.addPhotoBtn, { backgroundColor: '#3b82f6' }]} onPress={pickPhotoToAdd} disabled={addingPhoto || aiImgBusy !== null}>
                 {addingPhoto ? <ActivityIndicator size={18} color="#fff" /> : <Ionicons name="image-outline" size={18} color="#fff" />}
                 <Text style={styles.addPhotoBtnText}>{t('chooseFromGallery')}</Text>
               </TouchableOpacity>
             </View>
+            {/* AI Görsel Düzenleme — mevcut görseli talimatla düzenle */}
+            <View style={{ marginTop: 10, backgroundColor: '#f9f5ff', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#e9d5ff' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#6b21a8' }}>AI Görsel Düzenleme</Text>
+              <TextInput
+                style={[styles.input, { marginTop: 6, backgroundColor: '#fff', fontSize: 12 }]}
+                value={imgEditPrompt}
+                onChangeText={setImgEditPrompt}
+                placeholder="örn: beyaz arka plan, profesyonel ürün çekimi, daha parlak"
+                placeholderTextColor="#999"
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: '#7c3aed', marginTop: 6, opacity: aiImgBusy ? 0.5 : 1 }]}
+                onPress={() => draft.images?.length ? handleEditImage(draft.images.length - 1) : setAiImgMsg('Önce görsel ekleyin')}
+                disabled={aiImgBusy !== null || !draft.images?.length}
+              >
+                {aiImgBusy === 'edit' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Son Görseli Düzenle (3 kredi)</Text>}
+              </TouchableOpacity>
+            </View>
+            {/* AI Yeni Görsel Üret */}
+            <View style={{ marginTop: 10, backgroundColor: '#f0fdf4', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#bbf7d0' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#15803d' }}>Yeni Görsel(ler) Üret (sıfırdan)</Text>
+              <TextInput
+                style={[styles.input, { marginTop: 6, backgroundColor: '#fff', fontSize: 12 }]}
+                value={imgGenPrompt}
+                onChangeText={setImgGenPrompt}
+                placeholder="örn: ürünün mavi kadife kutu içinde çekimi, beyaz arka plan"
+                placeholderTextColor="#999"
+                multiline
+              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <Text style={{ fontSize: 11, color: '#374151' }}>Adet</Text>
+                <TouchableOpacity onPress={() => setImgGenCount(Math.max(1, imgGenCount - 1))} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center' }}><Text>-</Text></TouchableOpacity>
+                <Text style={{ fontWeight: '700', minWidth: 16, textAlign: 'center' }}>{imgGenCount}</Text>
+                <TouchableOpacity onPress={() => setImgGenCount(Math.min(4, imgGenCount + 1))} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', alignItems: 'center', justifyContent: 'center' }}><Text>+</Text></TouchableOpacity>
+                <Text style={{ fontSize: 10, color: '#6b7280' }}>{imgGenCount * 3} kredi</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: '#16a34a', marginTop: 6, opacity: aiImgBusy ? 0.5 : 1 }]}
+                onPress={handleGenerateImages}
+                disabled={aiImgBusy !== null}
+              >
+                {aiImgBusy === 'generate' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>{imgGenCount} Görsel Üret ({imgGenCount * 3} kredi)</Text>}
+              </TouchableOpacity>
+            </View>
+            {aiImgMsg ? <Text style={{ fontSize: 11, color: '#374151', marginTop: 6 }}>{aiImgMsg}</Text> : null}
           </View>
         )}
 

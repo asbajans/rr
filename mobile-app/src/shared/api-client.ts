@@ -646,12 +646,76 @@ class ApiClient {
     return this.post<{ sessionId: string; message?: string }>('/api/ai/edit-image', data)
   }
 
+  // New parity with web: direct imageEdit / imageGenerate
+  imageEdit(data: { imageUrl: string; prompt: string; category?: string }) {
+    return this.post<{ sessionId: string }>(`/api/ai/image-edit`, { imageUrl: data.imageUrl, prompt: data.prompt, category: data.category || 'diger' })
+  }
+
+  imageGenerate(data: { prompt: string; count?: number; category?: string; referenceImageUrl?: string }) {
+    return this.post<{ sessionId: string }>(`/api/ai/image-generate`, {
+      prompt: data.prompt,
+      count: data.count || 1,
+      category: data.category || 'diger',
+      imageUrl: data.referenceImageUrl || undefined,
+    })
+  }
+
   getAiStatus(sessionId: string) {
     return this.get<{ sessionId: string; images: number; ready: string[]; error?: string }>(`/api/ai/status/${sessionId}`)
   }
 
   getAiOutputUrl(sessionId: string, file: string) {
     return `${API_BASE}/api/ai/output/${encodeURIComponent(sessionId)}/${encodeURIComponent(file)}`
+  }
+
+  async pollAiImageSession(sessionId: string, maxTries = 60): Promise<string[]> {
+    for (let i = 0; i < maxTries; i++) {
+      await new Promise((r) => setTimeout(r, 3000))
+      const st = await this.getAiStatus(sessionId)
+      if (st.error) throw new Error(st.error)
+      if (st.ready && st.ready.length > 0) return st.ready
+    }
+    throw new Error('Görsel üretilemedi (zaman aşımı)')
+  }
+
+  async takeAiResultImage(sessionId: string, filename: string): Promise<{ url: string; path: string }> {
+    const outUrl = this.getAiOutputUrl(sessionId, filename)
+    const headers: Record<string, string> = {}
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`
+    // Use expo FileSystem to download with auth header
+    const dest = `${cacheDirectory}${filename}`
+    try {
+      const dl = await downloadAsync(outUrl, dest, { headers } as any)
+      const mime = filename.toLowerCase().endsWith('.png') ? 'image/png' : filename.toLowerCase().endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+      const uploaded = await this.uploadImage(dl.uri, filename, mime)
+      return uploaded
+    } catch (e: any) {
+      // Fallback: fetch+blob (for environments where downloadAsync header not supported)
+      const res = await fetch(outUrl, { headers })
+      if (!res.ok) {
+        let msg = `Görsel alınamadı (${res.status})`
+        try { const data: any = await res.json(); if (data?.error) msg = data.error } catch {}
+        throw new Error(msg)
+      }
+      const blob: any = await (res as any).blob()
+      const tmp = `${cacheDirectory}tmp-${Date.now()}-${filename}`
+      // @ts-ignore - FileReader in RN is available via global
+      const reader: any = new FileReader()
+      const base64: string = await new Promise((resolve, reject) => {
+        reader.onerror = () => reject(new Error('Blob okuma hatası'))
+        reader.onload = () => {
+          const result = reader.result as string
+          const comma = result.indexOf(',')
+          resolve(comma >= 0 ? result.slice(comma + 1) : result)
+        }
+        reader.readAsDataURL(blob)
+      })
+      const { writeAsStringAsync, EncodingType } = await import('expo-file-system/legacy')
+      await writeAsStringAsync(tmp, base64, { encoding: EncodingType.Base64 } as any)
+      const mime2 = filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'
+      const uploaded2 = await this.uploadImage(tmp, filename, mime2)
+      return uploaded2
+    }
   }
 
   // AI Product Studio (agentic listing flow)

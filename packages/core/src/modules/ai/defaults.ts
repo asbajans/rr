@@ -26,13 +26,13 @@ interface DefaultModel {
 }
 
 const DEFAULT_MODELS: DefaultModel[] = [
-  // Free tier
-  { modelId: 'google/gemma-4-31b-it:free', displayName: 'Gemma 4 31B (Free)', modality: 'vision', tier: 'free', maxTokens: 262144 },
-  { modelId: 'google/gemma-4-26b-a4b-it:free', displayName: 'Gemma 4 26B (Free)', modality: 'vision', tier: 'free', maxTokens: 262144 },
-  { modelId: 'nvidia/nemotron-3-super-120b-a12b:free', displayName: 'Nemotron 3 Super (Free)', modality: 'chat', tier: 'free', maxTokens: 262144 },
-  { modelId: 'openai/gpt-oss-20b:free', displayName: 'GPT-OSS 20B (Free)', modality: 'chat', tier: 'free', maxTokens: 131072 },
-  { modelId: 'inclusionai/ling-3.0-flash:free', displayName: 'Ling 3.0 Flash (Free)', modality: 'chat', tier: 'free', maxTokens: 262144 },
-  { modelId: 'nvidia/nemotron-3-ultra-550b-a55b:free', displayName: 'Nemotron 3 Ultra (Free)', modality: 'chat', tier: 'free', maxTokens: 1048576 },
+  // Free tier — use only models that actually exist on OpenRouter (Gemma 4 does not exist)
+  { modelId: 'google/gemma-3-27b-it:free', displayName: 'Gemma 3 27B (Free)', modality: 'vision', tier: 'free', maxTokens: 131072 },
+  { modelId: 'google/gemma-3-12b-it:free', displayName: 'Gemma 3 12B (Free)', modality: 'vision', tier: 'free', maxTokens: 131072 },
+  { modelId: 'meta-llama/llama-3.2-11b-vision-instruct:free', displayName: 'Llama 3.2 11B Vision (Free)', modality: 'vision', tier: 'free', maxTokens: 131072 },
+  { modelId: 'qwen/qwen2.5-vl-32b-instruct:free', displayName: 'Qwen2.5 VL 32B (Free)', modality: 'vision', tier: 'free', maxTokens: 32768 },
+  { modelId: 'google/gemini-2.0-flash-exp:free', displayName: 'Gemini 2.0 Flash Exp (Free)', modality: 'multimodal', tier: 'free', maxTokens: 1048576 },
+  { modelId: 'deepseek/deepseek-r1:free', displayName: 'DeepSeek R1 (Free)', modality: 'chat', tier: 'free', maxTokens: 65536 },
   // Paid tier
   { modelId: 'qwen/qwen3.7-flash', displayName: 'Qwen 3.7 Flash', modality: 'multimodal', tier: 'paid', maxTokens: 1048576 },
   { modelId: 'deepseek/deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', modality: 'chat', tier: 'paid', maxTokens: 1048576 },
@@ -47,43 +47,43 @@ const SCENARIO_DEFAULTS: Record<string, { name: string; description: string; pai
   analyze_product: {
     name: 'Ürün Analizi',
     description: 'Ürün görselinden kategori ve özellik çıkarımı',
-    paidModel: 'qwen/qwen3.7-flash',
-    freeModel: 'google/gemma-4-31b-it:free',
+    paidModel: 'qwen/qwen3.5-flash',
+    freeModel: 'google/gemma-3-27b-it:free',
     costCredits: 10,
   },
   process_image: {
     name: 'Görsel İşleme',
     description: 'Görsel analiz / arka plan temizleme',
-    paidModel: 'qwen/qwen3.7-flash',
-    freeModel: 'google/gemma-4-31b-it:free',
+    paidModel: 'google/gemini-2.0-flash-exp:free',
+    freeModel: 'google/gemma-3-12b-it:free',
     costCredits: 5,
   },
   generate_image: {
     name: 'Görsel Üretme',
     description: 'Harici sağlayıcılarla yeni ürün görseli üretme / düzenleme',
-    paidModel: 'qwen/qwen-image-3',
-    freeModel: 'qwen/qwen-image-3',
+    paidModel: 'google/gemini-2.5-flash-image',
+    freeModel: 'google/gemini-2.5-flash-image',
     costCredits: 3,
   },
   agentic_listing: {
     name: 'Agentik İlan',
     description: 'Fotoğraftan tam ilan taslağı oluşturma',
     paidModel: 'google/gemini-3-flash-preview',
-    freeModel: 'google/gemma-4-31b-it:free',
+    freeModel: 'google/gemma-3-27b-it:free',
     costCredits: 12,
   },
   blog_generation: {
     name: 'Blog Üretimi',
     description: 'Konu/ürün bilgisinden SEO uyumlu blog yazısı oluşturma',
     paidModel: 'google/gemini-3-flash-preview',
-    freeModel: 'google/gemma-4-31b-it:free',
+    freeModel: 'google/gemma-3-12b-it:free',
     costCredits: 8,
   },
   generate_description: {
     name: 'Açıklama Üretme',
     description: 'Başlık ve özelliklerden SEO açıklama',
     paidModel: 'google/gemini-3-flash-preview',
-    freeModel: 'google/gemma-4-26b-a4b-it:free',
+    freeModel: 'meta-llama/llama-3.2-11b-vision-instruct:free',
     costCredits: 3,
   },
   chat: {
