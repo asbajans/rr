@@ -118,6 +118,7 @@ export default function AiScreen() {
   const [imgGenCount, setImgGenCount] = useState(1)
   const [aiImgBusy, setAiImgBusy] = useState<'edit' | 'generate' | null>(null)
   const [aiImgMsg, setAiImgMsg] = useState('')
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   const loadDrafts = async () => {
     setDraftsLoading(true)
@@ -692,7 +693,8 @@ export default function AiScreen() {
   // ---------------- STEP 1: PHOTO ----------------
   if (step === 'photo') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Ionicons name="sparkles-outline" size={28} color="#10b981" />
           <Text style={styles.headerTitle}>{t('aiStudio')}</Text>
@@ -774,7 +776,9 @@ export default function AiScreen() {
             <View style={styles.imageGrid}>
               {imageUris.map((uri, i) => (
                 <View key={i} style={styles.imageCell}>
-                  <Image source={{ uri }} style={styles.thumbImage} />
+                  <TouchableOpacity onPress={() => setPreviewImage(uri)} activeOpacity={0.8}>
+                    <Image source={{ uri }} style={styles.thumbImage} />
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.thumbRemove} onPress={() => removeImage(i)}>
                     <Ionicons name="close" size={14} color="#fff" />
                   </TouchableOpacity>
@@ -817,6 +821,16 @@ export default function AiScreen() {
           </View>
         )}
       </ScrollView>
+      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImage(null)} style={styles.previewOverlay}>
+          <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewImage(null)}>
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {previewImage && <Image source={{ uri: previewImage }} style={styles.previewFullImage} resizeMode="contain" />}
+          <Text style={styles.previewHint}>Kapatmak için dokunun</Text>
+        </TouchableOpacity>
+      </Modal>
+      </>
     )
   }
 
@@ -839,7 +853,9 @@ export default function AiScreen() {
               <View style={styles.imageGrid}>
                 {draft.images.map((img, i) => (
                   <View key={i} style={{ alignItems: 'center' }}>
-                    <Image source={{ uri: img }} style={styles.thumbImage} />
+                    <TouchableOpacity onPress={() => setPreviewImage(img)} activeOpacity={0.8}>
+                      <Image source={{ uri: img }} style={styles.thumbImage} />
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={{ marginTop: 4, backgroundColor: '#7c3aed', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
                       onPress={() => handleEditImage(i)}
@@ -1067,6 +1083,17 @@ export default function AiScreen() {
           </>
         )}
         </ScrollView>
+
+        {/* Image preview — tap thumbnail to view large */}
+        <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImage(null)} style={styles.previewOverlay}>
+            <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewImage(null)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            {previewImage && <Image source={{ uri: previewImage }} style={styles.previewFullImage} resizeMode="contain" />}
+            <Text style={styles.previewHint}>Kapatmak için dokunun</Text>
+          </TouchableOpacity>
+        </Modal>
 
         {/* Searchable category picker */}
         <Modal visible={catPickerOpen} transparent animationType="slide" onRequestClose={() => setCatPickerOpen(false)}>
@@ -1447,4 +1474,8 @@ const styles = StyleSheet.create({
   catOptionTextActive: { color: '#fff', fontWeight: '600' },
   catCancelBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: '#f0f0f0' },
   catCancelText: { color: '#333', fontWeight: '600', fontSize: 15 },
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  previewFullImage: { width: '100%', height: '78%', borderRadius: 12 },
+  previewClose: { position: 'absolute', top: 44, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  previewHint: { marginTop: 12, color: '#fff', fontSize: 12, opacity: 0.7 },
 })
