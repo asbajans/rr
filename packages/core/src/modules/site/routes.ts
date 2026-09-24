@@ -280,7 +280,7 @@ siteRoutes.post('/domains', authMiddleware, requireRole('owner', 'admin'), requi
         const idx = next.findIndex((d: any) => d.domain === domain);
         if (idx >= 0) {
           next[idx] = { ...next[idx], method: 'cloudflare_ns', zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, lastCheckedAt: new Date().toISOString() } as any;
-          await store.update({ domains: next as any });
+          await store.update({ domains: [...next] as any });
         }
       }
     } catch (e: any) {
@@ -424,7 +424,7 @@ siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 
         const dIdx = domains.findIndex((d: any) => d.domain === domain);
         if (dIdx !== -1) {
           domains[dIdx] = { ...domains[dIdx], zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, lastCheckedAt: new Date().toISOString(), verified, method: verified ? 'cloudflare_ns' : domains[dIdx].method } as any;
-          await store.update({ domains: domains as any });
+          await store.update({ domains: [...domains] as any });
           if (verified) await store.update({ domain } as any);
         } else if (isLegacyPrimary) {
           // will be handled below
@@ -468,10 +468,10 @@ siteRoutes.post('/domains/:domain/verify', authMiddleware, requireRole('owner', 
     } catch {}
   }
 
-  // Update domains array
+  // Update domains array — must copy array for JSONB dirty check (getStoreDomains returns same ref as store.domains)
   if (idx !== -1) {
     domains[idx] = { ...domains[idx], verified, method: method || domains[idx].method || null, lastCheckedAt: new Date().toISOString() };
-    await store.update({ domains: domains as any });
+    await store.update({ domains: [...domains] as any });
     if (verified) await store.update({ domain } as any);
   } else if (isLegacyPrimary) {
     // Promote legacy to array
@@ -499,15 +499,15 @@ siteRoutes.post('/domains/:domain/zone', authMiddleware, requireRole('owner', 'a
   try {
     let zone = await getZoneByName(domain);
     if (!zone) zone = await createZone(domain);
-    // persist zoneId
+    // persist zoneId — copy array for JSONB dirty check
     if (idx !== -1) {
       domains[idx] = { ...domains[idx], zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, lastCheckedAt: new Date().toISOString() };
-      await store.update({ domains: domains as any });
+      await store.update({ domains: [...domains] as any });
     } else {
       // legacy primary
       const entry: any = { domain, verified: false, zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, addedAt: new Date().toISOString(), lastCheckedAt: new Date().toISOString() };
       domains = [...domains, entry];
-      await store.update({ domains: domains as any });
+      await store.update({ domains: [...domains] as any });
     }
     // Ensure SaaS records inside customer zone if they point www/@ to our target (optional auto-create)
     // Don't auto-create to avoid overwriting customer's MX
@@ -532,13 +532,13 @@ siteRoutes.get('/domains/:domain/zone', authMiddleware, requireRole('owner', 'ad
       zone = await getZoneByName(domain);
     }
     if (!zone) return res.json({ domain, zoneId: null, zoneStatus: 'not_created', nameServers: null });
-    // sync if zone found but not stored
+    // sync if zone found but not stored — copy for dirty check
     if (!entry.zoneId) {
       const domains: any[] = getStoreDomains(store);
       const idx = domains.findIndex((d: any) => d.domain === domain);
       if (idx !== -1) {
         domains[idx] = { ...domains[idx], zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers };
-        await store.update({ domains: domains as any });
+        await store.update({ domains: [...domains] as any });
       }
     }
     res.json({ domain, zoneId: zone.id, zoneStatus: zone.status, nameServers: zone.name_servers, zone });

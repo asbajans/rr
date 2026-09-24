@@ -122,9 +122,11 @@ function DomainManager() {
         </div>
       )}
       {msg && <p className={`text-sm ${msg.type==='success'?'text-emerald-600':'text-red-600'}`}>{msg.text}</p>}
-      <div className="mt-4">
-        <DomainSetupGuide cloudflare={cf} compact={domains.length>0} />
-      </div>
+      {domains.length===0 && (
+        <div className="mt-4">
+          <DomainSetupGuide cloudflare={cf} />
+        </div>
+      )}
     </div>
   )
 }
