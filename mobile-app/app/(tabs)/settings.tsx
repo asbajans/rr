@@ -212,11 +212,19 @@ function NsGuideMobile({ domain, nameServers }: { domain?: string; nameServers?:
           </View>
           {d.lastCheckedAt && <Text style={[styles.meta, { marginTop: 4, fontSize: 10 }]}>Son kontrol: {new Date(d.lastCheckedAt).toLocaleString('tr-TR')}</Text>}
           {d.zoneId && <Text style={[styles.meta, { fontSize: 10 }]}>Zone: {String(d.zoneId).slice(0, 8)}... {d.zoneStatus || ''}</Text>}
-          {!d.verified && (
-            <View style={{ marginTop: 6, backgroundColor: '#fffbeb', borderRadius: 6, padding: 6, borderWidth: 1, borderColor: '#fde68a' }}>
-              <Text style={{ fontSize: 10, color: '#92400e' }}>NS: <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>{(() => { const ns = (d as any).nameServers || (d as any).cloudflare?.nameServers; return Array.isArray(ns) && ns.length ? ns.join(' , ') : 'lily.ns.cloudflare.com , ricardo.ns.cloudflare.com'; })()}</Text> → NS değiştirin</Text>
-            </View>
-          )}
+          {!d.verified && (() => {
+            const ns: string[] | undefined = (d as any).nameServers || (d as any).cloudflare?.nameServers;
+            const hasNs = Array.isArray(ns) && ns.length >= 2;
+            return (
+              <View style={{ marginTop: 6, backgroundColor: '#fffbeb', borderRadius: 6, padding: 6, borderWidth: 1, borderColor: '#fde68a' }}>
+                {hasNs ? (
+                  <Text style={{ fontSize: 10, color: '#92400e' }}>NS: <Text style={{ fontFamily: 'monospace', fontSize: 10 }}>{ns.join(' , ')}</Text> → NS değiştirin</Text>
+                ) : (
+                  <Text style={{ fontSize: 10, color: '#92400e' }}>NS bilgisi oluşturuluyor — yenileyin / Doğrula’ya basın</Text>
+                )}
+              </View>
+            );
+          })()}
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: d.verified ? '#fff' : '#111', borderWidth: 1, borderColor: d.verified ? '#ddd' : '#111', flex: 1 }]} onPress={() => handleVerify(d.domain)} disabled={verifying === d.domain}>
               {verifying === d.domain ? <ActivityIndicator size="small" /> : <Text style={[styles.saveBtnText, { color: d.verified ? '#111' : '#fff' }]}>{d.verified ? 'Tekrar Doğrula' : 'Doğrula'}</Text>}

@@ -83,9 +83,15 @@ function DomainManager() {
                     {d.method && <span className="rounded bg-white px-1.5 py-0.5 text-xs text-zinc-500">{d.method}</span>}
                   </div>
                   {d.lastCheckedAt && <p className="mt-1 text-xs text-zinc-500">Son kontrol: {new Date(d.lastCheckedAt).toLocaleString('tr-TR')}</p>}
-                  {!d.verified && (
-                    <p className="mt-1 text-xs text-zinc-600">NS: <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">lily.ns.cloudflare.com</code> , <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">ricardo.ns.cloudflare.com</code> → NS değiştirin</p>
-                  )}
+                  {!d.verified && (() => {
+                    const ns: string[] | undefined = (d as any).nameServers || (d as any).cloudflare?.nameServers;
+                    const hasNs = Array.isArray(ns) && ns.length >= 2;
+                    return hasNs ? (
+                      <p className="mt-1 text-xs text-zinc-600">NS: <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">{ns[0]}</code> , <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px]">{ns[1]}</code> → NS değiştirin</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-zinc-500">NS bilgisi oluşturuluyor — sayfayı yenileyin veya Doğrula’ya basın</p>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button size="sm" variant={d.verified ? 'outline' : 'primary'} onClick={()=>handleVerify(d.domain)} disabled={verifying===d.domain}>
