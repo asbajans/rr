@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import { ShoppingBag, Store, Download, ExternalLink } from 'lucide-react'
@@ -205,7 +206,7 @@ export default function IntegrationsPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <a href="/marketing" className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800">Marketing’e Git</a>
+          <Link href="/marketing" className="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800">Marketing’e Git</Link>
           <button onClick={handleMetaConnect} disabled={metaConnecting} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50">{metaConnecting ? 'Yönlendiriliyor...' : 'Meta’yı Otomatik Bağla'}</button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api-client'
 import { BarChart3, Eye, Users, Store, CreditCard, TrendingUp, AlertTriangle, Calendar, MessageCircle, UserPlus, ShoppingBag } from 'lucide-react'
 
@@ -98,7 +99,7 @@ export default function SaasAnalyticsPage() {
           <div className="rounded-lg bg-amber-950/20 border border-amber-900/30 p-3"><p className="text-xs text-amber-300">Üye</p><p className="text-lg font-bold text-white">{(p.signupEvents ?? 0).toLocaleString('tr-TR')}</p><p className="text-[11px] text-zinc-500">{p.views>0?((p.signupEvents??0)/p.views*100).toFixed(1):'0'}%</p></div>
           <div className="rounded-lg bg-indigo-950/30 border border-indigo-900/30 p-3"><p className="text-xs text-indigo-300">Satın Alma</p><p className="text-lg font-bold text-white">{(p.purchaseEvents ?? 0).toLocaleString('tr-TR')}</p><p className="text-[11px] text-zinc-500">{p.views>0?((p.purchaseEvents??0)/p.views*100).toFixed(1):'0'}%</p></div>
         </div>
-        <p className="mt-2 text-[11px] text-zinc-500">Tüm adımlar GA4 / GTM (dataLayer) / Meta Pixel / TikTok Pixel / Google Ads üzerinden de tetiklenir. Pazarlama etiketlerini yönet → <a href="/super/marketing" className="text-indigo-400 hover:underline">Pazarlama & Takip</a></p>
+        <p className="mt-2 text-[11px] text-zinc-500">Tüm adımlar GA4 / GTM (dataLayer) / Meta Pixel / TikTok Pixel / Google Ads üzerinden de tetiklenir. Pazarlama etiketlerini yönet → <Link href="/super/marketing" className="text-indigo-400 hover:underline">Pazarlama & Takip</Link></p>
       </div>
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">

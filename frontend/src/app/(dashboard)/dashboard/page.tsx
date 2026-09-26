@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { DashboardData } from '@/lib/types'
@@ -103,7 +104,7 @@ export default function DashboardPage() {
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
                     <div className={`h-full rounded-full ${p.severity === 'exhausted' ? 'bg-red-500' : p.severity === 'critical' ? 'bg-amber-500' : p.severity === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, p.percentUsed)}%` }} />
                   </div>
-                  {p.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{p.severity === 'exhausted' ? 'Limit doldu — yeni ürün ekleyemezsiniz' : p.severity === 'critical' ? 'Limit dolmak üzere' : 'Limite yaklaşıyorsunuz'} · <a href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</a></p>}
+                  {p.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{p.severity === 'exhausted' ? 'Limit doldu — yeni ürün ekleyemezsiniz' : p.severity === 'critical' ? 'Limit dolmak üzere' : 'Limite yaklaşıyorsunuz'} · <Link href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</Link></p>}
                 </div>
                 <div className={`rounded-xl border p-4 ${mp && mp.limit > 0 ? (mp.severity === 'exhausted' ? 'border-red-200 bg-red-50' : mp.severity !== 'ok' ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-white') : 'border-zinc-200 bg-white'}`}>
                   <p className="text-xs font-medium text-zinc-500">Pazaryeri Kotası <span className="font-normal normal-case"> (Kendi Siteniz hariç)</span></p>
@@ -113,7 +114,7 @@ export default function DashboardPage() {
                       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
                         <div className={`h-full rounded-full ${mp.severity === 'exhausted' ? 'bg-red-500' : mp.severity === 'critical' ? 'bg-amber-500' : mp.severity === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, mp.percentUsed)}%` }} />
                       </div>
-                      {mp.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{mp.severity === 'exhausted' ? 'Limit doldu — yeni pazaryeri ekleyemezsiniz' : 'Limite yaklaşıyorsunuz'} · <a href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</a></p>}
+                      {mp.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{mp.severity === 'exhausted' ? 'Limit doldu — yeni pazaryeri ekleyemezsiniz' : 'Limite yaklaşıyorsunuz'} · <Link href="/billing?reason=product_limit#plans" className="text-indigo-600 hover:underline">Planı yükselt</Link></p>}
                     </>
                   ) : (
                     <p className="mt-1 text-sm text-zinc-400">Pazaryeri modülü kapalı</p>
@@ -125,7 +126,7 @@ export default function DashboardPage() {
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
                     <div className={`h-full rounded-full ${c.severity === 'exhausted' ? 'bg-red-500' : c.severity === 'critical' ? 'bg-amber-500' : c.severity === 'warning' ? 'bg-amber-400' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, 100 - c.percentRemaining)}%` }} />
                   </div>
-                  {c.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{c.severity === 'exhausted' ? 'Kredi bitti — AI durdu' : c.severity === 'critical' ? 'Kredi kritik' : 'Kredi azalıyor'} · <a href="/billing?reason=credits#credits" className="text-indigo-600 hover:underline">Kredi al</a></p>}
+                  {c.severity !== 'ok' && <p className="mt-1.5 text-xs font-medium text-zinc-600">{c.severity === 'exhausted' ? 'Kredi bitti — AI durdu' : c.severity === 'critical' ? 'Kredi kritik' : 'Kredi azalıyor'} · <Link href="/billing?reason=credits#credits" className="text-indigo-600 hover:underline">Kredi al</Link></p>}
                 </div>
               </div>
             )

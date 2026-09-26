@@ -3,29 +3,6 @@ import type { MetadataRoute } from 'next'
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.rahatio.com.tr'
 const PLATFORM_ORIGIN = 'https://rahatio.com.tr'
 
-function normalizeDomain(domain: string | null | undefined): string | null {
-  if (!domain) return null
-  let d = String(domain).trim().toLowerCase()
-  d = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '')
-  if (!d || d === 'rahatio.com.tr' || d.endsWith('.rahatio.com.tr')) return null
-  if (d === 'localhost' || d.endsWith('.localhost')) return null
-  if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(d)) return null
-  return d
-}
-
-function storeOrigin(siteCode: string, domain: string | null | undefined): string {
-  const d = normalizeDomain(domain)
-  if (d) return `https://${d}`
-  return PLATFORM_ORIGIN
-}
-
-function storePath(siteCode: string, domain: string | null | undefined, p: string): string {
-  const d = normalizeDomain(domain)
-  const suffix = p ? `/${p.replace(/^\/+/, '')}` : ''
-  if (d) return `${storeOrigin(siteCode, domain)}${suffix}`
-  return `${PLATFORM_ORIGIN}/stores/${siteCode}${suffix}`
-}
-
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 

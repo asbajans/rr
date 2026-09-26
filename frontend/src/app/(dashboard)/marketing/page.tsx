@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth'
 import { CardSkeleton } from '@/components/ui/skeleton'
@@ -558,7 +559,7 @@ export default function MarketingPage() {
                   <p className="mt-1 text-xs text-zinc-600">developers.facebook.com → Uygulaman → Facebook Login → Ayarlar → Valid OAuth Redirect URIs → şunu ekle:</p>
                   <code className="mt-1 block rounded bg-zinc-900 px-2 py-1.5 text-xs font-mono text-white break-all">{oauthRedirectUri || 'https://api.rahatio.com.tr/api/admin/integrations/facebook/oauth/callback'}</code>
                   <p className="mt-1 text-xs text-zinc-500">Client OAuth Login ve Web OAuth Login = Açık, App Domains = rahatio.com.tr</p>
-                  <a href="/meta-settings" className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-700">Meta Ayarları’na git →</a>
+                  <Link href="/meta-settings" className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-700">Meta Ayarları’na git →</Link>
                 </div>
               ) : null}
             </div>
@@ -574,7 +575,7 @@ export default function MarketingPage() {
           <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600">
             <p className="font-medium text-zinc-900 flex items-center gap-1"><Sparkles className="h-3 w-3" /> Nasıl izlenir?</p>
             <p className="mt-1">Siparişler → sipariş detayında <span className="font-mono">attribution</span> alanında <span className="font-medium">utm_source / rh_src</span> görünür. Ayrıca Facebook Piksel sayfada otomatik tetiklenir. İlk kurulumdan sonra tüm yeni ürünler tracking’li link ile paylaşılmaya hazırdır.</p>
-            <a href="/pixels" className="inline-flex items-center gap-1 mt-2 text-indigo-600 hover:text-indigo-700">Piksel ayarları <ExternalLink className="h-3 w-3" /></a>
+            <Link href="/pixels" className="inline-flex items-center gap-1 mt-2 text-indigo-600 hover:text-indigo-700">Piksel ayarları <ExternalLink className="h-3 w-3" /></Link>
           </div>
         </div>
       </div>

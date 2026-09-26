@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { Store, StoreTheme, StoreHomepage, SiteDeployment } from '@/lib/types'
@@ -372,7 +373,7 @@ export default function SiteBuilderPage() {
             </>
           ) : (
             <div className="mt-4">
-              <p className="text-sm text-zinc-600">Ayrıntılı yönetim için <a href="/site-publish" className="font-medium text-indigo-600 hover:underline">Site Yayın → Domain Yönetimi</a>’ne gidin.</p>
+              <p className="text-sm text-zinc-600">Ayrıntılı yönetim için <Link href="/site-publish" className="font-medium text-indigo-600 hover:underline">Site Yayın → Domain Yönetimi</Link>’ne gidin.</p>
               <div className="mt-4">
                 <DomainSetupGuide compact />
               </div>

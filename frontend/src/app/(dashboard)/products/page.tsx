@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth'
@@ -839,9 +840,9 @@ on_sale: !!md.on_sale,
                     Planını Yükselt
                   </button>
                 ) : total / productLimit > 0.8 ? (
-                  <a href="/billing?reason=product_limit#plans" className="text-xs font-medium text-amber-600 hover:underline">
+                  <Link href="/billing?reason=product_limit#plans" className="text-xs font-medium text-amber-600 hover:underline">
                     {total / productLimit > 0.9 ? 'Limit dolmak üzere' : 'Limite yaklaşıyorsunuz'} — Planı yükselt
-                  </a>
+                  </Link>
                 ) : null}
               </div>
               {total >= productLimit && (

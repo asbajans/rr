@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api-client'
 import type { ApiKey } from '@/lib/types'
@@ -285,7 +286,7 @@ function PublishMethods({ isVercelPlan, vercelHostingName }: { isVercelPlan: boo
           </div>
           {!isVercelPlan ? (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Vercel için planını yükselt. Mevcut: <b>{vercelHostingName}</b>. <a href="/billing" className="text-indigo-700 hover:underline">Planlara git →</a>
+              Vercel için planını yükselt. Mevcut: <b>{vercelHostingName}</b>. <Link href="/billing" className="text-indigo-700 hover:underline">Planlara git →</Link>
             </div>
           ) : <div className="mt-4"><VercelHostingPanel /></div>}
         </div>
