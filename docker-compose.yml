@@ -55,9 +55,11 @@ services:
 
   minio:
     # MinIO resmi image'ları sadece quay.io'da (Docker Hub kopyaları kaldırıldı).
-    # Quay.io giriş gerektirir — Portainer → Registries'te "Quay" kaydı (robot hesap)
-    # tanımlı, stack pull'larında kimlik oradan gelir. Kayıt silinirse pull 401 verir.
+    # Quay.io giriş gerektirir; Portainer'daki "Quay" kaydı çalışana kadar GEÇİCİ
+    # olarak cache kullanılır (pull_policy: never → pull bu servisi atlar).
+    # TODO(quay-auth): robot token doğrulanınca bu satırı kaldır.
     image: quay.io/minio/minio:latest
+    pull_policy: never
     container_name: rahatio-minio
     restart: unless-stopped
     networks:
@@ -78,8 +80,10 @@ services:
       retries: 5
 
   minio-init:
-    # mc sadece quay.io'da mevcut — kimlik Portainer "Quay" registry kaydından gelir.
+    # mc sadece quay.io'da mevcut — minio ile aynı GEÇİCİ cache çözümü.
+    # TODO(quay-auth): robot token doğrulanınca bu satırı kaldır.
     image: quay.io/minio/mc:latest
+    pull_policy: never
     container_name: rahatio-minio-init
     networks:
       - rahatio
