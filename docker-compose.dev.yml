@@ -48,8 +48,9 @@ services:
       retries: 5
 
   minio:
-    # MinIO resmi image'ları sadece quay.io'da — quay.io auth gerekli (bkz. docker-compose.yml).
-    image: quay.io/minio/minio:latest
+    # Kendi ghcr aynamız (CI'da kaynaktan derlenir). Local'de ilk sefer:
+    # docker login ghcr.io -u asbajans (read:packages yetkili PAT).
+    image: ghcr.io/asbajans/rahatio/minio:latest
     container_name: rahatio-minio
     restart: unless-stopped
     networks:

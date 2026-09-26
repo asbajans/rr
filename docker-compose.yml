@@ -54,12 +54,11 @@ services:
       retries: 5
 
   minio:
-    # MinIO resmi image'ları sadece quay.io'da (Docker Hub kopyaları kaldırıldı).
-    # Quay.io giriş gerektirir; Portainer'daki "Quay" kaydı çalışana kadar GEÇİCİ
-    # olarak cache kullanılır (pull_policy: never → pull bu servisi atlar).
-    # TODO(quay-auth): robot token doğrulanınca bu satırı kaldır.
-    image: quay.io/minio/minio:latest
-    pull_policy: never
+    # Kendi ghcr aynamız — CI'da kaynaktan derlenir (docker/minio/Dockerfile).
+    # MinIO community binary dağıtımını durdurdu: quay.io 401 veriyor (robot
+    # hesaplar чужой namespace çekemiyor), Docker Hub kopyaları kaldırıldı,
+    # aistor image'ları lisans istiyor. Detay: AGENTS.md "MinIO" notu.
+    image: ghcr.io/asbajans/rahatio/minio:latest
     container_name: rahatio-minio
     restart: unless-stopped
     networks:
@@ -80,10 +79,8 @@ services:
       retries: 5
 
   minio-init:
-    # mc sadece quay.io'da mevcut — minio ile aynı GEÇİCİ cache çözümü.
-    # TODO(quay-auth): robot token doğrulanınca bu satırı kaldır.
-    image: quay.io/minio/mc:latest
-    pull_policy: never
+    # Kendi ghcr aynamız — CI'da kaynaktan derlenir (docker/minio-mc/Dockerfile).
+    image: ghcr.io/asbajans/rahatio/minio-mc:latest
     container_name: rahatio-minio-init
     networks:
       - rahatio

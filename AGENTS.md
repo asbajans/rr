@@ -12,6 +12,23 @@ Portainer API Key: `<stored-in-secret-manager; rotate existing key>`
 
 ---
 
+## MinIO (S3 uyumlu depolama) — 2026-09-26
+
+**Sorun**: MinIO community binary dağıtımını durdurdu (source-only). Eski `quay.io/minio/minio` reposu anonim çekişlere 401 veriyor; robot hesaplar da `minio` namespace'ini çekemez (scope: kendi namespace). Docker Hub kopyaları kaldırıldı. Yeni `quay.io/minio/aistor/*` image'ları Enterprise sürümü, lisans ister (bucket oluşturamaz).
+
+**Çözüm**: CI'da kaynaktan derleyip kendi `ghcr.io/asbajans/rahatio/minio` + `.../minio-mc` image'larına push'lıyoruz.
+
+- `docker/minio/Dockerfile` + `docker/minio-mc/Dockerfile`: Go 1.24 + Alpine, `go install` ile resmi yöntem.
+- `.github/workflows/ci-cd.yml` → `docker-minio` job: her push'ta GHCR'ye derleyip push'lar (cache ile hızlı).
+- `docker-compose.yml` + `docker-compose.dev.yml`: `image: ghcr.io/asbajans/rahatio/minio:latest` ve `.../minio-mc:latest`.
+- Portainer → Registries'te `ghcr.io` (asbajans + PAT `write:packages`) zaten tanımlandı ve çalışıyor — private image bile çeker.
+
+**Deploy sırası**:
+1. `main`'e push → CI: `docker-minio` job → GHCR image'lar hazır.
+2. `deploy` job (webhook) → Portainer pull + up (GHCR'den çeker, auth zaten var).
+
+---
+
 # Work State (Session History)
 
 ## Tamamlananlar
