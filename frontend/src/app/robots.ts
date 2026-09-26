@@ -88,6 +88,8 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     '/stores$', // block exact /stores (superadmin list) but allow /stores/[siteCode] via Allow
     '/stores?', // block /stores?* query variants
   ]
+  // IndexNow anahtar dosyası (/{key}.txt) kökte sunulur — Allow: / kapsamında,
+  // disallow listesinde değildir; doğrulama için ayrıca engellenmediğini not düşelim.
   const rules: MetadataRoute.Robots['rules'] = [
     {
       userAgent: '*',

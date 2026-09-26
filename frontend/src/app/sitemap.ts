@@ -76,6 +76,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
                 }
               }
             } catch {}
+            // Mağaza sayfaları (/pages/[slug]) — custom domain canonical
+            try {
+              const pr = await fetch(`${API_BASE}/api/store/${siteCode}/pages`, { cache: 'no-store' })
+              if (pr.ok) {
+                const pd: any = await pr.json().catch(() => null)
+                const pages: any[] = pd?.pages ?? []
+                for (const pg of pages.slice(0, 100)) {
+                  if (!pg.slug) continue
+                  entries.push({ url: `${origin}/pages/${pg.slug}`, lastModified: pg.updatedAt ? new Date(pg.updatedAt) : now, changeFrequency: 'monthly', priority: 0.5 })
+                }
+              }
+            } catch {}
             if (entries.length > 2) return entries
           }
         }
@@ -109,7 +121,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     clearTimeout(t)
     if (!res.ok) return staticPages
     const data: any = await res.json().catch(() => null)
-    const stores: Array<{ siteCode?: string; site_code?: string; domain?: string | null; siteUrl?: string | null; updatedAt?: string }> =
+    const stores: Array<{ siteCode?: string; site_code?: string; domain?: string | null; siteUrl?: string | null; updatedAt?: string; pages?: Array<{ slug: string; updatedAt?: string }> }> =
       data?.stores ?? data?.data ?? []
 
     const entries: MetadataRoute.Sitemap = [...staticPages]
@@ -142,6 +154,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           changeFrequency: 'daily',
           priority: 0.8,
         })
+        // Mağaza blog index sayfası (/stores/[code]/blog) — yazıların kendisi aşağıda
+        addEntry({
+          url: `${PLATFORM_ORIGIN}/stores/${code}/blog`,
+          lastModified: lm,
+          changeFrequency: 'weekly',
+          priority: 0.6,
+        })
       }
 
       const prods: Array<{ id: number; slug?: string | null; updatedAt?: string }> =
@@ -169,6 +188,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           lastModified: b.updatedAt ? new Date(b.updatedAt) : (b.publishedAt ? new Date(b.publishedAt) : lm),
           changeFrequency: 'weekly',
           priority: code === 'platform' ? 0.75 : 0.65,
+        })
+      }
+
+      // Mağaza içerik sayfaları (/stores/[code]/pages/[slug]) — admin/panel hariç tüm public sayfalar
+      const pages: Array<{ slug: string; updatedAt?: string }> =
+        (s as any).pages ?? []
+      for (const pg of pages.slice(0, 100)) {
+        if (!pg.slug) continue
+        if (code === 'platform') continue
+        addEntry({
+          url: `${PLATFORM_ORIGIN}/stores/${code}/pages/${pg.slug}`,
+          lastModified: pg.updatedAt ? new Date(pg.updatedAt) : lm,
+          changeFrequency: 'monthly',
+          priority: 0.5,
         })
       }
     }

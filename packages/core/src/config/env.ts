@@ -136,4 +136,9 @@ export const config = {
     windowMs: 15 * 60 * 1000,
     max: 600,
   },
+
+  indexnow: {
+    key: process.env.INDEXNOW_KEY || '',
+    endpoint: process.env.INDEXNOW_ENDPOINT || 'https://api.indexnow.org/IndexNow',
+  },
 };

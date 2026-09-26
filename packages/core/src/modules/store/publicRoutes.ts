@@ -66,6 +66,7 @@ publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
     const storeIds = stores.map((s) => (s as any).id as number);
     const productsByStore = new Map<number, Array<{ id: number; slug: string | null; updatedAt: Date }>>();
     const blogsByStore = new Map<number, Array<{ slug: string; updatedAt: Date; publishedAt: Date }>>();
+    const pagesByStore = new Map<number, Array<{ slug: string; updatedAt: Date }>>();
     if (storeIds.length) {
       const products = await Product.findAll({
         where: {
@@ -101,6 +102,20 @@ publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
         if (arr.length < 100) arr.push({ slug: (b as any).slug, updatedAt: (b as any).updatedAt, publishedAt: (b as any).publishedAt });
         blogsByStore.set(sid, arr);
       }
+
+      // Aktif mağaza sayfaları (storefront /pages/[slug] — sitemap'e dahil)
+      const pages = await Page.findAll({
+        where: { storeId: { [Op.in]: storeIds }, isActive: true },
+        attributes: ['storeId', 'slug', 'updatedAt'],
+        order: [['updatedAt', 'DESC']],
+        limit: 5000,
+      });
+      for (const pg of pages) {
+        const sid = (pg as any).storeId as number;
+        const arr = pagesByStore.get(sid) ?? [];
+        if (arr.length < 100) arr.push({ slug: (pg as any).slug, updatedAt: (pg as any).updatedAt });
+        pagesByStore.set(sid, arr);
+      }
     }
 
     res.json({
@@ -111,6 +126,7 @@ publicStoreRoutes.get('/sitemap', async (_req: Request, res: Response) => {
         updatedAt: (s as any).updatedAt,
         products: productsByStore.get((s as any).id) ?? [],
         blogs: blogsByStore.get((s as any).id) ?? [],
+        pages: pagesByStore.get((s as any).id) ?? [],
       })),
     });
   } catch (error) {

@@ -70,6 +70,17 @@ export async function proxy(request: NextRequest) {
   if (isPlatformHost(host)) return NextResponse.next()
 
   const { pathname, search } = request.nextUrl
+  // SEO/AI dosyaları custom domain'de de kökte sunulmalı (rewrite'e girmez):
+  // /sitemap.xml + /robots.txt (host-aware üretilir), /llms.txt,
+  // IndexNow anahtar dosyası /{key}.txt ve diğer *.txt doğrulama dosyaları.
+  if (
+    pathname === '/sitemap.xml' ||
+    pathname === '/robots.txt' ||
+    pathname === '/llms.txt' ||
+    (pathname.endsWith('.txt') && !pathname.includes('/', 1))
+  ) {
+    return NextResponse.next()
+  }
   // Already a platform storefront path — don't double-rewrite.
   if (pathname.startsWith('/stores/')) return NextResponse.next()
 
@@ -83,5 +94,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|llms.txt).*)'],
 }

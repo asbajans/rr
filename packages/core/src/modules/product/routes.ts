@@ -205,6 +205,13 @@ productRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireSt
       checkAndNotifyQuota(store.id, user.id).catch(() => undefined);
     } catch { /* ignore */ }
 
+    // IndexNow: yeni ürün anında hızlı indexleme kuyruğuna (sitemap'e de düşer)
+    try {
+      const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+      const slugOrId = (product as any).slug || product.id;
+      void notifyStorefrontChange(store.siteCode, 'product', slugOrId, (store as any).domain).catch(() => undefined);
+    } catch { /* ignore */ }
+
     res.status(201).json({ product });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create product error');
@@ -295,6 +302,13 @@ productRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
         logger.warn({ err: e }, 'Failed to auto-queue sync for updated product');
       }
     }
+
+    // IndexNow: güncellenen ürün URL'sini anında bildir (sitemap zaten güncellenir)
+    try {
+      const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+      const slugOrId = (product as any).slug || product.id;
+      void notifyStorefrontChange(store.siteCode, 'product', slugOrId, (store as any).domain).catch(() => undefined);
+    } catch { /* ignore */ }
 
     res.json({ product });
   } catch (error: unknown) {

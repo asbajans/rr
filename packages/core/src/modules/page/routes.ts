@@ -82,6 +82,13 @@ pageRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore
     });
 
     logger.info(`Page created: ${page.id} (${page.slug}) by store ${store.id}`);
+    // IndexNow: aktif sayfa anında bildirilir (sitemap'e de düşer)
+    if ((page as any).isActive !== false) {
+      try {
+        const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+        void notifyStorefrontChange(store.siteCode, 'page', (page as any).slug, (store as any).domain).catch(() => undefined);
+      } catch { /* ignore */ }
+    }
     res.status(201).json({ page });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create page error');
@@ -156,6 +163,12 @@ pageRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireSto
 
     await page.update(updates);
     logger.info(`Page updated: ${page.id} (${page.slug})`);
+    try {
+      if ((page as any).isActive !== false) {
+        const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+        void notifyStorefrontChange(store.siteCode, 'page', (page as any).slug, (store as any).domain).catch(() => undefined);
+      }
+    } catch { /* ignore */ }
     res.json({ page });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update page error');

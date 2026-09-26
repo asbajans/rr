@@ -99,6 +99,11 @@ export const config = {
     apiKey: process.env.CORE_API_KEY || 'core-internal-key',
   },
 
+  indexnow: {
+    key: process.env.INDEXNOW_KEY || '',
+    endpoint: process.env.INDEXNOW_ENDPOINT || 'https://api.indexnow.org/IndexNow',
+  },
+
   cors: {
     origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081'],
     credentials: true,

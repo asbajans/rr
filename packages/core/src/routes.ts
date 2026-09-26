@@ -47,6 +47,7 @@ import { sellerSupportRoutes, superSupportRoutes } from './modules/support/route
 import { sellerAnalyticsRoutes, saasAnalyticsRoutes, analyticsPublicRoutes, saasBeaconRoutes } from './modules/analytics/routes.js';
 import { saasCouponRoutes } from './modules/saasCoupon/routes.js';
 import { platformBlogRoutes } from './modules/platformBlog/routes.js';
+import { seoRoutes } from './modules/seo/routes.js';
 
 export const registerRoutes = (app: any): void => {
   app.use('/api/auth', authRoutes);
@@ -88,6 +89,7 @@ export const registerRoutes = (app: any): void => {
   app.use('/api/admin/saas', saasAnalyticsRoutes);
   app.use('/api/admin/saas/coupons', saasCouponRoutes);
   app.use('/api/admin/saas/blogs', platformBlogRoutes);
+  app.use('/api/admin/seo', seoRoutes);
   app.use('/api/webhooks', metaWebhookRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/ai', draftRoutes);

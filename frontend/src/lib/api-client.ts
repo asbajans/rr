@@ -446,6 +446,10 @@ class ApiClient {
   createSaasCoupon(data: any) { return this.post<any>(`/api/admin/saas/coupons`, data) }
   updateSaasCoupon(id: number, data: any) { return this.put<any>(`/api/admin/saas/coupons/${id}`, data) }
   deleteSaasCoupon(id: number) { return this.delete<any>(`/api/admin/saas/coupons/${id}`) }
+  // SEO / IndexNow (hızlı indexleme)
+  getIndexNowStatus() { return this.get<any>(`/api/admin/seo/indexnow`) }
+  submitIndexNowUrls(urls: string[]) { return this.post<any>(`/api/admin/seo/indexnow/submit`, { urls }) }
+  submitAllIndexNow() { return this.post<any>(`/api/admin/seo/indexnow/submit-all`, {}) }
   // Superadmin platform blogs (landing)
   getSaasBlogs(filters?: any) { return this.get<any>(`/api/admin/saas/blogs`, { params: filters }) }
   getSaasBlog(id:number){ return this.get<any>(`/api/admin/saas/blogs/${id}`).then(r=> r.post ?? r) }

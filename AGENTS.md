@@ -4,7 +4,7 @@
 
 Monorepo: `rr` (Rahatio)
 GitHub: `https://github.com/asbajans/rr`
-Portainer Stack: `rahatio-stack` (ID: 75)
+Portainer Stack: `rahatio-stack` (ID: 89)
 Portainer API: `https://cont.asb.web.tr` (Endpoint 2, X-API-Key auth)
 Portainer Webhook: `<stored-in-secret-manager>`
 Domain: `rahatio.com.tr` → Cloudflare proxied → Portainer sunucu

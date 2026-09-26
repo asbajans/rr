@@ -155,6 +155,14 @@ blogRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore
       seo,
     } as any);
 
+    // IndexNow: yayınlanan blog yazısı anında bildirilir (draft/scheduled değil)
+    if (status === 'published') {
+      try {
+        const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+        void notifyStorefrontChange(store.siteCode, 'blog', slug, (store as any).domain).catch(() => undefined);
+      } catch { /* ignore */ }
+    }
+
     res.status(201).json({ post });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Create blog post error');
@@ -216,6 +224,14 @@ blogRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireSto
     }
 
     await post.update(updates);
+    // IndexNow: yayınlı yazı güncellendiyse (veya şimdi yayınlandıysa) bildir
+    try {
+      const freshStatus = (updates.status ?? (post as any).status) as string;
+      if (freshStatus === 'published') {
+        const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+        void notifyStorefrontChange(store.siteCode, 'blog', (post as any).slug, (store as any).domain).catch(() => undefined);
+      }
+    } catch { /* ignore */ }
     res.json({ post });
   } catch (error: unknown) {
     logger.error({ err: error }, 'Update blog post error');
@@ -245,6 +261,10 @@ blogRoutes.post('/:id/publish', authMiddleware, requireRole('owner','admin'), re
     const post = await BlogPost.findOne({ where: { id: req.params.id, storeId: store.id } });
     if (!post) return res.status(404).json({ error: 'Not found' });
     await post.update({ status: 'published', isActive: true, publishedAt: new Date(), scheduledAt: null } as any);
+    try {
+      const { notifyStorefrontChange } = await import('../../services/indexnow.js');
+      void notifyStorefrontChange(store.siteCode, 'blog', (post as any).slug, (store as any).domain).catch(() => undefined);
+    } catch { /* ignore */ }
     res.json({ post });
   } catch (e) { logger.error({err:e},'publish'); res.status(500).json({error:'Internal'}); }
 });
