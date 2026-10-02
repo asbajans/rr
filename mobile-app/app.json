@@ -54,8 +54,8 @@
         "expo-build-properties",
         {
           "android": {
-            "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableProguardInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false,
             "extraProguardRules": "-keep class expo.modules.** { *; }\n-keep class com.facebook.** { *; }\n-dontwarn expo.modules.**",
             "usesCleartextTraffic": false
           },
