@@ -54,9 +54,9 @@
         "expo-build-properties",
         {
           "android": {
-            "enableProguardInReleaseBuilds": false,
-            "enableShrinkResourcesInReleaseBuilds": false,
-            "extraProguardRules": "-keep class expo.modules.** { *; }\n-keep class com.facebook.** { *; }\n-dontwarn expo.modules.**",
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class expo.modules.** { *; }\n-keep class com.facebook.** { *; }\n-keep class com.swmansion.reanimated.** { *; }\n-keep class com.swmansion.worklets.** { *; }\n-keep class com.swmansion.rnscreens.** { *; }\n-keep class com.swmansion.gesturehandler.** { *; }\n-keep class com.th3rdwave.safeareacontext.** { *; }\n-keep class com.reactnativecommunity.asyncstorage.** { *; }\n-keep class com.reactnativegooglesignin.** { *; }\n-keep class co.apptailor.** { *; }\n-keep class com.google.android.gms.** { *; }\n-keepattributes Signature,InnerClasses,EnclosingMethod\n-dontwarn expo.modules.**\n-dontwarn com.google.android.gms.**\n-dontwarn com.swmansion.**",
             "usesCleartextTraffic": false
           },
           "ios": {
