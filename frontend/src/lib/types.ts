@@ -281,8 +281,19 @@ export type StoreProduct = {
   description: string | null
   tags?: string[] | null
   attributes?: Record<string, string> | null
+  variant_attributes?: Record<string, string[]> | null
+  variants?: StoreProductVariant[]
   seo_title?: string | null
   seo_description?: string | null
+}
+
+export type StoreProductVariant = {
+  id: number
+  sku: string
+  attributes: Record<string, string>
+  quantity: number
+  priceTRY?: number | null
+  priceUSD?: number | null
 }
 
 export type CreditLog = {
@@ -539,7 +550,7 @@ export type Variation = {
   id: number
   store_id: number
   name: string
-  type: 'select' | 'color' | 'text'
+  type: 'color' | 'size' | 'material' | 'style' | 'custom'
   options?: VariationOption[]
   created_at: string
   updated_at: string

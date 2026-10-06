@@ -9,6 +9,7 @@ import { MarketplaceCategory, Brand, Category } from '@/lib/types'
 import { Wand2, Loader2, Check, Coins, ArrowUpRight, ImageUp, RotateCcw, ShieldCheck, Send, Trash2 } from 'lucide-react'
 import SearchableCategorySelect from '@/components/ai/SearchableCategorySelect'
 import SearchableMarketplaceSelect from '@/components/ai/SearchableMarketplaceSelect'
+import VariationPicker from '@/components/product/VariationPicker'
 
 type ChannelSelection = {
   categoryId?: string | number | null
@@ -100,6 +101,7 @@ export default function AiStudioPage() {
 
   // Channels / publish
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
+  const [variationSelection, setVariationSelection] = useState<Record<string, string[]>>({})
   const [validation, setValidation] = useState<any[]>([])
   const [validating, setValidating] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -310,6 +312,7 @@ function toggleChannel(c: string) {
       const d = await api.getAiProductDraft(id)
       setDraft(d)
       setFormFromDraft(d)
+      setVariationSelection({})
       setValidation([])
       setPublishResults([])
       setListings([])
@@ -391,6 +394,7 @@ function toggleChannel(c: string) {
 
       setDraft(draftData)
       setFormFromDraft(draftData)
+      setVariationSelection({})
       loadPublishState(draftData.id)
       loadDrafts()
       refreshMe()
@@ -562,7 +566,7 @@ function toggleChannel(c: string) {
         const s = selections[c] || {}
         if (s.categoryId != null || s.brandId || s.brand || (s as any).shipmentTemplate) cleanSelections[c] = s
       }
-      const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels, cleanSelections)
+      const res = await api.publishAiProductDraft(saved.id || draft.id, selectedChannels, cleanSelections, { variantAttributes: variationSelection })
       setPublishResults(res.results || [])
       loadPublishState(saved.id || draft.id)
       loadDrafts()
@@ -828,6 +832,12 @@ function toggleChannel(c: string) {
                       placeholder={'renk: Siyah\nmalzeme: Deri\nmarka: Marka adı'}
                       className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-mono text-white" />
                     <p className="mt-1 text-[11px] text-zinc-500">{t('aiAttributesHint')}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-zinc-400">Varyasyonlar (opsiyonel)</label>
+                    <div className="mt-1">
+                      <VariationPicker dark value={variationSelection} onChange={setVariationSelection} />
+                    </div>
                   </div>
 
                   {/* Images: AI edit + generate new (per-image credit) */}

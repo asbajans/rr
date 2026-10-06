@@ -13,7 +13,7 @@ export default function VariationsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Variation | null>(null)
-  const [form, setForm] = useState({ name: '', type: 'select', options: [''] as string[] })
+  const [form, setForm] = useState({ name: '', type: 'custom', options: [''] as string[] })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -29,7 +29,7 @@ export default function VariationsPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ name: '', type: 'select', options: [''] })
+    setForm({ name: '', type: 'custom', options: [''] })
     setShowModal(true)
   }
 
@@ -37,7 +37,7 @@ export default function VariationsPage() {
     setEditing(v)
     setForm({
       name: v.name,
-      type: v.type,
+      type: ['color', 'size', 'material', 'style', 'custom'].includes(v.type) ? v.type : 'custom',
       options: v.options?.map((o) => o.value) || [''],
     })
     setShowModal(true)
@@ -67,7 +67,7 @@ export default function VariationsPage() {
       const data = {
         name: form.name,
         type: form.type,
-        options: form.options.filter((o) => o.trim()).map((o, i) => ({ value: o, sort_order: i })),
+        options: form.options.filter((o) => o.trim()),
       }
       if (editing) {
         await api.updateVariation(editing.id, data)
@@ -157,9 +157,11 @@ export default function VariationsPage() {
                 <label className="block text-sm font-medium text-zinc-700">Tip</label>
                 <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
                   className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-                  <option value="select">Seçim</option>
+                  <option value="custom">Seçim / Özel</option>
                   <option value="color">Renk</option>
-                  <option value="text">Metin</option>
+                  <option value="size">Beden</option>
+                  <option value="material">Materyal</option>
+                  <option value="style">Stil</option>
                 </select>
               </div>
               <div>

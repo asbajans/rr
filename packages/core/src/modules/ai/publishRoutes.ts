@@ -61,7 +61,8 @@ async function resolveProduct(
   draft: AiProductDraft,
   transaction: any,
   selections?: ChannelSelections,
-  channels: AiChannel[] = []
+  channels: AiChannel[] = [],
+  variantAttributes?: unknown
 ): Promise<{ product: Product; created: boolean }> {
   const marketplaces = [...new Set(
     (channels as string[]).map((c) => CHANNEL_TO_MARKETPLACE[c] ?? c).filter(Boolean)
@@ -77,13 +78,25 @@ async function resolveProduct(
 
   if (draft.productId) {
     const existing = await Product.findOne({ where: { id: draft.productId, storeId }, transaction });
-    if (existing) return { product: await mergeMarketplaces(existing), created: false };
+    if (existing) {
+      const merged = await mergeMarketplaces(existing);
+      if (variantAttributes && typeof variantAttributes === 'object') {
+        const { syncProductVariants } = await import('../product/variantSync.js');
+        await syncProductVariants(merged, variantAttributes, transaction);
+      }
+      return { product: merged, created: false };
+    }
   }
   if (draft.sku) {
     const existing = await Product.findOne({ where: { storeId, sku: draft.sku }, transaction });
     if (existing) {
       await draft.update({ productId: existing.id }, { transaction });
-      return { product: await mergeMarketplaces(existing), created: false };
+      const merged = await mergeMarketplaces(existing);
+      if (variantAttributes && typeof variantAttributes === 'object') {
+        const { syncProductVariants } = await import('../product/variantSync.js');
+        await syncProductVariants(merged, variantAttributes, transaction);
+      }
+      return { product: merged, created: false };
     }
   }
 
@@ -174,6 +187,11 @@ async function resolveProduct(
     isActive: true,
   }, { transaction });
 
+  if (variantAttributes && typeof variantAttributes === 'object') {
+    const { syncProductVariants } = await import('../product/variantSync.js');
+    await syncProductVariants(product, variantAttributes, transaction);
+  }
+
   await draft.update({ productId: product.id }, { transaction });
   return { product, created: true };
 }
@@ -202,6 +220,7 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
   param('id').isInt({ min: 1 }),
   body('channels').isArray().notEmpty(),
   body('selections').optional().isObject(),
+  body('variantAttributes').optional().isObject(),
 ], validate, async (req: Request, res: Response) => {
   const store = (req as any).store;
   const draft = await AiProductDraft.findOne({ where: { id: req.params.id, storeId: store.id } });
@@ -228,7 +247,7 @@ publishRoutes.post('/product-drafts/:id/publish', authMiddleware, requireStore, 
 
   try {
     await sequelize.transaction(async (transaction: any) => {
-      const { product, created } = await resolveProduct(store.id, draft, transaction, selections, channels);
+      const { product, created } = await resolveProduct(store.id, draft, transaction, selections, channels, (req.body as any).variantAttributes);
       publishedProductId = product.id;
 
       for (const channel of channels) {

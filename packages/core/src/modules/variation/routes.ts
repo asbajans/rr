@@ -6,6 +6,18 @@ import { logger } from '../../utils/logger.js';
 
 export const variationRoutes: Router = Router();
 
+const VALID_TYPES = ['color', 'size', 'material', 'style', 'custom'];
+// Legacy frontend values ('select', 'text') map to 'custom'
+const normalizeType = (t: unknown) =>
+  t === 'select' || t === 'text' ? 'custom' : t;
+
+const normalizeOptions = (options: unknown): string[] => {
+  if (!Array.isArray(options)) return [];
+  return (options as any[])
+    .map((o) => (typeof o === 'string' ? o : o?.value))
+    .filter((v) => typeof v === 'string' && v.trim().length > 0);
+};
+
 const validate = (req: Request, res: Response, next: Function) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -32,17 +44,22 @@ variationRoutes.get('/', authMiddleware, requireStore, async (req: Request, res:
 
 variationRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   body('name').isString().isLength({ min: 2, max: 100 }),
-  body('type').isString().isIn(['color', 'size', 'material', 'style', 'custom']),
+  body('type').custom((v) => {
+    if (!VALID_TYPES.includes(String(normalizeType(v)))) throw new Error('Invalid type');
+    return true;
+  }),
   body('options').optional().isArray(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
-    const { name, type, options } = req.body;
+    const { name } = req.body;
+    const type = normalizeType(req.body.type);
+    const values = normalizeOptions(req.body.options);
 
-    const variation = await Variation.create({ storeId: store.id, name, type });
+    const variation = await Variation.create({ storeId: store.id, name, type: type as string });
 
-    if (options && options.length > 0) {
-      await VariationOption.bulkCreate(options.map((value: string, index: number) => ({
+    if (values.length > 0) {
+      await VariationOption.bulkCreate(values.map((value: string, index: number) => ({
         variationId: variation.id,
         value,
         sortOrder: index,
@@ -81,14 +98,31 @@ variationRoutes.get('/:id', authMiddleware, requireStore, [
 variationRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), requireStore, [
   param('id').isInt(),
   body('name').optional().isString().isLength({ min: 2, max: 100 }),
-  body('type').optional().isString().isIn(['color', 'size', 'material', 'style', 'custom']),
+  body('type').optional().custom((v) => VALID_TYPES.includes(String(normalizeType(v)))),
+  body('options').optional().isArray(),
 ], validate, async (req: Request, res: Response) => {
   try {
     const store = (req as any).store;
     const variation = await Variation.findOne({ where: { id: req.params.id, storeId: store.id } });
     if (!variation) return res.status(404).json({ error: 'Variation not found' });
 
-    await variation.update(req.body);
+    const patch: any = {};
+    if (req.body.name !== undefined) patch.name = req.body.name;
+    if (req.body.type !== undefined) patch.type = normalizeType(req.body.type);
+    await variation.update(patch);
+
+    // Sync options when provided (replace all)
+    if (req.body.options !== undefined) {
+      const values = normalizeOptions(req.body.options);
+      await VariationOption.destroy({ where: { variationId: variation.id } });
+      if (values.length > 0) {
+        await VariationOption.bulkCreate(values.map((value: string, index: number) => ({
+          variationId: variation.id,
+          value,
+          sortOrder: index,
+        })));
+      }
+    }
     const fullVariation = await Variation.findByPk(variation.id, {
       include: [{ model: VariationOption, as: 'options', order: [['sortOrder', 'ASC']] }],
     });

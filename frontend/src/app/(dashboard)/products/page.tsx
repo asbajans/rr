@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth'
+import VariationPicker from '@/components/product/VariationPicker'
 import { Product, MarketplaceEntry, MarketplaceCategory, Category, Brand } from '@/lib/types'
 import { Sparkles, Camera, Coins, ArrowUpRight, Package, ExternalLink, Share2 } from 'lucide-react'
 import { TableSkeleton, EmptyState } from '@/components/ui/skeleton'
@@ -34,6 +35,7 @@ interface ProductModalData {
   marketplace_data: Record<string, MarketplaceEntry>
   marketplace_sync: Record<string, import('@/lib/types').MarketplaceSyncEntry>
   description: string
+  variant_attributes?: Record<string, string[]> | null
   is_b2b_clone?: boolean
   b2b_enabled?: boolean
   b2b_discount?: number | null
@@ -272,6 +274,7 @@ export default function ProductsPage() {
       marketplace_data: p.marketplace_data ?? {},
       marketplace_sync: p.marketplace_sync ?? {},
       description: p.description ?? '',
+      variant_attributes: p.variant_attributes ?? {},
       is_b2b_clone: p.is_b2b_clone ?? false,
       b2b_enabled: p.b2b_enabled ?? false,
       b2b_discount: p.b2b_discount ?? null,
@@ -323,6 +326,7 @@ export default function ProductsPage() {
       marketplace_data: {},
       marketplace_sync: {},
       description: '',
+      variant_attributes: {},
     })
     setCreating(true)
     setModalOpen(true)
@@ -364,6 +368,7 @@ on_sale: !!md.on_sale,
     }
     const code = product.code.trim()
     if (code) payload.code = code
+    if (product.variant_attributes) payload.variantAttributes = product.variant_attributes
     const imgs = product.images.map((s) => s.trim()).filter(Boolean)
     if (imgs.length) payload.media_urls = imgs
     if (product.description.trim()) payload.description = product.description.trim()
@@ -1427,6 +1432,14 @@ on_sale: !!md.on_sale,
                   rows={3}
                   className="w-full border rounded px-2 py-1.5 text-sm"
                   placeholder="Ürün açıklaması"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Varyasyonlar (opsiyonel)</label>
+                <VariationPicker
+                  value={product.variant_attributes ?? {}}
+                  onChange={(v) => setProduct({ ...product, variant_attributes: v })}
                 />
               </div>
 

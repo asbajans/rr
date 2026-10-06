@@ -72,6 +72,8 @@ function toStoreProduct(p: any): any {
     description: m.description ?? null,
     tags: m.tags ?? null,
     attributes: m.attributes ?? null,
+    variant_attributes: m.variantAttributes ?? m.variant_attributes ?? null,
+    variants: Array.isArray(m.variants) ? m.variants : [],
     seo_title: m.seo_title ?? null,
     seo_description: m.seo_description ?? null,
   }
@@ -1379,8 +1381,8 @@ class ApiClient {
     return this.post<{ results: Array<{ channel: string; status: string; missingFields: string[]; message?: string; suggestion?: string }> }>(`/api/ai/product-drafts/${id}/validate-channels`, { channels, ...(selections ? { selections } : {}) }).then(r => r.results || [])
   }
 
-  publishAiProductDraft(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null; attributes?: any[] }>) {
-    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels, ...(selections ? { selections } : {}) })
+  publishAiProductDraft(id: number, channels: string[], selections?: Record<string, { categoryId?: string | number | null; brandId?: string | null; brand?: string | null; attributes?: any[] }>, opts?: { variantAttributes?: Record<string, string[]> }) {
+    return this.post<{ ok: boolean; productId?: number; results: any[] }>(`/api/ai/product-drafts/${id}/publish`, { channels, ...(selections ? { selections } : {}), ...(opts?.variantAttributes && Object.keys(opts.variantAttributes).length ? { variantAttributes: opts.variantAttributes } : {}) })
   }
 
   retryAiProductPublish(id: number, channels?: string[]) {
@@ -1930,6 +1932,7 @@ class ApiClient {
     if (data.price_multiplier != null) payload.priceMultiplier = data.price_multiplier
     if (data.video_url) payload.videoUrl = data.video_url
     if (data.tags) payload.tags = data.tags
+    if (data.variantAttributes !== undefined) payload.variantAttributes = data.variantAttributes
     return this.post<{ product: import('./types').Product }>('/api/admin/products', payload).then(r => r.product)
   }
 
@@ -1956,6 +1959,7 @@ class ApiClient {
     if (data.price_multiplier != null) payload.priceMultiplier = data.price_multiplier
     if (data.video_url) payload.videoUrl = data.video_url
     if (data.tags) payload.tags = data.tags
+    if (data.variantAttributes !== undefined) payload.variantAttributes = data.variantAttributes
     return this.put<{ product: import('./types').Product }>(`/api/admin/products/${id}`, payload).then(r => r.product)
   }
 

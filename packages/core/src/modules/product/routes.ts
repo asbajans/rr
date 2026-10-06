@@ -188,6 +188,16 @@ productRoutes.post('/', authMiddleware, requireRole('owner', 'admin'), requireSt
 
     logger.info(`Product created: ${product.id} (${product.sku}) by store ${store.id}`);
 
+    // Auto-generate variant rows when variantAttributes (e.g. from Variation picker) are provided
+    if (req.body.variantAttributes && typeof req.body.variantAttributes === 'object') {
+      try {
+        const { syncProductVariants } = await import('./variantSync.js');
+        await syncProductVariants(product, req.body.variantAttributes);
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to sync variants for new product');
+      }
+    }
+
     // Auto-queue sync for configured marketplaces
     const mps = req.body.marketplaces;
     if (Array.isArray(mps) && mps.length > 0) {
@@ -290,6 +300,16 @@ productRoutes.put('/:id', authMiddleware, requireRole('owner', 'admin'), require
     const changedFields = Object.keys(req.body);
     await product.update(req.body);
     logger.info(`Product updated: ${product.id} (${product.sku})`);
+
+    // Reconcile variant rows when the Variation picker selection changes
+    if ('variantAttributes' in req.body) {
+      try {
+        const { syncProductVariants } = await import('./variantSync.js');
+        await syncProductVariants(product, req.body.variantAttributes);
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to sync variants for updated product');
+      }
+    }
 
     // Auto-queue sync for configured marketplaces on price/stock/fields change
     const mps = req.body.marketplaces || product.marketplaces;

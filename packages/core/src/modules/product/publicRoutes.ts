@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { Product } from '../../models/Product.model.js';
+import { ProductVariant } from '../../models/ProductVariant.model.js';
 import { Category } from '../../models/Category.model.js';
 import { Store } from '../../models/Store.model.js';
 import { apiKeyMiddleware } from '../auth/middleware.js';
@@ -119,17 +120,35 @@ publicProductRoutes.get('/:siteCode/products/:id', async (req: Request, res: Res
       where: { [Op.and]: [idOrSlugWhere, baseWhere] },
       include: [
         { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
+        { model: ProductVariant, as: 'variants' },
       ],
     });
     if (!product && isNumericId) {
       product = await Product.findOne({
         where: { [Op.and]: [{ slug: id }, baseWhere] },
-        include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
+        include: [
+          { model: Category, as: 'category', attributes: ['id', 'name', 'slug'] },
+          { model: ProductVariant, as: 'variants' },
+        ],
       });
     }
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    res.json({ product: normalizeProductImages(product) });
+    const normalized: any = normalizeProductImages(product);
+    // Only expose active variants with their purchasable fields to the storefront
+    const variants = ((normalized.variants as any[]) || [])
+      .filter((v) => v?.isActive !== false)
+      .map((v) => ({
+        id: v.id,
+        sku: v.sku,
+        attributes: v.attributes || {},
+        quantity: v.quantity ?? 0,
+        priceTRY: v.priceTRY ?? null,
+        priceUSD: v.priceUSD ?? null,
+      }));
+    normalized.variants = variants;
+
+    res.json({ product: normalized });
   } catch (error) {
     console.error('Public product detail error:', error);
     res.status(500).json({ error: 'Internal server error' });

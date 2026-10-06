@@ -34,6 +34,8 @@ export default function ProductDetailClient({
   const [error, setError] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
+  const [selection, setSelection] = useState<Record<string, string>>({})
+  const [variantMsg, setVariantMsg] = useState('')
   const [recommendations, setRecommendations] = useState<StoreProduct[]>([])
   const [loadingRecs, setLoadingRecs] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
@@ -52,6 +54,12 @@ export default function ProductDetailClient({
 
   useEffect(() => {
     window.scrollTo(0, 0)
+  }, [productId])
+
+  useEffect(() => {
+    setSelection({})
+    setVariantMsg('')
+    setQuantity(1)
   }, [productId])
 
   useEffect(() => {
@@ -177,17 +185,52 @@ export default function ProductDetailClient({
 
   function handleAddToCart() {
     if (!product) return
-    addItem({
-      product_id: product['product.id'],
-      sku: product['product.code'],
-      name: product['product.label'],
-      price: product.price ?? 0,
-      image: allImages[0] ?? undefined,
-      quantity,
-    })
-    try { trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
+    const item = buildCartItem()
+    if (!item) return
+    addItem(item)
+    try { trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity, ...selection } }) } catch {}
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
+  }
+
+  const variantNames: string[] = product?.variant_attributes ? Object.keys(product.variant_attributes) : []
+  const storeVariants = product?.variants ?? []
+  const hasVariants = variantNames.length > 0 && storeVariants.length > 0
+  const allSelected = variantNames.every((n) => !!selection[n])
+  const matchedVariant = hasVariants && allSelected
+    ? storeVariants.find((v) => variantNames.every((n) => (v.attributes as any)?.[n] === selection[n]))
+    : undefined
+  const displayPrice = matchedVariant
+    ? (matchedVariant.priceTRY ?? matchedVariant.priceUSD ?? product?.price ?? 0)
+    : (product?.price ?? 0)
+  const displaySku = matchedVariant?.sku ?? product?.['product.code'] ?? ''
+
+  function buildCartItem() {
+    if (!product) return null
+    if (hasVariants && !allSelected) {
+      setVariantMsg('Lütfen tüm seçenekleri seçin: ' + variantNames.filter((n) => !selection[n]).join(', '))
+      return null
+    }
+    if (hasVariants && allSelected && !matchedVariant) {
+      setVariantMsg('Bu kombinasyon stokta yok.')
+      return null
+    }
+    if (matchedVariant && matchedVariant.quantity <= 0) {
+      setVariantMsg('Seçili kombinasyon tükendi.')
+      return null
+    }
+    setVariantMsg('')
+    const suffix = hasVariants && matchedVariant
+      ? ' (' + variantNames.map((n) => `${n}: ${selection[n]}`).join(', ') + ')'
+      : ''
+    return {
+      product_id: product['product.id'],
+      sku: displaySku,
+      name: `${product['product.label']}${suffix}`,
+      price: displayPrice,
+      image: allImages[0] ?? undefined,
+      quantity,
+    }
   }
 
   if (loading) {
@@ -276,8 +319,57 @@ export default function ProductDetailClient({
           </div>
           {product.price !== null && (
             <p className="mt-4 text-2xl font-semibold text-zinc-900">
-              {product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {product.currency ?? 'TRY'}
+              {displayPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {product.currency ?? 'TRY'}
             </p>
+          )}
+          {hasVariants && (
+            <div className="mt-6 space-y-4">
+              {variantNames.map((name) => (
+                <div key={name}>
+                  <p className="text-sm font-medium text-zinc-900">
+                    {name}
+                    {selection[name] && <span className="ml-2 font-normal text-zinc-500">: {selection[name]}</span>}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(product.variant_attributes?.[name] ?? []).map((opt) => {
+                      const active = selection[name] === opt
+                      const wouldMatch = storeVariants.some((v) =>
+                        variantNames.every((n) =>
+                          n === name ? (v.attributes as any)?.[n] === opt : !selection[n] || (v.attributes as any)?.[n] === selection[n]
+                        )
+                      )
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() => { setSelection((s) => ({ ...s, [name]: opt })); setVariantMsg('') }}
+                          disabled={!wouldMatch}
+                          className={`rounded-lg border px-4 py-2 text-sm transition-colors ${
+                            active
+                              ? 'border-zinc-900 bg-zinc-900 text-white'
+                              : wouldMatch
+                                ? 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-900'
+                                : 'border-zinc-200 bg-zinc-50 text-zinc-300 line-through'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              {matchedVariant && (
+                <p className="text-xs text-zinc-500">
+                  Seçili: {displaySku}
+                  {matchedVariant.quantity <= 0 ? (
+                    <span className="ml-2 font-medium text-red-600">Tükendi</span>
+                  ) : (
+                    <span className="ml-2">Stok: {matchedVariant.quantity}</span>
+                  )}
+                </p>
+              )}
+              {variantMsg && <p className="text-sm text-red-600">{variantMsg}</p>}
+            </div>
           )}
           {product.description && (
             <div className="mt-6 text-sm leading-relaxed text-zinc-600 prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0"
@@ -305,7 +397,7 @@ export default function ProductDetailClient({
               </div>
             </div>
           )}
-          <div className="mt-4 text-xs text-zinc-400">SKU: {product['product.code']}</div>
+          <div className="mt-4 text-xs text-zinc-400">SKU: {displaySku}</div>
 
           <div className="mt-8 flex items-center gap-4">
             <div className="flex items-center rounded-lg border border-zinc-300">
@@ -332,15 +424,10 @@ export default function ProductDetailClient({
 
           <button
             onClick={() => {
-              addItem({
-                product_id: product['product.id'],
-                sku: product['product.code'],
-                name: product['product.label'],
-                price: product.price ?? 0,
-                image: allImages[0] ?? undefined,
-                quantity,
-              })
-              try { trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity } }) } catch {}
+              const item = buildCartItem()
+              if (!item) return
+              addItem(item)
+              try { trackStore(siteCode, 'add_to_cart', { productId: Number(product['product.id']), metadata: { quantity, ...selection } }) } catch {}
               router.push(`${storeBase(siteCode)}/cart`)
             }}
             className="mt-2 w-full rounded-lg border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"

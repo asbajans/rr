@@ -91,6 +91,8 @@ function mapStoreProduct(p: ProductRow): any {
     description: (p as any).description ?? null,
     tags: (p as any).tags ?? null,
     attributes: (p as any).attributes ?? null,
+    variant_attributes: (p as any).variantAttributes ?? (p as any).variant_attributes ?? null,
+    variants: Array.isArray((p as any).variants) ? (p as any).variants : [],
     seo_title: (p as any).seoTitle ?? (p as any).seo_title ?? null,
     seo_description: (p as any).seoDescription ?? (p as any).seo_description ?? null,
     slug: (p as any).slug ?? null,
