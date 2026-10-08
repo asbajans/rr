@@ -2,6 +2,7 @@ import { Tabs, Redirect } from 'expo-router'
 import { Pressable, View, Text } from 'react-native'
 import { useAuth } from '../../src/shared/auth'
 import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useI18n } from '../../src/shared/i18n'
 
 function AiFabButton({ children, onPress, accessibilityState }: any) {
@@ -29,6 +30,7 @@ export default function TabLayout() {
   const { t } = useI18n()
   const b2bEnabled = can('b2b_request') || can('b2b') || can('b2b_supply')
   const supplierEnabled = can('b2b_supply') || can('b2b')
+  const insets = useSafeAreaInsets()
 
   if (!user) {
     return <Redirect href="/(auth)/login" />
@@ -40,7 +42,7 @@ export default function TabLayout() {
       tabBarInactiveTintColor: '#999',
       headerStyle: { backgroundColor: '#fff' },
       headerTitleStyle: { fontWeight: '600' },
-      tabBarStyle: { height: 66, paddingBottom: 6, paddingTop: 4, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingHorizontal: 2 },
+      tabBarStyle: { height: 66 + insets.bottom, paddingBottom: Math.max(insets.bottom, 6), paddingTop: 4, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingHorizontal: 2 },
       tabBarLabelStyle: { fontSize: 9, fontWeight: '600', marginTop: 2 },
       tabBarItemStyle: { flex: 1, paddingHorizontal: 1, minWidth: 0 },
       tabBarIconStyle: { marginBottom: 1 },

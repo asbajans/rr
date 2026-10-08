@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
 import * as Notifications from 'expo-notifications'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '../src/shared/auth'
 import { I18nProvider } from '../src/shared/i18n'
 import { ActivityIndicator, View } from 'react-native'
@@ -63,11 +64,13 @@ function RootLayout() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <I18nProvider>
-          <RootLayout />
-        </I18nProvider>
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <I18nProvider>
+            <RootLayout />
+          </I18nProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   )
 }
